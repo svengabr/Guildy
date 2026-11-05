@@ -47,6 +47,21 @@ function ns.SafeCall(fn, ...)
   return ok
 end
 
+-- Forever has Retail's secret values: in instances and encounters chat texts and senders can be secret,
+-- and addon code must not inspect them (no indexing, comparing or pattern matching).
+function ns.IsSecret(value)
+  local check = rawget(_G, "issecretvalue")
+  return check ~= nil and check(value) == true
+end
+
+-- True when any of the values is secret
+function ns.AnySecret(...)
+  for i = 1, select("#", ...) do
+    if ns.IsSecret((select(i, ...))) then return true end
+  end
+  return false
+end
+
 -- Calls fn(...) only if it exists; returns its results, or nil when missing or failing
 function ns.Try(fn, ...)
   if type(fn) ~= "function" then return nil end

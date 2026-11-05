@@ -41,6 +41,7 @@ end
 -- Game events ------------------------------------------------------------------------------------
 
 function Chat.OnGuildMessage(kind, text, sender, guid)
+  if ns.AnySecret(text, sender, guid) then return end
   local member = ns.Roster.Find(sender)
   Push(buffers[kind], {
     kind = kind, sender = ns.Names.Normalize(sender), senderFull = sender, text = text, ts = ns.Now(),
@@ -50,7 +51,7 @@ function Chat.OnGuildMessage(kind, text, sender, guid)
 end
 
 function Chat.OnSystemMessage(text)
-  if type(text) ~= "string" then return end
+  if ns.IsSecret(text) or type(text) ~= "string" then return end
   for _, pattern in ipairs(SystemPatterns()) do
     if text:match(pattern) then
       Push(systemLines, { system = true, text = text, ts = ns.Now() }, 50)
@@ -62,6 +63,7 @@ function Chat.OnSystemMessage(text)
 end
 
 function Chat.OnWhisper(sender)
+  if ns.IsSecret(sender) then return end
   local name = ns.Names.Normalize(sender)
   if name == "" or ns.Roster.IsMember(name) then return end
   for i = #whispers, 1, -1 do
@@ -116,7 +118,7 @@ local function ClubHistory(kind)
   if not messages or #messages == 0 then return nil end
   local lines = {}
   for _, msg in ipairs(messages) do
-    if not msg.destroyed and msg.author then
+    if not msg.destroyed and msg.author and not ns.AnySecret(msg.content, msg.author.name) then
       local classInfo = msg.author.classID and ns.Try(C_CreatureInfo and C_CreatureInfo.GetClassInfo, msg.author.classID)
       lines[#lines + 1] = {
         kind = kind, sender = ns.Names.Normalize(msg.author.name or "?"), senderFull = msg.author.name,

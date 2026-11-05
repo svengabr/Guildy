@@ -62,7 +62,12 @@ local HANDLERS = {
 
 frame:SetScript("OnEvent", function(_, event, ...)
   local handler = HANDLERS[event]
-  if handler then ns.SafeCall(handler, ...) end
+  if not handler then return end
+  -- chat events: skip messages whose text, sender or guid are secret (instances, encounters)
+  if event:find("^CHAT_MSG_") and ns.AnySecret(select(1, ...), select(2, ...), select(4, ...), select(12, ...)) then
+    return
+  end
+  ns.SafeCall(handler, ...)
 end)
 for event in pairs(HANDLERS) do
   pcall(frame.RegisterEvent, frame, event) -- some events may not exist on this client

@@ -132,6 +132,7 @@ local HANDLERS = { SUM = OnSummary, PROF = OnProfessions }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)
+  if ns.AnySecret(prefix, text, channel, sender) then return end
   if prefix ~= Proto.PREFIX or channel ~= "GUILD" or not Proto.IsPart(text) then return end
   if ns.Names.Same(sender, ns.PlayerName()) then return end
   local payload = Proto.AddPart(assembler, sender, text, ns.Now())

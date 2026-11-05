@@ -179,7 +179,7 @@ end
 
 -- Profession links in chat: "I can do this" for the linking member (or the guid in the link)
 function TradeSkill.OnChatMessage(text, sender, guid)
-  if type(text) ~= "string" or not text:find("|Htrade:", 1, true) then return end
+  if ns.AnySecret(text, sender, guid) or type(text) ~= "string" or not text:find("|Htrade:", 1, true) then return end
   local guild = ns.GuildData()
   if not guild then return end
   local db = ns.DB()

@@ -96,6 +96,8 @@ env.C_Timer = {
   NewTicker = function() return { Cancel = function() end } end,
 }
 env.tinsert = table.insert
+local SECRET = setmetatable({}, { __index = function() error("secret value inspected") end })
+env.issecretvalue = function(v) return v == SECRET end
 env.SetOverrideBindingClick = function(_, _, key, button) boundKeys[key] = button end
 env.GetBindingKey = function(action) if action == "TOGGLEGUILDTAB" then return "J" end end
 env.ClearOverrideBindings = function() end
@@ -226,6 +228,10 @@ T.describe("Smoke", function()
   T.it("handles chat, links and sync messages", function()
     Fire("CHAT_MSG_GUILD", "hallo |Htrade:Player-1-03:3908:197|h[Schneiderei]|h", "Au-Tsch", "", "", "", "", 0, 0, "", 0, 1, "Player-1-03")
     Fire("CHAT_MSG_SYSTEM", "Xii Lightspark ist der Gilde beigetreten.")
+    Fire("CHAT_MSG_SYSTEM", SECRET)
+    Fire("CHAT_MSG_GUILD", SECRET, "Au-Tsch")
+    Fire("CHAT_MSG_WHISPER", "hi", SECRET)
+    Fire("CHAT_MSG_ADDON", "GUILDY", SECRET, "GUILD", "Au-Tsch")
     Fire("CHAT_MSG_WHISPER", "inv pls", "Xii-Lightspark")
     T.eq(#ns.Chat.History("guild"), 2)
     T.eq(ns.Chat.RecentWhispers()[1].name, "Xii Lightspark")
