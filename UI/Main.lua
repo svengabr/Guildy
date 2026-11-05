@@ -80,7 +80,7 @@ local function SideTab(parent, texture, tooltip, onClick)
   tab.Bar = tab.Over:CreateTexture(nil, "OVERLAY", nil, 3)
   tab.Bar:SetColorTexture(1, 0.82, 0, 1)
   tab.Bar:SetWidth(4)
-  tab.Bar:SetPoint("RIGHT", tab, "LEFT", -4, 0)
+  tab.Bar:SetPoint("RIGHT", tab, "LEFT", -3, 0)
   tab.Bar:Hide()
   local function UpdateBar(self)
     if self:GetChecked() then
@@ -162,7 +162,7 @@ local function Build()
   frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true)
   frame:SetClampedToScreen(true)
-  frame:SetClampRectInsets(-(TAB_SIZE + 14), 0, 0, 0) -- keep the button column left of the window on screen
+  frame:SetClampRectInsets(-(TAB_SIZE + 18), 0, 0, 0) -- keep the button rail left of the window on screen
   frame:SetMovable(true)
   frame:SetResizable(true)
   ApplyBounds()
@@ -191,9 +191,15 @@ local function Build()
     if portrait then portrait:SetAlpha(0) end
   end
 
-  -- round buttons in a column left of the window (like Discord's server list): Guildy, Blizzard's window
-  frame.GuildTab = SideTab(frame, nil, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
-  frame.GuildTab:SetPoint("TOPRIGHT", frame, "TOPLEFT", -6, -66)
+  -- rail left of the window (like Discord's server list): a dark strip with a gold edge, tucked under
+  -- the window border, holding round buttons: Guildy, Blizzard's window
+  frame.Rail = W.Box(frame, 0.05, 0.9)
+  frame.Rail:SetPoint("TOPRIGHT", frame, "TOPLEFT", 8, -58)
+  frame.Rail:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", 8, 10)
+  frame.Rail:SetWidth(TAB_SIZE + 26)
+  frame.Rail:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+  frame.GuildTab = SideTab(frame.Rail, nil, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
+  frame.GuildTab:SetPoint("TOP", frame.Rail, "TOP", -4, -12)
   frame.GuildTab.Emblem = UI.GuildEmblem(frame.GuildTab, TAB_SIZE - 6)
   frame.GuildTab.Emblem:SetPoint("CENTER")
   frame.GuildTab.keepChecked = true
@@ -205,8 +211,8 @@ local function Build()
     icon:SetPoint("BOTTOMRIGHT", -4, 4)
     icon:SetTexture(W.LOGO)
   end
-  frame.CommunitiesTab = SideTab(frame, "Interface\\Icons\\achievement_guildperk_havegroup willtravel", ns.L.ICON_COMMUNITIES)
-  frame.CommunitiesTab:SetPoint("TOP", frame.GuildTab, "BOTTOM", 0, -10)
+  frame.CommunitiesTab = SideTab(frame.Rail, "Interface\\Icons\\achievement_guildperk_havegroup willtravel", ns.L.ICON_COMMUNITIES)
+  frame.CommunitiesTab:SetPoint("TOP", frame.GuildTab, "BOTTOM", 0, -12)
   UI.SecureAction(frame.CommunitiesTab, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   UpdateTitle()
 
