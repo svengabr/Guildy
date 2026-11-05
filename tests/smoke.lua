@@ -209,7 +209,7 @@ T.describe("Smoke", function()
   end)
 
   T.it("opens the window on the chat tab and every tab", function()
-    env.GuildyToggleButton._scripts.OnClick()
+    env.GuildyToggleButton._scripts.PostClick(env.GuildyToggleButton, "LeftButton", false)
     T.truthy(ns.UI.IsShown(), "J opens Guildy")
     T.eq(boundKeys.J, "GuildyToggleButton")
     T.eq(ns.UI.Current(), "chat")

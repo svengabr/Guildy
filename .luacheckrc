@@ -15,7 +15,7 @@ globals = {
 }
 
 read_globals = {
-  "C_AddOns", "C_ChatInfo", "C_Club", "C_CreatureInfo", "C_GuildInfo", "C_PartyInfo", "C_Spell", "C_Texture",
+  "C_AddOns", "C_CVar", "C_ChatInfo", "C_Club", "C_CreatureInfo", "C_GuildInfo", "C_PartyInfo", "C_Spell", "C_Texture",
   "C_Timer", "C_TradeSkillUI", "Enum",
   "ACCEPT", "CANCEL", "YES", "NO",
   "BackdropTemplateMixin", "ClearOverrideBindings", "SetOverrideBindingClick", "ButtonFrameTemplate_HideButtonBar", "ChatFrameUtil", "ChatTypeInfo", "ClearCursor",

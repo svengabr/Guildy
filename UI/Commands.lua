@@ -28,6 +28,11 @@ local function BlizzardInviteButton()
   return button
 end
 
+-- Whether Blizzard's invite button can be clicked right away
+function Action.InviteReady()
+  return BlizzardInviteButton() ~= nil
+end
+
 -- Blizzard's guild window (everything Guildy can't do itself)
 function Action.BlizzardWindow()
   local micro = rawget(_G, "GuildMicroButton")
