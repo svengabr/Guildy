@@ -20,7 +20,7 @@ local function Build(panel)
   top:SetPoint("TOPRIGHT", 0, 0)
   top:SetHeight(26)
   local label = W.Text(top, "GameFontNormal", L.ACTIVE_IN)
-  label:SetPoint("LEFT", 4, 0)
+  label:SetPoint("LEFT", 52, 0) -- clear of the portrait
   view.Window = W.Segmented(top, {
     { value = 30, text = L.WINDOW_1M }, { value = 90, text = L.WINDOW_3M },
     { value = 180, text = L.WINDOW_6M }, { value = false, text = L.WINDOW_ALL },

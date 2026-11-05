@@ -78,7 +78,7 @@ local function Build(panel)
   main:SetPoint("BOTTOMRIGHT", details, "BOTTOMLEFT", -8, 0)
 
   local search = W.EditBox(main, 170)
-  search:SetPoint("TOPLEFT", 6, -4)
+  search:SetPoint("TOPLEFT", 54, -4) -- clear of the portrait
   search.Hint = W.Text(search, "GameFontDisableSmall", L.SEARCH_MEMBERS)
   search.Hint:SetPoint("LEFT", 2, 0)
   search:SetScript("OnTextChanged", function(self)

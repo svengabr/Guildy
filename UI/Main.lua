@@ -39,30 +39,83 @@ local function ApplyBounds()
   end
 end
 
-local function IconButton(parent, texture, tooltip, onClick)
-  local button = CreateFrame("Button", nil, parent)
-  button:SetSize(36, 36)
-  button.Icon = button:CreateTexture(nil, "ARTWORK")
-  button.Icon:SetAllPoints()
-  button.Icon:SetTexture(texture)
-  button.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  button.Border = button:CreateTexture(nil, "OVERLAY")
-  button.Border:SetPoint("TOPLEFT", -3, 3)
-  button.Border:SetPoint("BOTTOMRIGHT", 3, -3)
-  button.Border:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-  button.Border:SetBlendMode("ADD")
-  button.Border:SetVertexColor(0.3, 1, 0.3)
-  button.Border:Hide()
-  button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-  button:SetScript("OnClick", onClick)
-  W.Tooltip(button, tooltip)
-  return button
+-- Side tab in the style of Blizzard's spellbook / guild window tabs: 32 px icon on a tab background,
+-- highlight on hover, glow when it is the current place
+local function SideTab(parent, texture, tooltip, onClick)
+  local tab = CreateFrame("CheckButton", nil, parent)
+  tab:SetSize(32, 32)
+  tab.Background = tab:CreateTexture(nil, "BACKGROUND")
+  tab.Background:SetTexture("Interface\\SpellBook\\SpellBook-SkillLineTab")
+  tab.Background:SetSize(64, 64)
+  tab.Background:SetPoint("TOPLEFT", -3, 11)
+  if texture then
+    tab:SetNormalTexture(texture)
+    local normal = tab:GetNormalTexture()
+    if normal then normal:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+  end
+  -- hover and "current" glow on their own layer above anything placed in the tab (the guild emblem)
+  tab.Over = CreateFrame("Frame", nil, tab)
+  tab.Over:SetAllPoints()
+  tab.Over:SetFrameLevel(tab:GetFrameLevel() + 10)
+  tab.Over.Hover = tab.Over:CreateTexture(nil, "OVERLAY")
+  tab.Over.Hover:SetAllPoints()
+  tab.Over.Hover:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+  tab.Over.Hover:SetBlendMode("ADD")
+  tab.Over.Hover:Hide()
+  tab.Over.Glow = tab.Over:CreateTexture(nil, "OVERLAY")
+  tab.Over.Glow:SetAllPoints()
+  tab.Over.Glow:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+  tab.Over.Glow:SetBlendMode("ADD")
+  tab.Over.Glow:Hide()
+  hooksecurefunc(tab, "SetChecked", function(self, checked) self.Over.Glow:SetShown(checked and true or false) end)
+  tab:SetScript("OnClick", function(self)
+    self:SetChecked(self.keepChecked or false)
+    if onClick then onClick(self) end
+  end)
+  W.Tooltip(tab, tooltip)
+  tab:HookScript("OnEnter", function(self) self.Over.Hover:Show() end)
+  tab:HookScript("OnLeave", function(self) self.Over.Hover:Hide() end)
+  return tab
+end
+
+-- The guild's emblem drawn with Blizzard's SetLargeGuildTabardTextures (background, emblem, border).
+-- holder.ok is false when the client lacks the function (then the caller keeps its own icon).
+function UI.GuildEmblem(parent, size)
+  local holder = CreateFrame("Frame", nil, parent)
+  holder:SetSize(size, size)
+  holder.Background = holder:CreateTexture(nil, "BACKGROUND", nil, 1)
+  holder.Background:SetTexture("Interface\\GuildFrame\\GuildFrame")
+  holder.Background:SetTexCoord(0.63183594, 0.69238281, 0.61914063, 0.74023438)
+  holder.Background:SetAllPoints()
+  holder.Emblem = holder:CreateTexture(nil, "BACKGROUND", nil, 2)
+  holder.Emblem:SetSize(size * 56 / 60, size * 64 / 60)
+  holder.Emblem:SetPoint("CENTER", holder, "TOPLEFT", size * 30 / 60, -size * 31 / 60)
+  holder.Border = holder:CreateTexture(nil, "BACKGROUND", nil, 3)
+  holder.Border:SetTexture("Interface\\GuildFrame\\GuildFrame")
+  holder.Border:SetTexCoord(0.63183594, 0.69238281, 0.74414063, 0.86523438)
+  holder.Border:SetPoint("TOPLEFT", 0, -1)
+  holder.Border:SetSize(size, size * 59 / 60)
+  local mask = holder.CreateMaskTexture and holder:CreateMaskTexture()
+  if mask then
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    mask:SetAllPoints()
+    for _, texture in ipairs({ holder.Background, holder.Emblem, holder.Border }) do texture:AddMaskTexture(mask) end
+  end
+  function holder:Update()
+    local set = rawget(_G, "SetLargeGuildTabardTextures")
+    self.ok = set ~= nil and IsInGuild() and (pcall(set, "player", self.Emblem, self.Background, self.Border)) or false
+    self:SetShown(self.ok)
+  end
+  holder:Update()
+  return holder
 end
 
 local function UpdateTitle()
   local guildName = IsInGuild() and GetGuildInfo("player") or nil
   local title = guildName and (guildName .. " · Guildy") or "Guildy"
   if frame.SetTitle then frame:SetTitle(title) elseif frame.TitleText then frame.TitleText:SetText(title) end
+  if frame.Emblem then frame.Emblem:Update() end
+  if frame.GuildTab and frame.GuildTab.Emblem then frame.GuildTab.Emblem:Update() end
 end
 
 local function Build()
@@ -96,23 +149,32 @@ local function Build()
   if rawget(_G, "ButtonFrameTemplate_HideButtonBar") then ButtonFrameTemplate_HideButtonBar(frame) end
   if frame.Inset then frame.Inset:Hide() end
   tinsert(UISpecialFrames, "GuildyFrame")
+
+  -- guild emblem in the portrait (Blizzard's own drawing; the grey helmet when the guild has none)
+  frame.Emblem = UI.GuildEmblem(frame, 60)
+  frame.Emblem:SetPoint("TOPLEFT", -5, 8)
+  frame.Emblem:SetFrameLevel(frame:GetFrameLevel() + 300)
+  if frame.Emblem.ok then
+    local portrait = frame.PortraitContainer and frame.PortraitContainer.portrait or frame.portrait
+    if portrait then portrait:SetAlpha(0) end
+  end
+
+  -- side tabs outside the right edge, like Blizzard's guild window: Guildy, then Blizzard's window
+  frame.GuildTab = SideTab(frame, nil, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
+  frame.GuildTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -40)
+  frame.GuildTab.Emblem = UI.GuildEmblem(frame.GuildTab, 32)
+  frame.GuildTab.Emblem:SetPoint("CENTER")
+  frame.GuildTab.keepChecked = true
+  frame.GuildTab:SetChecked(true)
+  if not frame.GuildTab.Emblem.ok then frame.GuildTab:SetNormalTexture(W.LOGO) end
+  frame.CommunitiesTab = SideTab(frame, "Interface\\Icons\\achievement_guildperk_havegroup willtravel", ns.L.ICON_COMMUNITIES)
+  frame.CommunitiesTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -17)
+  UI.SecureAction(frame.CommunitiesTab, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   UpdateTitle()
 
-  -- icon bar (below the portrait)
-  local bar = CreateFrame("Frame", nil, frame)
-  bar:SetPoint("TOPLEFT", 10, -66)
-  bar:SetPoint("BOTTOMLEFT", 10, 12)
-  bar:SetWidth(40)
-  frame.GuildButton = IconButton(bar, W.LOGO, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
-  frame.GuildButton:SetPoint("TOP", 0, 0)
-  frame.GuildButton.Border:Show()
-  frame.CommunitiesButton = IconButton(bar, "Interface\\Icons\\INV_Letter_15", ns.L.ICON_COMMUNITIES)
-  UI.SecureAction(frame.CommunitiesButton, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
-  frame.CommunitiesButton:SetPoint("TOP", frame.GuildButton, "BOTTOM", 0, -10)
-
-  -- content area
+  -- content area (the portrait overlaps its top-left corner; tabs keep their first row clear of it)
   frame.Content = CreateFrame("Frame", nil, frame)
-  frame.Content:SetPoint("TOPLEFT", 58, -30)
+  frame.Content:SetPoint("TOPLEFT", 12, -30)
   frame.Content:SetPoint("BOTTOMRIGHT", -10, 12)
 
   for i, tab in ipairs(tabs) do

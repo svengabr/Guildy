@@ -42,7 +42,7 @@ local function Build(panel)
 
   -- MOTD
   local motd = W.Box(left)
-  motd:SetPoint("TOPLEFT", 0, 0)
+  motd:SetPoint("TOPLEFT", 50, 0) -- clear of the portrait
   motd:SetPoint("TOPRIGHT", 0, 0)
   motd:SetHeight(84)
   local motdTitle = W.Text(motd, "GameFontNormal", L.MOTD)

@@ -124,7 +124,7 @@ local function Build(panel)
     end
     return items
   end, 130)
-  view.Channel:SetPoint("TOPLEFT", 0, -2)
+  view.Channel:SetPoint("TOPLEFT", 50, -2) -- clear of the portrait
 
   local chatBox = W.Box(left)
   chatBox:SetPoint("TOPLEFT", 0, -28)
