@@ -282,6 +282,46 @@ function TradeSkill.RecipeEntries()
   return entries
 end
 
+-- First profession spell of a skill line (the spell a profession link carries)
+local function ProfessionSpell(skillLine)
+  local best
+  for spell, line in pairs(P.SPELL_TO_SKILL) do
+    if line == skillLine and (not best or spell < best) then best = spell end
+  end
+  return best
+end
+
+-- Builds the profession link of a roster member: "trade:<guid>:<spellID>:<skillLine>"
+function TradeSkill.BuildLink(m, skillLine)
+  local spell = ProfessionSpell(skillLine)
+  if not (m and m.guid and spell) then return nil end
+  return ("trade:%s:%d:%d"):format(m.guid, spell, skillLine)
+end
+
+-- /guildy probe <name> <profession>: opens a self-built profession link of a guild member. Experiment:
+-- does Forever open recipe books that nobody posted, also of offline members?
+function TradeSkill.Probe(args)
+  local print = ns.Print
+  local words = {}
+  for word in (args or ""):gmatch("%S+") do words[#words + 1] = word end
+  local profWord = table.remove(words)
+  local m = ns.Roster.Find(table.concat(words, " "))
+  local skillLine = profWord and SkillByName(profWord)
+  if not m or not skillLine then
+    print("probe: usage /guildy probe <member name> <profession>, e.g. /guildy probe Makira Farron Alchemie")
+    return
+  end
+  local link = TradeSkill.BuildLink(m, skillLine)
+  print(("probe: %s (%s), %s -> %s"):format(m.name, m.online and "online" or "offline", TradeSkill.Name(skillLine), tostring(link)))
+  local setItemRef = rawget(_G, "SetItemRef")
+  if link and setItemRef then
+    local ok, err = pcall(setItemRef, link, "[" .. TradeSkill.Name(skillLine) .. "]", "LeftButton")
+    if not ok then print("probe: SetItemRef failed: " .. tostring(err)) end
+  end
+  local enabled = C_TradeSkillUI and rawget(C_TradeSkillUI, "IsGuildTradeSkillsEnabled")
+  print("probe: guild tradeskills enabled = " .. tostring(enabled and ns.Try(enabled)))
+end
+
 -- /guildy debug: what Guildy knows about the current character and how the last scan went
 function TradeSkill.Debug()
   local print = ns.Print

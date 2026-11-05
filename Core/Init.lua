@@ -79,8 +79,11 @@ end
 
 SLASH_GUILDY1 = "/guildy"
 SlashCmdList.GUILDY = function(msg)
-  msg = (msg or ""):lower():match("^%s*(.-)%s*$")
-  if msg == "debug" then
+  local raw = (msg or ""):match("^%s*(.-)%s*$")
+  msg = raw:lower()
+  if msg:match("^probe") then
+    ns.TradeSkill.Probe(raw:sub(6))
+  elseif msg == "debug" then
     ns.TradeSkill.Debug()
   elseif msg == "sync" then
     ns.Sync.SendSummary()

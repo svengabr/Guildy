@@ -233,6 +233,11 @@ T.describe("Smoke", function()
     T.eq(guild.members["makira farron"].profs[171].rank, 40)
     ns.TradeSkill.OnClose()
     env.C_TradeSkillUI = nil
+    local opened
+    env.SetItemRef = function(link) opened = link end
+    ns.TradeSkill.Probe("Makira Farron Alchemie")
+    T.eq(opened, "trade:Player-1-02:2259:171")
+    env.SetItemRef = nil
     T.eq(errors, {})
   end)
 
