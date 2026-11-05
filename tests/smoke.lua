@@ -235,15 +235,16 @@ T.describe("Smoke", function()
     ns.UI.SelectTab("professions")
     ns.UI.Show()
     ns.UI.ShowInvite(env.UIParent)
-    local M, makira = ns.UI.Macro, ns.Roster.Find("Makira Farron")
-    T.eq(M.Invite("Xii Lightspark"), '/run StaticPopup_Show("ADD_GUILDMEMBER") local d=StaticPopup_FindVisible and StaticPopup_FindVisible("ADD_GUILDMEMBER") if d then (d.GetEditBox and d:GetEditBox() or d.editBox):SetText("Xii-Lightspark") end')
-    T.eq(M.Remove(makira), '/run StaticPopup_Show("REMOVE_GUILDMEMBER",nil,nil,{guid="Player-1-02",name="Makira Farron"})')
-    T.eq(M.Note({ guid = "G", note = 'say "hi" |cff' }, false), '/run StaticPopup_Show("SET_GUILDPLAYERNOTE",nil,nil,{guid="G",currentNote="say \\"hi\\" cff"})')
-    for _, macro in ipairs({ M.Invite("Xii Lightspark"), M.Remove(makira), M.Promote(makira), M.Demote(makira), M.Note(makira, true), M.BlizzardWindow(), M.GuildControl() }) do
-      T.truthy(#macro <= 255, "macro too long: " .. macro)
-      T.truthy(loadstring((macro:gsub("^/run ", ""))), "macro is not valid Lua: " .. macro)
-    end
-    ns.UI.ShowOverlay(env.UIParent, M.Remove(makira))
+    local A = ns.UI.Action
+    env.GuildMicroButton = env.CreateFrame("Button", "GuildMicroButton")
+    T.eq(A.BlizzardWindow().click, env.GuildMicroButton)
+    T.eq(A.Invite("Xii Lightspark").click, env.GuildMicroButton) -- Blizzard window not loaded yet
+    local invite = env.CreateFrame("Button")
+    invite.IsEnabled = function() return true end
+    env.C_Club = { GetGuildClubId = function() return 7 end }
+    env.CommunitiesFrame = { InviteButton = invite, GetSelectedClubId = function() return 7 end }
+    T.eq(A.Invite("Xii Lightspark").click, invite)
+    ns.UI.ShowOverlay(env.UIParent, A.BlizzardWindow())
     RunTimers()
     T.eq(errors, {})
   end)

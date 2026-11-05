@@ -1,4 +1,4 @@
--- Member context menu (whisper, group invite, notes, rank, remove), the member tooltip and the
+-- Member context menu (whisper, group invite, management in Blizzard's window), the member tooltip and the
 -- guild-invite box with suggestions.
 local _, ns = ...
 local W = ns.Widgets
@@ -18,13 +18,8 @@ function UI.MemberMenu(m, anchor)
     { text = L.WHISPER, onClick = function() UI.Whisper(m.fullName) end, disabled = not m.online },
     { text = L.GROUP_INVITE, onClick = function() R.GroupInvite(m) end, disabled = not m.online },
   }
-  local M = UI.Macro
-  if can.editPublic then items[#items + 1] = { text = L.EDIT_NOTE, macro = function() return M.Note(m, false) end } end
-  if can.editOfficer then items[#items + 1] = { text = L.EDIT_OFFICER_NOTE, macro = function() return M.Note(m, true) end } end
-  if can.promote then items[#items + 1] = { text = L.PROMOTE, macro = function() return M.Promote(m) end } end
-  if can.demote then items[#items + 1] = { text = L.DEMOTE, macro = function() return M.Demote(m) end } end
-  if can.remove then
-    items[#items + 1] = { text = L.REMOVE, color = { 1, 0.3, 0.3 }, macro = function() return M.Remove(m) end }
+  if can.editPublic or can.editOfficer or can.promote or can.demote or can.remove then
+    items[#items + 1] = { text = L.MANAGE_IN_BLIZZARD, action = UI.Action.BlizzardWindow }
   end
   W.OpenMenu(anchor, items, 200)
 end

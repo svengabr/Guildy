@@ -244,7 +244,8 @@ A short spike that answers 1–5 should come before the bulk of the UI work.
 - Every guild management call (invite, remove, promote, demote, notes, MOTD, guild info) is reserved for
   Blizzard's UI on Forever: addon code is blocked, macros calling it are blocked ("macro script blocked"),
   and a chat input or window an addon touched first counts as addon code too.
-- What works: a secure macro button that only *opens Blizzard's own dialog* (StaticPopup ADD_GUILDMEMBER,
+- Macros are no way either: /run code is force-tainted ("ForceTaint_Strong"), so a dialog a macro opened is tainted too.
+- What works: a secure action button of type "click" that clicks a Blizzard button (Blizzard's guild invite button, the guild micro button). Superseded idea: a secure macro button that only *opens Blizzard's own dialog* (StaticPopup ADD_GUILDMEMBER,
   REMOVE_GUILDMEMBER, GUILD_PROMOTE_CONFIRM, GUILD_DEMOTE_CONFIRM, SET_GUILDPLAYERNOTE, SET_GUILDOFFICERNOTE);
   the player's Accept click is then Blizzard code. Guildy lays such a button over its action buttons on
   hover (UI/Commands.lua). MOTD and guild info open Blizzard's window.

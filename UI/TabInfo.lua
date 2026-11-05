@@ -51,7 +51,7 @@ local function Build(panel)
   view.Motd:SetPoint("TOPLEFT", 10, -28)
   view.Motd:SetPoint("RIGHT", -10, 0)
   view.MotdEdit = W.Button(motd, L.EDIT, nil, 70, { small = true })
-  UI.SecureAction(view.MotdEdit, UI.Macro.BlizzardWindow, L.EDIT_IN_BLIZZARD)
+  UI.SecureAction(view.MotdEdit, UI.Action.BlizzardWindow, L.EDIT_IN_BLIZZARD)
   view.MotdEdit:SetPoint("TOPRIGHT", -8, -6)
 
   -- guild info
@@ -66,7 +66,7 @@ local function Build(panel)
   view.Info:SetPoint("BOTTOMRIGHT", -10, 8)
   view.Info:SetJustifyV("TOP")
   view.InfoEdit = W.Button(info, L.EDIT, nil, 70, { small = true })
-  UI.SecureAction(view.InfoEdit, UI.Macro.BlizzardWindow, L.EDIT_IN_BLIZZARD)
+  UI.SecureAction(view.InfoEdit, UI.Action.BlizzardWindow, L.EDIT_IN_BLIZZARD)
   view.InfoEdit:SetPoint("TOPRIGHT", -8, -6)
 
   -- settings
@@ -87,11 +87,11 @@ local function Build(panel)
   settingsHint:SetPoint("TOPLEFT", 12, -52)
   settingsHint:SetPoint("RIGHT", -10, 0)
   local control = W.Button(settings, L.GUILD_CONTROL, nil, 150, { small = true })
-  UI.SecureAction(control, UI.Macro.GuildControl)
+  UI.SecureAction(control, UI.Action.BlizzardWindow, L.EDIT_IN_BLIZZARD)
   control:SetPoint("BOTTOMLEFT", 10, 8)
   view.Control = control
   local blizzard = W.Button(settings, L.OPEN_BLIZZARD, nil, 150, { small = true })
-  UI.SecureAction(blizzard, UI.Macro.BlizzardWindow)
+  UI.SecureAction(blizzard, UI.Action.BlizzardWindow)
   blizzard:SetPoint("LEFT", control, "RIGHT", 6, 0)
 
   -- event log

@@ -107,7 +107,7 @@ local function Build()
   frame.GuildButton:SetPoint("TOP", 0, 0)
   frame.GuildButton.Border:Show()
   frame.CommunitiesButton = IconButton(bar, "Interface\\Icons\\INV_Letter_15", ns.L.ICON_COMMUNITIES)
-  UI.SecureAction(frame.CommunitiesButton, UI.Macro.BlizzardWindow, ns.L.ICON_COMMUNITIES)
+  UI.SecureAction(frame.CommunitiesButton, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   frame.CommunitiesButton:SetPoint("TOP", frame.GuildButton, "BOTTOM", 0, -10)
 
   -- content area

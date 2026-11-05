@@ -59,30 +59,18 @@ local function Build(panel)
   details.Lines:SetPoint("TOPLEFT", details.Sub, "BOTTOMLEFT", 0, -10)
   details.Lines:SetPoint("RIGHT", -12, 0)
   details.Lines:SetSpacing(3)
-  details.RankButton = W.MenuButton(details, L.SET_RANK, function()
-    local m, items = view.selected, {}
-    if not m then return items end
-    local can = ns.Roster.Can()
-    if can.promote then items[#items + 1] = { text = L.PROMOTE, macro = function() return UI.Macro.Promote(m) end } end
-    if can.demote then items[#items + 1] = { text = L.DEMOTE, macro = function() return UI.Macro.Demote(m) end } end
-    return items
-  end, 110)
-  details.NoteButton = W.Button(details, L.NOTE, nil, 100, { small = true })
-  UI.SecureAction(details.NoteButton, function() return view.selected and UI.Macro.Note(view.selected, false) end)
-  details.OfficerButton = W.Button(details, L.OFFICER_NOTE, nil, 100, { small = true })
-  UI.SecureAction(details.OfficerButton, function() return view.selected and UI.Macro.Note(view.selected, true) end)
   details.Profs = W.Text(details, "GameFontHighlightSmall")
+  details.Profs:SetPoint("TOPLEFT", details.Lines, "BOTTOMLEFT", 0, -14)
   details.Profs:SetPoint("RIGHT", -12, 0)
   details.Profs:SetSpacing(3)
   details.Whisper = W.Button(details, L.WHISPER, function() if view.selected then UI.Whisper(view.selected.fullName) end end, 108)
   details.Whisper:SetPoint("BOTTOMLEFT", 12, 36)
   details.Invite = W.Button(details, L.GROUP_INVITE_SHORT, function() if view.selected then ns.Roster.GroupInvite(view.selected) end end, 108)
   details.Invite:SetPoint("BOTTOMRIGHT", -12, 36)
-  details.Remove = W.Button(details, L.REMOVE_SHORT, nil, 108)
-  UI.SecureAction(details.Remove, function() return view.selected and UI.Macro.Remove(view.selected) end)
-  details.Remove:SetPoint("BOTTOMLEFT", 12, 10)
-  details.Menu = W.Button(details, L.MORE, function(self) if view.selected then UI.MemberMenu(view.selected, self) end end, 108)
-  details.Menu:SetPoint("BOTTOMRIGHT", -12, 10)
+  -- rank, notes and removal only work in Blizzard's window on Forever
+  details.Manage = W.Button(details, L.MANAGE_IN_BLIZZARD, nil, 226)
+  details.Manage:SetPoint("BOTTOM", 0, 10)
+  UI.SecureAction(details.Manage, UI.Action.BlizzardWindow, L.MANAGE_TIP)
 
   -- toolbar ------------------------------------------------------------------------------------
   local main = CreateFrame("Frame", nil, panel)
@@ -249,8 +237,7 @@ local function Build(panel)
     self.selected = m
     local d = self.Details
     local shown = m ~= nil
-    for _, element in ipairs({ d.Name, d.Sub, d.Lines, d.Profs, d.Whisper, d.Invite, d.Remove, d.Menu, d.RankButton,
-      d.NoteButton, d.OfficerButton }) do
+    for _, element in ipairs({ d.Name, d.Sub, d.Lines, d.Profs, d.Whisper, d.Invite, d.Manage }) do
       element:SetShown(shown)
     end
     d.Empty:SetShown(not shown)
@@ -268,15 +255,6 @@ local function Build(panel)
       lines[#lines + 1] = "|cffffd100" .. L.OFFICER_NOTE .. ":|r " .. ((m.officerNote and m.officerNote ~= "") and m.officerNote or "-")
     end
     d.Lines:SetText(table.concat(lines, "\n"))
-    d.RankButton:ClearAllPoints()
-    d.RankButton:SetPoint("TOPLEFT", d.Lines, "BOTTOMLEFT", 0, -10)
-    d.RankButton:SetShown(can.promote or can.demote)
-    d.NoteButton:ClearAllPoints()
-    d.NoteButton:SetPoint("LEFT", d.RankButton, "RIGHT", 4, 0)
-    d.NoteButton:SetShown(can.editPublic)
-    d.OfficerButton:ClearAllPoints()
-    d.OfficerButton:SetPoint("TOPLEFT", d.NoteButton, "BOTTOMLEFT", 0, -4)
-    d.OfficerButton:SetShown(can.editOfficer)
 
     local record = ns.TradeSkill.Record(m)
     local profLines = { "|cffffd100" .. L.PROFESSIONS .. "|r" }
@@ -290,12 +268,10 @@ local function Build(panel)
       end
     end
     if #profLines == 1 then profLines[2] = "|cff999999" .. L.NO_PROFESSIONS .. "|r" end
-    d.Profs:ClearAllPoints()
-    d.Profs:SetPoint("TOPLEFT", d.RankButton, "BOTTOMLEFT", 0, -36)
     d.Profs:SetText(table.concat(profLines, "\n"))
     d.Whisper:SetEnabled(m.online)
     d.Invite:SetEnabled(m.online)
-    d.Remove:SetShown(can.remove)
+    d.Manage:SetShown(can.editPublic or can.editOfficer or can.promote or can.demote or can.remove)
   end
 
   function view:Select(m)

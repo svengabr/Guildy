@@ -303,9 +303,9 @@ function W.OpenMenu(anchor, items, width)
       button.Label = W.Text(button, "GameFontHighlightSmall")
       button.Label:SetPoint("LEFT", 20, 0)
       button.Label:SetPoint("RIGHT", -4, 0)
-      -- items with a macro (Blizzard guild dialogs) get the secure overlay while hovered (UI/Commands.lua)
+      -- items with an action (Blizzard guild buttons) get the secure overlay while hovered (UI/Commands.lua)
       button:HookScript("OnEnter", function(self)
-        if self.macro and ns.UI and ns.UI.ShowOverlay then ns.UI.ShowOverlay(self, self.macro()) end
+        if self.action and ns.UI and ns.UI.ShowOverlay then ns.UI.ShowOverlay(self, self.action()) end
       end)
       menu.buttons[i] = button
     end
@@ -319,9 +319,9 @@ function W.OpenMenu(anchor, items, width)
     end
     button.Check:SetShown(item.checked == true)
     button:SetEnabled(not item.disabled and not item.isTitle)
-    button.macro = item.macro
+    button.action = item.action
     button:SetScript("OnClick", function()
-      if item.macro then
+      if item.action then
         ns.Print(ns.L.NOT_IN_COMBAT) -- only reachable when the overlay could not be shown
         return
       end
