@@ -109,6 +109,8 @@ local function Build(panel)
     row.Name:SetText(W.ClassName(e.member, e.classFile))
     if e.result == "found" then
       row.Result:SetText("|cff40e040" .. L.HARVEST_FOUND:format(e.recipes or 0, e.rank or 0) .. "|r")
+    elseif e.result == "silent" then
+      row.Result:SetText("|cff999999" .. L.HARVEST_SILENT .. "|r")
     elseif e.result == "absent" then
       row.Result:SetText("|cff999999" .. L.HARVEST_ABSENT .. "|r")
     else

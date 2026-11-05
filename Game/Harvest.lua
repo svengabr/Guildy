@@ -13,7 +13,7 @@ ns.Harvest = Harvest
 Harvest.ORDER = { 171, 164, 333, 202, 165, 197, 186, 185, 129 }
 Harvest.FRESH = 24 * 3600      -- data younger than this is not read again
 Harvest.ABSENT = 7 * 24 * 3600 -- "doesn't have it" is remembered this long
-Harvest.WAIT = 4               -- seconds until a look without any answer counts as "doesn't have it"
+Harvest.WAIT = 3               -- seconds until a look without any answer counts as "no answer"
 Harvest.MAX_PRIMARY = 2
 Harvest.PAUSE = 1              -- seconds between looks (the server may ignore requests in quick succession)
 Harvest.DATA_VERSION = 2       -- bump to drop "absent" marks made by older, faulty runs
@@ -53,8 +53,10 @@ end
 function Harvest.BuildQueue(members, guild, now, isOwn)
   local queue, memberSet = {}, {}
   local absent = guild.absent or {}
+  local silent = guild.silent or {}
   for _, m in ipairs(members) do
-    if m.online and not m.isMobile and m.guid and not isOwn(m) then
+    local quiet = silent[m.key] and now - silent[m.key] < Harvest.FRESH
+    if m.online and not m.isMobile and m.guid and not isOwn(m) and not quiet then
       local record = guild.members[m.key]
       for _, skillLine in ipairs(Harvest.ORDER) do
         local prof = record and record.profs and record.profs[skillLine]
@@ -139,7 +141,20 @@ local function Check(entry, startedAt)
     absent[entry.member.key] = absent[entry.member.key] or {}
     absent[entry.member.key][entry.skillLine] = ns.Now()
   end
-  Log(entry, verdict or "no answer", scan, startedAt)
+  local key = entry.member.key
+  local result = verdict or "no answer"
+  if verdict then
+    state.answered[key] = true
+  elseif state.looks[key] == 1 and not state.answered[key] then
+    -- the server stays silent for members without any profession: skip the rest of them for a day
+    state.skip[key] = true
+    if guild then
+      guild.silent = guild.silent or {}
+      guild.silent[key] = ns.Now()
+    end
+    result = "silent"
+  end
+  Log(entry, result, scan, startedAt)
   CloseWindow()
   state.current = nil
   ns.Fire("HARVEST")
@@ -165,7 +180,7 @@ Step = function()
     state.index = state.index + 1
     local entry = state.queue[state.index]
     local m = ns.Roster.Find(entry.member.key)
-    if m and m.online then
+    if m and m.online and not state.skip[m.key] then
       if state.lastMember ~= m.key then
         state.lastMember = m.key
         state.doneMembers = state.doneMembers + 1
@@ -177,6 +192,7 @@ Step = function()
       local link = not skip and ns.TradeSkill.BuildLink(m, entry.skillLine)
       local setItemRef = rawget(_G, "SetItemRef")
       if link and setItemRef then
+        state.looks[m.key] = (state.looks[m.key] or 0) + 1
         state.current = entry
         local startedAt = GetTime()
         state.startedAt = startedAt
@@ -213,7 +229,7 @@ function Harvest.Start()
     ns.Print(ns.L.HARVEST_NOTHING)
     return
   end
-  state = { queue = queue, index = 0, totalMembers = total, doneMembers = 0, found = 0 }
+  state = { queue = queue, index = 0, totalMembers = total, doneMembers = 0, found = 0, looks = {}, answered = {}, skip = {} }
   ns.Fire("HARVEST")
   Step()
 end
