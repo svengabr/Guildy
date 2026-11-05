@@ -13,6 +13,7 @@
 ## X-Website: https://github.com/svengabr/Guildy
 ## SavedVariables: GuildyDB
 ## X-License: GPL-3.0-or-later
+## X-Curse-Project-ID: 1785901
 
 Libs\LibDeflate\LibDeflate.lua
 Libs\json\json.lua

@@ -45,7 +45,8 @@ the images point to GitHub raw URLs and show up as they are.
 - Source: https://github.com/svengabr/Guildy
 - Issues: https://github.com/svengabr/Guildy/issues
 
-## After the project exists
+## Releases
 
-Add `## X-Curse-Project-ID: <id>` to `Guildy.toc` and set up packaging like KeepOrSell (BigWigs packager on a
-`v*` tag, secret `CF_API_KEY`).
+Project ID 1785901 (in `Guildy.toc`). A tag `v*` runs `.github/workflows/release.yml`: tests, then the BigWigs
+packager uploads to CurseForge (repo secret `CF_API_KEY`) and creates the GitHub release with that version's
+`CHANGELOG.md` section (`## <version>`).
