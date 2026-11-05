@@ -80,9 +80,9 @@ local function Build(panel)
   details.Profs:SetSpacing(3)
   details.Whisper = W.Button(details, L.WHISPER, function() if view.selected then UI.Whisper(view.selected.fullName) end end, 108)
   details.Whisper:SetPoint("BOTTOMLEFT", 12, 36)
-  details.Invite = W.Button(details, L.GROUP_INVITE, function() if view.selected then ns.Roster.GroupInvite(view.selected) end end, 108)
+  details.Invite = W.Button(details, L.GROUP_INVITE_SHORT, function() if view.selected then ns.Roster.GroupInvite(view.selected) end end, 108)
   details.Invite:SetPoint("BOTTOMRIGHT", -12, 36)
-  details.Remove = W.Button(details, L.REMOVE, function()
+  details.Remove = W.Button(details, L.REMOVE_SHORT, function()
     local m = view.selected
     if m then UI.Confirm(L.REMOVE_CONFIRM:format(m.name), function() ns.Roster.Remove(m) end) end
   end, 108)
@@ -230,8 +230,9 @@ local function Build(panel)
   view.List:SetPoint("TOPLEFT", 4, -4)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  view.Summary = W.Text(main, "GameFontDisableSmall")
-  view.Summary:SetPoint("TOPRIGHT", header, "TOPRIGHT", -4, 16)
+  view.Summary = W.Text(header, "GameFontDisableSmall")
+  view.Summary:SetPoint("RIGHT", header, "RIGHT", -28, 0)
+  view.Summary:SetJustifyH("RIGHT")
 
   -- behaviour ----------------------------------------------------------------------------------
   function view:SetFilterValue(key, value)
