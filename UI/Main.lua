@@ -202,6 +202,12 @@ local function Build()
   frame.GuildTab.Emblem = TabEmblem(frame.GuildTab)
   frame.CommunitiesTab = SideTab(frame, "Interface\\Icons\\achievement_guildperk_havegroup willtravel", ns.L.ICON_COMMUNITIES)
   frame.CommunitiesTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -2)
+  -- the green plus of Blizzard's "Join or create a community" entry
+  local plus = "communities-icon-addgroupplus"
+  if C_Texture and C_Texture.GetAtlasExists and C_Texture.GetAtlasExists(plus) then
+    frame.CommunitiesTab.Icon:SetAtlas(plus)
+    frame.CommunitiesTab.Icon:SetSize(34, 34)
+  end
   UI.SecureAction(frame.CommunitiesTab, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   UpdateTitle()
 
