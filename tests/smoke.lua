@@ -6,6 +6,7 @@ local T = ...
 local errors = {}
 local registered = {}   -- event -> {frames}
 local timers = {}
+local boundKeys = {}
 
 local function Stub(name)
   local stub = { _name = name, _scripts = {}, _shown = false, _text = "", _w = 100, _h = 100, _checked = false }
@@ -95,7 +96,8 @@ env.C_Timer = {
   NewTicker = function() return { Cancel = function() end } end,
 }
 env.tinsert = table.insert
-env.SetOverrideBindingClick = function() end
+env.SetOverrideBindingClick = function(_, _, key, button) boundKeys[key] = button end
+env.GetBindingKey = function(action) if action == "TOGGLEGUILDTAB" then return "J" end end
 env.ClearOverrideBindings = function() end
 env.GetTime = function() return 1000 end
 env.GetServerTime = function() return 1700000000 end
@@ -140,7 +142,7 @@ local roster = {
   { "Au-Tsch", "Haifutter", 2, 21, "Schurke", "Dämmerwald", "", "", true, 0, "ROGUE", nil, nil, false, nil, nil, "Player-1-03" },
 }
 env.GetNumGuildMembers = function() return #roster end
-env.GetGuildRosterInfo = function(i) return unpack(roster[i]) end
+env.GetGuildRosterInfo = function(i) return unpack(roster[i], 1, 17) end
 env.GetGuildRosterLastOnline = function(i) if i == 2 then return 0, 0, 3, 2 end end
 env.GetNumGuildEvents = function() return 1 end
 env.GetGuildEventInfo = function() return "join", "Au-Tsch", nil, nil, 0, 0, 1, 0 end
@@ -207,8 +209,9 @@ T.describe("Smoke", function()
   end)
 
   T.it("opens the window on the chat tab and every tab", function()
-    env.ToggleGuildFrame()
+    env.GuildyToggleButton._scripts.OnClick()
     T.truthy(ns.UI.IsShown(), "J opens Guildy")
+    T.eq(boundKeys.J, "GuildyToggleButton")
     T.eq(ns.UI.Current(), "chat")
     for _, key in ipairs({ "members", "overview", "professions", "info", "chat" }) do
       ns.UI.SelectTab(key)
@@ -232,9 +235,15 @@ T.describe("Smoke", function()
     ns.UI.SelectTab("professions")
     ns.UI.Show()
     ns.UI.ShowInvite(env.UIParent)
-    ns.UI.ConfirmMemberCommand("remove", ns.Roster.Find("Makira Farron"))
-    T.eq(ns.UI.SlashCommand("invite", "Xii Lightspark"), "/ginvite Xii-Lightspark")
-    T.eq(ns.UI.SlashCommand("motd", "Hallo Welt"), "/gmotd Hallo Welt")
+    local M, makira = ns.UI.Macro, ns.Roster.Find("Makira Farron")
+    T.eq(M.Invite("Xii Lightspark"), '/run StaticPopup_Show("ADD_GUILDMEMBER") local d=StaticPopup_FindVisible and StaticPopup_FindVisible("ADD_GUILDMEMBER") if d then (d.GetEditBox and d:GetEditBox() or d.editBox):SetText("Xii-Lightspark") end')
+    T.eq(M.Remove(makira), '/run StaticPopup_Show("REMOVE_GUILDMEMBER",nil,nil,{guid="Player-1-02",name="Makira Farron"})')
+    T.eq(M.Note({ guid = "G", note = 'say "hi" |cff' }, false), '/run StaticPopup_Show("SET_GUILDPLAYERNOTE",nil,nil,{guid="G",currentNote="say \\"hi\\" cff"})')
+    for _, macro in ipairs({ M.Invite("Xii Lightspark"), M.Remove(makira), M.Promote(makira), M.Demote(makira), M.Note(makira, true), M.BlizzardWindow(), M.GuildControl() }) do
+      T.truthy(#macro <= 255, "macro too long: " .. macro)
+      T.truthy(loadstring((macro:gsub("^/run ", ""))), "macro is not valid Lua: " .. macro)
+    end
+    ns.UI.ShowOverlay(env.UIParent, M.Remove(makira))
     RunTimers()
     T.eq(errors, {})
   end)

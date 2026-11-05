@@ -106,8 +106,8 @@ local function Build()
   frame.GuildButton = IconButton(bar, W.LOGO, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
   frame.GuildButton:SetPoint("TOP", 0, 0)
   frame.GuildButton.Border:Show()
-  frame.CommunitiesButton = IconButton(bar, "Interface\\Icons\\INV_Letter_15", ns.L.ICON_COMMUNITIES,
-    function() ns.OpenBlizzard() end)
+  frame.CommunitiesButton = IconButton(bar, "Interface\\Icons\\INV_Letter_15", ns.L.ICON_COMMUNITIES)
+  UI.SecureAction(frame.CommunitiesButton, UI.Macro.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   frame.CommunitiesButton:SetPoint("TOP", frame.GuildButton, "BOTTOM", 0, -10)
 
   -- content area
@@ -133,6 +133,7 @@ local function Build()
     if current and current.view and current.view.OnResize then ns.SafeCall(current.view.OnResize, current.view) end
   end)
   frame:SetScript("OnHide", function()
+    if UI.HideOverlay then UI.HideOverlay() end
     if current and current.view and current.view.OnHide then ns.SafeCall(current.view.OnHide, current.view) end
     if ns.Chat then ns.Chat.Focus(false) end
   end)

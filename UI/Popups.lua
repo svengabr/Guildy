@@ -4,13 +4,6 @@ local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
--- Notes and the guild info text can't be changed by addons on Forever (and have no slash command):
--- those edits happen in Blizzard's window
-function UI.EditInBlizzard()
-  ns.Print(ns.L.EDIT_IN_BLIZZARD)
-  ns.OpenBlizzard()
-end
-
 function UI.Whisper(name)
   local tell = rawget(_G, "ChatFrame_SendTell") or (ChatFrameUtil and ChatFrameUtil.SendTell)
   if tell then pcall(tell, name) end
@@ -25,13 +18,13 @@ function UI.MemberMenu(m, anchor)
     { text = L.WHISPER, onClick = function() UI.Whisper(m.fullName) end, disabled = not m.online },
     { text = L.GROUP_INVITE, onClick = function() R.GroupInvite(m) end, disabled = not m.online },
   }
-  if can.editPublic or can.editOfficer then
-    items[#items + 1] = { text = L.EDIT_NOTES, onClick = UI.EditInBlizzard }
-  end
-  if can.promote then items[#items + 1] = { text = L.PROMOTE, onClick = function() UI.ConfirmMemberCommand("promote", m) end } end
-  if can.demote then items[#items + 1] = { text = L.DEMOTE, onClick = function() UI.ConfirmMemberCommand("demote", m) end } end
+  local M = UI.Macro
+  if can.editPublic then items[#items + 1] = { text = L.EDIT_NOTE, macro = function() return M.Note(m, false) end } end
+  if can.editOfficer then items[#items + 1] = { text = L.EDIT_OFFICER_NOTE, macro = function() return M.Note(m, true) end } end
+  if can.promote then items[#items + 1] = { text = L.PROMOTE, macro = function() return M.Promote(m) end } end
+  if can.demote then items[#items + 1] = { text = L.DEMOTE, macro = function() return M.Demote(m) end } end
   if can.remove then
-    items[#items + 1] = { text = L.REMOVE, color = { 1, 0.3, 0.3 }, onClick = function() UI.ConfirmMemberCommand("remove", m) end }
+    items[#items + 1] = { text = L.REMOVE, color = { 1, 0.3, 0.3 }, macro = function() return M.Remove(m) end }
   end
   W.OpenMenu(anchor, items, 200)
 end

@@ -239,6 +239,18 @@ A short spike that answers 1–5 should come before the bulk of the UI work.
    tab; the Overview layout follows `fenster-v2.html`; Members follows the list in
    `richtungen.html` option B with the details panel added).
 
+## 9b. Findings from the first in-game test (2026-11-05)
+
+- Every guild management call (invite, remove, promote, demote, notes, MOTD, guild info) is reserved for
+  Blizzard's UI on Forever: addon code is blocked, macros calling it are blocked ("macro script blocked"),
+  and a chat input or window an addon touched first counts as addon code too.
+- What works: a secure macro button that only *opens Blizzard's own dialog* (StaticPopup ADD_GUILDMEMBER,
+  REMOVE_GUILDMEMBER, GUILD_PROMOTE_CONFIRM, GUILD_DEMOTE_CONFIRM, SET_GUILDPLAYERNOTE, SET_GUILDOFFICERNOTE);
+  the player's Accept click is then Blizzard code. Guildy lays such a button over its action buttons on
+  hover (UI/Commands.lua). MOTD and guild info open Blizzard's window.
+- J is no longer redirected by wrapping ToggleGuildFrame (that tainted Blizzard's window); Guildy sets a
+  temporary override binding on the TOGGLEGUILDTAB keys instead.
+
 ## 10. Left to the builder
 
 Internal module split, exact sizes and spacing, sort defaults beyond those named

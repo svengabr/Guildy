@@ -22,12 +22,12 @@ local HANDLERS = {
   ADDON_LOADED = function(name)
     if name == ns.ADDON then
       GuildyDB = ns.Store.Init(rawget(_G, "GuildyDB"))
-    else
-      ns.Redirect.OnAddonLoaded(name)
     end
   end,
+  UPDATE_BINDINGS = function() ns.Redirect.Apply() end,
+  PLAYER_REGEN_ENABLED = function() ns.Redirect.AfterCombat() end,
   PLAYER_LOGIN = function()
-    ns.Redirect.Install()
+    ns.Redirect.Apply()
     ns.Sync.Register()
     ns.Roster.Request(true)
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
@@ -71,9 +71,7 @@ end
 SLASH_GUILDY1 = "/guildy"
 SlashCmdList.GUILDY = function(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
-  if msg == "blizzard" then
-    ns.OpenBlizzard()
-  elseif msg == "sync" then
+  if msg == "sync" then
     ns.Sync.SendSummary()
     ns.Print(ns.L.SYNC_SENT)
   else
