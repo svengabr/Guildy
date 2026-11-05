@@ -83,7 +83,12 @@ SLASH_GUILDY1 = "/guildy"
 SlashCmdList.GUILDY = function(msg)
   local raw = (msg or ""):match("^%s*(.-)%s*$")
   msg = raw:lower()
-  if msg:match("^probe") then
+  if msg:match("^probelater") then
+    -- same as probe, but from a timer (no key press behind it)
+    local args = raw:sub(11)
+    ns.Print("probelater: opening in 2 seconds ...")
+    C_Timer.After(2, function() ns.TradeSkill.Probe(args) end)
+  elseif msg:match("^probe") then
     ns.TradeSkill.Probe(raw:sub(6))
   elseif msg == "debug" then
     ns.TradeSkill.Debug()
