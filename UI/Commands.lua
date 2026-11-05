@@ -101,7 +101,7 @@ function UI.ShowOverlay(button, action, tooltip)
   local scale = button:GetEffectiveScale() / UIParent:GetEffectiveScale()
   o:SetAttribute("clickbutton", action.click)
   o.tooltip, o.after, o.owner = tooltip, action.after, button
-  o.beside = button.Over ~= nil -- side tabs: tooltip beside the tab instead of above it
+  o.beside = button.sideTab == true -- side tabs: tooltip beside the tab instead of above it
   o:ClearAllPoints()
   o:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * scale, bottom * scale)
   o:SetSize(button:GetWidth() * scale, button:GetHeight() * scale)
@@ -116,7 +116,9 @@ end
 -- click on the button itself only happens when the overlay could not be laid (combat).
 function UI.SecureAction(button, getAction, tooltip)
   button:HookScript("OnEnter", function(self) UI.ShowOverlay(self, getAction(self), tooltip) end)
-  button:SetScript("OnClick", function() ns.Print(ns.L.NOT_IN_COMBAT) end)
+  if button.HasScript and button:HasScript("OnClick") then
+    button:SetScript("OnClick", function() ns.Print(ns.L.NOT_IN_COMBAT) end)
+  end
 end
 
 -- Invite: Guildy's button clicks Blizzard's invite button directly. Once Blizzard's dialog is up,

@@ -55,7 +55,7 @@ local function Stub(name)
   function methods:CreateAnimationGroup() return Stub() end
   function methods:GetFontString() return self._fs or Stub() end
   function methods:GetParent() return self._parent or Stub() end
-  local CHILDREN = { Inset = true, TitleText = true }
+  local CHILDREN = { Inset = true, TitleText = true, Icon = true, Mask = true, HighlightTexture = true, SelectedTexture = true }
   return setmetatable(stub, { __index = function(self, key)
     if methods[key] then return methods[key] end
     if CHILDREN[key] then

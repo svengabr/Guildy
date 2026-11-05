@@ -137,7 +137,7 @@ end
 
 function W.Tooltip(frame, title, text)
   frame:SetScript("OnEnter", function(self)
-    if self.Over then -- side tabs: beside the tab
+    if self.sideTab then -- side tabs: beside the tab
       GameTooltip:SetOwner(self, "ANCHOR_NONE")
       GameTooltip:SetPoint("LEFT", self, "RIGHT", 6, 0)
     else
