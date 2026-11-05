@@ -75,20 +75,70 @@ local function SameList(a, b)
   return true
 end
 
--- Stores own data for a profession when something changed; recipes nil = unknown (keep old list)
+-- Whose profession window is open: nil = the player's own, else the roster member whose profession
+-- link the player clicked (Blizzard opens their recipe book read-only)
+local scanTarget
+local pendingLink -- {guid, skillLine, at} of the last clicked profession link
+
+local function IsOwnChar(m)
+  local db = ns.DB()
+  return m and db and db.ownChars and db.ownChars[m.key] or (m and ns.Names.Same(m.name, ns.PlayerName())) or false
+end
+
+-- Stores scanned data for a profession when something changed; recipes nil = unknown (keep old list)
 local function StoreOwn(skillLine, rank, max, recipes)
-  local member = OwnMember()
-  if not member or not skillLine then return end
+  if not skillLine then return end
+  local member
+  if scanTarget then
+    local guild = ns.GuildData()
+    member = guild and ns.Store.Member(guild, scanTarget.name)
+  else
+    member = OwnMember()
+  end
+  if not member then return end
   if recipes then table.sort(recipes) end
   local existing = member.profs[skillLine]
   if existing and existing.rank == rank and existing.max == max and (recipes == nil or SameList(existing.recipes, recipes)) then
     return
   end
-  local record = P.ValidateRecord({ ts = ns.Now(), src = "scan", rank = rank, max = max, recipes = recipes })
-  if record and P.Merge(member, skillLine, record, { isOwnChar = true }) then
+  local src = scanTarget and "link" or "scan"
+  local record = P.ValidateRecord({ ts = ns.Now(), src = src, rank = rank, max = max, recipes = recipes })
+  if record and P.Merge(member, skillLine, record, { isOwnChar = not scanTarget }) then
     ns.Fire("PROFS")
-    if ns.Sync then ns.Sync.OwnChanged() end
+    if ns.Sync then
+      if scanTarget then ns.Sync.Share(scanTarget.key) else ns.Sync.OwnChanged() end
+    end
   end
+end
+
+-- SetItemRef post-hook: remember a clicked profession link, its window opens right after
+function TradeSkill.OnLinkClicked(link)
+  if ns.IsSecret(link) or type(link) ~= "string" or link:sub(1, 6) ~= "trade:" then return end
+  local parsed = P.ParseTradeLinks("|H" .. link .. "|h")[1]
+  if parsed and parsed.guid then pendingLink = { guid = parsed.guid, skillLine = parsed.skillLine, at = GetTime() } end
+end
+
+-- TRADE_SKILL_CLOSE: a later own window must not be taken for the linked one
+function TradeSkill.OnClose()
+  pendingLink = nil
+end
+
+-- Decides whose window is open. Returns false when it should not be scanned at all.
+local function ResolveTarget()
+  scanTarget = nil
+  local isLinked, linkedName
+  local linkedFn = (C_TradeSkillUI and rawget(C_TradeSkillUI, "IsTradeSkillLinked")) or rawget(_G, "IsTradeSkillLinked")
+  if linkedFn then
+    isLinked, linkedName = ns.Try(linkedFn)
+  end
+  local pending = pendingLink and GetTime() - pendingLink.at < 30 and pendingLink or nil
+  if linkedFn and not isLinked then return true end -- own window (the client says so)
+  if not linkedFn and not pending then return true end -- no way to tell: only a clicked link counts as foreign
+  local m = (pending and ns.Roster.FindByGuid(pending.guid))
+    or (type(linkedName) == "string" and not ns.IsSecret(linkedName) and ns.Roster.Find(linkedName)) or nil
+  if not m then return false end -- someone outside the guild
+  if not IsOwnChar(m) then scanTarget = m end
+  return true
 end
 
 -- Skill levels of all professions of the current character (no recipes)
@@ -128,7 +178,11 @@ end
 function TradeSkill.ScanOpen()
   TradeSkill.lastScan = { path = "none" }
   if C_TradeSkillUI and C_TradeSkillUI.IsNPCCrafting and ns.Try(C_TradeSkillUI.IsNPCCrafting) then return end
-  if ns.Try(rawget(_G, "IsTradeSkillLinked")) or ns.Try(rawget(_G, "IsTradeSkillGuild")) then return end
+  if ns.Try(rawget(_G, "IsTradeSkillGuild")) then return end
+  if not ResolveTarget() then
+    TradeSkill.lastScan = { path = "linked window of someone outside the guild" }
+    return
+  end
 
   local lineName, rank, max = ns.Try(rawget(_G, "GetTradeSkillLine"))
   if lineName and lineName ~= "UNKNOWN" then
@@ -175,6 +229,7 @@ function TradeSkill.ScanOpen()
       rank = info.skillLevel, recipes = #recipes }
     if skillLine and #recipes > 0 then StoreOwn(skillLine, info.skillLevel, info.maxSkillLevel, recipes) end
   end
+  TradeSkill.lastScan.target = scanTarget and scanTarget.name or "own"
 end
 
 -- Profession links in chat: "I can do this" for the linking member (or the guid in the link)
@@ -243,8 +298,8 @@ function TradeSkill.Debug()
     print("  last scan: never (open a profession window)")
     return
   end
-  print(("  last scan: path %s, name %s, skillLine %s, rank %s, entries %s, recipes %s, recipeLink %s"):format(
-    tostring(s.path), tostring(s.name), tostring(s.skillLine), tostring(s.rank), tostring(s.entries), tostring(s.recipes),
+  print(("  last scan (%s): path %s, name %s, skillLine %s, rank %s, entries %s, recipes %s, recipeLink %s"):format(
+    tostring(s.target), tostring(s.path), tostring(s.name), tostring(s.skillLine), tostring(s.rank), tostring(s.entries), tostring(s.recipes),
     tostring(s.hasRecipeLink)))
   if s.sample then print("  sample link: " .. s.sample:gsub("|", "||")) end
 end

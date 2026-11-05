@@ -26,7 +26,11 @@ local HANDLERS = {
   end,
   UPDATE_BINDINGS = function() ns.Redirect.Apply() end,
   PLAYER_REGEN_ENABLED = function() ns.Redirect.AfterCombat() end,
+  TRADE_SKILL_CLOSE = function() ns.TradeSkill.OnClose() end,
   PLAYER_LOGIN = function()
+    if rawget(_G, "SetItemRef") then
+      hooksecurefunc("SetItemRef", function(link) ns.SafeCall(ns.TradeSkill.OnLinkClicked, link) end)
+    end
     ns.Redirect.Apply()
     ns.Sync.Register()
     ns.Roster.Request(true)

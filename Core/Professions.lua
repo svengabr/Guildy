@@ -83,7 +83,7 @@ function Professions.Merge(member, skillLine, incoming, ctx)
   local existing = member.profs[skillLine]
   if existing then
     if incoming.ts < existing.ts then return false end
-    if incoming.ts == existing.ts and (SOURCES[incoming.src] or 0) <= (SOURCES[existing.src] or 0) then return false end
+    if incoming.ts == existing.ts and (SOURCES[incoming.src] or 0) < (SOURCES[existing.src] or 0) then return false end
   end
   local merged = {
     ts = incoming.ts, src = incoming.src, rank = incoming.rank, max = incoming.max, recipes = incoming.recipes,

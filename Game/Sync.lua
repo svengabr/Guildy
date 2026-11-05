@@ -79,6 +79,11 @@ function Sync.SendSummary()
   if guild then Send("SUM", { d = P.Digest(guild) }) end
 end
 
+-- Data of another member changed (their recipe book was opened through a link): share it
+function Sync.Share(key)
+  SendMember(key)
+end
+
 -- Own data changed: share it a few seconds later (several scans in a row become one message)
 function Sync.OwnChanged()
   if ownTimer then ownTimer:Cancel() end

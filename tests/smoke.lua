@@ -209,6 +209,30 @@ T.describe("Smoke", function()
     T.eq(guild.members["ran fred"].profs[171].rank, 120)
     ns.TradeSkill.ScanOpen()
     ns.TradeSkill.Debug()
+    -- recipe book of another member, opened through their profession link
+    local linked = true
+    env.C_TradeSkillUI = {
+      GetAllRecipeIDs = function() return { 11, 12, 13 } end,
+      GetRecipeInfo = function(id) return { learned = id ~= 13 } end,
+      GetBaseProfessionInfo = function() return { professionID = 171, professionName = "Alchimie", skillLevel = 99, maxSkillLevel = 150 } end,
+      IsTradeSkillLinked = function() return linked, "Au-Tsch" end,
+    }
+    ns.TradeSkill.ScanOpen()
+    T.eq(guild.members["au tsch"].profs[171].recipes, { 11, 12 })
+    T.eq(guild.members["au tsch"].profs[171].src, "link")
+    T.eq(guild.members["ran fred"].profs[171].recipes, nil)
+    -- own window again
+    linked = false
+    ns.TradeSkill.ScanOpen()
+    T.eq(guild.members["ran fred"].profs[171].recipes, { 11, 12 })
+    -- no IsTradeSkillLinked: a clicked link decides
+    env.C_TradeSkillUI.IsTradeSkillLinked = nil
+    ns.TradeSkill.OnLinkClicked("trade:Player-1-02:2259:171")
+    env.C_TradeSkillUI.GetBaseProfessionInfo = function() return { professionID = 171, skillLevel = 40, maxSkillLevel = 75 } end
+    ns.TradeSkill.ScanOpen()
+    T.eq(guild.members["makira farron"].profs[171].rank, 40)
+    ns.TradeSkill.OnClose()
+    env.C_TradeSkillUI = nil
     T.eq(errors, {})
   end)
 
@@ -237,7 +261,7 @@ T.describe("Smoke", function()
     T.eq(ns.Chat.RecentWhispers()[1].name, "Xii Lightspark")
     T.truthy(ns.GuildData().members["au tsch"].profs[197], "link stored")
     local P = ns.Protocol
-    local payload = P.Encode("PROF", { m = "Makira Farron", p = { ["171"] = { ts = 5, rank = 100, recipes = { 1, 2 } } } })
+    local payload = P.Encode("PROF", { m = "Makira Farron", p = { ["171"] = { ts = 1800000000, rank = 100, recipes = { 1, 2 } } } })
     for _, part in ipairs(P.Chunk("x1", payload)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end
     T.eq(ns.GuildData().members["makira farron"].profs[171].src, "self")
     ns.UI.SelectTab("professions")
