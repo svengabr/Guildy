@@ -1,0 +1,89 @@
+local T = ...
+local ns = T.pureNs()
+local P = ns.Professions
+
+T.describe("Professions.ValidateRecord", function()
+  T.it("rejects records without a numeric timestamp", function()
+    T.eq(P.ValidateRecord({ ts = "x" }), nil)
+    T.eq(P.ValidateRecord(nil), nil)
+    T.eq(P.ValidateRecord({ ts = -1 }), nil)
+  end)
+  T.it("cleans values", function()
+    local r = P.ValidateRecord({ ts = 100.7, src = "evil", rank = 900, max = "150", recipes = { 5, -1, 2.5, "x", 5, 7 } })
+    T.eq(r, { ts = 100, src = "relay", rank = 450, max = 150, recipes = { 5, 7 } })
+  end)
+  T.it("caps the recipe list", function()
+    local list = {}
+    for i = 1, 1500 do list[i] = i end
+    T.eq(#P.ValidateRecord({ ts = 1, recipes = list }).recipes, 1000)
+  end)
+end)
+
+T.describe("Professions.Merge", function()
+  local function rec(ts, src, rank, recipes) return { ts = ts, src = src, rank = rank, max = 300, recipes = recipes } end
+
+  T.it("takes newer and ignores older data", function()
+    local m = {}
+    T.eq(P.Merge(m, 171, rec(10, "relay", 50, { 1 })), true)
+    T.eq(P.Merge(m, 171, rec(5, "self", 99, { 2 })), false)
+    T.eq(m.profs[171].rank, 50)
+    T.eq(P.Merge(m, 171, rec(20, "relay", 60, { 3 })), true)
+    T.eq(m.profs[171].recipes, { 3 })
+  end)
+  T.it("prefers the member's own data at equal age", function()
+    local m = {}
+    P.Merge(m, 171, rec(10, "relay", 50))
+    T.eq(P.Merge(m, 171, rec(10, "self", 51)), true)
+    T.eq(P.Merge(m, 171, rec(10, "relay", 52)), false)
+    T.eq(m.profs[171].rank, 51)
+  end)
+  T.it("keeps recipes and rank when newer data has none", function()
+    local m = {}
+    P.Merge(m, 171, rec(10, "self", 50, { 1, 2 }))
+    T.eq(P.Merge(m, 171, { ts = 20, src = "link" }), true)
+    T.eq(m.profs[171].recipes, { 1, 2 })
+    T.eq(m.profs[171].rank, 50)
+  end)
+  T.it("accepts only own scans for own characters", function()
+    local m = {}
+    T.eq(P.Merge(m, 171, rec(10, "relay", 50), { isOwnChar = true }), false)
+    T.eq(P.Merge(m, 171, rec(10, "scan", 50), { isOwnChar = true }), true)
+  end)
+  T.it("ignores unknown skill lines", function()
+    T.eq(P.Merge({}, 99999, rec(1, "self", 1)), false)
+  end)
+end)
+
+T.describe("Professions digests", function()
+  T.it("takes the newest record per member", function()
+    local guild = { members = {
+      a = { profs = { [171] = { ts = 5 }, [182] = { ts = 9 } } },
+      b = { profs = {} },
+    } }
+    T.eq(P.Digest(guild), { a = 9 })
+  end)
+  T.it("finds members where mine is newer", function()
+    T.eq(P.Outdated({ a = 9, b = 3, c = 1 }, { a = 9, b = 5 }), { "c" })
+    T.eq(P.Outdated({ a = 9, b = 3 }, { a = 4 }), { "a", "b" })
+    T.eq(P.Outdated({ a = 1 }, "junk"), { "a" })
+  end)
+  T.it("builds skill-line sets", function()
+    T.eq(P.SetOf({ profs = { [171] = {}, [182] = {} } }), { [171] = true, [182] = true })
+    T.eq(P.SetOf({ profs = {} }), nil)
+  end)
+end)
+
+T.describe("Professions.ParseTradeLinks", function()
+  T.it("reads the guid format", function()
+    local text = "kann ich: |cffffd000|Htrade:Player-4711-0ABCDEF0:2259:171|h[Alchemie]|h|r"
+    T.eq(P.ParseTradeLinks(text), { { guid = "Player-4711-0ABCDEF0", spellID = 2259, skillLine = 171 } })
+  end)
+  T.it("reads the classic format with rank", function()
+    local text = "|Htrade:3908:120:150:Player-4711-0ABCDEF0:AAAAgA|h[Schneiderei]|h"
+    T.eq(P.ParseTradeLinks(text), { { spellID = 3908, rank = 120, max = 150, guid = "Player-4711-0ABCDEF0", skillLine = 197 } })
+  end)
+  T.it("ignores garbage", function()
+    T.eq(P.ParseTradeLinks("|Htrade:abc|h |Htrade:|h hello"), {})
+    T.eq(P.ParseTradeLinks(nil), {})
+  end)
+end)
