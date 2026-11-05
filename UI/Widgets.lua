@@ -456,3 +456,20 @@ end
 function W.ClassName(name, classFile)
   return "|c" .. W.ClassHex(classFile) .. (name or "?") .. "|r"
 end
+-- Multiline input (guild info editor)
+function W.InputArea(parent)
+  local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
+  local box = CreateFrame("EditBox", nil, scroll)
+  box:SetMultiLine(true)
+  box:SetAutoFocus(false)
+  box:SetFontObject("ChatFontNormal")
+  box:SetMaxLetters(0)
+  box:SetWidth(400)
+  box:SetScript("OnEscapePressed", box.ClearFocus)
+  scroll:SetScrollChild(box)
+  -- clicks on the empty area below the text should still focus the box
+  scroll:EnableMouse(true)
+  scroll:SetScript("OnMouseDown", function() box:SetFocus() end)
+  scroll.EditBox = box
+  return scroll
+end

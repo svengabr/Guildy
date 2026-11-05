@@ -32,39 +32,6 @@ local function EventLines()
   return lines
 end
 
--- Multi-line text editor dialog (guild info)
-local editor
-local function EditText(title, text, onAccept)
-  if not editor then
-    editor = W.Box(UIParent, 0.06, 0.9)
-    editor:SetSize(420, 260)
-    editor:SetPoint("CENTER")
-    editor:SetFrameStrata("DIALOG")
-    editor:EnableMouse(true)
-    editor.Title = W.Text(editor, "GameFontNormal")
-    editor.Title:SetPoint("TOPLEFT", 12, -10)
-    local areaBox = W.Box(editor)
-    areaBox:SetPoint("TOPLEFT", 10, -30)
-    areaBox:SetPoint("BOTTOMRIGHT", -10, 40)
-    editor.Area = W.InputArea(areaBox)
-    editor.Area:SetPoint("TOPLEFT", 6, -6)
-    editor.Area:SetPoint("BOTTOMRIGHT", -26, 6)
-    editor.Area.EditBox:SetWidth(360)
-    editor.Ok = W.Button(editor, ACCEPT or "OK", function()
-      if editor.onAccept then editor.onAccept(editor.Area.EditBox:GetText() or "") end
-      editor:Hide()
-    end, 110)
-    editor.Ok:SetPoint("BOTTOMLEFT", 12, 10)
-    editor.Cancel = W.Button(editor, CANCEL or "Cancel", function() editor:Hide() end, 110)
-    editor.Cancel:SetPoint("BOTTOMRIGHT", -12, 10)
-  end
-  editor.Title:SetText(title)
-  editor.onAccept = onAccept
-  editor.Area.EditBox:SetText(text or "")
-  editor:Show()
-  editor.Area.EditBox:SetFocus()
-end
-
 local function Build(panel)
   local L = ns.L
   local view = {}
@@ -84,11 +51,9 @@ local function Build(panel)
   view.Motd:SetPoint("TOPLEFT", 10, -28)
   view.Motd:SetPoint("RIGHT", -10, 0)
   view.MotdEdit = W.Button(motd, L.EDIT, function()
-    UI.AskText(L.MOTD, ns.Try(C_GuildInfo and C_GuildInfo.GetMOTD) or ns.Try(rawget(_G, "GetGuildRosterMOTD")) or "", 128,
-      function(text)
-        local set = (C_GuildInfo and C_GuildInfo.SetMOTD) or rawget(_G, "GuildSetMOTD")
-        if set then pcall(set, text) end
-      end)
+    local current = ns.Try(C_GuildInfo and C_GuildInfo.GetMOTD) or ns.Try(rawget(_G, "GetGuildRosterMOTD")) or ""
+    UI.GuildCommand({ kind = "motd", title = L.MOTD, okText = L.SAVE, edit = current, maxLetters = 128,
+      after = function() C_Timer.After(1, function() ns.Fire("INFO") end) end })
   end, 70, { small = true })
   view.MotdEdit:SetPoint("TOPRIGHT", -8, -6)
 
@@ -103,13 +68,8 @@ local function Build(panel)
   view.Info:SetPoint("TOPLEFT", 10, -28)
   view.Info:SetPoint("BOTTOMRIGHT", -10, 8)
   view.Info:SetJustifyV("TOP")
-  view.InfoEdit = W.Button(info, L.EDIT, function()
-    local get = (C_GuildInfo and C_GuildInfo.GetInfoText) or rawget(_G, "GetGuildInfoText")
-    EditText(L.GUILD_INFO, ns.Try(get) or "", function(text)
-      local set = (C_GuildInfo and C_GuildInfo.SetInfoText) or rawget(_G, "SetGuildInfoText")
-      if set then pcall(set, text) end
-    end)
-  end, 70, { small = true })
+  view.InfoEdit = W.Button(info, L.EDIT, function() UI.EditInBlizzard() end, 70, { small = true })
+  W.Tooltip(view.InfoEdit, L.GUILD_INFO, L.EDIT_IN_BLIZZARD)
   view.InfoEdit:SetPoint("TOPRIGHT", -8, -6)
 
   -- settings

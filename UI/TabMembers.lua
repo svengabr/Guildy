@@ -62,19 +62,13 @@ local function Build(panel)
   details.RankButton = W.MenuButton(details, L.SET_RANK, function()
     local m, items = view.selected, {}
     if not m then return items end
-    for order, name in ipairs(ns.Roster.Ranks()) do
-      items[#items + 1] = { text = name, checked = m.rankIndex == order - 1, onClick = function() ns.Roster.SetRank(m, order) end }
-    end
+    local can = ns.Roster.Can()
+    if can.promote then items[#items + 1] = { text = L.PROMOTE, onClick = function() UI.ConfirmMemberCommand("promote", m) end } end
+    if can.demote then items[#items + 1] = { text = L.DEMOTE, onClick = function() UI.ConfirmMemberCommand("demote", m) end } end
     return items
   end, 110)
-  details.NoteButton = W.Button(details, L.EDIT_NOTE, function()
-    local m = view.selected
-    if m then UI.AskText(L.NOTE_FOR:format(m.name), m.note, 31, function(t) ns.Roster.SetNote(m, t, true) end) end
-  end, 110, { small = true })
-  details.OfficerButton = W.Button(details, L.EDIT_OFFICER_NOTE, function()
-    local m = view.selected
-    if m then UI.AskText(L.OFFICER_NOTE_FOR:format(m.name), m.officerNote, 31, function(t) ns.Roster.SetNote(m, t, false) end) end
-  end, 110, { small = true })
+  details.NoteButton = W.Button(details, L.EDIT_NOTES, function() UI.EditInBlizzard() end, 110, { small = true })
+  W.Tooltip(details.NoteButton, L.EDIT_NOTES, L.EDIT_IN_BLIZZARD)
   details.Profs = W.Text(details, "GameFontHighlightSmall")
   details.Profs:SetPoint("RIGHT", -12, 0)
   details.Profs:SetSpacing(3)
@@ -84,7 +78,7 @@ local function Build(panel)
   details.Invite:SetPoint("BOTTOMRIGHT", -12, 36)
   details.Remove = W.Button(details, L.REMOVE_SHORT, function()
     local m = view.selected
-    if m then UI.Confirm(L.REMOVE_CONFIRM:format(m.name), function() ns.Roster.Remove(m) end) end
+    if m then UI.ConfirmMemberCommand("remove", m) end
   end, 108)
   details.Remove:SetPoint("BOTTOMLEFT", 12, 10)
   details.Menu = W.Button(details, L.MORE, function(self) if view.selected then UI.MemberMenu(view.selected, self) end end, 108)
@@ -256,7 +250,7 @@ local function Build(panel)
     local d = self.Details
     local shown = m ~= nil
     for _, element in ipairs({ d.Name, d.Sub, d.Lines, d.Profs, d.Whisper, d.Invite, d.Remove, d.Menu, d.RankButton,
-      d.NoteButton, d.OfficerButton }) do
+      d.NoteButton }) do
       element:SetShown(shown)
     end
     d.Empty:SetShown(not shown)
@@ -278,11 +272,8 @@ local function Build(panel)
     d.RankButton:SetPoint("TOPLEFT", d.Lines, "BOTTOMLEFT", 0, -10)
     d.RankButton:SetShown(can.promote or can.demote)
     d.NoteButton:ClearAllPoints()
-    d.NoteButton:SetPoint("TOPLEFT", d.RankButton, "BOTTOMLEFT", 0, -4)
-    d.NoteButton:SetShown(can.editPublic)
-    d.OfficerButton:ClearAllPoints()
-    d.OfficerButton:SetPoint("LEFT", d.NoteButton, "RIGHT", 6, 0)
-    d.OfficerButton:SetShown(can.editOfficer)
+    d.NoteButton:SetPoint("LEFT", d.RankButton, "RIGHT", 6, 0)
+    d.NoteButton:SetShown(can.editPublic or can.editOfficer)
 
     local record = ns.TradeSkill.Record(m)
     local profLines = { "|cffffd100" .. L.PROFESSIONS .. "|r" }
@@ -297,7 +288,7 @@ local function Build(panel)
     end
     if #profLines == 1 then profLines[2] = "|cff999999" .. L.NO_PROFESSIONS .. "|r" end
     d.Profs:ClearAllPoints()
-    d.Profs:SetPoint("TOPLEFT", d.NoteButton, "BOTTOMLEFT", 0, -12)
+    d.Profs:SetPoint("TOPLEFT", d.RankButton, "BOTTOMLEFT", 0, -12)
     d.Profs:SetText(table.concat(profLines, "\n"))
     d.Whisper:SetEnabled(m.online)
     d.Invite:SetEnabled(m.online)

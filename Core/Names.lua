@@ -83,6 +83,15 @@ function Names.FromUnit(name, lastName)
   return Names.Normalize(name)
 end
 
+-- Name as the server expects it in slash commands: Forever's "First Last" is "First-Last" there.
+-- Names that already carry a "-" are left alone.
+function Names.ToServer(name)
+  if type(name) ~= "string" then return "" end
+  name = Trim(name):gsub("%s+", " ")
+  if name:find("-", 1, true) then return name end
+  return (name:gsub(" ", "-", 1))
+end
+
 function Names.Key(name)
   return Names.Lower(Names.Normalize(name))
 end

@@ -95,6 +95,8 @@ env.C_Timer = {
   NewTicker = function() return { Cancel = function() end } end,
 }
 env.tinsert = table.insert
+env.SetOverrideBindingClick = function() end
+env.ClearOverrideBindings = function() end
 env.GetTime = function() return 1000 end
 env.GetServerTime = function() return 1700000000 end
 env.GetLocale = function() return "deDE" end
@@ -174,6 +176,18 @@ local function RunTimers()
   end
 end
 
+T.describe("Widgets", function()
+  T.it("defines every W.* helper the code uses", function()
+    for _, file in ipairs(T.tocFiles()) do
+      if file:match("^UI/") then
+        for helper in T.readFile(T.addonDir .. "/" .. file):gmatch("W%.([A-Z]%w*)%(") do
+          T.truthy(type(ns.Widgets[helper]) == "function", file .. " uses missing W." .. helper)
+        end
+      end
+    end
+  end)
+end)
+
 T.describe("Smoke", function()
   T.it("loads and starts", function()
     Fire("ADDON_LOADED", "Guildy")
@@ -218,6 +232,9 @@ T.describe("Smoke", function()
     ns.UI.SelectTab("professions")
     ns.UI.Show()
     ns.UI.ShowInvite(env.UIParent)
+    ns.UI.ConfirmMemberCommand("remove", ns.Roster.Find("Makira Farron"))
+    T.eq(ns.UI.SlashCommand("invite", "Xii Lightspark"), "/ginvite Xii-Lightspark")
+    T.eq(ns.UI.SlashCommand("motd", "Hallo Welt"), "/gmotd Hallo Welt")
     RunTimers()
     T.eq(errors, {})
   end)

@@ -120,43 +120,9 @@ function Roster.Can()
   return can
 end
 
--- Guild actions (names as the roster gives them) ------------------------------------------------
-
-function Roster.Invite(name)
-  local invite = (C_GuildInfo and C_GuildInfo.Invite) or rawget(_G, "GuildInvite")
-  if invite and name and name ~= "" then pcall(invite, name) end
-end
-
-function Roster.Remove(m)
-  local remove = (C_GuildInfo and C_GuildInfo.Uninvite) or rawget(_G, "GuildUninvite")
-  if remove then pcall(remove, m.fullName) end
-end
-
-function Roster.Promote(m)
-  local fn = (C_GuildInfo and C_GuildInfo.Promote) or rawget(_G, "GuildPromote")
-  if fn then pcall(fn, m.fullName) end
-end
-
-function Roster.Demote(m)
-  local fn = (C_GuildInfo and C_GuildInfo.Demote) or rawget(_G, "GuildDemote")
-  if fn then pcall(fn, m.fullName) end
-end
-
--- rankOrder 1 = guild master
-function Roster.SetRank(m, rankOrder)
-  if C_GuildInfo and C_GuildInfo.SetGuildRankOrder and m.guid then
-    pcall(C_GuildInfo.SetGuildRankOrder, m.guid, rankOrder)
-  end
-end
-
-function Roster.SetNote(m, text, isPublic)
-  if C_GuildInfo and C_GuildInfo.SetNote and m.guid then
-    pcall(C_GuildInfo.SetNote, m.guid, text or "", isPublic)
-    return
-  end
-  local fn = rawget(_G, isPublic and "GuildRosterSetPublicNote" or "GuildRosterSetOfficerNote")
-  if fn then pcall(fn, m.index, text or "") end
-end
+-- Guild actions: invite, remove, promote, demote and MOTD are blocked for addons on Forever and run as
+-- slash commands through the secure dialog (UI/Secure.lua); notes and guild info are edited in
+-- Blizzard's window. Group invites are allowed.
 
 function Roster.GroupInvite(m)
   local fn = (C_PartyInfo and C_PartyInfo.InviteUnit) or rawget(_G, "InviteUnit")

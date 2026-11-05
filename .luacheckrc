@@ -18,7 +18,7 @@ read_globals = {
   "C_AddOns", "C_ChatInfo", "C_Club", "C_CreatureInfo", "C_GuildInfo", "C_PartyInfo", "C_Spell", "C_Texture",
   "C_Timer", "C_TradeSkillUI", "Enum",
   "ACCEPT", "CANCEL", "YES", "NO",
-  "BackdropTemplateMixin", "ButtonFrameTemplate_HideButtonBar", "ChatFrameUtil", "ChatTypeInfo", "ClearCursor",
+  "BackdropTemplateMixin", "ClearOverrideBindings", "SetOverrideBindingClick", "ButtonFrameTemplate_HideButtonBar", "ChatFrameUtil", "ChatTypeInfo", "ClearCursor",
   "CreateFrame", "DEFAULT_CHAT_FRAME", "GameTooltip", "GetCursorInfo", "GetGuildInfo", "GetGuildRosterInfo",
   "GetGuildRosterLastOnline", "GetLocale", "GetTime", "GetUnitName", "InCombatLockdown", "IsInGuild",
   "IsShiftKeyDown", "PanelTemplates_SetNumTabs", "PanelTemplates_SetTab", "PanelTemplates_TabResize", "QuestTitleFont", "StaticPopup_Show", "UIParent", "UISpecialFrames",
