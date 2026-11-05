@@ -75,9 +75,80 @@ local function Build(panel)
   view.Info:SetJustifyH("LEFT")
   view.Info:SetWordWrap(false)
 
+  -- status column while reading members: current look and the latest results
+  local status = W.Box(panel)
+  status:SetPoint("TOPRIGHT", 0, -30)
+  status:SetPoint("BOTTOMRIGHT", 0, 0)
+  status:SetWidth(290)
+  status.Title = W.Text(status, "GameFontNormal", L.HARVEST_STATUS)
+  status.Title:SetPoint("TOPLEFT", 10, -8)
+  status.Progress = W.Text(status, "GameFontHighlightSmall")
+  status.Progress:SetPoint("TOPLEFT", 10, -28)
+  status.Progress:SetPoint("RIGHT", -10, 0)
+  status.Current = W.Text(status, "GameFontHighlight")
+  status.Current:SetPoint("TOPLEFT", 10, -46)
+  status.Current:SetPoint("RIGHT", -10, 0)
+  status.Current:SetWordWrap(false)
+  status.Hint = W.Text(status, "GameFontDisableSmall", L.HARVEST_RESULTS)
+  status.Hint:SetPoint("TOPLEFT", 10, -70)
+  status.Log = W.ScrollList(status, 18, function(row)
+    row.Icon = row:CreateTexture(nil, "ARTWORK")
+    row.Icon:SetSize(14, 14)
+    row.Icon:SetPoint("LEFT", 2, 0)
+    row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.Name = W.Text(row, "GameFontHighlightSmall")
+    row.Name:SetPoint("LEFT", 20, 0)
+    row.Name:SetWidth(120)
+    row.Name:SetWordWrap(false)
+    row.Result = W.Text(row, "GameFontHighlightSmall")
+    row.Result:SetPoint("LEFT", 144, 0)
+    row.Result:SetPoint("RIGHT", -2, 0)
+    row.Result:SetWordWrap(false)
+  end, function(row, e)
+    row.Icon:SetTexture(ns.Professions.ICONS[e.skillLine])
+    row.Name:SetText(W.ClassName(e.member, e.classFile))
+    if e.result == "found" then
+      row.Result:SetText("|cff40e040" .. L.HARVEST_FOUND:format(e.recipes or 0, e.rank or 0) .. "|r")
+    elseif e.result == "absent" then
+      row.Result:SetText("|cff999999" .. L.HARVEST_ABSENT .. "|r")
+    else
+      row.Result:SetText("|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r")
+    end
+  end)
+  status.Log:SetPoint("TOPLEFT", 6, -86)
+  status.Log:SetPoint("BOTTOMRIGHT", -26, 6)
+  status:Hide()
+  view.Status = status
+
   local listBox = W.Box(panel)
   listBox:SetPoint("TOPLEFT", 0, -30)
   listBox:SetPoint("BOTTOMRIGHT", 0, 0)
+  view.ListBox = listBox
+
+  function view:RenderStatus()
+    local log = ns.Harvest.log
+    local running = ns.Harvest.IsRunning()
+    local shown = running or #log > 0
+    self.Status:SetShown(shown)
+    self.ListBox:ClearAllPoints()
+    self.ListBox:SetPoint("TOPLEFT", 0, -30)
+    if shown then
+      self.ListBox:SetPoint("BOTTOMRIGHT", self.Status, "BOTTOMLEFT", -8, 0)
+    else
+      self.ListBox:SetPoint("BOTTOMRIGHT", 0, 0)
+    end
+    if not shown then return end
+    if running then
+      local done, total, found = ns.Harvest.Progress()
+      self.Status.Progress:SetText(L.HARVEST_PROGRESS:format(done, total, found))
+      local name, skill, classFile = ns.Harvest.Current()
+      self.Status.Current:SetText(name and L.HARVEST_NOW:format(W.ClassName(name, classFile), skill) or L.HARVEST_WAITING)
+    else
+      self.Status.Progress:SetText(L.HARVEST_IDLE)
+      self.Status.Current:SetText("")
+    end
+    self.Status.Log:SetItems(log)
+  end
   view.List = W.ScrollList(listBox, ROW, function(row)
     row:EnableMouse(true)
     row.Icon = row:CreateTexture(nil, "ARTWORK")
@@ -151,22 +222,19 @@ local function Build(panel)
   function view:Refresh(event)
     local running = ns.Harvest.IsRunning()
     self.Harvest:SetText(running and L.HARVEST_STOP or L.HARVEST)
-    if running then
-      local done, total, found = ns.Harvest.Progress()
-      self.Info:SetText(L.HARVEST_PROGRESS:format(done, total, found))
-      if event == "HARVEST" then return end
-    end
+    self:RenderStatus()
+    if event == "HARVEST" and running then return end
     if ns.Search.Normalize(self.query) == "" then
       local rows = OverviewRows()
       self.List:SetItems(rows)
-      if not running then self.Info:SetText(#rows == 0 and L.NO_PROFESSION_DATA or L.PROFESSIONS_HINT) end
+      self.Info:SetText(#rows == 0 and L.NO_PROFESSION_DATA or L.PROFESSIONS_HINT)
       return
     end
     local results = ns.Search.Recipes(ns.TradeSkill.RecipeEntries(), self.query)
     local items = {}
     for i, entry in ipairs(results) do items[i] = { entry = entry } end
     self.List:SetItems(items)
-    if not running then self.Info:SetText(L.RESULTS_COUNT:format(#items)) end
+    self.Info:SetText(L.RESULTS_COUNT:format(#items))
   end
 
   return view

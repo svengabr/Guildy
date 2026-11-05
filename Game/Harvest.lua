@@ -24,6 +24,13 @@ function Harvest.IsRunning()
   return state ~= nil
 end
 
+-- The look in progress: member name, profession name (nil when idle)
+function Harvest.Current()
+  local entry = state and state.current
+  if not entry then return nil end
+  return entry.member.name, ns.TradeSkill.Name(entry.skillLine), entry.member.classFile
+end
+
 function Harvest.Progress()
   if not state then return nil end
   return state.doneMembers, state.totalMembers, state.found
@@ -111,7 +118,8 @@ Harvest.log = {}
 local function Log(entry, result, scan, startedAt)
   local mine = scan and scan.at and scan.at >= startedAt and scan.target == entry.member.name
   table.insert(Harvest.log, 1, {
-    member = entry.member.name, skill = ns.TradeSkill.Name(entry.skillLine), result = result,
+    member = entry.member.name, classFile = entry.member.classFile, skillLine = entry.skillLine,
+    skill = ns.TradeSkill.Name(entry.skillLine), result = result,
     path = mine and scan.path or "no scan", rank = mine and scan.rank or nil, recipes = mine and scan.recipes or nil,
     seconds = math.floor((GetTime() - startedAt) * 10 + 0.5) / 10,
   })
@@ -134,6 +142,7 @@ local function Check(entry, startedAt)
   Log(entry, verdict or "no answer", scan, startedAt)
   CloseWindow()
   state.current = nil
+  ns.Fire("HARVEST")
   C_Timer.After(Harvest.PAUSE, Step)
 end
 
@@ -174,6 +183,7 @@ Step = function()
         SetHidden(true)
         pcall(setItemRef, link, "[" .. ns.TradeSkill.Name(entry.skillLine) .. "]", "LeftButton")
         SetHidden(true) -- the frame may only exist after the first link
+        ns.Fire("HARVEST")
         -- normally OnScanned decides much earlier; this only catches "no answer" (went offline)
         C_Timer.After(Harvest.WAIT, function() Check(entry, startedAt) end)
         return
