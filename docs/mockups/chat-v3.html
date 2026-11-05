@@ -1,0 +1,116 @@
+<style>
+.wow{position:relative;background:#16120e;border:3px solid #6b5631;outline:1px solid #000;box-shadow:inset 0 0 0 1px #2e2519,0 4px 18px rgba(0,0,0,.6);border-radius:7px;font-family:"Friz Quadrata TT","Palatino Linotype",Georgia,serif;color:#e6dcc4;font-size:12px;width:100%;max-width:1000px;margin:6px auto 0;overflow:hidden}
+.wow *{box-sizing:border-box}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:#ffd100;text-align:center;padding:7px 0;font-size:15px;border-bottom:2px solid #6b5631}
+.wclose{position:absolute;right:6px;top:5px;width:21px;height:21px;background:linear-gradient(#b3200f,#5c0b05);border:1px solid #d4a94a;border-radius:3px;color:#ffd100;font-size:12px;line-height:18px;text-align:center}
+.wbody{padding:10px;display:flex;gap:8px;height:470px}
+.inset{background:#0d0b09;border:1px solid #4a3d29;border-radius:4px;padding:8px;box-shadow:inset 0 0 8px rgba(0,0,0,.8)}
+.gold{color:#ffd100}.dim{color:#8f8268}.grn{color:#40e040}
+.rbtn{display:inline-block;background:linear-gradient(#a0170e,#560a05);border:1px solid #c9a24a;color:#ffd100;border-radius:3px;padding:3px 12px;font-size:11px}
+.tabs{display:flex;gap:3px;padding:0 12px;margin-top:-1px}
+.tab{background:linear-gradient(#2a2219,#14100b);border:2px solid #5a4a2c;border-top:none;border-radius:0 0 6px 6px;color:#ffd100;padding:5px 16px;font-size:12px}
+.tab.on{background:linear-gradient(#5a4520,#2a2010);border-color:#c9a24a}
+.dd{display:inline-block;background:#1d1711;border:1px solid #6b5631;border-radius:3px;padding:3px 26px 3px 8px;color:#ffd100;position:relative}
+.dd:after{content:"▼";position:absolute;right:5px;top:3px;font-size:9px}
+.ib{width:40px;height:40px;border-radius:5px;border:2px solid #555;background:#3d3a35;margin-bottom:6px;position:relative}
+.ib.on{border-color:#5dff5d;box-shadow:0 0 6px #3c8a3c}
+.ib.add{background:#12200f;color:#5dff5d;font-size:24px;text-align:center;line-height:34px;border-color:#3c8a3c}
+.mrow{display:flex;align-items:center;gap:5px;padding:2px 4px;font-size:11.5px;border-bottom:1px solid #1a150f}
+.mrow .lv{width:18px;color:#8f8268;text-align:right}.mrow .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .zn{color:#8f8268;font-size:10px;width:72px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pi{display:inline-block;width:14px;height:14px;border-radius:2px;border:1px solid #000;font-size:8px;line-height:12px;text-align:center;color:#000;font-family:Arial;font-weight:bold}
+.chat{font-family:Arial,sans-serif;font-size:13.5px;line-height:1.5;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.grip{position:absolute;right:3px;bottom:3px;width:14px;height:14px;background:repeating-linear-gradient(135deg,transparent 0 3px,#c9a24a 3px 4px);opacity:.8}
+.coll{width:16px;flex:none;background:#1d1711;border:1px solid #5a4a2c;border-radius:3px;color:#ffd100;display:flex;align-items:center;justify-content:center;font-size:10px}
+.WAR{color:#C69B6D}.PAL{color:#F48CBA}.HUN{color:#AAD372}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.MAG{color:#3FC7EB}.WLK{color:#8788EE}.DRU{color:#FF7C0A}
+</style>
+
+<h2>Mehr Platz für den Chat</h2>
+<p class="subtitle">Zwei Wege. Bei beiden kann man das Fenster unten rechts am Griff größer ziehen, und die Größe bleibt gespeichert. Klick an, was dir besser gefällt.</p>
+
+<div class="options">
+<div class="option" data-choice="a" onclick="toggleSelect(this)" style="display:block">
+<div class="letter">A</div>
+<div class="content" style="width:100%">
+<h3>Schmale Symbolleiste links, Liste bleibt</h3>
+<p>Gilde und Communitys werden zu Symbolen (Name im Tooltip). Der Chat gewinnt rund 110 px Breite, die Online-Liste bleibt immer sichtbar. Chatbreite etwa 640 statt 470 px.</p>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div style="width:40px;flex:none"><div class="ib on"></div><div class="ib" style="background:#2a3a5a"></div><div class="ib add">+</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+      <div style="display:flex;gap:8px"><span class="dd">Gilde</span><span class="dd" style="color:#c8b98f">Offiziere</span></div>
+      <div class="inset chat" style="flex:1">
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">hätte bock, aber würd nur lv 13 schaffen denke ich</span></div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">^16 wäre gut damit du alle quests nehmen kannst</span></div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">I mean würde reichen aber halt doof ohne quests für dich :o</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">true, hatte irgendwie den dungeon in if im kopf xD</span></div>
+        <div><span class="WAR">[Naughty One]</span> <span class="grn">und es gibt murloc motors</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">ganzen tag nicht da gewesen, muss jetzt gummi geben</span></div>
+        <div><span class="DRU">[Ran Fred]</span> <span class="grn">krasser slacker syd</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">neffe war hier, den kann ich noch nicht mit wow beeindrucken :D</span></div>
+        <div><span class="MAG">[Nyxi Indivaron]</span> <span class="grn">macht spaß durch dustwallow mit level 14 zu laufen :)</span></div>
+        <div class="dim" style="font-size:11px">— Xii Lightspark ist der Gilde beigetreten —</div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">Willkommen :D</span></div>
+        <div><span class="PRI">[Xii Lightspark]</span> <span class="grn">Hallo, danke für den Inv</span></div>
+        <div><span class="DRU">[Aguma Oida]</span> <span class="grn">welcome</span></div>
+      </div>
+      <div class="inset" style="padding:5px 8px"><span class="dim">Nachricht an Gilde …</span></div>
+    </div>
+    <div style="width:240px;flex:none;display:flex;flex-direction:column;gap:6px">
+      <div><span class="gold" style="font-size:15px">35</span><span class="dim"> / 55 online</span></div>
+      <div class="inset" style="flex:1;padding:3px;overflow:hidden">
+        <div class="mrow"><span class="lv">25</span><span class="nm PAL">Eziiria Ash</span><span class="pi" style="background:#7bbf4a">Kr</span><span class="zn">Sumpfland</span></div>
+        <div class="mrow"><span class="lv">22</span><span class="nm PAL">Carenio Inopinatus</span><span class="zn">Dämmerwald</span></div>
+        <div class="mrow"><span class="lv">21</span><span class="nm ROG">Au Tsch</span><span class="pi" style="background:#a8a8a8">Bb</span><span class="zn">Dämmerwald</span></div>
+        <div class="mrow"><span class="lv">20</span><span class="nm WAR">Eoy Goldcog</span><span class="zn">Sturmwind</span></div>
+        <div class="mrow"><span class="lv">19</span><span class="nm DRU">Aguma Oida</span><span class="pi" style="background:#b98b5a">Kü</span><span class="zn">Westfall</span></div>
+        <div class="mrow"><span class="lv">18</span><span class="nm SHA">Stone Totem</span><span class="zn">Westfall</span></div>
+        <div class="mrow"><span class="lv">17</span><span class="nm HUN">Eleza Blake</span><span class="zn">Dunkelküste</span></div>
+        <div class="mrow"><span class="lv">16</span><span class="nm PAL">Makira Farron <span class="gold">♛</span></span><span class="zn">Eisenschmiede</span></div>
+        <div class="mrow"><span class="lv">16</span><span class="nm DRU">Ran Fred <span class="gold">♛</span></span><span class="zn">Sturmwind</span></div>
+        <div class="mrow"><span class="lv">14</span><span class="nm MAG">Nyxi Indivaron</span><span class="zn">Düstermarschen</span></div>
+      </div>
+      <div style="text-align:right"><span class="rbtn">Mitglied einladen</span></div>
+    </div>
+  </div>
+  <div class="tabs"><div class="tab on">Chat</div><div class="tab">Mitglieder</div><div class="tab">Übersicht</div><div class="tab">Berufe</div><div class="tab">Info &amp; Log</div></div>
+  <div style="height:10px"></div><div class="grip"></div>
+</div>
+</div></div>
+
+<div class="option" data-choice="b" onclick="toggleSelect(this)" style="display:block;margin-top:24px">
+<div class="letter">B</div>
+<div class="content" style="width:100%">
+<h3>Wie A, plus einklappbare Online-Liste</h3>
+<p>Mit dem kleinen Pfeil klappt die Liste weg, der Chat nimmt dann fast die ganze Breite ein (etwa 880 px). Ob sie offen oder zu ist, merkt sich das Addon. Hier im eingeklappten Zustand.</p>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div style="width:40px;flex:none"><div class="ib on"></div><div class="ib" style="background:#2a3a5a"></div><div class="ib add">+</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+      <div style="display:flex;gap:8px;align-items:center"><span class="dd">Gilde</span><span class="dd" style="color:#c8b98f">Offiziere</span><span style="flex:1"></span><span class="gold">35</span><span class="dim">/ 55 online</span></div>
+      <div class="inset chat" style="flex:1">
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">hätte bock, aber würd nur lv 13 schaffen denke ich</span></div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">^16 wäre gut damit du alle quests nehmen kannst</span></div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">I mean würde reichen aber halt doof ohne quests für dich :o</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">true, hatte irgendwie den dungeon in if im kopf xD</span></div>
+        <div><span class="WAR">[Naughty One]</span> <span class="grn">und es gibt murloc motors</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">ganzen tag nicht da gewesen, muss jetzt gummi geben</span></div>
+        <div><span class="DRU">[Ran Fred]</span> <span class="grn">krasser slacker syd</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">neffe war hier, den kann ich noch nicht mit wow beeindrucken :D</span></div>
+        <div><span class="MAG">[Nyxi Indivaron]</span> <span class="grn">macht spaß durch dustwallow mit level 14 zu laufen :)</span></div>
+        <div class="dim" style="font-size:11px">— Xii Lightspark ist der Gilde beigetreten —</div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">Willkommen :D</span></div>
+        <div><span class="PRI">[Xii Lightspark]</span> <span class="grn">Hallo, danke für den Inv</span></div>
+        <div><span class="DRU">[Aguma Oida]</span> <span class="grn">welcome</span></div>
+      </div>
+      <div class="inset" style="padding:5px 8px"><span class="dim">Nachricht an Gilde …</span></div>
+    </div>
+    <div class="coll">◀</div>
+  </div>
+  <div class="tabs"><div class="tab on">Chat</div><div class="tab">Mitglieder</div><div class="tab">Übersicht</div><div class="tab">Berufe</div><div class="tab">Info &amp; Log</div></div>
+  <div style="height:10px"></div><div class="grip"></div>
+</div>
+</div></div>
+</div>

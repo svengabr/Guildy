@@ -1,0 +1,146 @@
+<style>
+.wow{position:relative;background:#16120e;border:3px solid #6b5631;outline:1px solid #000;box-shadow:inset 0 0 0 1px #2e2519,0 4px 18px rgba(0,0,0,.6);border-radius:7px;font-family:"Friz Quadrata TT","Palatino Linotype",Georgia,serif;color:#e6dcc4;font-size:12px;width:100%;max-width:1000px;margin:0 auto;overflow:hidden}
+.wow *{box-sizing:border-box}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:#ffd100;text-align:center;padding:7px 0;font-size:15px;border-bottom:2px solid #6b5631;text-shadow:0 1px 1px #000}
+.wclose{position:absolute;right:6px;top:5px;width:21px;height:21px;background:linear-gradient(#b3200f,#5c0b05);border:1px solid #d4a94a;border-radius:3px;color:#ffd100;font-size:12px;line-height:18px;text-align:center}
+.wbody{padding:10px;display:flex;gap:10px;height:430px}
+.inset{background:#0d0b09;border:1px solid #4a3d29;border-radius:4px;padding:8px;box-shadow:inset 0 0 8px rgba(0,0,0,.8)}
+.gold{color:#ffd100}.dim{color:#8f8268}.grn{color:#40e040}
+.h{color:#ffd100;font-size:13px;margin:0 0 6px;font-variant:small-caps;letter-spacing:.5px}
+.rbtn{display:inline-block;background:linear-gradient(#a0170e,#560a05);border:1px solid #c9a24a;color:#ffd100;border-radius:3px;padding:3px 12px;font-size:11px}
+.tabs{display:flex;gap:3px;padding:0 12px;margin-top:-1px}
+.tab{background:linear-gradient(#2a2219,#14100b);border:2px solid #5a4a2c;border-top:none;border-radius:0 0 6px 6px;color:#ffd100;padding:5px 16px;font-size:12px}
+.tab.on{background:linear-gradient(#5a4520,#2a2010);border-color:#c9a24a}
+.gbtn{background:linear-gradient(#1f3a1f,#0e1a0e);border:1px solid #3c8a3c;border-radius:4px;padding:8px 6px;color:#5dff5d;display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px}
+.gbtn.off{background:linear-gradient(#1c2233,#0e1119);border-color:#3a4766;color:#9fb4e8}
+.gbtn .ico{width:24px;height:24px;background:#3d3a35;border:1px solid #888;border-radius:3px;flex:none}
+.bar{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:11px}
+.bar .l{width:84px}.bar .t{flex:1;height:11px;background:#221c14;border:1px solid #3a3022;border-radius:2px;overflow:hidden}.bar .t i{display:block;height:100%}.bar .n{width:26px;text-align:right;color:#c8b98f}
+.hist{display:flex;align-items:flex-end;gap:6px;height:110px;padding-top:4px}
+.hist div{flex:1;background:linear-gradient(#ffd100,#8a6d00);border:1px solid #000;position:relative}
+.hist span{position:absolute;top:-15px;left:0;right:0;text-align:center;font-size:10px;color:#e6dcc4}
+.hl{display:flex;gap:6px;font-size:10px;color:#8f8268}.hl span{flex:1;text-align:center}
+.pi{display:inline-block;width:14px;height:14px;border-radius:2px;border:1px solid #000;font-size:8px;line-height:12px;text-align:center;color:#000;font-family:Arial;font-weight:bold;vertical-align:middle}
+.seg{display:inline-flex;border:1px solid #6b5631;border-radius:4px;overflow:hidden}
+.seg span{padding:3px 10px;font-size:11px;background:#1d1711;color:#c8b98f;border-right:1px solid #4a3d29}
+.seg span:last-child{border-right:none}.seg span.on{background:#5a4415;color:#ffd100}
+.dd{display:inline-block;background:#1d1711;border:1px solid #6b5631;border-radius:3px;padding:3px 26px 3px 8px;color:#ffd100;position:relative}
+.dd:after{content:"▼";position:absolute;right:5px;top:3px;font-size:9px}
+.mrow{display:flex;align-items:center;gap:5px;padding:2px 4px;font-size:11.5px;border-bottom:1px solid #1a150f}
+.mrow .lv{width:18px;color:#8f8268;text-align:right}
+.mrow .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .zn{color:#8f8268;font-size:10px;width:78px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat div{margin:1px 0}
+.WAR{color:#C69B6D}.PAL{color:#F48CBA}.HUN{color:#AAD372}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.MAG{color:#3FC7EB}.WLK{color:#8788EE}.DRU{color:#FF7C0A}
+.cap{font-family:system-ui,sans-serif;font-size:13px;margin:18px auto 6px;max-width:1000px}
+</style>
+
+<h2>Ein Fenster, Chat zuerst</h2>
+<p class="subtitle">Größer als das Blizzard-Fenster (etwa 1000 × 500 statt 830 × 450). Mit J öffnet es immer auf dem Chat. Census bekommt einen Zeitraum-Schalter. Unten zwei Ansichten desselben Fensters.</p>
+
+<div class="cap"><b>1 · Chat (Standard beim Öffnen mit J)</b> — links Gilde und Communitys wie gewohnt, Mitte Chat, rechts die Online-Liste mit Stufe, Zone und Berufen.</div>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div style="width:150px;flex:none">
+      <div class="gbtn"><div class="ico"></div>Murloc Mafia</div>
+      <div class="gbtn off"><div class="ico" style="background:#2a3a5a"></div>Forever DE</div>
+      <div class="gbtn off" style="color:#5dff5d;border-color:#3c8a3c;background:linear-gradient(#18261a,#0c140d)"><span style="font-size:20px;width:24px;text-align:center">+</span>Community beitreten</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px"><span class="dd">Gilde</span><span class="dd" style="color:#c8b98f">Offiziere</span><span style="flex:1"></span><span class="dim">🎧</span></div>
+      <div class="inset chat" style="flex:1;font-family:Arial,sans-serif;font-size:13px;line-height:1.45;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end">
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">welches lv ?</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">hätte bock, aber würd nur lv 13 schaffen denke ich</span></div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">^16 wäre gut damit du alle quests nehmen kannst</span></div>
+        <div><span class="SHA">[Syd Syd]</span> <span class="grn">true, hatte irgendwie den dungeon in if im kopf xD</span></div>
+        <div><span class="WAR">[Naughty One]</span> <span class="grn">und es gibt murloc motors</span></div>
+        <div><span class="DRU">[Ran Fred]</span> <span class="grn">krasser slacker syd</span></div>
+        <div><span class="MAG">[Nyxi Indivaron]</span> <span class="grn">macht spaß durch dustwallow mit level 14 zu laufen :)</span></div>
+        <div class="dim" style="font-size:11px;margin:4px 0">— Xii Lightspark ist der Gilde beigetreten —</div>
+        <div><span class="PAL">[Makira Farron]</span> <span class="grn">Willkommen :D</span></div>
+        <div><span class="PRI">[Xii Lightspark]</span> <span class="grn">Hallo, danke für den Inv</span></div>
+        <div><span class="PAL">[Eziiria Ash]</span> <span class="grn">willkommen</span></div>
+        <div><span class="DRU">[Aguma Oida]</span> <span class="grn">welcome</span></div>
+      </div>
+      <div class="inset" style="padding:5px 8px"><span class="dim">Nachricht an Gilde …</span></div>
+    </div>
+    <div style="width:250px;flex:none;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between"><span><span class="gold" style="font-size:15px">35</span><span class="dim"> / 55 online</span></span><span class="dim" style="font-size:11px">Sortierung: Stufe ▾</span></div>
+      <div class="inset" style="flex:1;padding:3px;overflow:hidden">
+        <div class="mrow"><span class="lv">25</span><span class="nm PAL">Eziiria Ash</span><span class="pi" style="background:#7bbf4a">Kr</span><span class="zn">Sumpfland</span></div>
+        <div class="mrow"><span class="lv">22</span><span class="nm PAL">Carenio Inopinatus</span><span class="pi" style="background:#d2b48c">Sn</span><span class="zn">Dämmerwald</span></div>
+        <div class="mrow"><span class="lv">22</span><span class="nm PAL">Swar Den</span><span class="zn">Dämmerwald</span></div>
+        <div class="mrow"><span class="lv">21</span><span class="nm ROG">Au Tsch</span><span class="pi" style="background:#a8a8a8">Bb</span><span class="zn">Dämmerwald</span></div>
+        <div class="mrow"><span class="lv">20</span><span class="nm WAR">Eoy Goldcog</span><span class="pi" style="background:#c9a24a">In</span><span class="zn">Sturmwind</span></div>
+        <div class="mrow"><span class="lv">20</span><span class="nm PRI">Wuzuw Goldencog</span><span class="zn">Elwynn</span></div>
+        <div class="mrow"><span class="lv">19</span><span class="nm DRU">Aguma Oida</span><span class="pi" style="background:#b98b5a">Kü</span><span class="zn">Westfall</span></div>
+        <div class="mrow"><span class="lv">18</span><span class="nm SHA">Stone Totem</span><span class="zn">Westfall</span></div>
+        <div class="mrow"><span class="lv">17</span><span class="nm HUN">Eleza Blake</span><span class="pi" style="background:#b98b5a">Kü</span><span class="pi" style="background:#8b5a2b">Le</span><span class="zn">Dunkelküste</span></div>
+        <div class="mrow"><span class="lv">17</span><span class="nm PAL">Smite Stonebringer</span><span class="pi" style="background:#7bbf4a">Kr</span><span class="pi" style="background:#5ab0d6">Al</span><span class="zn">Elwynn</span></div>
+        <div class="mrow"><span class="lv">17</span><span class="nm WAR">Grimmly Deephammer</span><span class="zn">Westfall</span></div>
+        <div class="mrow"><span class="lv">16</span><span class="nm PAL">Makira Farron <span class="gold">♛</span></span><span class="zn">Eisenschmiede</span></div>
+        <div class="mrow"><span class="lv">16</span><span class="nm DRU">Ran Fred <span class="gold">♛</span></span><span class="zn">Sturmwind</span></div>
+        <div class="mrow"><span class="lv">14</span><span class="nm MAG">Nyxi Indivaron</span><span class="zn">Düstermarschen</span></div>
+      </div>
+      <div style="text-align:right"><span class="rbtn">Mitglied einladen</span></div>
+    </div>
+  </div>
+  <div class="tabs"><div class="tab on">Chat</div><div class="tab">Mitglieder</div><div class="tab">Übersicht</div><div class="tab">Berufe</div><div class="tab">Info &amp; Log</div></div>
+  <div style="height:10px"></div>
+</div>
+
+<div class="cap"><b>2 · Übersicht (Census)</b> — zählt nur, wer im gewählten Zeitraum online war. Standard 1 Monat.</div>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div style="width:150px;flex:none">
+      <div class="gbtn"><div class="ico"></div>Murloc Mafia</div>
+      <div class="inset" style="padding:8px">
+        <div class="gold" style="font-size:22px">41<span class="dim" style="font-size:12px"> aktiv</span></div>
+        <div class="dim" style="font-size:11px">von 55 Mitgliedern</div>
+        <div style="margin-top:10px" class="dim">Ø Stufe <span class="gold">17,8</span></div>
+        <div class="dim">Neu (30 Tg.) <span class="grn">+11</span></div>
+        <div class="dim">Berufe bekannt <span class="gold">33 / 41</span></div>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px"><span class="dim">Aktiv in den letzten</span><span class="seg"><span class="on">1 Monat</span><span>3 Monaten</span><span>6 Monaten</span><span>Alle</span></span></div>
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr;gap:8px">
+        <div class="inset">
+          <div class="h">Klassen</div>
+          <div class="bar"><span class="l WAR">Krieger</span><span class="t"><i style="width:100%;background:#C69B6D"></i></span><span class="n">7</span></div>
+          <div class="bar"><span class="l HUN">Jäger</span><span class="t"><i style="width:86%;background:#AAD372"></i></span><span class="n">6</span></div>
+          <div class="bar"><span class="l PAL">Paladin</span><span class="t"><i style="width:86%;background:#F48CBA"></i></span><span class="n">6</span></div>
+          <div class="bar"><span class="l ROG">Schurke</span><span class="t"><i style="width:71%;background:#FFF468"></i></span><span class="n">5</span></div>
+          <div class="bar"><span class="l PRI">Priester</span><span class="t"><i style="width:57%;background:#fff"></i></span><span class="n">4</span></div>
+          <div class="bar"><span class="l MAG">Magier</span><span class="t"><i style="width:57%;background:#3FC7EB"></i></span><span class="n">4</span></div>
+          <div class="bar"><span class="l SHA">Schamane</span><span class="t"><i style="width:57%;background:#0070DD"></i></span><span class="n">4</span></div>
+          <div class="bar"><span class="l WLK">Hexenmeister</span><span class="t"><i style="width:43%;background:#8788EE"></i></span><span class="n">3</span></div>
+          <div class="bar"><span class="l DRU">Druide</span><span class="t"><i style="width:29%;background:#FF7C0A"></i></span><span class="n">2</span></div>
+        </div>
+        <div class="inset">
+          <div class="h">Stufen</div>
+          <div class="hist" style="margin-top:16px"><div style="height:16%"><span>4</span></div><div style="height:100%"><span>24</span></div><div style="height:42%"><span>10</span></div><div style="height:8%"><span>2</span></div><div style="height:4%"><span>1</span></div><div style="height:0"><span>0</span></div></div>
+          <div class="hl"><span>1–9</span><span>10–19</span><span>20–29</span><span>30–39</span><span>40–49</span><span>50–60</span></div>
+        </div>
+        <div class="inset" style="grid-column:span 2">
+          <div class="h">Berufe <span class="dim" style="font-size:11px;font-variant:normal">· Klick zeigt, wer ihn hat</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 18px">
+            <div class="bar"><span class="l">Kräuterkunde</span><span class="t"><i style="width:100%;background:#7bbf4a"></i></span><span class="n">11</span></div>
+            <div class="bar"><span class="l">Bergbau</span><span class="t"><i style="width:82%;background:#a8a8a8"></i></span><span class="n">9</span></div>
+            <div class="bar"><span class="l">Kürschnerei</span><span class="t"><i style="width:73%;background:#b98b5a"></i></span><span class="n">8</span></div>
+            <div class="bar"><span class="l">Alchemie</span><span class="t"><i style="width:64%;background:#5ab0d6"></i></span><span class="n">7</span></div>
+            <div class="bar"><span class="l">Schneiderei</span><span class="t"><i style="width:55%;background:#d2b48c"></i></span><span class="n">6</span></div>
+            <div class="bar"><span class="l">Lederverarb.</span><span class="t"><i style="width:45%;background:#8b5a2b"></i></span><span class="n">5</span></div>
+            <div class="bar"><span class="l">Schmiedekunst</span><span class="t"><i style="width:36%;background:#888"></i></span><span class="n">4</span></div>
+            <div class="bar"><span class="l">Ingenieurskunst</span><span class="t"><i style="width:36%;background:#c9a24a"></i></span><span class="n">4</span></div>
+            <div class="bar"><span class="l">Verzauberkunst</span><span class="t"><i style="width:27%;background:#a070e0"></i></span><span class="n">3</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="tabs"><div class="tab">Chat</div><div class="tab">Mitglieder</div><div class="tab on">Übersicht</div><div class="tab">Berufe</div><div class="tab">Info &amp; Log</div></div>
+  <div style="height:10px"></div>
+</div>
