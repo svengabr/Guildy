@@ -90,6 +90,8 @@ SlashCmdList.GUILDY = function(msg)
     C_Timer.After(2, function() ns.TradeSkill.Probe(args) end)
   elseif msg:match("^probe") then
     ns.TradeSkill.Probe(raw:sub(6))
+  elseif msg == "profdump" then
+    ns.TradeSkill.ProfDump()
   elseif msg == "debug" then
     ns.TradeSkill.Debug()
   elseif msg == "sync" then

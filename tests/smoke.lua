@@ -231,6 +231,7 @@ T.describe("Smoke", function()
     env.C_TradeSkillUI.GetBaseProfessionInfo = function() return { professionID = 171, skillLevel = 40, maxSkillLevel = 75 } end
     ns.TradeSkill.ScanOpen()
     T.eq(guild.members["makira farron"].profs[171].rank, 40)
+    ns.TradeSkill.ProfDump()
     ns.TradeSkill.OnClose()
     env.C_TradeSkillUI = nil
     local opened

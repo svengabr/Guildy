@@ -330,6 +330,37 @@ function TradeSkill.Probe(args)
   print("probe: guild tradeskills enabled = " .. tostring(enabled and ns.Try(enabled)))
 end
 
+-- /guildy profdump: every profession info the client hands out right now (experiment: while another
+-- member's recipe book is open, does it also tell their other professions, e.g. herbalism skill?)
+function TradeSkill.ProfDump()
+  local print = ns.Print
+  local ui = C_TradeSkillUI or {}
+  local linkedFn = rawget(ui, "IsTradeSkillLinked")
+  print("profdump: linked = " .. tostring(linkedFn and select(1, ns.Try(linkedFn))) .. ", name = "
+    .. tostring(linkedFn and select(2, ns.Try(linkedFn))))
+  local base = ui.GetBaseProfessionInfo and ns.Try(ui.GetBaseProfessionInfo)
+  if type(base) == "table" then
+    print(("  base: %s id %s, %s/%s"):format(tostring(base.professionName), tostring(base.professionID),
+      tostring(base.skillLevel), tostring(base.maxSkillLevel)))
+  end
+  for _, skillLine in ipairs(P.ORDER) do
+    local info = ui.GetProfessionInfoBySkillLineID and ns.Try(ui.GetProfessionInfoBySkillLineID, skillLine)
+    if type(info) == "table" then
+      print(("  %s (%d): %s/%s, name %s"):format(TradeSkill.Name(skillLine), skillLine, tostring(info.skillLevel),
+        tostring(info.maxSkillLevel), tostring(info.professionName)))
+    else
+      print(("  %s (%d): -"):format(TradeSkill.Name(skillLine), skillLine))
+    end
+  end
+  local children = ui.GetChildProfessionInfos and ns.Try(ui.GetChildProfessionInfos)
+  if type(children) == "table" then
+    for _, info in ipairs(children) do
+      print(("  child: %s id %s, %s/%s"):format(tostring(info.professionName), tostring(info.professionID),
+        tostring(info.skillLevel), tostring(info.maxSkillLevel)))
+    end
+  end
+end
+
 -- /guildy debug: what Guildy knows about the current character and how the last scan went
 function TradeSkill.Debug()
   local print = ns.Print
