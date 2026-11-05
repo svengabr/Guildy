@@ -311,7 +311,9 @@ T.describe("Harvest", function()
     RunTimers(60)
     T.eq(ns.Harvest.IsRunning(), false)
     T.truthy(#opened > 0, "opened links")
-    T.truthy(ns.GuildData().absent["au tsch"], "remembered absent professions")
+    T.eq(ns.GuildData().absent["au tsch"], nil) -- no answer is not "absent"
+    T.eq(ns.Harvest.log[1].result, "no answer")
+    ns.TradeSkill.Debug()
     env.SetItemRef = nil
     ns.UI.SelectTab("professions")
     T.eq(errors, {})

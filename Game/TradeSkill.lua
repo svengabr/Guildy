@@ -231,7 +231,9 @@ function TradeSkill.ScanOpen()
   end
   TradeSkill.lastScan.target = scanTarget and scanTarget.name or "own"
   TradeSkill.lastScan.at = GetTime()
-  if not scanTarget and ns.Harvest then ns.Harvest.OnOwnWindow() end
+  if ns.Harvest then
+    if scanTarget then ns.Harvest.OnScanned(TradeSkill.lastScan) else ns.Harvest.OnOwnWindow() end
+  end
 end
 
 -- Profession links in chat: "I can do this" for the linking member (or the guid in the link)
@@ -344,4 +346,11 @@ function TradeSkill.Debug()
     tostring(s.target), tostring(s.path), tostring(s.name), tostring(s.skillLine), tostring(s.rank), tostring(s.entries), tostring(s.recipes),
     tostring(s.hasRecipeLink)))
   if s.sample then print("  sample link: " .. s.sample:gsub("|", "||")) end
+  local log = ns.Harvest and ns.Harvest.log or {}
+  if #log > 0 then print("  last looks while reading members (newest first):") end
+  for i = 1, math.min(#log, 12) do
+    local e = log[i]
+    print(("    %s %s: %s (%s, rank %s, recipes %s, %ss)"):format(e.member, e.skill, e.result, tostring(e.path),
+      tostring(e.rank), tostring(e.recipes), tostring(e.seconds)))
+  end
 end
