@@ -193,22 +193,14 @@ local function Build()
     if portrait then portrait:SetAlpha(0) end
   end
 
-  -- side tabs outside the right edge, exactly like Blizzard's profession window: Guildy (guild emblem,
-  -- selected), then Blizzard's guild window
+  -- side tab outside the right edge, exactly like Blizzard's profession window: Guildy with the guild
+  -- emblem. (A communities tab was dropped: creating communities is broken on Forever; Blizzard's guild
+  -- window stays reachable from the member menu, the info tab and the micro menu.)
   frame.GuildTab = SideTab(frame, W.LOGO, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
   frame.GuildTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
   frame.GuildTab.keepChecked = true
   frame.GuildTab:SetChecked(true)
   frame.GuildTab.Emblem = TabEmblem(frame.GuildTab)
-  frame.CommunitiesTab = SideTab(frame, "Interface\\Icons\\achievement_guildperk_havegroup willtravel", ns.L.ICON_COMMUNITIES)
-  frame.CommunitiesTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -2)
-  -- the green plus of Blizzard's "Join or create a community" entry
-  local plus = "communities-icon-addgroupplus"
-  if C_Texture and C_Texture.GetAtlasExists and C_Texture.GetAtlasExists(plus) then
-    frame.CommunitiesTab.Icon:SetAtlas(plus)
-    frame.CommunitiesTab.Icon:SetSize(34, 34)
-  end
-  UI.SecureAction(frame.CommunitiesTab, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   UpdateTitle()
 
   -- content area (the portrait overlaps its top-left corner; tabs keep their first row clear of it)
