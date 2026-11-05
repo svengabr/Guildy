@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guildy – Overview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=block">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="frame"></div>
+
+<div class="copy" style="gap: 30px; width: 640px;">
+  <img src="../logo.png" alt="" style="width: 150px; height: 150px; filter: drop-shadow(0 10px 24px rgba(0,0,0,.6));">
+  <h1 style="font-size: 104px; color: var(--gold);">Guildy</h1>
+  <p style="font-family: 'Friz', serif; font-size: 42px; color: #fff;">Your guild, at a glance.</p>
+  <p>A modern guild window for WoW Forever: chat first, who's online, who's active and who can craft what.</p>
+  <p class="note">Press J · replaces the default guild window · Blizzard style</p>
+</div>
+
+<div class="stage" style="left: 760px;">
+  <div class="gwin" style="width: 1020px;">
+    <div class="portrait"><img src="../logo.png" alt=""></div>
+    <div class="bar">Silver Lanterns · Guildy</div>
+    <div class="close">×</div>
+    <div class="side"><img src="../logo.png" alt=""></div>
+    <div class="body" style="height: 600px;">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+        <div style="padding-left: 60px;"><span class="btn" style="width: 150px; text-align: center;">Guild</span></div>
+        <div class="pane chatlog" style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
+          <div><span class="pa">[Elowen Brightleaf]</span>: <span class="msg">anyone up for Deadmines in 20 min?</span></div>
+          <div><span class="sh">[Kaelen Swiftarrow]</span>: <span class="msg">I'm in, healer here</span></div>
+          <div><span class="wc">[Borin Ashhammer]</span>: <span class="msg">tank ready, need a mage</span></div>
+          <div><span class="ma">[Mira Thistlewood]</span>: <span class="msg">on my way from Westfall</span></div>
+          <div class="sys">— Tobias Fenwick has joined the guild —</div>
+          <div><span class="pt">[Tobias Fenwick]</span>: <span class="msg">hi all, thanks for the invite!</span></div>
+          <div><span class="dr">[Seraphine Dawnveil]</span>: <span class="msg">welcome :)</span></div>
+          <div><span class="ro">[Dorran Coalbeard]</span>: <span class="msg">who can make Elixir of Lion's Strength?</span></div>
+          <div><span class="pa">[Elowen Brightleaf]</span>: <span class="msg">check the Professions tab ^^</span></div>
+        </div>
+        <div class="pane" style="height: 40px; padding: 6px 12px;"></div>
+      </div>
+      <div style="width: 410px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 22px;"><span class="gold">38</span> / 61 online</span>
+          <span class="btn" style="font-size: 18px;">Level</span>
+        </div>
+        <div class="pane online" style="flex: 1; padding: 6px 8px;">
+          <div class="row2"><span class="lv">27</span><span class="nm wc">Borin Ashhammer</span><span class="pr"><img src="icons/trade_blacksmithing.jpg"><img src="icons/trade_mining.jpg"></span><span class="zn">Redridge</span></div>
+          <div class="row2"><span class="lv">25</span><span class="nm pa">Elowen Brightleaf</span><span class="pr"><img src="icons/trade_alchemy.jpg"><img src="icons/trade_herbalism.jpg"></span><span class="zn">Duskwood</span></div>
+          <div class="row2"><span class="lv">24</span><span class="nm sh">Kaelen Swiftarrow</span><span class="pr"><img src="icons/inv_misc_armorkit_17.jpg"></span><span class="zn">Wetlands</span></div>
+          <div class="row2"><span class="lv">22</span><span class="nm ma">Mira Thistlewood</span><span class="pr"><img src="icons/trade_tailoring.jpg"><img src="icons/trade_engraving.jpg"></span><span class="zn">Westfall</span></div>
+          <div class="row2"><span class="lv">21</span><span class="nm dr">Seraphine Dawnveil</span><span class="pr"></span><span class="zn">Stormwind</span></div>
+          <div class="row2"><span class="lv">20</span><span class="nm ro">Dorran Coalbeard</span><span class="pr"><img src="icons/trade_engineering.jpg"></span><span class="zn">Loch Modan</span></div>
+          <div class="row2"><span class="lv">19</span><span class="nm hu">Lysa Windhollow</span><span class="pr"><img src="icons/inv_misc_pelt_wolf_01.jpg"></span><span class="zn">Darkshore</span></div>
+          <div class="row2"><span class="lv">18</span><span class="nm wl">Garrick Vane</span><span class="pr"></span><span class="zn">Ironforge</span></div>
+          <div class="row2"><span class="lv">16</span><span class="nm pt">Tobias Fenwick</span><span class="pr"></span><span class="zn">Elwynn</span></div>
+        </div>
+        <div style="text-align: right;"><span class="btn">Invite member</span></div>
+      </div>
+    </div>
+    <div class="tabs"><span class="on">Chat</span><span>Members</span><span>Overview</span><span>Professions</span><span>Info &amp; Log</span></div>
+  </div>
+</div>
+</body>
+</html>

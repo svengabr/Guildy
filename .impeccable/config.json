@@ -1,0 +1,53 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "media/gallery/01-overview.html"
+        ],
+        "createdAt": "2026-11-05T21:49:44.693Z",
+        "reason": "agent decision: muted secondary text intentionally mirrors WoW UI and the KeepOrSell gallery style in 1920x1080 promo renders"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "media/gallery/02-census.html"
+        ],
+        "createdAt": "2026-11-05T21:49:44.814Z",
+        "reason": "agent decision: muted secondary text intentionally mirrors WoW UI and the KeepOrSell gallery style in 1920x1080 promo renders"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "media/gallery/03-professions.html"
+        ],
+        "createdAt": "2026-11-05T21:49:44.940Z",
+        "reason": "agent decision: muted secondary text intentionally mirrors WoW UI and the KeepOrSell gallery style in 1920x1080 promo renders"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "media/gallery/04-members.html"
+        ],
+        "createdAt": "2026-11-05T21:49:45.062Z",
+        "reason": "agent decision: muted secondary text intentionally mirrors WoW UI and the KeepOrSell gallery style in 1920x1080 promo renders"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "media/gallery/05-invite-sync.html"
+        ],
+        "createdAt": "2026-11-05T21:49:45.187Z",
+        "reason": "agent decision: muted secondary text intentionally mirrors WoW UI and the KeepOrSell gallery style in 1920x1080 promo renders"
+      }
+    ]
+  }
+}

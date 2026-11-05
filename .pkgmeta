@@ -7,6 +7,8 @@ manual-changelog:
 ignore:
   - tests
   - docs
+  - media
+  - .impeccable
   - .luacheckrc
   - .github
   - .gitattributes

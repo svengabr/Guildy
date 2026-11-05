@@ -10,8 +10,9 @@
 # ## Version: @project-version@
 #@end-non-debug@
 ## IconTexture: Interface\Icons\INV_Shirt_GuildTabard_01
+## X-Website: https://github.com/svengabr/Guildy
 ## SavedVariables: GuildyDB
-## X-License: All Rights Reserved
+## X-License: GPL-3.0-or-later
 
 Libs\LibDeflate\LibDeflate.lua
 Libs\json\json.lua
