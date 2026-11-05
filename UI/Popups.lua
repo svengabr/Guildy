@@ -67,7 +67,7 @@ function UI.MemberTooltip(owner, m)
 end
 
 -- Guild invite: name field with the unguilded target and recent whisperers as suggestions; the invite
--- itself runs through the secure command dialog (UI/Secure.lua)
+-- itself goes into the chat input as /ginvite (UI/Commands.lua)
 
 local function TargetSuggestion()
   if not UnitExists("target") or not UnitIsPlayer("target") or UnitIsUnit("target", "player") then return nil end
@@ -85,9 +85,5 @@ function UI.ShowInvite(anchor)
       suggestions[#suggestions + 1] = { label = L.INVITE_WHISPERED:format(w.name), value = w.full }
     end
   end
-  UI.GuildCommand({
-    kind = "invite", title = L.INVITE_TITLE, okText = L.INVITE, edit = target or "", maxLetters = 48,
-    hint = L.INVITE_SUGGESTIONS, suggestions = suggestions, anchor = anchor,
-    after = function(name) if name and name ~= "" then ns.Print(L.INVITE_SENT:format(ns.Names.Normalize(name))) end end,
-  })
+  UI.InviteDialog(anchor, target, suggestions)
 end

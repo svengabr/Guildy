@@ -52,8 +52,7 @@ local function Build(panel)
   view.Motd:SetPoint("RIGHT", -10, 0)
   view.MotdEdit = W.Button(motd, L.EDIT, function()
     local current = ns.Try(C_GuildInfo and C_GuildInfo.GetMOTD) or ns.Try(rawget(_G, "GetGuildRosterMOTD")) or ""
-    UI.GuildCommand({ kind = "motd", title = L.MOTD, okText = L.SAVE, edit = current, maxLetters = 128,
-      after = function() C_Timer.After(1, function() ns.Fire("INFO") end) end })
+    UI.CommandToChat("motd", current)
   end, 70, { small = true })
   view.MotdEdit:SetPoint("TOPRIGHT", -8, -6)
 

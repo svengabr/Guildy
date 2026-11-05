@@ -31,7 +31,7 @@ Game\Redirect.lua
 UI\Widgets.lua
 UI\Main.lua
 UI\Popups.lua
-UI\Secure.lua
+UI\Commands.lua
 UI\TabChat.lua
 UI\TabMembers.lua
 UI\TabOverview.lua
