@@ -39,42 +39,73 @@ local function ApplyBounds()
   end
 end
 
--- Side tab in the style of Blizzard's spellbook / guild window tabs: 32 px icon on a tab background,
--- highlight on hover, glow when it is the current place
+-- Round side button in a column left of the window, like the server list in Discord, drawn with
+-- Blizzard parts: round icon in a gold ring (minimap button style), a gold bar on the left edge for the
+-- current place (tall) and on hover (short), ring glow on hover.
+local TAB_SIZE = 40
+
 local function SideTab(parent, texture, tooltip, onClick)
   local tab = CreateFrame("CheckButton", nil, parent)
-  tab:SetSize(32, 32)
-  tab.Background = tab:CreateTexture(nil, "BACKGROUND")
-  tab.Background:SetTexture("Interface\\SpellBook\\SpellBook-SkillLineTab")
-  tab.Background:SetSize(64, 64)
-  tab.Background:SetPoint("TOPLEFT", -3, 11)
+  tab:SetSize(TAB_SIZE, TAB_SIZE)
+  tab.Back = tab:CreateTexture(nil, "BACKGROUND")
+  tab.Back:SetPoint("TOPLEFT", 2, -2)
+  tab.Back:SetPoint("BOTTOMRIGHT", -2, 2)
+  tab.Back:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+  tab.Back:SetVertexColor(0.08, 0.07, 0.05, 1)
   if texture then
-    tab:SetNormalTexture(texture)
-    local normal = tab:GetNormalTexture()
-    if normal then normal:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+    tab.Icon = tab:CreateTexture(nil, "ARTWORK")
+    tab.Icon:SetPoint("TOPLEFT", 4, -4)
+    tab.Icon:SetPoint("BOTTOMRIGHT", -4, 4)
+    tab.Icon:SetTexture(texture)
+    local mask = tab.CreateMaskTexture and tab:CreateMaskTexture()
+    if mask then
+      mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+      mask:SetAllPoints(tab.Icon)
+      tab.Icon:AddMaskTexture(mask)
+    end
   end
-  -- hover and "current" glow on their own layer above anything placed in the tab (the guild emblem)
+  -- ring, glow and bar on their own layer above anything placed in the button (the guild emblem)
   tab.Over = CreateFrame("Frame", nil, tab)
   tab.Over:SetAllPoints()
   tab.Over:SetFrameLevel(tab:GetFrameLevel() + 10)
-  tab.Over.Hover = tab.Over:CreateTexture(nil, "OVERLAY")
-  tab.Over.Hover:SetAllPoints()
-  tab.Over.Hover:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+  tab.Over.Ring = tab.Over:CreateTexture(nil, "OVERLAY", nil, 1)
+  tab.Over.Ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  tab.Over.Ring:SetSize(TAB_SIZE * 54 / 32, TAB_SIZE * 54 / 32)
+  tab.Over.Ring:SetPoint("TOPLEFT", -1, 1)
+  tab.Over.Hover = tab.Over:CreateTexture(nil, "OVERLAY", nil, 2)
+  tab.Over.Hover:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
   tab.Over.Hover:SetBlendMode("ADD")
+  tab.Over.Hover:SetAllPoints()
   tab.Over.Hover:Hide()
-  tab.Over.Glow = tab.Over:CreateTexture(nil, "OVERLAY")
-  tab.Over.Glow:SetAllPoints()
-  tab.Over.Glow:SetTexture("Interface\\Buttons\\CheckButtonHilight")
-  tab.Over.Glow:SetBlendMode("ADD")
-  tab.Over.Glow:Hide()
-  hooksecurefunc(tab, "SetChecked", function(self, checked) self.Over.Glow:SetShown(checked and true or false) end)
+  tab.Bar = tab.Over:CreateTexture(nil, "OVERLAY", nil, 3)
+  tab.Bar:SetColorTexture(1, 0.82, 0, 1)
+  tab.Bar:SetWidth(4)
+  tab.Bar:SetPoint("RIGHT", tab, "LEFT", -4, 0)
+  tab.Bar:Hide()
+  local function UpdateBar(self)
+    if self:GetChecked() then
+      self.Bar:SetHeight(TAB_SIZE - 6)
+      self.Bar:Show()
+    elseif self.hovered then
+      self.Bar:SetHeight(12)
+      self.Bar:Show()
+    else
+      self.Bar:Hide()
+    end
+  end
+  function tab:SetHover(on)
+    self.hovered = on
+    self.Over.Hover:SetShown(on)
+    UpdateBar(self)
+  end
+  hooksecurefunc(tab, "SetChecked", function(self) UpdateBar(self) end)
   tab:SetScript("OnClick", function(self)
     self:SetChecked(self.keepChecked or false)
     if onClick then onClick(self) end
   end)
   W.Tooltip(tab, tooltip)
-  tab:HookScript("OnEnter", function(self) self.Over.Hover:Show() end)
-  tab:HookScript("OnLeave", function(self) self.Over.Hover:Hide() end)
+  tab:HookScript("OnEnter", function(self) self:SetHover(true) end)
+  tab:HookScript("OnLeave", function(self) self:SetHover(false) end)
   return tab
 end
 
@@ -131,6 +162,7 @@ local function Build()
   frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true)
   frame:SetClampedToScreen(true)
+  frame:SetClampRectInsets(-(TAB_SIZE + 14), 0, 0, 0) -- keep the button column left of the window on screen
   frame:SetMovable(true)
   frame:SetResizable(true)
   ApplyBounds()
@@ -159,16 +191,22 @@ local function Build()
     if portrait then portrait:SetAlpha(0) end
   end
 
-  -- side tabs outside the right edge, like Blizzard's guild window: Guildy, then Blizzard's window
+  -- round buttons in a column left of the window (like Discord's server list): Guildy, Blizzard's window
   frame.GuildTab = SideTab(frame, nil, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
-  frame.GuildTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -40)
-  frame.GuildTab.Emblem = UI.GuildEmblem(frame.GuildTab, 32)
+  frame.GuildTab:SetPoint("TOPRIGHT", frame, "TOPLEFT", -6, -66)
+  frame.GuildTab.Emblem = UI.GuildEmblem(frame.GuildTab, TAB_SIZE - 6)
   frame.GuildTab.Emblem:SetPoint("CENTER")
   frame.GuildTab.keepChecked = true
   frame.GuildTab:SetChecked(true)
-  if not frame.GuildTab.Emblem.ok then frame.GuildTab:SetNormalTexture(W.LOGO) end
+  if not frame.GuildTab.Emblem.ok then
+    frame.GuildTab.Emblem:Hide()
+    local icon = frame.GuildTab:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("TOPLEFT", 4, -4)
+    icon:SetPoint("BOTTOMRIGHT", -4, 4)
+    icon:SetTexture(W.LOGO)
+  end
   frame.CommunitiesTab = SideTab(frame, "Interface\\Icons\\achievement_guildperk_havegroup willtravel", ns.L.ICON_COMMUNITIES)
-  frame.CommunitiesTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -17)
+  frame.CommunitiesTab:SetPoint("TOP", frame.GuildTab, "BOTTOM", 0, -10)
   UI.SecureAction(frame.CommunitiesTab, UI.Action.BlizzardWindow, ns.L.ICON_COMMUNITIES)
   UpdateTitle()
 

@@ -56,8 +56,8 @@ local function Overlay()
   -- the overlay is invisible: it lights up the button below it in that button's own style
   local function Light(owner, on)
     if not owner then return end
-    if owner.Over and owner.Over.Hover then
-      owner.Over.Hover:SetShown(on)
+    if owner.SetHover then
+      owner:SetHover(on)
     elseif owner.LockHighlight then
       if on then owner:LockHighlight() else owner:UnlockHighlight() end
     end
