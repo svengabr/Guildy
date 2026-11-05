@@ -205,6 +205,8 @@ T.describe("Smoke", function()
     ns.TradeSkill.ScanSkills()
     local guild = ns.GuildData()
     T.eq(guild.members["ran fred"].profs[171].rank, 120)
+    ns.TradeSkill.ScanOpen()
+    ns.TradeSkill.Debug()
     T.eq(errors, {})
   end)
 

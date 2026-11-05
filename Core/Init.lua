@@ -71,7 +71,9 @@ end
 SLASH_GUILDY1 = "/guildy"
 SlashCmdList.GUILDY = function(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
-  if msg == "sync" then
+  if msg == "debug" then
+    ns.TradeSkill.Debug()
+  elseif msg == "sync" then
     ns.Sync.SendSummary()
     ns.Print(ns.L.SYNC_SENT)
   else

@@ -126,6 +126,7 @@ end
 
 -- The open profession window (legacy trade skill frame, craft frame, or the C_TradeSkillUI one)
 function TradeSkill.ScanOpen()
+  TradeSkill.lastScan = { path = "none" }
   if C_TradeSkillUI and C_TradeSkillUI.IsNPCCrafting and ns.Try(C_TradeSkillUI.IsNPCCrafting) then return end
   if ns.Try(rawget(_G, "IsTradeSkillLinked")) or ns.Try(rawget(_G, "IsTradeSkillGuild")) then return end
 
@@ -139,6 +140,9 @@ function TradeSkill.ScanOpen()
         if id then recipes[#recipes + 1] = id end
       end
     end
+    TradeSkill.lastScan = { path = "GetTradeSkillLine", name = lineName, skillLine = SkillByName(lineName), rank = rank,
+      entries = ns.Try(rawget(_G, "GetNumTradeSkills")) or 0, recipes = #recipes,
+      hasRecipeLink = rawget(_G, "GetTradeSkillRecipeLink") ~= nil, sample = ns.Try(rawget(_G, "GetTradeSkillRecipeLink"), 2) }
     if #recipes > 0 then StoreOwn(SkillByName(lineName), rank, max, recipes) end
   end
 
@@ -152,6 +156,9 @@ function TradeSkill.ScanOpen()
         if id then recipes[#recipes + 1] = id end
       end
     end
+    TradeSkill.lastScan = { path = "GetCraftDisplaySkillLine", name = craftName, skillLine = SkillByName(craftName),
+      rank = craftRank, entries = ns.Try(rawget(_G, "GetNumCrafts")) or 0, recipes = #recipes,
+      hasRecipeLink = rawget(_G, "GetCraftRecipeLink") ~= nil, sample = ns.Try(rawget(_G, "GetCraftRecipeLink"), 1) }
     if #recipes > 0 then StoreOwn(SkillByName(craftName), craftRank, craftMax, recipes) end
   end
 
@@ -164,6 +171,8 @@ function TradeSkill.ScanOpen()
       local recipe = ns.Try(C_TradeSkillUI.GetRecipeInfo, id)
       if recipe and recipe.learned then recipes[#recipes + 1] = id end
     end
+    TradeSkill.lastScan = { path = "C_TradeSkillUI", name = info.professionName, skillLine = skillLine,
+      rank = info.skillLevel, recipes = #recipes }
     if skillLine and #recipes > 0 then StoreOwn(skillLine, info.skillLevel, info.maxSkillLevel, recipes) end
   end
 end
@@ -216,4 +225,26 @@ function TradeSkill.RecipeEntries()
     end
   end
   return entries
+end
+
+-- /guildy debug: what Guildy knows about the current character and how the last scan went
+function TradeSkill.Debug()
+  local print = ns.Print
+  local guild = ns.GuildData()
+  local me = ns.PlayerName()
+  local record = guild and guild.members[ns.Names.Key(me)]
+  print(("debug: %s, guild data %s"):format(me, guild and "yes" or "no"))
+  for skillLine, prof in pairs(record and record.profs or {}) do
+    print(("  %s (%d): %s/%s, recipes %s, %s, src %s"):format(TradeSkill.Name(skillLine), skillLine,
+      tostring(prof.rank), tostring(prof.max), prof.recipes and #prof.recipes or "none", ns.UI.Age(prof.ts), prof.src))
+  end
+  local s = TradeSkill.lastScan
+  if not s then
+    print("  last scan: never (open a profession window)")
+    return
+  end
+  print(("  last scan: path %s, name %s, skillLine %s, rank %s, entries %s, recipes %s, recipeLink %s"):format(
+    tostring(s.path), tostring(s.name), tostring(s.skillLine), tostring(s.rank), tostring(s.entries), tostring(s.recipes),
+    tostring(s.hasRecipeLink)))
+  if s.sample then print("  sample link: " .. s.sample:gsub("|", "||")) end
 end
