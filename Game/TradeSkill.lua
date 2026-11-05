@@ -306,6 +306,23 @@ function TradeSkill.BuildLink(m, skillLine)
   return ("trade:%s:%d:%d"):format(m.guid, spell, skillLine)
 end
 
+-- Whether Blizzard can show this member's recipe book now: online and on the player's server shard
+-- (books of other shards never open on Forever)
+function TradeSkill.CanOpenBook(m)
+  if not (m and m.online and m.guid) then return false end
+  local mine = ns.Try(rawget(_G, "UnitGUID"), "player")
+  local server = ns.Harvest.ServerId
+  return not mine or server(mine) == server(m.guid)
+end
+
+-- Opens a member's recipe book in Blizzard's window (it gets stored like a clicked link)
+function TradeSkill.OpenBook(m, skillLine)
+  local link = TradeSkill.BuildLink(m, skillLine)
+  local setItemRef = rawget(_G, "SetItemRef")
+  if not (link and setItemRef) then return false end
+  return (pcall(setItemRef, link, "[" .. TradeSkill.Name(skillLine) .. "]", "LeftButton"))
+end
+
 -- /guildy probe <name> <profession>: opens a self-built profession link of a guild member. Experiment:
 -- does Forever open recipe books that nobody posted, also of offline members?
 function TradeSkill.Probe(args)

@@ -240,6 +240,11 @@ T.describe("Smoke", function()
     env.SetItemRef = function(link) opened = link end
     ns.TradeSkill.Probe("Makira Farron Alchemie")
     T.eq(opened, "trade:Player-1-02:2259:171")
+    local au = ns.Roster.Find("Au Tsch")
+    T.eq(ns.TradeSkill.CanOpenBook(au), true)
+    T.eq(ns.TradeSkill.CanOpenBook(ns.Roster.Find("Makira Farron")), false) -- offline
+    T.eq(ns.TradeSkill.OpenBook(au, 197), true)
+    T.eq(opened, "trade:Player-1-03:3908:197")
     env.SetItemRef = nil
     T.eq(errors, {})
   end)

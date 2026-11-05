@@ -14,8 +14,24 @@ local function SourceText(src)
   return L.SRC_RELAY
 end
 
--- Rows for the profession overview: a header per profession, then its members (online first, skill desc)
-local function OverviewRows()
+local function ExpandKey(m, skillLine)
+  return m.key .. ":" .. skillLine
+end
+
+-- Recipe rows of an expanded member profession, sorted by name
+local function RecipeRows(m, prof, skillLine)
+  local rows = {}
+  for _, spellID in ipairs(prof.recipes or {}) do
+    local name = ns.TradeSkill.RecipeName(spellID) or ("#" .. spellID)
+    rows[#rows + 1] = { recipe = spellID, name = name, member = m, skillLine = skillLine }
+  end
+  table.sort(rows, function(a, b) return a.name < b.name end)
+  return rows
+end
+
+-- Rows for the profession overview: a header per profession, then its members (online first, skill
+-- desc), with the recipes of expanded members below them
+local function OverviewRows(expanded)
   local guild = ns.GuildData()
   local rows = {}
   if not guild then return rows end
@@ -35,7 +51,11 @@ local function OverviewRows()
       end)
       rows[#rows + 1] = { header = true, skillLine = skillLine, count = #members }
       for _, entry in ipairs(members) do
-        rows[#rows + 1] = { member = entry.member, prof = entry.prof, skillLine = skillLine }
+        local open = expanded[ExpandKey(entry.member, skillLine)] and entry.prof.recipes ~= nil
+        rows[#rows + 1] = { member = entry.member, prof = entry.prof, skillLine = skillLine, open = open }
+        if open then
+          for _, recipeRow in ipairs(RecipeRows(entry.member, entry.prof, skillLine)) do rows[#rows + 1] = recipeRow end
+        end
       end
     end
   end
@@ -44,7 +64,34 @@ end
 
 local function Build(panel)
   local L = ns.L
-  local view = { query = "" }
+  local view = { query = "", expanded = {} }
+
+  -- Menu for a member's profession: open Blizzard's recipe book, show/hide recipes, whisper, invite
+  local function ProfessionMenu(anchor, m, skillLine, prof)
+    local canOpen = ns.TradeSkill.CanOpenBook(m)
+    local items = {
+      { text = W.ClassName(m.name, m.classFile) .. " · " .. ns.TradeSkill.Name(skillLine), isTitle = true },
+      { text = canOpen and L.OPEN_BOOK or (m.online and L.OPEN_BOOK_OTHER_SERVER or L.OPEN_BOOK_OFFLINE),
+        disabled = not canOpen, onClick = function() ns.TradeSkill.OpenBook(m, skillLine) end },
+    }
+    if prof and prof.recipes then
+      local key = ExpandKey(m, skillLine)
+      items[#items + 1] = { text = view.expanded[key] and L.HIDE_RECIPES or L.SHOW_RECIPES, onClick = function()
+        view.expanded[key] = not view.expanded[key] or nil
+        view:Refresh()
+      end }
+    end
+    items[#items + 1] = { text = L.WHISPER, disabled = not m.online, onClick = function() UI.Whisper(m.fullName) end }
+    items[#items + 1] = { text = L.GROUP_INVITE, disabled = not m.online, onClick = function() ns.Roster.GroupInvite(m) end }
+    W.OpenMenu(anchor, items, 230)
+  end
+
+  local function InsertRecipeLink(spellID)
+    local getLink = (C_Spell and C_Spell.GetSpellLink) or rawget(_G, "GetSpellLink")
+    local link = getLink and ns.Try(getLink, spellID)
+    local insert = rawget(_G, "ChatEdit_InsertLink") or (ChatFrameUtil and ChatFrameUtil.InsertLink)
+    if link and insert then pcall(insert, link) end
+  end
 
   local search = W.EditBox(panel, 320)
   search:SetPoint("TOPLEFT", 6, -4)
@@ -180,22 +227,53 @@ local function Build(panel)
     row:SetScript("OnEnter", function(self)
       local item = self.item
       if not item then return end
-      if item.entry then
+      local spellID = (item.entry and item.entry.spellID) or item.recipe
+      if spellID then
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if not pcall(GameTooltip.SetSpellByID, GameTooltip, item.entry.spellID) then GameTooltip:SetText(item.entry.recipeName) end
+        if not pcall(GameTooltip.SetSpellByID, GameTooltip, spellID) then
+          GameTooltip:SetText((item.entry and item.entry.recipeName) or item.name or "?")
+        end
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(L.CLICK_TO_WHISPER, 0.6, 0.6, 0.6)
+        GameTooltip:AddLine(item.entry and L.RESULT_CLICK_HINT or L.RECIPE_CLICK_HINT, 0.6, 0.6, 0.6, true)
         GameTooltip:Show()
-      elseif item.member then
+      elseif item.member and item.prof then
         UI.MemberTooltip(self, item.member)
+        GameTooltip:AddLine(L.PROF_CLICK_HINT, 0.6, 0.6, 0.6, true)
+        GameTooltip:Show()
       end
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row:SetScript("OnMouseUp", function(self, button)
       local item = self.item
-      local m = item and (item.member or (item.entry and ns.Roster.Find(item.entry.memberKey)))
-      if not m then return end
-      if button == "RightButton" then UI.MemberMenu(m, self) else UI.Whisper(m.fullName) end
+      if not item or item.header then return end
+      if item.recipe then
+        if IsShiftKeyDown() then InsertRecipeLink(item.recipe) end
+        return
+      end
+      if item.entry then
+        local m = ns.Roster.Find(item.entry.memberKey)
+        if not m then return end
+        if IsShiftKeyDown() then
+          InsertRecipeLink(item.entry.spellID)
+        elseif button == "RightButton" then
+          ProfessionMenu(self, m, item.entry.skillLine, nil)
+        elseif ns.TradeSkill.CanOpenBook(m) then
+          ns.TradeSkill.OpenBook(m, item.entry.skillLine)
+        else
+          UI.Whisper(m.fullName)
+        end
+        return
+      end
+      local m, prof = item.member, item.prof
+      if button == "RightButton" then
+        ProfessionMenu(self, m, item.skillLine, prof)
+      elseif prof.recipes then
+        local key = ExpandKey(m, item.skillLine)
+        view.expanded[key] = not view.expanded[key] or nil
+        view:Refresh()
+      elseif ns.TradeSkill.CanOpenBook(m) then
+        ns.TradeSkill.OpenBook(m, item.skillLine)
+      end
     end)
   end, function(row, item)
     row.item = item
@@ -205,6 +283,11 @@ local function Build(panel)
       row.A:SetText("|cffffd100" .. ns.TradeSkill.Name(item.skillLine) .. "|r")
       row.B:SetText("")
       row.C:SetText(L.MEMBERS_COUNT:format(item.count))
+    elseif item.recipe then
+      row.Icon:Hide()
+      row.A:SetText("        |cffd8c8a0" .. item.name .. "|r")
+      row.B:SetText("")
+      row.C:SetText("")
     elseif item.entry then
       local e = item.entry
       local m = ns.Roster.Find(e.memberKey)
@@ -216,7 +299,8 @@ local function Build(panel)
     else
       local m, prof = item.member, item.prof
       row.Icon:Hide()
-      row.A:SetText("    " .. W.ClassName(m.name, m.classFile) .. (m.online and " |cff40e040" .. L.ONLINE .. "|r" or ""))
+      local arrow = prof.recipes and (item.open and "|cffffd100-|r " or "|cffffd100+|r ") or "   "
+      row.A:SetText("  " .. arrow .. W.ClassName(m.name, m.classFile) .. (m.online and " |cff40e040" .. L.ONLINE .. "|r" or ""))
       local level = UI.ProfLevel(prof)
       local recipes = prof.recipes and (" · " .. L.RECIPES_COUNT:format(#prof.recipes)) or ""
       row.B:SetText(level .. recipes)
@@ -232,7 +316,7 @@ local function Build(panel)
     self:RenderStatus()
     if event == "HARVEST" and running then return end
     if ns.Search.Normalize(self.query) == "" then
-      local rows = OverviewRows()
+      local rows = OverviewRows(self.expanded)
       self.List:SetItems(rows)
       self.Info:SetText(#rows == 0 and L.NO_PROFESSION_DATA or L.PROFESSIONS_HINT)
       return
