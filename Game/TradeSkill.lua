@@ -286,8 +286,12 @@ function TradeSkill.RecipeEntries()
   return entries
 end
 
+-- Spell a profession link carries where it isn't the lowest rank spell: mining's recipe book is Smelting
+local LINK_SPELL = { [186] = 2656 }
+
 -- First profession spell of a skill line (the spell a profession link carries)
 local function ProfessionSpell(skillLine)
+  if LINK_SPELL[skillLine] then return LINK_SPELL[skillLine] end
   local best
   for spell, line in pairs(P.SPELL_TO_SKILL) do
     if line == skillLine and (not best or spell < best) then best = spell end
