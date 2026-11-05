@@ -87,11 +87,11 @@ local function Build(panel)
   status.Progress:SetPoint("TOPLEFT", 10, -28)
   status.Progress:SetPoint("RIGHT", -10, 0)
   status.Current = W.Text(status, "GameFontHighlight")
-  status.Current:SetPoint("TOPLEFT", 10, -46)
+  status.Current:SetPoint("TOPLEFT", status.Progress, "BOTTOMLEFT", 0, -6)
   status.Current:SetPoint("RIGHT", -10, 0)
   status.Current:SetWordWrap(false)
   status.Hint = W.Text(status, "GameFontDisableSmall", L.HARVEST_RESULTS)
-  status.Hint:SetPoint("TOPLEFT", 10, -70)
+  status.Hint:SetPoint("TOPLEFT", status.Current, "BOTTOMLEFT", 0, -10)
   status.Log = W.ScrollList(status, 18, function(row)
     row.Icon = row:CreateTexture(nil, "ARTWORK")
     row.Icon:SetSize(14, 14)
@@ -118,7 +118,7 @@ local function Build(panel)
       row.Result:SetText("|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r")
     end
   end)
-  status.Log:SetPoint("TOPLEFT", 6, -86)
+  status.Log:SetPoint("TOPLEFT", status.Hint, "BOTTOMLEFT", -4, -4)
   status.Log:SetPoint("BOTTOMRIGHT", -26, 6)
   status:Hide()
   view.Status = status
@@ -143,11 +143,15 @@ local function Build(panel)
     if not shown then return end
     if running then
       local done, total, found = ns.Harvest.Progress()
-      self.Status.Progress:SetText(L.HARVEST_PROGRESS:format(done, total, found))
+      local progress = L.HARVEST_PROGRESS:format(done, total, found)
+      if (ns.Harvest.otherRealm or 0) > 0 then progress = progress .. "\n" .. L.HARVEST_OTHER_SERVER:format(ns.Harvest.otherRealm) end
+      self.Status.Progress:SetText(progress)
       local name, skill, classFile = ns.Harvest.Current()
       self.Status.Current:SetText(name and L.HARVEST_NOW:format(W.ClassName(name, classFile), skill) or L.HARVEST_WAITING)
     else
-      self.Status.Progress:SetText(L.HARVEST_IDLE)
+      local idle = L.HARVEST_IDLE
+      if (ns.Harvest.otherRealm or 0) > 0 then idle = L.HARVEST_OTHER_SERVER:format(ns.Harvest.otherRealm) .. "\n" .. idle end
+      self.Status.Progress:SetText(idle)
       self.Status.Current:SetText("")
     end
     self.Status.Log:SetItems(log)

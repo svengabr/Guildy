@@ -302,6 +302,13 @@ T.describe("Harvest", function()
       absent = { a = { [164] = now - 100 } } }
     local queue, total = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end)
     T.eq(total, 1)
+    T.eq(ns.Harvest.ServerId("Player-6949-0074341C"), "6949")
+    local _, sameTotal, other = ns.Harvest.BuildQueue({
+      { key = "x", name = "X", online = true, guid = "Player-6949-01" },
+      { key = "y", name = "Y", online = true, guid = "Player-6945-02" },
+    }, { members = {} }, now, function() return false end, "6949")
+    T.eq(sameTotal, 1)
+    T.eq(other, 1)
     T.eq(#queue, #ns.Harvest.ORDER - 2) -- alchemy is fresh, blacksmithing known absent
     for _, entry in ipairs(queue) do T.eq(entry.member.key, "a") end
   end)

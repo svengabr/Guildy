@@ -17,7 +17,7 @@ Harvest.ABSENT = 7 * 24 * 3600 -- "doesn't have it" is remembered this long
 Harvest.WAIT = 3               -- seconds until a look without any answer counts as "no answer"
 Harvest.MAX_PRIMARY = 2
 Harvest.PAUSE = 1              -- seconds between looks (the server may ignore requests in quick succession)
-Harvest.DATA_VERSION = 2       -- bump to drop "absent" marks made by older, faulty runs
+Harvest.DATA_VERSION = 3       -- bump to drop "absent"/"silent" marks made by older, faulty runs
 
 local state
 
@@ -50,14 +50,25 @@ local function PrimaryCount(record, now)
   return count
 end
 
--- Pure: which (member, profession) pairs to look at. members = roster entries, guild = stored data
-function Harvest.BuildQueue(members, guild, now, isOwn)
+-- Server id in a player GUID ("Player-6949-0074341C" -> "6949"). Recipe books only open for members of
+-- the player's own realm, not for those on other realms of the connected realm group.
+function Harvest.ServerId(guid)
+  return type(guid) == "string" and guid:match("^Player%-(%d+)%-") or nil
+end
+
+-- Pure: which (member, profession) pairs to look at. members = roster entries, guild = stored data,
+-- myServer = server id of the player. Returns queue, member count, members skipped for another realm.
+function Harvest.BuildQueue(members, guild, now, isOwn, myServer)
   local queue, memberSet = {}, {}
   local absent = guild.absent or {}
   local silent = guild.silent or {}
+  local otherRealm = 0
   for _, m in ipairs(members) do
     local quiet = silent[m.key] and now - silent[m.key] < Harvest.FRESH
-    if m.online and not m.isMobile and m.guid and not isOwn(m) and not quiet then
+    local sameRealm = not myServer or Harvest.ServerId(m.guid) == myServer
+    if m.online and not m.isMobile and m.guid and not isOwn(m) and not sameRealm then
+      otherRealm = otherRealm + 1
+    elseif m.online and not m.isMobile and m.guid and not isOwn(m) and not quiet then
       local record = guild.members[m.key]
       -- professions the guild note mentions go first: the first look decides whether a member is skipped
       local order = {}
@@ -82,7 +93,7 @@ function Harvest.BuildQueue(members, guild, now, isOwn)
   end
   local total = 0
   for _ in pairs(memberSet) do total = total + 1 end
-  return queue, total
+  return queue, total, otherRealm
 end
 
 local function ProfessionsFrame()
@@ -230,14 +241,18 @@ function Harvest.Start()
   if not guild then return end
   if guild.absentVersion ~= Harvest.DATA_VERSION then
     guild.absent = {}
+    guild.silent = {}
     guild.absentVersion = Harvest.DATA_VERSION
   end
   local db = ns.DB()
-  local queue, total = Harvest.BuildQueue(ns.Roster.Members(), guild, ns.Now(), function(m)
+  local myServer = Harvest.ServerId(ns.Try(rawget(_G, "UnitGUID"), "player"))
+  local queue, total, otherRealm = Harvest.BuildQueue(ns.Roster.Members(), guild, ns.Now(), function(m)
     return (db.ownChars and db.ownChars[m.key]) or ns.Names.Same(m.name, ns.PlayerName())
-  end)
+  end, myServer)
+  Harvest.otherRealm = otherRealm
   if #queue == 0 then
     ns.Print(ns.L.HARVEST_NOTHING)
+    ns.Fire("HARVEST")
     return
   end
   state = { queue = queue, index = 0, totalMembers = total, doneMembers = 0, found = 0, looks = {}, answered = {}, skip = {} }
