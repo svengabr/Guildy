@@ -108,7 +108,8 @@ local function Build(panel)
   view.List:SetPoint("TOPLEFT", 4, -4)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  view.InviteButton = W.Button(right, L.INVITE_MEMBER, function(self) UI.ShowInvite(self) end, 150)
+  view.InviteButton = W.Button(right, L.INVITE_MEMBER, nil, 150)
+  UI.SecureAction(view.InviteButton, function() return UI.InviteAction() end)
   view.InviteButton:SetPoint("BOTTOMRIGHT", 0, 2)
 
   -- left: chat ---------------------------------------------------------------------------------

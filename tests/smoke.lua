@@ -234,7 +234,6 @@ T.describe("Smoke", function()
     T.eq(ns.GuildData().members["makira farron"].profs[171].src, "self")
     ns.UI.SelectTab("professions")
     ns.UI.Show()
-    ns.UI.ShowInvite(env.UIParent)
     local A = ns.UI.Action
     env.GuildMicroButton = env.CreateFrame("Button", "GuildMicroButton")
     T.eq(A.BlizzardWindow().click, env.GuildMicroButton)
@@ -244,6 +243,7 @@ T.describe("Smoke", function()
     env.C_Club = { GetGuildClubId = function() return 7 end }
     env.CommunitiesFrame = { InviteButton = invite, GetSelectedClubId = function() return 7 end }
     T.eq(A.Invite("Xii Lightspark").click, invite)
+    T.eq(ns.UI.InviteAction().click, invite)
     ns.UI.ShowOverlay(env.UIParent, A.BlizzardWindow())
     RunTimers()
     T.eq(errors, {})

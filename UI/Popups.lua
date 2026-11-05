@@ -54,8 +54,8 @@ function UI.MemberTooltip(owner, m)
   GameTooltip:Show()
 end
 
--- Guild invite: name field with the unguilded target and recent whisperers as suggestions; the invite
--- itself goes into the chat input as /ginvite (UI/Commands.lua)
+-- Guild invite: Blizzard's invite dialog (UI/Commands.lua) with the unguilded target filled in and
+-- recent whisperers as suggestions
 
 local function TargetSuggestion()
   if not UnitExists("target") or not UnitIsPlayer("target") or UnitIsUnit("target", "player") then return nil end
@@ -63,15 +63,15 @@ local function TargetSuggestion()
   return (rawget(_G, "GetUnitName") and GetUnitName("target", true)) or UnitName("target")
 end
 
-function UI.ShowInvite(anchor)
+function UI.InviteAction()
   local L = ns.L
-  local suggestions = {}
   local target = TargetSuggestion()
+  local suggestions = {}
   if target then suggestions[#suggestions + 1] = { label = L.INVITE_TARGET:format(ns.Names.Normalize(target)), value = target } end
   for _, w in ipairs(ns.Chat.RecentWhispers()) do
     if #suggestions < 5 and not (target and ns.Names.Same(w.full, target)) then
       suggestions[#suggestions + 1] = { label = L.INVITE_WHISPERED:format(w.name), value = w.full }
     end
   end
-  UI.InviteDialog(anchor, target, suggestions)
+  return UI.Action.InviteWith(target, suggestions)
 end

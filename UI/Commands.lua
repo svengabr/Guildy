@@ -28,23 +28,6 @@ local function BlizzardInviteButton()
   return button
 end
 
-local function FillInviteName(name)
-  if not name or name == "" then return end
-  local find = rawget(_G, "StaticPopup_FindVisible")
-  if not find then return end
-  for _, which in ipairs(INVITE_POPUPS) do
-    local dialog = find(which)
-    if dialog then
-      local box = (dialog.GetEditBox and dialog:GetEditBox()) or dialog.editBox
-      if box then
-        box:SetText(ns.Names.ToServer(name))
-        box:SetFocus()
-      end
-      return
-    end
-  end
-end
-
 -- Blizzard's guild window (everything Guildy can't do itself)
 function Action.BlizzardWindow()
   local micro = rawget(_G, "GuildMicroButton")
@@ -53,23 +36,6 @@ function Action.BlizzardWindow()
     ns.UI.Hide()
     ns.Print(ns.L.BLIZZARD_OPENED)
   end }
-end
-
--- Blizzard's invite dialog with the name filled in; falls back to Blizzard's guild window until that
--- window was opened once (its invite button exists only then)
-function Action.Invite(name)
-  local button = BlizzardInviteButton()
-  if button then
-    return { click = button, after = function() FillInviteName(name) end }
-  end
-  local window = Action.BlizzardWindow()
-  if window then
-    window.after = function()
-      ns.UI.Hide()
-      ns.Print(ns.L.INVITE_FIRST_TIME)
-    end
-  end
-  return window
 end
 
 -- The overlay --------------------------------------------------------------------------------------
@@ -131,76 +97,96 @@ function UI.SecureAction(button, getAction, tooltip)
   button:SetScript("OnClick", function() ns.Print(ns.L.NOT_IN_COMBAT) end)
 end
 
--- Invite dialog: name field plus suggestions; the buttons open Blizzard's invite dialog --------------
+-- Invite: Guildy's button clicks Blizzard's invite button directly. Once Blizzard's dialog is up,
+-- Guildy fills in the unguilded target and shows the latest whisperers as a small panel beside it;
+-- a click there puts that name into Blizzard's field (the player still confirms in Blizzard's dialog).
 
-local dialog
+local panel
 
-local function Build()
-  local L = ns.L
-  dialog = W.Box(UIParent, 0.06, 0.9)
-  dialog:SetSize(300, 140)
-  dialog:SetFrameStrata("DIALOG")
-  dialog:EnableMouse(true)
-  dialog:SetClampedToScreen(true)
-  dialog:SetMovable(true)
-  dialog:RegisterForDrag("LeftButton")
-  dialog:SetScript("OnDragStart", dialog.StartMoving)
-  dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
-
-  dialog.Title = W.Text(dialog, "GameFontNormal", L.INVITE_TITLE)
-  dialog.Title:SetPoint("TOPLEFT", 12, -10)
-
-  dialog.Edit = W.EditBox(dialog, 270)
-  dialog.Edit:SetPoint("TOPLEFT", 16, -32)
-  dialog.Edit:SetMaxLetters(48)
-  dialog.Edit:SetScript("OnEscapePressed", function() dialog:Hide() end)
-
-  dialog.Hint = W.Text(dialog, "GameFontDisableSmall", L.INVITE_SUGGESTIONS)
-  dialog.Hint:SetPoint("TOPLEFT", 12, -56)
-
-  local function Then(action)
-    if not action then return nil end
-    local after = action.after
-    action.after = function()
-      dialog:Hide()
-      if after then after() end
-    end
-    return action
+local function InvitePopup()
+  local find = rawget(_G, "StaticPopup_FindVisible")
+  if not find then return nil end
+  for _, which in ipairs(INVITE_POPUPS) do
+    local popup = find(which)
+    if popup then return popup end
   end
-
-  dialog.Suggestions = {}
-  for i = 1, 5 do
-    local b = W.Button(dialog, "", nil, 276, { small = true })
-    b:SetHeight(18)
-    b:SetPoint("TOPLEFT", 12, -70 - (i - 1) * 20)
-    UI.SecureAction(b, function(self) return Then(Action.Invite(self.value)) end)
-    dialog.Suggestions[i] = b
-  end
-
-  dialog.Ok = W.Button(dialog, L.INVITE, nil, 130)
-  dialog.Ok:SetPoint("BOTTOMLEFT", 12, 10)
-  UI.SecureAction(dialog.Ok, function() return Then(Action.Invite(ns.Names.Trim(dialog.Edit:GetText() or ""))) end)
-  dialog.Cancel = W.Button(dialog, CANCEL or "Cancel", function() dialog:Hide() end, 130)
-  dialog.Cancel:SetPoint("BOTTOMRIGHT", -12, 10)
-  dialog:SetScript("OnHide", function() UI.HideOverlay() end)
-  dialog:Hide()
 end
 
--- suggestions = { {label, value} }
-function UI.InviteDialog(anchor, name, suggestions)
-  if not dialog then Build() end
-  for i, button in ipairs(dialog.Suggestions) do
-    local s = suggestions[i]
-    button.value = s and s.value
-    button:SetText(s and s.label or "")
-    button:SetShown(s ~= nil)
+local function SetPopupName(popup, name)
+  local box = (popup.GetEditBox and popup:GetEditBox()) or popup.editBox
+  if box and name then
+    box:SetText(ns.Names.ToServer(name))
+    box:SetFocus()
   end
-  dialog.Hint:SetShown(#suggestions > 0)
-  dialog:SetHeight(96 + (#suggestions > 0 and (18 + #suggestions * 20) or 0))
-  dialog:ClearAllPoints()
-  if anchor then dialog:SetPoint("BOTTOMRIGHT", anchor, "TOPRIGHT", 0, 4) else dialog:SetPoint("CENTER", 0, 120) end
-  dialog.Edit:SetText(name or "")
-  dialog:Show()
-  dialog.Edit:SetFocus()
-  dialog.Edit:HighlightText()
+end
+
+local function ShowSuggestions(popup, suggestions)
+  if #suggestions == 0 then
+    if panel then panel:Hide() end
+    return
+  end
+  if not panel then
+    panel = W.Box(UIParent, 0.06, 0.9)
+    panel:SetFrameStrata("DIALOG")
+    panel:SetWidth(200)
+    panel.Title = W.Text(panel, "GameFontNormalSmall", ns.L.INVITE_SUGGESTIONS)
+    panel.Title:SetPoint("TOPLEFT", 10, -8)
+    panel.Buttons = {}
+    for i = 1, 5 do
+      local b = W.Button(panel, "", function(self)
+        local current = InvitePopup()
+        if current then SetPopupName(current, self.value) end
+      end, 180, { small = true })
+      b:SetHeight(18)
+      b:SetPoint("TOPLEFT", 10, -24 - (i - 1) * 20)
+      panel.Buttons[i] = b
+    end
+  end
+  for i, b in ipairs(panel.Buttons) do
+    local s = suggestions[i]
+    b.value = s and s.value
+    b:SetText(s and s.label or "")
+    b:SetShown(s ~= nil)
+  end
+  panel:SetHeight(32 + #suggestions * 20)
+  panel:ClearAllPoints()
+  panel:SetPoint("TOPLEFT", popup, "TOPRIGHT", 4, 0)
+  panel.popup = popup
+  panel:Show()
+  -- follow the popup: hide with it
+  if not panel.ticker then
+    panel.ticker = C_Timer.NewTicker(0.5, function()
+      if not (panel.popup and panel.popup:IsShown()) then
+        panel:Hide()
+        panel.ticker:Cancel()
+        panel.ticker = nil
+      end
+    end)
+  end
+end
+
+-- target: name to fill in (or nil); suggestions = { {label, value} }
+function Action.InviteWith(target, suggestions)
+  local button = BlizzardInviteButton()
+  if not button then
+    local window = Action.BlizzardWindow()
+    if window then
+      window.after = function()
+        ns.UI.Hide()
+        ns.Print(ns.L.INVITE_FIRST_TIME)
+      end
+    end
+    return window
+  end
+  return { click = button, after = function()
+    local popup = InvitePopup()
+    if not popup then return end
+    if target then SetPopupName(popup, target) end
+    ShowSuggestions(popup, suggestions)
+  end }
+end
+
+-- Invite with a name and no suggestions
+function Action.Invite(name)
+  return Action.InviteWith(name, {})
 end
