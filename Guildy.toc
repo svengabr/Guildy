@@ -26,6 +26,7 @@ Core\Runtime.lua
 Game\Roster.lua
 Game\Chat.lua
 Game\TradeSkill.lua
+Game\Harvest.lua
 Game\Sync.lua
 Game\Redirect.lua
 UI\Widgets.lua

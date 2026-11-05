@@ -63,10 +63,17 @@ local function Build(panel)
   end
   view.Search = search
 
+  view.Harvest = W.Button(panel, L.HARVEST, function()
+    if ns.Harvest.IsRunning() then ns.Harvest.Stop() else ns.Harvest.Start() end
+  end, 190, { fit = { L.HARVEST, L.HARVEST_STOP } })
+  view.Harvest:SetPoint("TOPRIGHT", 0, -2)
+  W.Tooltip(view.Harvest, L.HARVEST, L.HARVEST_TIP)
+
   view.Info = W.Text(panel, "GameFontDisableSmall")
   view.Info:SetPoint("LEFT", search, "RIGHT", 12, 0)
-  view.Info:SetPoint("RIGHT", panel, "RIGHT", -8, 0)
+  view.Info:SetPoint("RIGHT", view.Harvest, "LEFT", -8, 0)
   view.Info:SetJustifyH("LEFT")
+  view.Info:SetWordWrap(false)
 
   local listBox = W.Box(panel)
   listBox:SetPoint("TOPLEFT", 0, -30)
@@ -141,18 +148,25 @@ local function Build(panel)
   view.List:SetPoint("TOPLEFT", 4, -4)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  function view:Refresh()
+  function view:Refresh(event)
+    local running = ns.Harvest.IsRunning()
+    self.Harvest:SetText(running and L.HARVEST_STOP or L.HARVEST)
+    if running then
+      local done, total, found = ns.Harvest.Progress()
+      self.Info:SetText(L.HARVEST_PROGRESS:format(done, total, found))
+      if event == "HARVEST" then return end
+    end
     if ns.Search.Normalize(self.query) == "" then
       local rows = OverviewRows()
       self.List:SetItems(rows)
-      self.Info:SetText(#rows == 0 and L.NO_PROFESSION_DATA or L.PROFESSIONS_HINT)
+      if not running then self.Info:SetText(#rows == 0 and L.NO_PROFESSION_DATA or L.PROFESSIONS_HINT) end
       return
     end
     local results = ns.Search.Recipes(ns.TradeSkill.RecipeEntries(), self.query)
     local items = {}
     for i, entry in ipairs(results) do items[i] = { entry = entry } end
     self.List:SetItems(items)
-    self.Info:SetText(L.RESULTS_COUNT:format(#items))
+    if not running then self.Info:SetText(L.RESULTS_COUNT:format(#items)) end
   end
 
   return view

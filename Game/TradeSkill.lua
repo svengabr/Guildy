@@ -230,6 +230,8 @@ function TradeSkill.ScanOpen()
     if skillLine and #recipes > 0 then StoreOwn(skillLine, info.skillLevel, info.maxSkillLevel, recipes) end
   end
   TradeSkill.lastScan.target = scanTarget and scanTarget.name or "own"
+  TradeSkill.lastScan.at = GetTime()
+  if not scanTarget and ns.Harvest then ns.Harvest.OnOwnWindow() end
 end
 
 -- Profession links in chat: "I can do this" for the linking member (or the guid in the link)

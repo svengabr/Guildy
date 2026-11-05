@@ -172,8 +172,8 @@ local function Fire(event, ...)
   end
 end
 
-local function RunTimers()
-  for _ = 1, 5 do
+local function RunTimers(rounds)
+  for _ = 1, rounds or 5 do
     local pending = timers
     timers = {}
     for _, fn in ipairs(pending) do fn() end
@@ -283,6 +283,37 @@ T.describe("Smoke", function()
     T.eq(ns.UI.InviteAction().click, invite)
     ns.UI.ShowOverlay(env.UIParent, A.BlizzardWindow())
     RunTimers()
+    T.eq(errors, {})
+  end)
+end)
+
+T.describe("Harvest", function()
+  T.it("builds a queue of online, not yet read members", function()
+    local now = 1700000000
+    local members = {
+      { key = "a", name = "A", online = true, guid = "G-A" },
+      { key = "b", name = "B", online = false, guid = "G-B" },
+      { key = "me", name = "Me", online = true, guid = "G-ME" },
+    }
+    local guild = { members = { a = { profs = { [171] = { ts = now - 10, recipes = { 1 } } } } },
+      absent = { a = { [164] = now - 100 } } }
+    local queue, total = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end)
+    T.eq(total, 1)
+    T.eq(#queue, #ns.Harvest.ORDER - 2) -- alchemy is fresh, blacksmithing known absent
+    for _, entry in ipairs(queue) do T.eq(entry.member.key, "a") end
+  end)
+
+  T.it("runs through online members and stops", function()
+    local opened = {}
+    env.SetItemRef = function(link) opened[#opened + 1] = link end
+    ns.Harvest.Start()
+    T.truthy(ns.Harvest.IsRunning(), "running")
+    RunTimers(60)
+    T.eq(ns.Harvest.IsRunning(), false)
+    T.truthy(#opened > 0, "opened links")
+    T.truthy(ns.GuildData().absent["au tsch"], "remembered absent professions")
+    env.SetItemRef = nil
+    ns.UI.SelectTab("professions")
     T.eq(errors, {})
   end)
 end)

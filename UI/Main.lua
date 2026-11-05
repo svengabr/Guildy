@@ -196,7 +196,7 @@ local function Refresh(event, ...)
   if not UI.IsShown() or not current or not current.view or not current.view.Refresh then return end
   ns.SafeCall(current.view.Refresh, current.view, event, ...)
 end
-for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO" }) do
+for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST" }) do
   ns.On(event, function(...) Refresh(event, ...) end)
 end
 ns.On("ROSTER", function() if frame then UpdateTitle() end end)
