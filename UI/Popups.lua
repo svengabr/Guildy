@@ -7,7 +7,7 @@ local UI = ns.UI
 -- "84/150", or "laut Notiz" for professions only known from a guild note
 function UI.ProfLevel(prof)
   if prof.rank then return prof.rank .. (prof.max and ("/" .. prof.max) or "") end
-  if prof.src == "note" then return "|cff999999" .. ns.L.SRC_NOTE .. "|r" end
+  if prof.src == "note" then return "|cff999999–|r" end
   return "?"
 end
 
