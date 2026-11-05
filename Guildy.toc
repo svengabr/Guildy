@@ -1,0 +1,39 @@
+## Interface: 16001
+## Title: Guildy
+## Notes: Modern guild window for WoW Forever: chat first, census of active members, professions and recipe search, synced between Guildy users.
+## Notes-deDE: Modernes Gildenfenster für WoW Forever: Chat zuerst, Census der aktiven Mitglieder, Berufe und Rezeptsuche, abgeglichen zwischen Guildy-Nutzern.
+## Author: Conoar
+#@debug@
+## Version: dev
+#@end-debug@
+#@non-debug@
+# ## Version: @project-version@
+#@end-non-debug@
+## IconTexture: Interface\Icons\INV_Shirt_GuildTabard_01
+## SavedVariables: GuildyDB
+## X-License: All Rights Reserved
+
+Libs\LibDeflate\LibDeflate.lua
+Libs\json\json.lua
+Locales\Locales.lua
+Core\Names.lua
+Core\Store.lua
+Core\Census.lua
+Core\Professions.lua
+Core\Search.lua
+Core\Protocol.lua
+Core\Runtime.lua
+Game\Roster.lua
+Game\Chat.lua
+Game\TradeSkill.lua
+Game\Sync.lua
+Game\Redirect.lua
+UI\Widgets.lua
+UI\Main.lua
+UI\Popups.lua
+UI\TabChat.lua
+UI\TabMembers.lua
+UI\TabOverview.lua
+UI\TabProfessions.lua
+UI\TabInfo.lua
+Core\Init.lua

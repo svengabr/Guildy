@@ -1,0 +1,13 @@
+package-as: Guildy
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - tests
+  - docs
+  - .luacheckrc
+  - .github
+  - .gitattributes
+  - .gitignore

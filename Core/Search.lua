@@ -16,6 +16,14 @@ function Search.Normalize(query)
   return ns.Names.Lower(ns.Names.Trim(query))
 end
 
+-- Turns a client format string ("%s has joined the guild.") into an anchored Lua pattern
+function Search.FormatToPattern(fmt)
+  local pattern = fmt:gsub("%%%d?%$?s", "\1"):gsub("%%%d?%$?d", "\2")
+  pattern = pattern:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+  pattern = pattern:gsub("\1", "(.+)"):gsub("\2", "(%%d+)")
+  return "^" .. pattern .. "$"
+end
+
 local function Contains(text, q)
   return type(text) == "string" and ns.Names.Lower(text):find(q, 1, true) ~= nil
 end

@@ -15,6 +15,15 @@ local function names(list)
   return out
 end
 
+T.describe("Search.FormatToPattern", function()
+  T.it("matches client system messages", function()
+    T.eq(("Xii Lightspark ist der Gilde beigetreten."):match(Search.FormatToPattern("%s ist der Gilde beigetreten.")), "Xii Lightspark")
+    local a, b, c = ("Ran Fred hat Syd zu Haifutter (2) befördert."):match(Search.FormatToPattern("%1$s hat %2$s zu %3$s (%d) befördert."))
+    T.eq({ a, b, c }, { "Ran Fred", "Syd", "Haifutter" })
+    T.eq(("x"):match(Search.FormatToPattern("%s joined.")), nil)
+  end)
+end)
+
 T.describe("Search.Recipes", function()
   T.it("puts prefix matches and online members first", function()
     T.eq(names(Search.Recipes(entries, "elixir")), { "Amy", "Zed", "Cat" })
