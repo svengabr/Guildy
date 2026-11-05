@@ -9,8 +9,9 @@ local P = ns.Professions
 local Harvest = {}
 ns.Harvest = Harvest
 
--- professions with a recipe book; crafting first, then mining (smelting), then the secondary ones
-Harvest.ORDER = { 171, 164, 333, 202, 165, 197, 186, 185, 129 }
+-- professions whose recipe book opens through a link: crafting first, then the secondary ones (mining's
+-- smelting book doesn't open from a link on Forever, gathering professions have no book)
+Harvest.ORDER = { 171, 164, 333, 202, 165, 197, 185, 129 }
 Harvest.FRESH = 24 * 3600      -- data younger than this is not read again
 Harvest.ABSENT = 7 * 24 * 3600 -- "doesn't have it" is remembered this long
 Harvest.WAIT = 3               -- seconds until a look without any answer counts as "no answer"
