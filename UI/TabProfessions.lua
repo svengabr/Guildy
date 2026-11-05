@@ -10,6 +10,7 @@ local function SourceText(src)
   local L = ns.L
   if src == "scan" or src == "self" then return L.SRC_SELF end
   if src == "link" then return L.SRC_LINK end
+  if src == "note" then return L.SRC_NOTE end
   return L.SRC_RELAY
 end
 
@@ -212,10 +213,10 @@ local function Build(panel)
       local m, prof = item.member, item.prof
       row.Icon:Hide()
       row.A:SetText("    " .. W.ClassName(m.name, m.classFile) .. (m.online and " |cff40e040" .. L.ONLINE .. "|r" or ""))
-      local level = prof.rank and (prof.rank .. (prof.max and ("/" .. prof.max) or "")) or "?"
+      local level = UI.ProfLevel(prof)
       local recipes = prof.recipes and (" · " .. L.RECIPES_COUNT:format(#prof.recipes)) or ""
       row.B:SetText(level .. recipes)
-      row.C:SetText(UI.Age(prof.ts) .. " · " .. SourceText(prof.src))
+      row.C:SetText(prof.src == "note" and SourceText(prof.src) or (UI.Age(prof.ts) .. " · " .. SourceText(prof.src)))
     end
   end)
   view.List:SetPoint("TOPLEFT", 4, -4)

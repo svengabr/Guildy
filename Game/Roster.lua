@@ -67,7 +67,21 @@ function Roster.Scan()
     for key in pairs(byKey) do keep[key] = true end
     ns.Store.Prune(guild, keep)
   end
+  -- professions mentioned in public and officer notes ("Herb/ Alch")
+  local notesChanged = false
+  if guild then
+    for _, m in ipairs(members) do
+      local mentioned = ns.Professions.ParseNote(m.note)
+      for skillLine in pairs(ns.Professions.ParseNote(m.officerNote)) do mentioned[skillLine] = true end
+      local record = guild.members[m.key]
+      if next(mentioned) or record then
+        record = record or ns.Store.Member(guild, m.name)
+        if ns.Professions.ApplyNotes(record, mentioned) then notesChanged = true end
+      end
+    end
+  end
   ns.Fire("ROSTER")
+  if notesChanged then ns.Fire("PROFS") end
 end
 
 function Roster.ScheduleScan()

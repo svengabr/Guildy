@@ -261,10 +261,10 @@ local function Build(panel)
     for _, skillLine in ipairs(ns.Professions.ORDER) do
       local prof = record and record.profs[skillLine]
       if prof then
-        local level = prof.rank and (prof.rank .. (prof.max and ("/" .. prof.max) or "")) or "?"
+        local level = UI.ProfLevel(prof)
         local recipes = prof.recipes and (" · " .. L.RECIPES_COUNT:format(#prof.recipes)) or ""
         profLines[#profLines + 1] = "|T" .. ns.Professions.ICONS[skillLine] .. ":14|t " .. ns.TradeSkill.Name(skillLine)
-          .. "  " .. level .. "|cff999999" .. recipes .. " · " .. UI.Age(prof.ts) .. "|r"
+          .. "  " .. level .. "|cff999999" .. recipes .. (prof.src == "note" and "" or (" · " .. UI.Age(prof.ts))) .. "|r"
       end
     end
     if #profLines == 1 then profLines[2] = "|cff999999" .. L.NO_PROFESSIONS .. "|r" end

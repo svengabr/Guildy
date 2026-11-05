@@ -141,7 +141,7 @@ env.C_Spell = { GetSpellName = function(id) return "Rezept " .. id end }
 local roster = {
   { "Ran-Fred", "Offizier", 1, 16, "Druide", "Sturmwind", "", "", true, 0, "DRUID", nil, nil, false, nil, nil, "Player-1-01" },
   { "Makira-Farron", "Offizier", 1, 16, "Paladin", "Eisenschmiede", "Heiler", "", false, 0, "PALADIN", nil, nil, false, nil, nil, "Player-1-02" },
-  { "Au-Tsch", "Haifutter", 2, 21, "Schurke", "Dämmerwald", "", "", true, 0, "ROGUE", nil, nil, false, nil, nil, "Player-1-03" },
+  { "Au-Tsch", "Haifutter", 2, 21, "Schurke", "Dämmerwald", "Kürsch", "", true, 0, "ROGUE", nil, nil, false, nil, nil, "Player-1-03" },
 }
 env.GetNumGuildMembers = function() return #roster end
 env.GetGuildRosterInfo = function(i) return unpack(roster[i], 1, 17) end
@@ -199,6 +199,8 @@ T.describe("Smoke", function()
     Fire("GUILD_ROSTER_UPDATE")
     RunTimers()
     T.eq(#ns.Roster.Members(), 3)
+    T.eq(ns.GuildData().members["makira farron"], nil) -- note "Heiler" mentions no profession
+    T.eq(ns.GuildData().members["au tsch"].profs[393].src, "note")
     T.truthy(env.GuildyDB and env.GuildyDB.settings, "GuildyDB initialised")
     T.eq(errors, {})
   end)

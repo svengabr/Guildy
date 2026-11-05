@@ -59,7 +59,17 @@ function Harvest.BuildQueue(members, guild, now, isOwn)
     local quiet = silent[m.key] and now - silent[m.key] < Harvest.FRESH
     if m.online and not m.isMobile and m.guid and not isOwn(m) and not quiet then
       local record = guild.members[m.key]
+      -- professions the guild note mentions go first: the first look decides whether a member is skipped
+      local order = {}
       for _, skillLine in ipairs(Harvest.ORDER) do
+        local prof = record and record.profs and record.profs[skillLine]
+        if prof and prof.src == "note" then order[#order + 1] = skillLine end
+      end
+      for _, skillLine in ipairs(Harvest.ORDER) do
+        local prof = record and record.profs and record.profs[skillLine]
+        if not (prof and prof.src == "note") then order[#order + 1] = skillLine end
+      end
+      for _, skillLine in ipairs(order) do
         local prof = record and record.profs and record.profs[skillLine]
         local fresh = prof and prof.recipes and now - (prof.ts or 0) < Harvest.FRESH
         local gone = absent[m.key] and absent[m.key][skillLine] and now - absent[m.key][skillLine] < Harvest.ABSENT

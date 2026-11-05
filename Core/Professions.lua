@@ -39,7 +39,9 @@ end
 
 Professions.MAX_RECIPES = 1000
 Professions.MAX_SKILL = 450
-local SOURCES = { scan = 2, self = 2, relay = 1, link = 1 }
+-- "note" = guessed from a guild note (no skill, never synced, any real data wins)
+local SOURCES = { scan = 2, self = 2, relay = 1, link = 1, note = 0 }
+Professions.NOTE_TS = 1
 
 local function Int(value, min, max)
   value = tonumber(value)
@@ -110,7 +112,7 @@ function Professions.Digest(guild)
   for key, member in pairs(guild.members or {}) do
     local newest
     for _, rec in pairs(member.profs or {}) do
-      if not newest or rec.ts > newest then newest = rec.ts end
+      if rec.src ~= "note" and (not newest or rec.ts > newest) then newest = rec.ts end
     end
     if newest then digest[key] = newest end
   end
@@ -126,6 +128,80 @@ function Professions.Outdated(mine, theirs)
   end
   table.sort(list)
   return list
+end
+
+-- Guild notes ("Herb/ Alch", "Tank Schmied", "VZ 150") ------------------------------------------------
+
+-- Word stems per profession (lowercase, German and English); a note word matches when it is a prefix of
+-- a stem with at least 4 letters ("alch", "kürsch") or starts with a stem ("schneiderin")
+local NOTE_STEMS = {
+  [171] = { "alchemie", "alchimie", "alchemy", "alchemist" },
+  [164] = { "schmiedekunst", "schmied", "blacksmithing", "blacksmith" },
+  [333] = { "verzauberkunst", "verzauberer", "verzauberung", "enchanting", "enchanter" },
+  [202] = { "ingenieurskunst", "ingenieur", "ingi", "engineering", "engineer", "engi" },
+  [182] = { "kräuterkunde", "kräuter", "kraeuterkunde", "kraeuter", "herbalism", "herbalist", "herbs", "herb" },
+  [165] = { "lederverarbeitung", "lederer", "leder", "leatherworking", "leatherworker" },
+  [186] = { "bergbau", "bergmann", "mining", "miner" },
+  [393] = { "kürschnerei", "kürschner", "kuerschnerei", "kuerschner", "skinning", "skinner" },
+  [197] = { "schneiderei", "schneider", "tailoring", "tailor" },
+  [185] = { "kochkunst", "kochen", "koch", "cooking", "cook" },
+  [129] = { "erstehilfe", "firstaid" },
+  [356] = { "angeln", "angler", "fishing", "fisher" },
+}
+-- Short forms that only count as a whole word
+local NOTE_ABBREVIATIONS = {
+  bs = 164, vz = 333, lw = 165, lwk = 165, bb = 186, eh = 129, fa = 129, ea = 129, alc = 171, ench = 333,
+}
+
+local function Words(lowered)
+  local words = {}
+  for word in lowered:gmatch("[^%s/,;:%.%+&|%-%(%)%[%]!%?%d]+") do words[#words + 1] = word end
+  return words
+end
+
+local function NoteWordSkill(word)
+  if NOTE_ABBREVIATIONS[word] then return NOTE_ABBREVIATIONS[word] end
+  if #word < 4 then return nil end
+  for skillLine, stems in pairs(NOTE_STEMS) do
+    for _, stem in ipairs(stems) do
+      if stem:sub(1, #word) == word or word:sub(1, #stem) == stem then return skillLine end
+    end
+  end
+  return nil
+end
+
+-- { [skillLineID] = true } of the professions a note mentions (empty table when none)
+function Professions.ParseNote(note)
+  local found = {}
+  if type(note) ~= "string" or note == "" then return found end
+  local lowered = ns.Names.Lower(note)
+  -- "Erste Hilfe" / "First Aid" are two words
+  lowered = lowered:gsub("erste%s+hilfe", "erstehilfe"):gsub("first%s+aid", "firstaid")
+  for _, word in ipairs(Words(lowered)) do
+    local skillLine = NoteWordSkill(word)
+    if skillLine then found[skillLine] = true end
+  end
+  return found
+end
+
+-- Applies the professions a member's notes mention: adds "note" records for professions without data,
+-- removes "note" records the notes no longer mention. Returns true when something changed.
+function Professions.ApplyNotes(member, mentioned)
+  member.profs = member.profs or {}
+  local changed = false
+  for skillLine, rec in pairs(member.profs) do
+    if rec.src == "note" and not mentioned[skillLine] then
+      member.profs[skillLine] = nil
+      changed = true
+    end
+  end
+  for skillLine in pairs(mentioned) do
+    if not member.profs[skillLine] then
+      member.profs[skillLine] = { ts = Professions.NOTE_TS, src = "note" }
+      changed = true
+    end
+  end
+  return changed
 end
 
 -- Profession links in a chat message. Two formats exist:

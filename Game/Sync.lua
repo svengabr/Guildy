@@ -66,9 +66,14 @@ local function SendMember(key)
   if not record or not next(record.profs or {}) then return end
   if IsOwnKey(key) and not ns.Settings().share then return end
   local profs = {}
+  local any = false
   for skillLine, rec in pairs(record.profs) do
-    profs[tostring(skillLine)] = { ts = rec.ts, src = rec.src, rank = rec.rank, max = rec.max, recipes = rec.recipes }
+    if rec.src ~= "note" then -- everyone reads guild notes themselves
+      profs[tostring(skillLine)] = { ts = rec.ts, src = rec.src, rank = rec.rank, max = rec.max, recipes = rec.recipes }
+      any = true
+    end
   end
+  if not any then return end
   Send("PROF", { m = record.name, p = profs })
   local digest = P.Digest({ members = { [key] = record } })
   seen[key] = math.max(seen[key] or 0, digest[key] or 0)

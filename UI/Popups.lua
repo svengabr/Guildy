@@ -4,6 +4,13 @@ local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
+-- "84/150", or "laut Notiz" for professions only known from a guild note
+function UI.ProfLevel(prof)
+  if prof.rank then return prof.rank .. (prof.max and ("/" .. prof.max) or "") end
+  if prof.src == "note" then return "|cff999999" .. ns.L.SRC_NOTE .. "|r" end
+  return "?"
+end
+
 function UI.Whisper(name)
   local tell = rawget(_G, "ChatFrame_SendTell") or (ChatFrameUtil and ChatFrameUtil.SendTell)
   if tell then pcall(tell, name) end
@@ -43,7 +50,7 @@ function UI.MemberTooltip(owner, m)
     for _, skillLine in ipairs(ns.Professions.ORDER) do
       local prof = record.profs[skillLine]
       if prof then
-        local level = prof.rank and (prof.rank .. (prof.max and ("/" .. prof.max) or "")) or "?"
+        local level = UI.ProfLevel(prof)
         GameTooltip:AddDoubleLine("|T" .. ns.Professions.ICONS[skillLine] .. ":14|t " .. ns.TradeSkill.Name(skillLine),
           level, 1, 1, 1, 0.8, 0.8, 0.8)
       end
