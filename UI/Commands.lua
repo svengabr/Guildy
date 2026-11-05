@@ -53,14 +53,29 @@ local function Overlay()
   overlay:SetFrameStrata("TOOLTIP")
   overlay:RegisterForClicks("AnyUp", "AnyDown")
   overlay:SetAttribute("type", "click")
-  overlay:SetHighlightTexture("Interface\\Buttons\\UI-Panel-Button-Highlight", "ADD")
+  -- the overlay is invisible: it lights up the button below it in that button's own style
+  local function Light(owner, on)
+    if not owner then return end
+    if owner.Over and owner.Over.Hover then
+      owner.Over.Hover:SetShown(on)
+    elseif owner.LockHighlight then
+      if on then owner:LockHighlight() else owner:UnlockHighlight() end
+    end
+  end
   overlay:SetScript("OnLeave", function(self)
     GameTooltip:Hide()
+    Light(self.owner, false)
     if not InCombatLockdown() then self:Hide() end
   end)
   overlay:SetScript("OnEnter", function(self)
+    Light(self.owner, true)
     if self.tooltip then
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      if self.beside then
+        GameTooltip:SetOwner(self, "ANCHOR_NONE")
+        GameTooltip:SetPoint("LEFT", self, "RIGHT", 6, 0)
+      else
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      end
       GameTooltip:SetText(self.tooltip, 1, 1, 1, 1, true)
       GameTooltip:Show()
     end
@@ -68,6 +83,7 @@ local function Overlay()
   overlay:SetScript("PostClick", function(self, _, down)
     if down then return end -- registered for both; act once
     local after = self.after
+    if self.owner and self.owner.UnlockHighlight then self.owner:UnlockHighlight() end
     if not InCombatLockdown() then self:Hide() end
     W.CloseMenu()
     if after then ns.SafeCall(after) end
@@ -84,7 +100,8 @@ function UI.ShowOverlay(button, action, tooltip)
   local o = Overlay()
   local scale = button:GetEffectiveScale() / UIParent:GetEffectiveScale()
   o:SetAttribute("clickbutton", action.click)
-  o.tooltip, o.after = tooltip, action.after
+  o.tooltip, o.after, o.owner = tooltip, action.after, button
+  o.beside = button.Over ~= nil -- side tabs: tooltip beside the tab instead of above it
   o:ClearAllPoints()
   o:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * scale, bottom * scale)
   o:SetSize(button:GetWidth() * scale, button:GetHeight() * scale)
