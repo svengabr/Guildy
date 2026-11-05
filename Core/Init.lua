@@ -5,7 +5,9 @@ local frame = CreateFrame("Frame")
 local scanTimer
 
 local function ScheduleTradeScan()
-  if scanTimer then scanTimer:Cancel() end
+  ns.TradeSkill.events = (ns.TradeSkill.events or 0) + 1
+  -- at most 0.5 s after the first event: a stream of updates must not postpone the scan forever
+  if scanTimer then return end
   scanTimer = C_Timer.NewTimer(0.5, function()
     scanTimer = nil
     ns.SafeCall(ns.TradeSkill.ScanOpen)

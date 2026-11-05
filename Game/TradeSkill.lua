@@ -339,13 +339,25 @@ function TradeSkill.Debug()
   end
   local s = TradeSkill.lastScan
   if not s then
-    print("  last scan: never (open a profession window)")
-    return
+    print("  last scan: never since login/reload")
+  else
+    print(("  last scan (%s): path %s, name %s, skillLine %s, rank %s, entries %s, recipes %s, recipeLink %s"):format(
+      tostring(s.target), tostring(s.path), tostring(s.name), tostring(s.skillLine), tostring(s.rank), tostring(s.entries),
+      tostring(s.recipes), tostring(s.hasRecipeLink)))
+    if s.sample then print("  sample link: " .. s.sample:gsub("|", "||")) end
   end
-  print(("  last scan (%s): path %s, name %s, skillLine %s, rank %s, entries %s, recipes %s, recipeLink %s"):format(
-    tostring(s.target), tostring(s.path), tostring(s.name), tostring(s.skillLine), tostring(s.rank), tostring(s.entries), tostring(s.recipes),
-    tostring(s.hasRecipeLink)))
-  if s.sample then print("  sample link: " .. s.sample:gsub("|", "||")) end
+  print(("  trade skill events seen: %d, linked check function: %s"):format(TradeSkill.events or 0,
+    tostring((C_TradeSkillUI and rawget(C_TradeSkillUI, "IsTradeSkillLinked")) ~= nil or rawget(_G, "IsTradeSkillLinked") ~= nil)))
+  if ns.Harvest then
+    if ns.Harvest.IsRunning() then
+      local done, total, found = ns.Harvest.Progress()
+      local name, skill = ns.Harvest.Current()
+      print(("  reading members: running, %d/%d members, %d found, now %s %s"):format(done, total, found,
+        tostring(name), tostring(skill)))
+    else
+      print("  reading members: not running")
+    end
+  end
   local log = ns.Harvest and ns.Harvest.log or {}
   if #log > 0 then print("  last looks while reading members (newest first):") end
   for i = 1, math.min(#log, 12) do
