@@ -37,7 +37,7 @@ Made for **WoW Forever**.
 
 "inv pls"? **Invite member** opens Blizzard's own invite dialog with your target filled in, and suggests the last people who whispered you.
 
-On Forever, inviting, removing, promoting, notes and the message of the day are reserved for Blizzard's own interface. Addons can't do them, not even through macros. So Guildy opens Blizzard's dialogs for you, and rank changes and notes happen in Blizzard's guild window ("Manage in Blizzard window" in the member menu). The very first J of a session briefly opens and closes Blizzard's guild window in the background, so the invite button works right away.
+On Forever, guild management is reserved for Blizzard's own code. Guildy still does it from its own window: **Promote**, **Demote** and **Remove** sit in the member details and the member menu, and the message of the day and guild info are edited right in the Info tab. Behind the scenes these run through Blizzard's own secure commands, and you type into Blizzard's own edit box, shown right inside Guildy. The **Ranks** tab lists every rank with its members and permissions; the guild master edits ranks and permissions there in Blizzard's own rank editor, opened right inside the tab. Only notes still open Blizzard's guild window: Blizzard saves a note only for the member picked in its own list. The very first J of a session briefly opens and closes Blizzard's guild window in the background, so invite and editing work right away.
 
 ## Commands
 
@@ -69,7 +69,7 @@ Das Standard-Gildenfenster zeigt einen Chat und eine schlichte Liste. Guildy ers
 
 **Woher die Berufe kommen:** aus deinen eigenen Berufsfenstern (einmal öffnen reicht), automatisch von anderen Guildy-Nutzern (inklusive Sammelberufe, abschaltbar), aus angeklickten Berufslinks, aus Gildennotizen wie „Herb/Alch“ und per Knopf „Online-Mitglieder einlesen“. Der öffnet nacheinander die Rezeptbücher aller Online-Mitglieder deines Server-Bereichs und merkt sich die Rezepte.
 
-**Einladen und Verwalten:** „Mitglied einladen“ öffnet Blizzards Einladen-Dialog mit deinem Ziel schon eingetragen und schlägt vor, wer dich zuletzt angeflüstert hat. Auf Forever dürfen nur Blizzards eigene Fenster einladen, entfernen, befördern und Notizen ändern, Addons nicht, auch nicht über Makros. Guildy öffnet dafür Blizzards Dialoge bzw. das Blizzard-Gildenfenster. Das erste J einer Sitzung öffnet Blizzards Gildenfenster dafür einmal kurz im Hintergrund.
+**Einladen und Verwalten:** „Mitglied einladen“ öffnet Blizzards Einladen-Dialog mit deinem Ziel schon eingetragen und schlägt vor, wer dich zuletzt angeflüstert hat. Befördern, Degradieren und Entfernen gehen direkt in den Mitgliederdetails und im Mitgliedermenü, Nachricht des Tages und Gildeninfo bearbeitest du im Info-Tab. Guildy nutzt dafür Blizzards eigene sichere Befehle, und du tippst in Blizzards eigenes Eingabefeld, das Guildy im Info-Tab anzeigt. Der Tab **Ränge** zeigt alle Ränge mit Mitgliedern und Rechten; der Gildenmeister bearbeitet Ränge und Rechte dort in Blizzards eigenem Rang-Editor, der direkt im Tab aufgeht. Nur Notizen öffnen noch das Blizzard-Gildenfenster: Blizzard speichert eine Notiz nur für das Mitglied, das in seiner eigenen Liste ausgewählt ist. Das erste J einer Sitzung öffnet Blizzards Gildenfenster dafür einmal kurz im Hintergrund.
 
 **Befehle:** `/guildy` öffnet und schließt das Fenster, `/guildy sync` schickt deine Berufsübersicht an die Gilde, `/guildy debug` zeigt, was Guildy über deine Berufe weiß.
 

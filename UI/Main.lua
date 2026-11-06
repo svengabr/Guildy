@@ -294,6 +294,13 @@ for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST" }) do
 end
 ns.On("ROSTER", function() if frame then UpdateTitle() end end)
 
+-- Shows the members tab with member m selected (from the ranks tab)
+function UI.ShowMember(m)
+  UI.SelectTab("members")
+  local tab = byKey.members
+  if tab and tab.view and tab.view.Select then tab.view:Select(m) end
+end
+
 -- Shows the members tab with a filter (from overview bars)
 function UI.FilterMembers(filter)
   UI.SelectTab("members")

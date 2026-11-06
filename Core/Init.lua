@@ -46,6 +46,8 @@ local HANDLERS = {
     ns.Fire("INFO")
   end,
   GUILD_MOTD = function() ns.Fire("INFO") end,
+  GUILD_RANKS_UPDATE = function() ns.Fire("INFO") end,
+  GUILD_PREFERRED_PLAY_SETTINGS_UPDATED = function() ns.Fire("INFO") end,
   CHAT_MSG_GUILD = function(text, sender, ...) OnGuildChat("guild", text, sender, ...) end,
   CHAT_MSG_OFFICER = function(text, sender, ...) OnGuildChat("officer", text, sender, ...) end,
   CHAT_MSG_SYSTEM = function(text) ns.Chat.OnSystemMessage(text) end,
@@ -90,6 +92,8 @@ SlashCmdList.GUILDY = function(msg)
     C_Timer.After(2, function() ns.TradeSkill.Probe(args) end)
   elseif msg:match("^probe") then
     ns.TradeSkill.Probe(raw:sub(6))
+  elseif msg:match("^rights") then
+    ns.Roster.DebugRights(raw:sub(8))
   elseif msg == "profdump" then
     ns.TradeSkill.ProfDump()
   elseif msg == "debug" then

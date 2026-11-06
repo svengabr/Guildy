@@ -310,7 +310,7 @@ function W.OpenMenu(anchor, items, width)
       button.Label:SetPoint("RIGHT", -4, 0)
       -- items with an action (Blizzard guild buttons) get the secure overlay while hovered (UI/Commands.lua)
       button:HookScript("OnEnter", function(self)
-        if self.action and ns.UI and ns.UI.ShowOverlay then ns.UI.ShowOverlay(self, self.action()) end
+        if self.action and self:IsEnabled() and ns.UI and ns.UI.ShowOverlay then ns.UI.ShowOverlay(self, self.action()) end
       end)
       menu.buttons[i] = button
     end
@@ -319,6 +319,8 @@ function W.OpenMenu(anchor, items, width)
       button.Label:SetTextColor(1, 0.82, 0)
     elseif item.color then
       button.Label:SetTextColor(unpack(item.color))
+    elseif item.disabled then
+      button.Label:SetTextColor(0.5, 0.5, 0.5)
     else
       button.Label:SetTextColor(1, 1, 1)
     end

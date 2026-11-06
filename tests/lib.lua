@@ -73,6 +73,7 @@ end
 lib.PURE = {
   "Libs/LibDeflate/LibDeflate.lua", "Libs/json/json.lua",
   "Core/Names.lua", "Core/Store.lua", "Core/Census.lua", "Core/Professions.lua", "Core/Search.lua", "Core/Protocol.lua",
+  "Core/Manage.lua",
 }
 
 function lib.pureNs()

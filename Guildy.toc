@@ -24,6 +24,7 @@ Core\Census.lua
 Core\Professions.lua
 Core\Search.lua
 Core\Protocol.lua
+Core\Manage.lua
 Core\Runtime.lua
 Game\Roster.lua
 Game\Chat.lua
@@ -40,4 +41,5 @@ UI\TabMembers.lua
 UI\TabOverview.lua
 UI\TabProfessions.lua
 UI\TabInfo.lua
+UI\TabRanks.lua
 Core\Init.lua

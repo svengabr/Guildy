@@ -1,11 +1,15 @@
--- Guild management (invite, remove, rank, notes, MOTD, guild info) is reserved for Blizzard's UI on
--- Forever. Blocked: addon calls, macros (/run is force-tainted), and any Blizzard window or chat input
--- an addon touched first. What stays clean is a real click on a Blizzard button: a secure action button
--- of type "click" runs that button's own OnClick without any addon or macro code in between.
+-- Guild management (invite, remove, rank, notes, MOTD, guild info) is reserved for Blizzard's own code
+-- on Forever. Blocked: addon calls, /run in macros (force-tainted), non-secure slash commands in macros
+-- (/ginvite), and any Blizzard window or chat input an addon touched first. Two things stay clean:
+-- - a secure action button of type "click" runs a Blizzard button's own OnClick, no addon code between;
+-- - a secure action button of type "macro" running Blizzard's secure slash commands /gpromote,
+--   /gdemote and /gremove (verified in game: the command reaches C_GuildInfo untainted).
 --
 -- So Guildy's action buttons get such a secure button laid over them while the mouse is on them (out
--- of combat). It clicks Blizzard's guild "Invite member" button (Blizzard's invite dialog opens, Guildy
--- then fills in the name) or the guild micro button (Blizzard's guild window opens for everything else).
+-- of combat). Rank and removal run the slash commands; the invite clicks Blizzard's "Invite member"
+-- button (Guildy then fills in the name); MOTD and guild info click Blizzard's edit and accept buttons
+-- of its (hidden) text editor, the player types into Blizzard's own edit box shown inside Guildy. Notes have no such path: Blizzard saves a note only for the member picked in its own
+-- member list, so they still open Blizzard's window.
 -- The overlay is parented to UIParent and placed by absolute coordinates, never anchored to Guildy's
 -- frames, so the Guildy window stays unprotected and can close in combat.
 local _, ns = ...
@@ -47,12 +51,22 @@ end
 
 local overlay
 
+local function KeyDownMode()
+  local get = (C_CVar and C_CVar.GetCVarBool) or rawget(_G, "GetCVarBool")
+  return get and get("ActionButtonUseKeyDown") and true or false
+end
+
 local function Overlay()
   if overlay then return overlay end
   overlay = CreateFrame("Button", "GuildySecureOverlay", UIParent, "SecureActionButtonTemplate")
   overlay:SetFrameStrata("TOOLTIP")
   overlay:RegisterForClicks("AnyUp", "AnyDown")
-  overlay:SetAttribute("type", "click")
+  -- the secure action runs on one edge only: key down when "cast on key down" is on, else release.
+  -- before and after run on that same edge, right around the action.
+  overlay:SetScript("PreClick", function(self, _, down)
+    if (down and true or false) ~= KeyDownMode() then return end
+    if self.before then ns.SafeCall(self.before) end
+  end)
   -- the overlay is invisible: it lights up the button below it in that button's own style
   local function Light(owner, on)
     if not owner then return end
@@ -81,7 +95,7 @@ local function Overlay()
     end
   end)
   overlay:SetScript("PostClick", function(self, _, down)
-    if down then return end -- registered for both; act once
+    if (down and true or false) ~= KeyDownMode() then return end
     local after = self.after
     if self.owner and self.owner.UnlockHighlight then self.owner:UnlockHighlight() end
     if not InCombatLockdown() then self:Hide() end
@@ -92,15 +106,24 @@ local function Overlay()
   return overlay
 end
 
--- Lays the overlay over button; action = {click = Blizzard button, after = function} (out of combat)
+-- Lays the overlay over button (out of combat). action = {click = Blizzard button} or
+-- {macro = "/gdemote Name"}, plus optional before (right before the action) and after (once done).
 function UI.ShowOverlay(button, action, tooltip)
-  if InCombatLockdown() or type(action) ~= "table" or not action.click or not button:IsVisible() then return end
+  if InCombatLockdown() or type(action) ~= "table" or not (action.click or action.macro) or not button:IsVisible() then return end
   local left, bottom = button:GetLeft(), button:GetBottom()
   if not left or not bottom then return end
   local o = Overlay()
   local scale = button:GetEffectiveScale() / UIParent:GetEffectiveScale()
-  o:SetAttribute("clickbutton", action.click)
-  o.tooltip, o.after, o.owner = tooltip, action.after, button
+  if action.macro then
+    o:SetAttribute("type", "macro")
+    o:SetAttribute("macrotext", action.macro)
+    o:SetAttribute("clickbutton", nil)
+  else
+    o:SetAttribute("type", "click")
+    o:SetAttribute("clickbutton", action.click)
+    o:SetAttribute("macrotext", nil)
+  end
+  o.tooltip, o.before, o.after, o.owner = tooltip, action.before, action.after, button
   o.beside = button.sideTab == true -- side tabs: tooltip beside the tab instead of above it
   o:ClearAllPoints()
   o:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * scale, bottom * scale)
@@ -115,7 +138,10 @@ end
 -- Makes a Guildy button run a Blizzard action. getAction(button) returns the action (or nil). A direct
 -- click on the button itself only happens when the overlay could not be laid (combat).
 function UI.SecureAction(button, getAction, tooltip)
-  button:HookScript("OnEnter", function(self) UI.ShowOverlay(self, getAction(self), tooltip) end)
+  button:HookScript("OnEnter", function(self)
+    if self.IsEnabled and not self:IsEnabled() then return end
+    UI.ShowOverlay(self, getAction(self), tooltip)
+  end)
   if button.HasScript and button:HasScript("OnClick") then
     button:SetScript("OnClick", function() ns.Print(ns.L.NOT_IN_COMBAT) end)
   end
@@ -213,4 +239,191 @@ end
 -- Invite with a name and no suggestions
 function Action.Invite(name)
   return Action.InviteWith(name, {})
+end
+
+-- Rank and removal: Blizzard's secure slash commands through the overlay. After the command Guildy
+-- asks for a fresh roster so the new rank shows up.
+function Action.Manage(kind, m)
+  local macro = m and ns.Manage.Command(kind, m.fullName or m.name)
+  if not macro then return nil end
+  return { macro = macro, after = function()
+    C_Timer.After(1, function() ns.Roster.Request(true) end)
+  end }
+end
+
+-- Message of the day and guild info: Blizzard's text editor (CommunitiesGuildTextEditFrame). Its edit
+-- buttons set it up for "motd" or "info" and its accept button saves what is in its edit box.
+-- SetMOTD/SetInfoText are fully protected: text an addon put into the box taints the save
+-- (ADDON_ACTION_FORBIDDEN, verified). So Guildy never writes the text: it clicks Blizzard's edit button,
+-- hides Blizzard's dialog and borrows the dialog's edit box (Container) into its own window, where the
+-- player types; Save clicks Blizzard's accept button. Enter in the MOTD box is Blizzard's own accept.
+
+local EDIT_BUTTONS = { motd = "EditMOTDButton", info = "EditDetailsButton" }
+
+local function TextEditor()
+  return rawget(_G, "CommunitiesGuildTextEditFrame")
+end
+
+local function TextEditButton(kind)
+  local info = rawget(_G, "CommunitiesFrameGuildDetailsFrameInfo")
+  return info and info[EDIT_BUTTONS[kind] or ""]
+end
+
+local function TextEditorBox()
+  local editor = TextEditor()
+  local container = editor and editor.Container
+  return container and container.ScrollFrame and container.ScrollFrame.EditBox
+end
+
+-- Whether Blizzard's guild text editor can be used (Blizzard's guild window was loaded once)
+function Action.TextEditReady(kind)
+  return TextEditButton(kind) ~= nil and TextEditorBox() ~= nil and rawget(_G, "CommunitiesGuildTextEditFrameAcceptButton") ~= nil
+end
+
+-- Lends Blizzard's edit box (its Container frame) to parent, filling it with the given insets
+function Action.BorrowTextBox(parent, left, top, right, bottom)
+  local editor = TextEditor()
+  local container = editor and editor.Container
+  if not container then return nil end
+  container:SetParent(parent)
+  container:ClearAllPoints()
+  container:SetPoint("TOPLEFT", parent, "TOPLEFT", left, top)
+  container:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", right, bottom)
+  container:SetFrameLevel(parent:GetFrameLevel() + 5)
+  container:Show()
+  local box = TextEditorBox()
+  if box then
+    box:SetWidth(math.max(60, container:GetWidth() - 34))
+    box:SetFocus()
+  end
+  return container
+end
+
+-- Puts Blizzard's edit box back into Blizzard's dialog (anchors from its XML)
+function Action.ReturnTextBox()
+  local editor = TextEditor()
+  local container = editor and editor.Container
+  if not container or container:GetParent() == editor then return end
+  local box = TextEditorBox()
+  if box then
+    box:ClearFocus()
+    box:SetWidth(218)
+  end
+  container:SetParent(editor)
+  container:ClearAllPoints()
+  container:SetPoint("TOPLEFT", 22, -36)
+  container:SetPoint("TOPRIGHT", -22, -36)
+  container:SetPoint("BOTTOM", 0, 42)
+end
+
+-- Starts editing kind ("motd" or "info"); onReady() runs once Blizzard's editor is set up (hidden)
+function Action.TextEdit(kind, onReady)
+  local button = TextEditButton(kind)
+  if not (button and Action.TextEditReady(kind)) then return nil end
+  return { click = button, after = function()
+    local editor = TextEditor()
+    if editor and editor:IsShown() then editor:Hide() end
+    if onReady then onReady() end
+  end }
+end
+
+-- Saves what the player typed into Blizzard's box; only once TextEdit(kind) set Blizzard's editor up
+function Action.TextSave(kind, onDone)
+  local editor, accept = TextEditor(), rawget(_G, "CommunitiesGuildTextEditFrameAcceptButton")
+  if not (editor and accept and editor.type == kind) then return nil end
+  return { click = accept, after = function()
+    C_Timer.After(1, function() ns.Roster.Request(true) end)
+    if onDone then onDone() end
+  end }
+end
+
+-- Ranks and permissions: Blizzard's rank editor (GuildControlUI, guild master only). Setting rank flags
+-- and saving ranks are protected, and its rank menu can't be driven by an addon, so the player uses
+-- Blizzard's editor itself. Guildy opens it through Blizzard's own "Guild Control" button (secure click,
+-- Blizzard shows it) and only moves it over the Ranks tab. Guildy never shows it itself: its OnShow
+-- handlers fill the rank name boxes, which must stay Blizzard's for saving to work.
+
+local function RankEditorButton()
+  local frame = rawget(_G, "CommunitiesFrame")
+  local control = frame and frame.CommunitiesControlFrame
+  return control and control.GuildControlButton
+end
+
+function Action.RankEditorReady()
+  return RankEditorButton() ~= nil and rawget(_G, "GuildControlUI") ~= nil
+end
+
+-- Opens (or closes, it's Blizzard's toggle) the rank editor; place(editor) positions it when shown
+function Action.RankEditor(place)
+  local button = RankEditorButton()
+  if not (button and Action.RankEditorReady()) then return nil end
+  return { click = button, after = function()
+    local editor = rawget(_G, "GuildControlUI")
+    if editor and editor:IsShown() and place then place(editor) end
+  end }
+end
+
+-- Closes Blizzard's rank editor when Guildy's Ranks tab goes away (hiding is harmless for it)
+function Action.CloseRankEditor()
+  local editor = rawget(_G, "GuildControlUI")
+  if editor and editor:IsShown() then editor:Hide() end
+end
+
+-- Blizzard's guild window was never opened this session: open it once through the micro button,
+-- close it right away and come back to Guildy; then Blizzard's buttons are there.
+function Action.LoadBlizzard(message)
+  local window = Action.BlizzardWindow()
+  if not window then return nil end
+  window.after = function()
+    C_Timer.After(0, function()
+      local frame = rawget(_G, "CommunitiesFrame")
+      if frame and frame:IsShown() then
+        local hide = rawget(_G, "HideUIPanel")
+        if hide then pcall(hide, frame) else frame:Hide() end
+      end
+      ns.UI.Show()
+      if message then ns.Print(message) end
+    end)
+  end
+  return window
+end
+
+-- Confirmation dialog in Guildy's look whose OK button runs a secure action (removal)
+
+local confirm
+
+function UI.Confirm(text, action)
+  local L = ns.L
+  if not confirm then
+    confirm = W.Box(UIParent, 0.06, 0.9)
+    confirm:SetFrameStrata("DIALOG")
+    confirm:SetSize(320, 96)
+    confirm:SetPoint("CENTER", 0, 120)
+    confirm:EnableMouse(true)
+    confirm.Text = W.Text(confirm, "GameFontHighlight")
+    confirm.Text:SetPoint("TOPLEFT", 14, -16)
+    confirm.Text:SetPoint("RIGHT", -14, 0)
+    confirm.Text:SetJustifyH("CENTER")
+    confirm.Ok = W.Button(confirm, L.YES, nil, 120)
+    confirm.Ok:SetPoint("BOTTOMRIGHT", confirm, "BOTTOM", -4, 12)
+    UI.SecureAction(confirm.Ok, function()
+      local current = confirm.action
+      if not current then return nil end
+      local wrapped = {}
+      for k, v in pairs(current) do wrapped[k] = v end
+      wrapped.after = function()
+        confirm:Hide()
+        if current.after then current.after() end
+      end
+      return wrapped
+    end)
+    confirm.Cancel = W.Button(confirm, L.CANCEL, function() confirm:Hide() end, 120)
+    confirm.Cancel:SetPoint("BOTTOMLEFT", confirm, "BOTTOM", 4, 12)
+    confirm:SetScript("OnHide", function(self) self.action = nil end)
+    tinsert(UISpecialFrames, "GuildyConfirm")
+    _G.GuildyConfirm = confirm
+  end
+  confirm.Text:SetText(text)
+  confirm.action = action
+  confirm:Show()
 end

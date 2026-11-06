@@ -5,7 +5,8 @@ local T = dofile(here .. "/lib.lua")
 
 local FILES = {
   "test_names.lua", "test_census.lua", "test_professions.lua", "test_search.lua", "test_protocol.lua",
-  "test_locales.lua", "smoke.lua",
+  "test_manage.lua",
+  "test_manage.lua", "test_locales.lua", "smoke.lua",
 }
 
 for _, file in ipairs(FILES) do

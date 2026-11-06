@@ -1,4 +1,4 @@
--- Member context menu (whisper, group invite, management in Blizzard's window), the member tooltip and the
+-- Member context menu (whisper, group invite, rank, removal, notes in Blizzard's window), the member tooltip and the
 -- guild-invite box with suggestions.
 local _, ns = ...
 local W = ns.Widgets
@@ -25,8 +25,20 @@ function UI.MemberMenu(m, anchor)
     { text = L.WHISPER, onClick = function() UI.Whisper(m.fullName) end, disabled = not m.online },
     { text = L.GROUP_INVITE, onClick = function() R.GroupInvite(m) end, disabled = not m.online },
   }
-  if can.editPublic or can.editOfficer or can.promote or can.demote or can.remove then
-    items[#items + 1] = { text = L.MANAGE_IN_BLIZZARD, action = UI.Action.BlizzardWindow }
+  local rights = R.Rights(m)
+  if can.promote then
+    items[#items + 1] = { text = L.PROMOTE, disabled = not rights.promote, action = function() return UI.Action.Manage("promote", m) end }
+  end
+  if can.demote then
+    items[#items + 1] = { text = L.DEMOTE, disabled = not rights.demote, action = function() return UI.Action.Manage("demote", m) end }
+  end
+  if can.remove then
+    items[#items + 1] = { text = L.REMOVE, disabled = not rights.remove, onClick = function()
+      UI.Confirm(L.REMOVE_CONFIRM:format(W.ClassName(m.name, m.classFile)), UI.Action.Manage("remove", m))
+    end }
+  end
+  if can.editPublic or can.editOfficer then
+    items[#items + 1] = { text = L.NOTES_IN_BLIZZARD, action = UI.Action.BlizzardWindow }
   end
   W.OpenMenu(anchor, items, 200)
 end

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Promote, demote and remove members right in Guildy (member details and member menu), with a
+  confirmation before removing. Runs Blizzard's secure slash commands through a secure button.
+- Message of the day and guild info are edited in the Info tab, in Blizzard's own edit box shown
+  inside Guildy.
+- New Ranks tab: every rank with its member count and permissions. The guild master edits ranks and
+  permissions there in Blizzard's rank editor, opened over the tab.
+- Only notes still open Blizzard's guild window.
+
 ## 0.1.0
 
 First version.

@@ -254,7 +254,7 @@ T.describe("Smoke", function()
     T.truthy(ns.UI.IsShown(), "J opens Guildy")
     T.eq(boundKeys.J, "GuildyToggleButton")
     T.eq(ns.UI.Current(), "chat")
-    for _, key in ipairs({ "members", "overview", "professions", "info", "chat" }) do
+    for _, key in ipairs({ "members", "overview", "professions", "info", "ranks", "chat" }) do
       ns.UI.SelectTab(key)
       T.eq(ns.UI.Current(), key)
     end

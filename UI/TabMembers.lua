@@ -64,13 +64,37 @@ local function Build(panel)
   details.Profs:SetPoint("RIGHT", -12, 0)
   details.Profs:SetSpacing(3)
   details.Whisper = W.Button(details, L.WHISPER, function() if view.selected then UI.Whisper(view.selected.fullName) end end, 108)
-  details.Whisper:SetPoint("BOTTOMLEFT", 12, 36)
   details.Invite = W.Button(details, L.GROUP_INVITE_SHORT, function() if view.selected then ns.Roster.GroupInvite(view.selected) end end, 108)
-  details.Invite:SetPoint("BOTTOMRIGHT", -12, 36)
-  -- rank, notes and removal only work in Blizzard's window on Forever
-  details.Manage = W.Button(details, L.MANAGE_IN_BLIZZARD, nil, 226)
-  details.Manage:SetPoint("BOTTOM", 0, 10)
-  UI.SecureAction(details.Manage, UI.Action.BlizzardWindow, L.MANAGE_TIP)
+  -- rank and removal run Blizzard's secure slash commands (UI/Commands.lua); notes only in Blizzard's window
+  details.Promote = W.Button(details, L.PROMOTE_UP, nil, 108)
+  UI.SecureAction(details.Promote, function() return UI.Action.Manage("promote", view.selected) end, L.PROMOTE_TIP)
+  details.Demote = W.Button(details, L.DEMOTE_DOWN, nil, 108)
+  UI.SecureAction(details.Demote, function() return UI.Action.Manage("demote", view.selected) end, L.DEMOTE_TIP)
+  details.Remove = W.Button(details, L.REMOVE, function()
+    local m = view.selected
+    if m then UI.Confirm(L.REMOVE_CONFIRM:format(W.ClassName(m.name, m.classFile)), UI.Action.Manage("remove", m)) end
+  end, 226)
+  details.Notes = W.Button(details, L.NOTES_IN_BLIZZARD, nil, 226)
+  UI.SecureAction(details.Notes, UI.Action.BlizzardWindow, L.NOTES_TIP)
+
+  -- the action rows stack from the bottom; rows without a permission are left out
+  function details:LayoutActions(rows)
+    local y = 10
+    for i = #rows, 1, -1 do
+      local row = rows[i]
+      if #row == 1 then
+        row[1]:ClearAllPoints()
+        row[1]:SetPoint("BOTTOM", 0, y)
+      else
+        row[1]:ClearAllPoints()
+        row[1]:SetPoint("BOTTOMLEFT", 12, y)
+        row[2]:ClearAllPoints()
+        row[2]:SetPoint("BOTTOMRIGHT", -12, y)
+      end
+      for _, button in ipairs(row) do button:Show() end
+      y = y + 26
+    end
+  end
 
   -- toolbar ------------------------------------------------------------------------------------
   local main = CreateFrame("Frame", nil, panel)
@@ -237,7 +261,7 @@ local function Build(panel)
     self.selected = m
     local d = self.Details
     local shown = m ~= nil
-    for _, element in ipairs({ d.Name, d.Sub, d.Lines, d.Profs, d.Whisper, d.Invite, d.Manage }) do
+    for _, element in ipairs({ d.Name, d.Sub, d.Lines, d.Profs, d.Whisper, d.Invite, d.Promote, d.Demote, d.Remove, d.Notes }) do
       element:SetShown(shown)
     end
     d.Empty:SetShown(not shown)
@@ -271,7 +295,23 @@ local function Build(panel)
     d.Profs:SetText(table.concat(profLines, "\n"))
     d.Whisper:SetEnabled(m.online)
     d.Invite:SetEnabled(m.online)
-    d.Manage:SetShown(can.editPublic or can.editOfficer or can.promote or can.demote or can.remove)
+    local rights = ns.Roster.Rights(m)
+    local rows = { { d.Whisper, d.Invite } }
+    d.Promote:Hide()
+    d.Demote:Hide()
+    d.Remove:Hide()
+    d.Notes:Hide()
+    if can.promote or can.demote then
+      rows[#rows + 1] = { d.Promote, d.Demote }
+      d.Promote:SetEnabled(rights.promote)
+      d.Demote:SetEnabled(rights.demote)
+    end
+    if can.remove then
+      rows[#rows + 1] = { d.Remove }
+      d.Remove:SetEnabled(rights.remove)
+    end
+    if can.editPublic or can.editOfficer then rows[#rows + 1] = { d.Notes } end
+    d:LayoutActions(rows)
   end
 
   function view:Select(m)

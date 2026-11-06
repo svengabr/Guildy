@@ -134,9 +134,54 @@ function Roster.Can()
   return can
 end
 
--- Guild actions: invite, remove, promote, demote and MOTD are blocked for addons on Forever and run as
--- slash commands through the secure dialog (UI/Secure.lua); notes and guild info are edited in
--- Blizzard's window. Group invites are allowed.
+-- The player's own roster entry
+function Roster.Me()
+  return Roster.Find(ns.Names.FromUnit(UnitName("player")))
+end
+
+-- The player's rank index (0 = guild master): GetGuildInfo("player"), else the roster entry
+local function MyRankIndex()
+  local _, _, rankIndex = ns.Try(GetGuildInfo, "player")
+  if type(rankIndex) == "number" then return rankIndex end
+  local me = Roster.Me()
+  return me and me.rankIndex
+end
+
+-- Number of guild ranks: GuildControlGetNumRanks, at least the lowest rank seen in the roster
+local function NumRanks()
+  local num = ns.Try(rawget(_G, "GuildControlGetNumRanks"))
+  num = type(num) == "number" and num or 0
+  for _, m in ipairs(members) do
+    if type(m.rankIndex) == "number" and m.rankIndex + 1 > num then num = m.rankIndex + 1 end
+  end
+  return num > 0 and num or nil
+end
+
+-- What the player may do with member m: { promote, demote, remove } (Core/Manage.lua)
+function Roster.Rights(m)
+  local myGuid = ns.Try(rawget(_G, "UnitGUID"), "player")
+  local isSelf = m ~= nil and ((myGuid and m.guid == myGuid) or m == Roster.Me())
+  return ns.Manage.Rights(m and m.rankIndex, MyRankIndex(), NumRanks(), Roster.Can(), isSelf)
+end
+
+-- Debug: why rank actions are off for a member (/guildy rights Name)
+function Roster.DebugRights(name)
+  local m = name and Roster.Find(name)
+  local num = ns.Try(rawget(_G, "GuildControlGetNumRanks"))
+  local _, _, myRank = ns.Try(GetGuildInfo, "player")
+  ns.Print(("member=%s rank=%s · myRank(GetGuildInfo)=%s · myRank(roster)=%s · numRanks=%s/%s"):format(
+    tostring(m and m.name), tostring(m and m.rankIndex), tostring(myRank),
+    tostring(Roster.Me() and Roster.Me().rankIndex), tostring(num), tostring(NumRanks())))
+  local can = Roster.Can()
+  local r = Roster.Rights(m)
+  ns.Print(("can promote=%s demote=%s remove=%s · rights promote=%s demote=%s remove=%s"):format(
+    tostring(can.promote), tostring(can.demote), tostring(can.remove),
+    tostring(r.promote), tostring(r.demote), tostring(r.remove)))
+end
+
+-- Guild actions (invite, rank, removal, MOTD, info) are blocked for addon code on Forever; they run
+-- through secure buttons (UI/Commands.lua). Notes are edited in Blizzard's window. Group invites are
+-- allowed.
 
 function Roster.GroupInvite(m)
   local fn = (C_PartyInfo and C_PartyInfo.InviteUnit) or rawget(_G, "InviteUnit")

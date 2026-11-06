@@ -3,11 +3,11 @@
 -- are not saved, so disabling Guildy gives J back.
 --
 -- GuildyToggleButton is a secure action button. Normally it does nothing itself and its PostClick
--- toggles Guildy. On Forever, guild invites only work through Blizzard's invite button, which exists
--- only once Blizzard's guild window was opened by the player. So until then (and only for players who
--- may invite) the button is of type "click" on the guild micro button: the first J opens Blizzard's
--- window cleanly, Guildy closes it right away and shows itself. From then on Guildy's invite button
--- opens Blizzard's invite dialog directly.
+-- toggles Guildy. On Forever, guild invites only work through Blizzard's invite button, and the MOTD
+-- and guild info only through Blizzard's text editor; both exist only once Blizzard's guild window was
+-- opened by the player. So until then (and only for players who may invite or edit) the button is of
+-- type "click" on the guild micro button: the first J opens Blizzard's window cleanly, Guildy closes it
+-- right away and shows itself. From then on Guildy uses those Blizzard buttons directly.
 local _, ns = ...
 
 local Redirect = {}
@@ -26,8 +26,14 @@ end
 -- Whether the next J should open Blizzard's window once (to make its invite button available)
 local function NeedsPreload()
   if not IsInGuild() or not rawget(_G, "GuildMicroButton") then return false end
-  if not (ns.Try(rawget(_G, "CanGuildInvite"))) then return false end
-  return not (ns.UI.Action and ns.UI.Action.InviteReady())
+  local Action = ns.UI.Action
+  if not Action then return false end
+  if ns.Try(rawget(_G, "CanGuildInvite")) and not Action.InviteReady() then return true end
+  -- the MOTD / guild info editor uses Blizzard's text editor, which also needs the window loaded once
+  if ns.Try(rawget(_G, "CanEditMOTD")) and not Action.TextEditReady("motd") then return true end
+  if ns.Try(rawget(_G, "CanEditGuildInfo")) and not Action.TextEditReady("info") then return true end
+  if ns.Try(rawget(_G, "IsGuildLeader")) and not Action.RankEditorReady() then return true end
+  return false
 end
 
 function Redirect.UpdateToggle()
