@@ -417,14 +417,35 @@ T.describe("Hall of Fame", function()
     ns.GuildData().members["au tsch"].stats = nil
     ns.GameStats._ResetForTest()
     Fire("PLAYER_TARGET_CHANGED")
+    T.eq(inspected, "target") -- the inspect goes out with the request
     Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
     RunTimers(1)
-    T.eq(inspected, "target")
     T.eq(ns.GuildData().members["au tsch"].stats, nil) -- waits for the equipment
     Fire("INSPECT_READY", "Player-1-03")
+    RunTimers(1)
     T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
     T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], 400)
     T.truthy(cleared)
+    -- the links arrive slot by slot: Guildy waits until they stop growing
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    local arrived = 1
+    env.GetInventoryItemLink = function(unit, slot)
+      if unit == "target" and (slot == 1 or (slot == 16 and arrived > 1)) then return "item16" end
+      return ownLink(unit, slot)
+    end
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    Fire("INSPECT_READY", "Player-1-03")
+    T.eq(ns.GuildData().members["au tsch"].stats, nil)
+    arrived = 2
+    RunTimers(3)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.EPIC], 2)
+    env.GetInventoryItemLink = function(unit, slot)
+      if unit == "target" and (slot == 1 or slot == 16) then return "item16" end
+      return ownLink(unit, slot)
+    end
     -- no inspect answer: the statistics are stored alone after the wait
     ns.GuildData().members["au tsch"].stats = nil
     ns.GameStats._ResetForTest()
@@ -434,6 +455,68 @@ T.describe("Hall of Fame", function()
     RunTimers(1)
     T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
     T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], nil)
+    -- the target is gone when the equipment arrives, a nameplate still shows the member
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    local guidOf = env.UnitGUID
+    env.UnitGUID = function(unit) if unit == "nameplate7" then return "Player-1-03" end end
+    env.GetInventoryItemLink = function(unit, slot)
+      if unit == "nameplate7" and (slot == 1 or slot == 16) then return "item16" end
+      return ownLink(unit, slot)
+    end
+    Fire("INSPECT_READY", "Player-1-03")
+    RunTimers(1)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], 400)
+    env.UnitGUID = guidOf
+    -- nobody shows the member when the equipment arrives: kept and read on the next look
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    env.GetInventoryItemLink = function(unit, slot)
+      if unit == "target" and (slot == 1 or slot == 16) then return "item16" end
+      return ownLink(unit, slot)
+    end
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    env.UnitGUID = function() return nil end
+    Fire("INSPECT_READY", "Player-1-03")
+    RunTimers(8)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], nil)
+    env.UnitGUID = guidOf
+    Fire("PLAYER_TARGET_CHANGED")
+    T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], 400)
+    -- Blizzard's achievement frame does not get the comparison event while Guildy asks
+    local events = { INSPECT_ACHIEVEMENT_READY = true }
+    env.AchievementFrameComparison = {
+      IsEventRegistered = function(_, e) return events[e] == true end,
+      UnregisterEvent = function(_, e) events[e] = nil end,
+      RegisterEvent = function(_, e) events[e] = true end,
+    }
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    Fire("PLAYER_TARGET_CHANGED")
+    T.eq(events.INSPECT_ACHIEVEMENT_READY, nil)
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    T.eq(events.INSPECT_ACHIEVEMENT_READY, true)
+    Fire("INSPECT_READY", "Player-1-03")
+    RunTimers(1)
+    env.AchievementFrameComparison = nil
+    -- statreset: a member read a moment ago is asked again right away
+    set = nil
+    Fire("PLAYER_TARGET_CHANGED")
+    T.eq(set, nil)
+    env.SlashCmdList.GUILDY("statreset")
+    Fire("PLAYER_TARGET_CHANGED")
+    T.eq(set, "target")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    Fire("INSPECT_READY", "Player-1-03")
+    RunTimers(1)
     env.NotifyInspect, env.ClearInspectPlayer, env.GetInventoryItemLink = nil, nil, ownLink
 
     local testing = ns.GameStats.TESTING

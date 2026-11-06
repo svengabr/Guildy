@@ -106,6 +106,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))
   elseif msg:match("^statshow") then
     ns.GameStats.Show(raw:sub(10))
+  elseif msg == "statreset" then
+    ns.GameStats.ResetWaits()
   elseif msg == "statmouse" then
     ns.GameStats.ToggleMouseover()
   elseif msg == "statdump" then

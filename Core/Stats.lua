@@ -17,7 +17,10 @@ Stats.MAX_VALUES = 500
 -- Equipment of Guildy users, read by Guildy itself (Stats.ReadGear) and kept in the same record as
 -- the game's statistics under IDs far above Blizzard's, so it is shared, relayed (older Guildy
 -- versions keep unknown IDs too) and snapshotted per month without a new message type.
-Stats.GEAR = { ILVL = 9900001, EPIC = 9900002, RARE = 9900003, UNCOMMON = 9900004 }
+-- COUNT = number of equipped items read. Equipment read nearby (src "seen") without it is from before
+-- Guildy checked that every slot had arrived (often only a few items) and is dropped (Stats.CleanRecord);
+-- a member's own equipment ("self", "relay") was always complete and is kept.
+Stats.GEAR = { ILVL = 9900001, EPIC = 9900002, RARE = 9900003, UNCOMMON = 9900004, COUNT = 9900005 }
 Stats.GEAR_BASE = 9900000
 Stats.GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 } -- no shirt, tabard, ammo
 
@@ -136,11 +139,32 @@ function Stats.ReadGear(getLink, getInfo)
     end
   end
   local values = {}
-  if count > 0 then values[Stats.GEAR.ILVL] = math.floor(levels / count * 10 + 0.5) end
+  if count > 0 then
+    values[Stats.GEAR.ILVL] = math.floor(levels / count * 10 + 0.5)
+    values[Stats.GEAR.COUNT] = count
+  end
   if qualities[4] > 0 then values[Stats.GEAR.EPIC] = qualities[4] end
   if qualities[3] > 0 then values[Stats.GEAR.RARE] = qualities[3] end
   if qualities[2] > 0 then values[Stats.GEAR.UNCOMMON] = qualities[2] end
   return values
+end
+
+-- Removes equipment values without an item count (incomplete reads of older versions); returns values
+function Stats.CleanGear(values)
+  if type(values) ~= "table" or values[Stats.GEAR.COUNT] then return values end
+  for id in pairs(values) do
+    if type(id) == "number" and id > Stats.GEAR_BASE then values[id] = nil end
+  end
+  return values
+end
+
+-- CleanGear on a whole StatRec read nearby (current values and month snapshots)
+function Stats.CleanRecord(rec)
+  if type(rec) ~= "table" or rec.src ~= "seen" then return end
+  Stats.CleanGear(rec.v)
+  for _, snap in pairs(type(rec.months) == "table" and rec.months or {}) do
+    if type(snap) == "table" then Stats.CleanGear(snap.v) end
+  end
 end
 
 function Stats.HasGear(values)
@@ -236,6 +260,9 @@ function Stats.Update(member, values, ts, src, date)
   rec.months = type(rec.months) == "table" and rec.months or {}
   local month = Stats.MonthKey(ts, date)
   local changed = false
+  values = Copy(values)
+  if src == "seen" then Stats.CleanGear(values) end
+  Stats.CleanRecord(rec)
   if not rec.ts or ts > rec.ts or (ts == rec.ts and (PRIORITY[src] or 0) > (PRIORITY[rec.src] or 0)) then
     local new = Copy(values)
     -- a reading without equipment (read nearby, item info not loaded) keeps the last known equipment
@@ -289,6 +316,7 @@ function Stats.Validate(raw)
       end
     end
   end
+  Stats.CleanRecord(rec)
   return rec
 end
 
@@ -300,6 +328,7 @@ function Stats.Merge(member, incoming)
     member.stats = rec
   end
   rec.months = type(rec.months) == "table" and rec.months or {}
+  Stats.CleanRecord(rec)
   local changed = false
   if not rec.ts or incoming.ts > rec.ts
     or (incoming.ts == rec.ts and (PRIORITY[incoming.src] or 0) > (PRIORITY[rec.src] or 0)) then
