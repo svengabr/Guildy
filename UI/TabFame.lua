@@ -169,7 +169,6 @@ local function Build(panel)
     local tile = W.Box(home)
     tile:SetHeight(64)
     tile.Value = W.Text(tile, "GameFontNormalHuge")
-    tile.Value:SetPoint("TOP", 0, -8)
     tile.Label = W.Text(tile, "GameFontDisableSmall")
     tile.Label:SetPoint("TOP", tile.Value, "BOTTOM", 0, -2)
     tile.Trend = W.Text(tile, "GameFontHighlightSmall")
@@ -177,6 +176,12 @@ local function Build(panel)
     tile:EnableMouse(true)
     tile:SetScript("OnMouseUp", function(self) if self.id then view:ShowDetail(self.id) end end)
     view.Tiles[i] = tile
+  end
+
+  -- Text block vertically centered (higher with a trend line)
+  local function PlaceTile(tile)
+    tile.Value:ClearAllPoints()
+    tile.Value:SetPoint("CENTER", 0, (tile.Trend:GetText() or "") ~= "" and 13 or 7)
   end
 
   view.Cards = {}
@@ -530,6 +535,7 @@ local function Build(panel)
       tile:ClearAllPoints()
       tile:SetWidth(tileWidth)
       tile:SetPoint("TOPLEFT", home, "TOPLEFT", (i - 1) * (tileWidth + gap), 0)
+      PlaceTile(tile)
     end
     local cardWidth = (width - gap * 3) / 4
     for i, card in ipairs(self.Cards) do
@@ -636,6 +642,7 @@ local function Build(panel)
           if month > 0 and month ~= total then trend = "|cff40e040+" .. Format(id, month) .. "|r " .. L.FAME_THIS_MONTH end
         end
         tile.Trend:SetText(trend)
+        PlaceTile(tile)
       end
     end
   end
