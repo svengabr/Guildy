@@ -35,6 +35,15 @@ T.describe("Protocol", function()
     T.eq(err3, "malformed")
   end)
 
+  T.it("carries the addon version", function()
+    T.eq(P.Decode(P.Encode("HI", {}, "0.3.0")).v, "0.3.0")
+    T.eq(P.Decode(P.Encode("HI", {})).v, nil)
+    T.eq(P.CompareVersions("0.2.0", "0.3.0"), -1)
+    T.eq(P.CompareVersions("0.10.0", "0.9.1"), 1)
+    T.eq(P.CompareVersions("v0.3", "0.3.0"), 0)
+    T.eq(P.CompareVersions("dev", "0.3.0"), nil)
+  end)
+
   T.it("limits messages per sender", function()
     local limiter = P.NewLimiter(3, 10)
     for _ = 1, 3 do T.eq(P.Allow(limiter, "A", 0), true) end

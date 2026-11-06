@@ -1,5 +1,5 @@
 -- Addon-to-addon protocol between Guildy users in the guild (prefix GUILDY, channel GUILD).
--- Envelope {p = protocol, t = type, d = data} -> JSON -> LibDeflate deflate -> EncodeForWoWAddonChannel
+-- Envelope {p = protocol, t = type, d = data, v = addon version (since 0.3, optional)} -> JSON -> LibDeflate deflate -> EncodeForWoWAddonChannel
 -- -> parts of at most 250 bytes "~<msgId>:<i>/<n>:<piece>". Same scheme as Raidy. Pure apart from the
 -- bundled libraries.
 local _, ns = ...
@@ -22,8 +22,10 @@ function Protocol.Deflate()
   end
 end
 
-function Protocol.Encode(kind, data)
-  local text = ns.json.encode({ p = Protocol.VERSION, t = kind, d = data })
+function Protocol.Encode(kind, data, version)
+  local envelope = { p = Protocol.VERSION, t = kind, d = data }
+  if type(version) == "string" and version ~= "" then envelope.v = version:sub(1, 24) end
+  local text = ns.json.encode(envelope)
   local lib = Protocol.Deflate()
   return lib:EncodeForWoWAddonChannel(lib:CompressDeflate(text))
 end
@@ -40,6 +42,7 @@ function Protocol.Decode(payload)
   if type(envelope.p) ~= "number" then return nil, "malformed" end
   if envelope.p > Protocol.VERSION then return nil, "newer" end
   if type(envelope.d) ~= "table" then envelope.d = {} end
+  if type(envelope.v) ~= "string" or envelope.v == "" or #envelope.v > 24 then envelope.v = nil end
   return envelope
 end
 
@@ -105,4 +108,19 @@ function Protocol.Allow(limiter, sender, now)
   end
   entry.count = entry.count + 1
   return entry.count <= limiter.limit
+end
+
+-- Compares two addon versions ("0.2.0", "v0.10.1-beta"): -1, 0 or 1; nil when either has no numbers
+-- (like "dev")
+function Protocol.CompareVersions(a, b)
+  if type(a) ~= "string" or type(b) ~= "string" then return nil end
+  local x, y = {}, {}
+  for n in a:gmatch("%d+") do x[#x + 1] = tonumber(n) end
+  for n in b:gmatch("%d+") do y[#y + 1] = tonumber(n) end
+  if #x == 0 or #y == 0 then return nil end
+  for i = 1, math.max(#x, #y) do
+    local p, q = x[i] or 0, y[i] or 0
+    if p ~= q then return p < q and -1 or 1 end
+  end
+  return 0
 end

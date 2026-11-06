@@ -89,6 +89,8 @@ local GETTERS = {
   class = function(m) return m.classFile or "" end,
   profs = function(m) return m.profCount or 0 end,
   lastOnline = LastOnlineValue,
+  -- Guildy users first (set by the members tab: version, "" for an old Guildy), then by version text
+  guildy = function(m) return m.guildy and ("1" .. m.guildy) or "0" end,
 }
 
 -- Sorts in place by field; desc reverses. Ties by name. Default directions: level and profs high first.

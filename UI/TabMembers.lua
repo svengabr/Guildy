@@ -14,8 +14,20 @@ local COLUMNS = {
   { key = "rank", width = 100 },
   { key = "profs", width = 70, desc = true },
   { key = "lastOnline", width = 70 },
+  { key = "guildy", width = 46, desc = true },
   { key = "note", width = 0 }, -- rest
 }
+
+local ONLINE_COLOR = { 0.3, 0.9, 0.3 }
+
+-- Guildy version of an online member as colored text: green = same or newer than mine, orange = older
+function UI.GuildyVersionText(m)
+  local version = m.online and ns.Sync.UserVersion(m.name)
+  if not version then return nil end
+  if version == "" then return "|cffff9933" .. ns.L.GUILDY_OLD .. "|r" end
+  local cmp = ns.Protocol.CompareVersions(version, ns.Version())
+  return (cmp == -1 and "|cffff9933" or "|cff4ce64c") .. version .. "|r"
+end
 
 local function ClassLabel(classFile)
   local male = rawget(_G, "LOCALIZED_CLASS_NAMES_MALE")
@@ -224,12 +236,14 @@ local function Build(panel)
     c.rank:SetText(m.rank or "")
     c.profs:SetText((ProfSummary(m)))
     c.lastOnline:SetText(ns.Roster.LastOnlineText(m))
+    c.guildy:SetText(UI.GuildyVersionText(m) or "")
     c.note:SetText(m.note or "")
     for key, cell in pairs(c) do
       if key ~= "name" and key ~= "profs" then
         if dim then cell:SetTextColor(0.6, 0.6, 0.6) else cell:SetTextColor(1, 1, 1) end
       end
     end
+    if m.online then c.lastOnline:SetTextColor(unpack(ONLINE_COLOR)) end
     c.name:SetAlpha(dim and 0.7 or 1)
     row.Selected:SetShown(view.selected ~= nil and view.selected.key == m.key)
   end)
@@ -279,6 +293,8 @@ local function Build(panel)
     if can.viewOfficer then
       lines[#lines + 1] = "|cffffd100" .. L.OFFICER_NOTE .. ":|r " .. ((m.officerNote and m.officerNote ~= "") and m.officerNote or "-")
     end
+    local guildy = UI.GuildyVersionText(m)
+    if guildy then lines[#lines + 1] = "|cffffd100" .. L.COL_GUILDY .. ":|r " .. guildy end
     d.Lines:SetText(table.concat(lines, "\n"))
 
     local record = ns.TradeSkill.Record(m)
@@ -325,6 +341,7 @@ local function Build(panel)
     for _, m in ipairs(members) do
       local _, count = ProfSummary(m)
       m.profCount = count
+      m.guildy = m.online and ns.Sync.UserVersion(m.name) or nil
     end
     local list = ns.Search.Members(members, self.filter, self.query, ns.TradeSkill.ProfsOf)
     ns.Search.SortMembers(list, self.sort, self.desc)

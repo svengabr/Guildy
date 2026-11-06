@@ -3,6 +3,8 @@
 --   PROF {m = name, p = {["171"] = ProfRec}}   records of one member
 --   SUM also carries s = {nameKey = statsTs}, STAT {m = name, s = StatRec} (Core/Stats.lua): statistics
 --   of one member, own or read nearby; older Guildy versions ignore both.
+--   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
+--   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
 -- someone else sent it first. Own changes are sent right away (debounced). The member's own data is
 -- marked "self" by the receiver; everything else counts as "relay". Sending own data can be switched
@@ -23,6 +25,8 @@ local seenStats = {}     -- same for statistics
 local warnedNewer = false
 local ownTimer
 local MAX_OFFERS = 25
+local users = {}         -- nameKey -> { name, v = addon version or nil (Guildy before 0.3), at }
+local lastHello = -math.huge
 
 function Sync.Register()
   local register = (C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix) or rawget(_G, "RegisterAddonMessagePrefix")
@@ -53,7 +57,7 @@ local function Send(kind, data)
   if not IsInGuild() then return end
   msgCounter = msgCounter + 1
   local msgId = string.format("%x", ns.Now() % 65536) .. msgCounter
-  for _, part in ipairs(Proto.Chunk(msgId, Proto.Encode(kind, data))) do queue[#queue + 1] = part end
+  for _, part in ipairs(Proto.Chunk(msgId, Proto.Encode(kind, data, ns.Version()))) do queue[#queue + 1] = part end
   Pump()
   if queue[1] and not ticker then ticker = C_Timer.NewTicker(0.25, Pump) end
 end
@@ -184,7 +188,40 @@ local function OnProfessions(data, sender)
   if changed then ns.Fire("PROFS") end
 end
 
-local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats }
+-- Guildy users seen this session ---------------------------------------------------------------------
+
+local function MarkUser(name, version)
+  local key = ns.Names.Key(name)
+  local known = users[key]
+  local changed = not known or (version and known.v ~= version)
+  users[key] = { name = name, v = version or (known and known.v), at = ns.Now() }
+  if changed then ns.Fire("USERS") end
+end
+
+-- Addon version of a member who used Guildy this session: "0.3.0", "dev", or "" for a Guildy too
+-- old to send its version; nil when not seen
+function Sync.UserVersion(name)
+  local user = name and users[ns.Names.Key(name)]
+  if not user then return nil end
+  return user.v or ""
+end
+
+local function SendHello(ask)
+  lastHello = GetTime()
+  Send("HI", { q = ask or nil })
+end
+
+-- Someone logged in and asks who else uses Guildy: answer once, after a random delay (a crowd of
+-- Guildy users mustn't answer at the same moment; one answer covers several askers in a row)
+local function OnHello(data)
+  if not data.q then return end
+  C_Timer.After(1 + math.random() * 4, function()
+    if GetTime() - lastHello < 5 then return end
+    SendHello(false)
+  end)
+end
+
+local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, HI = OnHello }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)
@@ -201,13 +238,17 @@ function Sync.OnAddonMessage(prefix, text, channel, sender)
     end
     return
   end
+  if not Proto.Allow(limiter, sender, ns.Now()) then return end
+  local name = ns.Names.Normalize(sender)
+  ns.SafeCall(MarkUser, name, envelope.v)
   local handler = HANDLERS[envelope.t]
-  if not handler or not Proto.Allow(limiter, sender, ns.Now()) then return end
-  ns.SafeCall(handler, envelope.d, ns.Names.Normalize(sender))
+  if handler then ns.SafeCall(handler, envelope.d, name) end
 end
 
 -- After login: say what we know once the roster is there
 function Sync.Start()
+  MarkUser(ns.PlayerName(), ns.Version())
+  C_Timer.After(3 + math.random() * 3, function() ns.SafeCall(SendHello, true) end)
   C_Timer.After(10 + math.random() * 10, function()
     ns.SafeCall(Sync.SendSummary)
     if ns.Settings().share then SendMember(ns.Names.Key(ns.PlayerName())) end

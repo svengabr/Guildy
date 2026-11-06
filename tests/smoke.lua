@@ -277,6 +277,18 @@ T.describe("Smoke", function()
     local payload = P.Encode("PROF", { m = "Makira Farron", p = { ["171"] = { ts = 1800000000, rank = 100, recipes = { 1, 2 } } } })
     for _, part in ipairs(P.Chunk("x1", payload)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end
     T.eq(ns.GuildData().members["makira farron"].profs[171].src, "self")
+    T.eq(ns.Sync.UserVersion("Makira Farron"), "") -- any message marks a Guildy user (this one without version)
+    for _, part in ipairs(P.Chunk("h1", P.Encode("HI", { q = true }, "0.1.0"))) do
+      Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch")
+    end
+    T.eq(ns.Sync.UserVersion("Au Tsch"), "0.1.0")
+    for _, part in ipairs(P.Chunk("h2", P.Encode("HI", {}))) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Xii-Lightspark") end
+    T.eq(ns.Sync.UserVersion("Xii Lightspark"), "")
+    ns.UI.Show()
+    ns.UI.SelectTab("members")
+    local members = ns.UI.TabView("members")
+    members.sort = "guildy"
+    members:Refresh()
     ns.UI.SelectTab("professions")
     ns.UI.Show()
     local A = ns.UI.Action
@@ -365,8 +377,57 @@ T.describe("Hall of Fame", function()
     Fire("PLAYER_TARGET_CHANGED")
     T.eq(set, "target")
     Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
     T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
     T.eq(ns.GuildData().members["au tsch"].stats.src, "seen")
+
+    local testing = ns.GameStats.TESTING
+    ns.GameStats.TESTING = false
+    -- mouseover: ignored while switched off, read when on, safeguard mark cleared after the answer
+    set = nil
+    env.UnitName = function(unit) if unit == "mouseover" then return "Makira", "Farron" end return "Au", "Tsch" end
+    env.UnitGUID = function() return "Player-1-04" end
+    env.GetTime = (function(t) return function() t = t + 20 return t end end)(10000)
+    Fire("UPDATE_MOUSEOVER_UNIT")
+    T.eq(set, nil)
+    ns.GameStats.ToggleMouseover()
+    Fire("UPDATE_MOUSEOVER_UNIT")
+    T.eq(set, "mouseover")
+    T.eq(env.GuildyDB.mouseoverProbe, "Makira Farron")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-04")
+    RunTimers(1)
+    T.eq(env.GuildyDB.mouseoverProbe, nil)
+    T.eq(ns.GuildData().members["makira farron"].stats.v[107], 1077)
+    -- an answer that arrives in parts: the second read completes it
+    ns.GuildData().members["au tsch"].stats = nil
+    env.UnitName = function() return "Au", "Tsch" end
+    env.UnitGUID = function() return "Player-1-03" end
+    local reads = 0
+    env.GetComparisonStatistic = function(id)
+      if id == 107 then return reads > 0 and "500" or "--" end
+      return id == 98 and "12" or "--"
+    end
+    set = nil
+    Fire("PLAYER_TARGET_CHANGED")
+    T.eq(set, "target")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    reads = 1
+    RunTimers(1)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[107], 500)
+    -- level 21 without creature kills: incomplete, not stored
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    env.GetComparisonStatistic = function(id) return id == 98 and "12" or "--" end
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    T.eq(ns.GuildData().members["au tsch"].stats, nil)
+    -- a mark left from the last session switches mouseover off again
+    env.GuildyDB.mouseoverProbe = "Makira Farron"
+    ns.GameStats.Start()
+    T.eq(env.GuildyDB.settings.statMouseover, false)
+    T.eq(env.GuildyDB.mouseoverProbe, nil)
+    ns.GameStats.TESTING = testing
 
     -- a Guildy user shares their own statistics
     local P = ns.Protocol
@@ -374,6 +435,8 @@ T.describe("Hall of Fame", function()
     for _, part in ipairs(P.Chunk("s1", payload)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end
     T.eq(ns.GuildData().members["makira farron"].stats.v[107], 4210)
 
+    env.SlashCmdList.GUILDY("statshow Makira Farron")
+    env.SlashCmdList.GUILDY("statshow Niemand")
     ns.UI.Show()
     ns.UI.SelectTab("fame")
     local view = ns.UI.TabView("fame")
