@@ -12,7 +12,7 @@ local byKey = {}
 local frame
 local current
 
-UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 860, 440, 1600, 1000
+UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 960, 560, 1600, 1000 -- overview needs ~520 px
 
 -- Tab modules call this at load time; builder(panel) returns a view with Refresh(event) and optional
 -- OnShow() / OnHide()
@@ -154,7 +154,7 @@ end
 local function Build()
   frame = CreateFrame("Frame", "GuildyFrame", UIParent, "ButtonFrameTemplate")
   local settings = ns.Settings()
-  frame:SetSize(math.max(UI.MIN_W, settings.width or 1000), math.max(UI.MIN_H, settings.height or 520))
+  frame:SetSize(math.max(UI.MIN_W, settings.width or 1000), math.max(UI.MIN_H, settings.height or 600))
   local p = settings.point
   if type(p) == "table" and p[1] then
     frame:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)

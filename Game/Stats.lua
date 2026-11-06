@@ -36,23 +36,37 @@ end
 
 local function Fire() ns.Fire("STATS") end
 
--- Own statistics: { [statID] = number } for every tracked statistic the game knows
+-- Own statistics: { [statID] = number } for EVERY statistic the game reports (zeros left out), and
+-- the list of all statistic IDs is remembered (GuildyDB.statIds) to ask for the same ones by comparison
 function GameStats.ReadOwn()
   local list = ns.Try(rawget(_G, "GetStatisticsCategoryList"))
   local count = rawget(_G, "GetCategoryNumAchievements")
   local get = rawget(_G, "GetStatistic")
   if type(list) ~= "table" or not count or not get then return nil end
-  local wanted, values, any = S.Wanted(), {}, false
+  local values, ids, any = {}, {}, false
   for _, categoryID in ipairs(list) do
     for i = 1, ns.Try(count, categoryID) or 0 do
       local quantity, _, statID = ns.Try(get, categoryID, i)
-      if statID and wanted[statID] then
-        values[statID] = S.Parse(quantity)
+      if type(statID) == "number" then
+        ids[#ids + 1] = statID
         any = true
+        local value = S.Parse(quantity)
+        if value > 0 then values[statID] = value end
       end
     end
   end
+  local db = ns.DB()
+  if db and #ids > 0 then db.statIds = ids end
   return any and values or nil
+end
+
+-- Every statistic ID to ask for: the ones the game listed, plus the catalog
+local function AllIds()
+  local set = {}
+  for id in pairs(S.Wanted()) do set[id] = true end
+  local db = ns.DB()
+  for _, id in ipairs(db and type(db.statIds) == "table" and db.statIds or {}) do set[id] = true end
+  return set
 end
 
 function GameStats.UpdateOwn()
@@ -145,10 +159,12 @@ function GameStats.OnComparisonReady(guid)
     return
   end
   local values, nonZero = {}, false
-  for id in pairs(S.Wanted()) do
+  for id in pairs(AllIds()) do
     local value = S.Parse(ns.Try(get, id))
-    values[id] = value
-    if value > 0 then nonZero = true end
+    if value > 0 then
+      values[id] = value
+      nonZero = true
+    end
   end
   Clear()
   if not nonZero then return Log(request.name .. ": answer was empty") end -- don't store zeros

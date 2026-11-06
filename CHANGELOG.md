@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Overview grows with the window and shows more: highest known skill per profession, last-online
+  activity (today to longer, click shows who), joins and departures of the last 30 days, and a class x
+  level matrix (click filters the members).
+- The Hall of Fame keeps every statistic the game reports, so later features can use data collected now.
 - New Hall of Fame tab: guild totals, title cards (Slayer, Quest machine, Hogger's favourite, ...) and
   dungeon progress from Forever's character statistics, for all time, this month or last month; a click
   opens the guild ranking of any tracked statistic. Guildy reads your own statistics and those of guild

@@ -59,4 +59,38 @@ T.describe("Census", function()
   T.it("sorts counts", function()
     T.eq(Census.Sorted({ A = 1, B = 3, C = 1 }), { { key = "B", count = 3 }, { key = "A", count = 1 }, { key = "C", count = 1 } })
   end)
+  T.it("buckets activity over all members", function()
+    T.eq(Census.ActivityBucket({ online = true }), 1)
+    T.eq(Census.ActivityBucket({ daysOffline = 0.5 }), 1)
+    T.eq(Census.ActivityBucket({ daysOffline = 3 }), 2)
+    T.eq(Census.ActivityBucket({ daysOffline = 20 }), 3)
+    T.eq(Census.ActivityBucket({ daysOffline = 60 }), 4)
+    T.eq(Census.ActivityBucket({ daysOffline = 400 }), 5)
+    T.eq(Census.ActivityBucket({}), 5)
+    local members = {
+      { level = 16, classFile = "DRUID", online = true },
+      { level = 12, classFile = "DRUID", daysOffline = 3 },
+      { level = 40, classFile = "PALADIN", daysOffline = 200 },
+    }
+    local ranks = { [members[1]] = { [171] = 120 }, [members[2]] = { [171] = 225, [182] = 50 } }
+    local r = Census.Compute(members, 30, nil, function(m) return ranks[m] end)
+    T.eq(r.activity, { 1, 1, 0, 0, 1 })
+    T.eq(r.matrix, { DRUID = { [2] = 2 } })
+    T.eq(r.levels[16], { DRUID = 1 })
+    T.eq(r.levelTotals[12], 1)
+    T.eq(r.maxRank, { [171] = 225, [182] = 50 })
+  end)
+
+  T.it("lists joins, departures and removals of the last days", function()
+    local changes = Census.Changes({
+      { kind = "join", player1 = "A", daysAgo = 2 },
+      { kind = "quit", player1 = "B", daysAgo = 1 },
+      { kind = "remove", player1 = "Officer", player2 = "C", daysAgo = 5 },
+      { kind = "promote", player1 = "Officer", player2 = "D", daysAgo = 1 },
+      { kind = "join", player1 = "Old", daysAgo = 90 },
+    }, 30)
+    T.eq(#changes, 3)
+    T.eq(changes[1].name, "B")
+    T.eq(changes[3].by, "Officer")
+  end)
 end)

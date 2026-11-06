@@ -60,7 +60,9 @@ function Search.Members(members, filter, query, profsOf)
     if (filter.onlineOnly or filter.hideOffline) and not m.online then keep = false end
     if keep and filter.classFile and m.classFile ~= filter.classFile then keep = false end
     if keep and filter.bracket and ns.Census.Bracket(m.level) ~= filter.bracket then keep = false end
+    if keep and filter.level and tonumber(m.level) ~= filter.level then keep = false end
     if keep and filter.activeDays and not ns.Census.IsActive(m, filter.activeDays) then keep = false end
+    if keep and filter.activity and ns.Census.ActivityBucket(m) ~= filter.activity then keep = false end
     if keep and filter.skillLine then
       local profs = profsOf and profsOf(m)
       if not (profs and profs[filter.skillLine]) then keep = false end

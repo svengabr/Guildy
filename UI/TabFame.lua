@@ -113,6 +113,7 @@ local function Build(panel)
     card.Value = W.Text(card, "GameFontDisableSmall")
     card.Value:SetPoint("TOPLEFT", card.Name, "BOTTOMLEFT", 0, -2)
     card.Value:SetPoint("RIGHT", -6, 0)
+    card.Value:SetWordWrap(false)
     card:EnableMouse(true)
     card:SetScript("OnMouseUp", function(self) if self.stat then view:ShowDetail(self.stat) end end)
     view.Cards[i] = card

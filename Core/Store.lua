@@ -12,7 +12,7 @@ Store.DEFAULTS = {
   activityDays = 30,   -- census window in days; false = all members
   share = true,        -- send own profession data to other Guildy users
   width = 1000,
-  height = 520,
+  height = 600,
   listSort = "level",  -- online list sort on the chat tab
 }
 

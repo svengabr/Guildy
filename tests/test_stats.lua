@@ -68,7 +68,7 @@ T.describe("Stats merge", function()
       months = { ["2026-11"] = { ts = NOV, v = { [107] = 290 } }, ["2026-10"] = { ts = OCT, v = { [107] = 100 } } } })
     local rec = Stats.Validate(wire)
     T.truthy(rec)
-    T.eq(rec.v[999999], nil) -- unknown statistic dropped
+    T.eq(rec.v[999999], 5) -- statistics outside the catalog are kept for later
     T.truthy(Stats.Merge(member, rec))
     T.eq(member.stats.v[107], 320)
     T.eq(member.stats.months["2026-11"].v[107], 290)
@@ -89,7 +89,7 @@ T.describe("Stats merge", function()
 end)
 
 T.describe("Stats ranking", function()
-  T.it("sorts by value and skips unknown members", function()
+  T.it("sorts by value and skips members without statistics", function()
     local a, b, c = {}, {}, {}
     Stats.Update(a, { [98] = 10 }, NOV, "self", date)
     Stats.Update(b, { [98] = 30 }, NOV, "self", date)

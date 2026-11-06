@@ -243,6 +243,7 @@ local function Build(panel)
   -- behaviour ----------------------------------------------------------------------------------
   function view:SetFilterValue(key, value)
     self.filter[key] = value
+    if key == "bracket" then self.filter.level = nil end -- the level menu replaces a single level from the overview
     self:Refresh()
   end
 
@@ -330,7 +331,8 @@ local function Build(panel)
     self.List:SetItems(list)
     self.Summary:SetText(L.SHOWN_COUNT:format(#list, #members))
     Label(self.ClassButton, L.FILTER_CLASS, self.filter.classFile and ClassLabel(self.filter.classFile))
-    Label(self.LevelButton, L.FILTER_LEVEL, self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket))
+    Label(self.LevelButton, L.FILTER_LEVEL, (self.filter.level and tostring(self.filter.level))
+      or (self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket)))
     Label(self.ProfButton, L.FILTER_PROFESSION, self.filter.skillLine and ns.TradeSkill.Name(self.filter.skillLine))
     for key, button in pairs(self.Headers) do
       local text = L["COL_" .. key:upper()]

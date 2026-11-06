@@ -3,13 +3,15 @@
 --   StatRec = { ts, src = "self" | "seen" | "relay", v = { [statID] = number },
 --               months = { ["2026-11"] = { ts, v } } }   -- first values seen in each month
 -- Labels come from the game at runtime (GetAchievementInfo / GetCategoryInfo), so they are localized.
+-- Records keep EVERY statistic the game reports (not only the catalog), zeros left out, so features
+-- added later can use data collected before. A missing value in a record counts as 0.
 local _, ns = ...
 
 local Stats = {}
 ns.Stats = Stats
 
 Stats.MONTHS_KEPT = 3
-Stats.MAX_VALUES = 200
+Stats.MAX_VALUES = 500
 
 -- Categories (Blizzard statistic category IDs) and the statistics Guildy tracks, in display order.
 -- money = the game shows the value as gold/silver/copper.
@@ -151,10 +153,9 @@ end
 local function ValidValues(raw)
   if type(raw) ~= "table" then return nil end
   local values, count = {}, 0
-  local known = Stats.Wanted()
   for id, value in pairs(raw) do
     id = tonumber(id)
-    if id and known[id] and type(value) == "number" and value >= 0 and value < 1e12 then
+    if id and id > 0 and id < 1e7 and type(value) == "number" and value > 0 and value < 1e12 then
       values[id] = math.floor(value)
       count = count + 1
       if count > Stats.MAX_VALUES then return nil end
@@ -236,9 +237,9 @@ local function StatValue(values, id)
         any = true
       end
     end
-    return any and sum or nil
+    return any and sum or 0
   end
-  return values[id]
+  return values[id] or 0
 end
 
 -- Value of statistic id ("bosses" = all end bosses) for a member record in a period:
