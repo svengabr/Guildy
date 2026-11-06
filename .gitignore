@@ -3,3 +3,5 @@ CLAUDE.local.md
 *.zip
 media/gallery/fonts/
 media/gallery/icons/
+media/gallery/src/
+media/gallery/screens.py

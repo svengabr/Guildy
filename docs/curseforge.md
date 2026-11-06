@@ -35,7 +35,8 @@ the images point to GitHub raw URLs and show up as they are.
 ## Gallery (in this order)
 
 Real in-game screenshots (German client), cut out and placed on a neutral background by
-`media/gallery/build.py`; the Hall of Fame images are filled up with made-up members.
+`media/gallery/build.py`. All character names are made up and the guild chat is rewritten. `11-sync.jpg` is
+rendered from `media/gallery/sync.html` (a German version is `sync-de.jpg`, not part of the gallery).
 
 Title and description per image (CurseForge allows 255 characters per description).
 
@@ -47,22 +48,31 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: Search names, zones and notes, filter by class, level and profession, and sort by any column. The details panel shows rank, notes, last online and professions. Whisper, invite, promote, demote or remove members from here.
 3. `media/gallery/03-overview.jpg`
    - Title: Overview
-   - Description: Your guild at a glance: classes, levels and professions of the members active in the last month, three months, six months or ever. Also shows last online, who joined and left in the last 30 days, and a class × level grid. Click any bar to see who it is.
+   - Description: Your guild at a glance: classes, levels and professions of the members active in the last month, three months, six months or ever. Also shows last online, who joined and left in the last 30 days, and a class × level grid.
 4. `media/gallery/04-hall-of-fame.jpg`
-   - Title: Hall of Fame
-   - Description: Guild totals from Forever's character statistics: creatures killed, quests, deaths, gold and dungeon bosses. Title cards crown the top members, and a grid shows who has cleared which dungeon. View all time, this month or last month.
-5. `media/gallery/05-hall-of-fame-ranking.jpg`
-   - Title: Hall of Fame ranking
-   - Description: Click any statistic for the full guild ranking, with the guild total, the average and your own place. Each value shows where it came from and how old it is: your own, shared by other Guildy users or read from members nearby.
-6. `media/gallery/06-professions.jpg`
+   - Title: Hall of Fame: General
+   - Description: Guild totals from Forever's character statistics: creatures killed, quests, deaths, flight paths, mounts and pets. Title cards crown the top members, and the equipment list compares average item level and quality.
+5. `media/gallery/05-hall-of-fame-economy.jpg`
+   - Title: Hall of Fame: Economy
+   - Description: Where the guild's gold comes from (quests, loot, vendors, auction house) and where it goes (flights, mail). Title cards for the top earners and traders, plus gold earned, spent and auctions per member.
+6. `media/gallery/06-hall-of-fame-dungeons.jpg`
+   - Title: Hall of Fame: Dungeons
+   - Description: Dungeon bosses killed, dungeons cleared and entered, and deaths inside. The progress grid shows who has beaten which end boss; click a dungeon for its ranking.
+7. `media/gallery/07-hall-of-fame-reputation.jpg`
+   - Title: Hall of Fame: Reputation
+   - Description: Factions met and standings reached across the guild, with the reputation of every member from Friendly to Exalted. Switch between all time, this month and last month.
+8. `media/gallery/08-professions.jpg`
    - Title: Professions
    - Description: Who has which profession, at what skill and with how many recipes? Search for a recipe or item to find who can craft it. Data comes from Guildy users, profession links in chat, guild notes, or from reading the recipe books of online members.
-7. `media/gallery/07-info-log.jpg`
+9. `media/gallery/09-info-log.jpg`
    - Title: Info & Log
    - Description: Message of the day and guild information, both editable right in the window, next to the full guild log: joins, leaves, invites, promotions and demotions. Your sharing settings are here too.
-8. `media/gallery/08-ranks.jpg`
+10. `media/gallery/10-ranks.jpg`
    - Title: Ranks
    - Description: Every guild rank with its member count, permissions and members. The guild master edits ranks and permissions in Blizzard's own rank editor, opened right inside the tab.
+11. `media/gallery/11-sync.jpg`
+   - Title: How sharing works
+   - Description: No server, no account: Guildy users swap what they know over the hidden guild addon channel. Newer data replaces older data, members pass on what they've seen, and members without Guildy are read when you target them nearby.
 
 ## Links
 

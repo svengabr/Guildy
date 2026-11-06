@@ -1,7 +1,8 @@
 """Builds the CurseForge gallery from real in-game screenshots (src/*.webp).
 
-Each screenshot is cut out of the game world, placed on a neutral background (1920x1080 JPG) and, where the
-test guild looked empty, filled up with made-up members in the game font. Needs Pillow, numpy and
+Each screenshot is cut out of the game world and placed on a neutral background (1920x1080 JPG). All
+character names are replaced by made-up ones (same class colour, game font, same name in every image);
+the guild chat is rewritten. Needs Pillow, numpy and
 fonts/FRIZQT__.TTF (see README.md).
 
     python build.py            # all images
@@ -22,18 +23,6 @@ CLASS = {
     "ROGUE": (255, 244, 104), "PRIEST": (255, 255, 255), "SHAMAN": (0, 112, 221),
     "MAGE": (63, 199, 235), "WARLOCK": (135, 136, 238), "DRUID": (255, 124, 10),
 }
-
-# Made-up members that fill the hall of fame (name, class).
-MOCK = [
-    ("Brannoc Eisenbart", "WARRIOR"), ("Liora Sonnfeld", "PALADIN"), ("Kesh Dornpfeil", "HUNTER"),
-    ("Vexa Nachtmantel", "ROGUE"), ("Elwin Lichtquell", "PRIEST"), ("Torva Sturmruf", "SHAMAN"),
-    ("Miri Funkenschlag", "MAGE"), ("Grimbald Aschenherz", "WARLOCK"), ("Fenna Mooswind", "DRUID"),
-    ("Holgar Steinfaust", "WARRIOR"), ("Selene Morgentau", "PRIEST"), ("Jorik Wolfsfährte", "HUNTER"),
-    ("Talia Frostfeder", "MAGE"), ("Odo Kupferkessel", "ROGUE"), ("Ysolde Glanzschild", "PALADIN"),
-    ("Brakk Donnerhuf", "SHAMAN"), ("Nerys Schattenranke", "WARLOCK"), ("Pip Rabenschwinge", "DRUID"),
-    ("Arnulf Graubart", "WARRIOR"), ("Wenna Distelkraut", "PRIEST"),
-]
-
 
 # --- helpers ------------------------------------------------------------------------------------------
 
@@ -136,7 +125,12 @@ def stamp(img, spr, x, y):
 
 def cutout(im):
     a = np.asarray(im).astype(int)
-    sky = (((a[..., 2] > 110) & (a[..., 2] > a[..., 0] + 12)) | (a.sum(2) > 540)).astype(np.uint8) * 255
+    # daytime sky (blue or bright) or a dark night sky (dark, at least as blue as red)
+    day = ((a[..., 2] > 110) & (a[..., 2] > a[..., 0] + 12)) | (a.sum(2) > 540)
+    night = ((a[..., 2] >= a[..., 0] + 4) & (a.sum(2) < 200)) | (a.sum(2) < 24)
+    edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    dark = edge.sum(1).mean() < 150
+    sky = (night if dark else day).astype(np.uint8) * 255
     m = Image.fromarray(sky).copy()
     w, h = m.size
     border = ([(x, 0) for x in range(0, w, 16)] + [(x, h - 1) for x in range(0, w, 16)]
@@ -145,6 +139,22 @@ def cutout(im):
         if m.getpixel(s) == 255:
             ImageDraw.floodfill(m, s, 128)
     fg = np.asarray(m) != 128
+
+
+    if dark:
+        # At night other UI blends into the world: keep only the window's own shapes (frame, portrait
+        # ring, side button, tabs), measured on daytime screenshots relative to the frame.
+        cols = np.nonzero(fg.sum(0) > 0.6 * h)[0]
+        rows = np.nonzero(fg.sum(1) > 0.6 * w)[0]
+        xl, xr, yt, yb = int(cols.min()), int(cols.max()), int(rows.min()), int(rows.max())
+        k = (xr - xl) / 1712
+        keep = np.zeros_like(fg)
+        keep[yt - 3:yb + 4, xl - 3:xr + 4] = True
+        keep[yt + int(85 * k):yt + int(178 * k), xr:xr + int(78 * k)] = True
+        keep[yb:yb + int(52 * k), xl:xl + int(790 * k)] = True
+        yy, xx = np.mgrid[0:h, 0:w]
+        keep |= (xx - (xl + 35 * k)) ** 2 + (yy - (yt + 35 * k)) ** 2 <= (45 * k) ** 2
+        fg &= keep
 
     # Specks of other UI above the window: nothing reaches higher than the portrait ring.
     bar = int(np.nonzero(fg.sum(1) > w // 2)[0].min())
@@ -185,165 +195,220 @@ def compose(win):
     return bg
 
 
-# --- per-screenshot edits -----------------------------------------------------------------------------
+# --- made-up names ------------------------------------------------------------------------------------
 
-def header_members(img, x_right, cap_top, box, src_x, shown):
-    color = color_at(img, box)
-    patch(img, box, src_x)
-    size = fit("4 / 68 Mitglieder · 1 geteilt, 3 in der Nähe gelesen", 350)
-    text(img, x_right, cap_top, shown, size, color, "r", shadow=False)
-
-
-# Kreaturen getötet of the made-up members, and where their numbers came from (g = shared, n = read nearby).
-KILLS = [1098, 1037, 986, 941, 903, 872, 820, 776, 731, 688, 642, 597, 548, 503, 461, 412, 358, 297, 241, 176]
-SOURCES = ["g", "n", "g", "n", "n", "g", "n", "g", "n", "n", "g", "n", "n", "g", "n", "g", "n", "n", "g", "n"]
-TOTAL = 5337 + sum(KILLS)
-MEMBERS = 4 + len(KILLS)
-HEADER = (f"{MEMBERS} / 68 Mitglieder · {SOURCES.count('g') + 1} geteilt, "
-          f"{SOURCES.count('n') + 3} in der Nähe gelesen")
+# Every character name in the screenshots is replaced by a made-up one; the colour (class) is taken from
+# the screenshot, so only the letters change. The real names, the screenshots and the per-screen edits stay
+# out of the repo (screens.py and src/ are git-ignored).
+FAKE = {}  # real name -> made-up name, filled by screens.py (not in the repo)
+COLORS = {}  # made-up name -> colour found in the screenshot (for the rewritten chat)
 
 
-def hall_of_fame_ranking(img):
-    """Kreaturen getötet: 4 real entries, 20 made-up ones below them."""
-    values, sources, total, members = KILLS, SOURCES, TOTAL, MEMBERS
-    header_members(img, 1508, 84, (1150, 80, 1516, 101), 690, HEADER)
-
-    big, small = fit("5.337", 61), fit("Gilde gesamt", 92)
-    gold, grey = color_at(img, (600, 182, 668, 201)), color_at(img, (585, 208, 690, 224))
-    fill_rows(img, (560, 179, 710, 227), 450)
-    fill_rows(img, (960, 179, 1170, 227), 880)
-    text(img, 634, 184, de(total), big, gold, "c")
-    text(img, 1067, 184, de(round(total / members)), big, gold, "c")
-    text(img, 634, 210, "Gilde gesamt", small, grey, "c")
-    text(img, 1065, 210, f"Ø von {members} Mitgliedern", small, grey, "c")
-
-    name_size = fit("Maerith Withersong", 137)
-    val_size, val_sx = name_size, squeeze("1.201", 31, name_size)
-    src_size = fit("eigene · heute", 99)
-    src_grey = color_at(img, (1575, 266, 1678, 282))
-    dark, light = img.crop((420, 316, 1688, 344)), img.crop((420, 344, 1688, 372))
-    for i, v in enumerate(values):
-        rank = 5 + i
-        top = 260 + 28 * (rank - 1)
-        img.paste(dark if rank % 2 else light, (420, top))
-        fill_rows(img, (436, top, 692, top + 28), 670)
-        fill_rows(img, (694 + round(667 * v / 1559), top, 1518, top + 28), 670)
-        if sources[i] == "g":
-            fill_rows(img, (1520, top, 1682, top + 28), 670)
-            text(img, 1676, top + 8, "geteilt · heute" if i % 3 else "geteilt · gestern", src_size, src_grey,
-                 "r", shadow=False)
-        name, cls = MOCK[i]
-        text(img, 451, top + 9, str(rank), val_size, (200, 200, 200), "r", sx=val_sx)
-        text(img, 461, top + 9, name, name_size, CLASS[cls])
-        text(img, 1513, top + 9, de(v), val_size, (255, 255, 255), "r", sx=val_sx)
-
-
-DUNGEONS = ["Flammenschlund", "Todesminen", "Ruinen von Lordaeron", "Höhlen des Wehklagens", "Burg Schattenfang",
-            "Verlies von Stormwind", "Blackfathom-Tiefe"]
-
-
-def hall_of_fame(img):
-    """Overview: bigger guild totals and a fuller dungeon progress grid."""
-    header_members(img, 1515, 83, (1150, 79, 1522, 100), 680,
-                   HEADER)
-
-    big = fit("5.337", 75)
-    for cx, value in ((214, de(TOTAL)), (552, "2.146"), (889, "163"), (1228, "121g"), (1567, "47")):
-        gold = color_at(img, (cx - 40, 124, cx + 40, 147))
-        fill_rows(img, (cx - 120, 121, cx + 120, 153), cx - 140)
-        text(img, cx, 126, value, big, gold, "c")
-
-    # dungeon grid: columns are 146 px apart, rows ~25.5 px
-    hdr_size, name_size = fit("Flammenschlund", 116), fit("Maerith Withersong", 140)
-    hdr_grey = color_at(img, (300, 415, 415, 427))
-    fill_rows(img, (280, 412, 1500, 430), 1600)
-    for k, dname in enumerate(DUNGEONS):
-        text(img, 357 + 146 * k, 416, truncate(dname, hdr_size, 141), hdr_size, hdr_grey, "c", shadow=False)
-
-    check = sprite(img, (350, 441, 364, 456), (23, 19, 14))
-    dot_grey = (90, 85, 78)
-    two_size = name_size
-    two_sx = squeeze("1.201", 31, name_size)
-
-    def row_top(i):
-        return round(436 + 25.5 * i)
-
-    # cleared count per dungeon column (0 = not yet); real rows only get the added columns
-    extra_real = [[1, 1, 0, 0], [1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0]]
-    mock = [
-        [1, 2, 1, 1, 1, 0, 0], [1, 1, 1, 1, 0, 1, 0], [1, 1, 0, 2, 1, 0, 1], [1, 1, 1, 1, 0, 0, 0],
-        [2, 1, 1, 1, 0, 0, 0], [1, 1, 0, 1, 1, 0, 0], [1, 1, 1, 0, 0, 0, 0], [1, 3, 1, 1, 0, 0, 0],
-        [1, 1, 0, 1, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0, 0], [1, 2, 0, 1, 0, 0, 0],
-        [1, 1, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0], [1, 1, 0, 0, 0, 0, 0], [1, 0, 0, 0, 0, 0, 0],
-    ]
-
-    def cell(top, k, n):
-        cx = 357 + 146 * k
-        if n == 0:
-            d = ImageDraw.Draw(img)
-            d.rectangle((cx - 9 + 8, top + 13, cx - 8 + 8, top + 14), fill=dot_grey)
-            return
-        if n == 1:
-            stamp(img, check, cx - 7, top + 5)
+def parse(spec):
+    """'{Anna} befördert {Ben} zu X' -> [(shown, new, is_name)]. '{real|shown}' when the game
+    truncated the name, '{old=>new}' for any other text to replace."""
+    out, rest = [], spec
+    while rest:
+        i = rest.find("{")
+        if i < 0:
+            out.append((rest, rest, False))
+            break
+        if i:
+            out.append((rest[:i], rest[:i], False))
+        j = rest.index("}", i)
+        inner = rest[i + 1:j]
+        if "=>" in inner:
+            old, new = inner.split("=>")
+            out.append((old, new, False))
         else:
-            stamp(img, check, cx - 12, top + 5)
-            text(img, cx + 5, top + 7, str(n), two_size, (255, 255, 255), "l", sx=two_sx)
-
-    for i, cleared in enumerate(extra_real):  # real rows: add the new columns
-        top = row_top(i)
-        fill_rows(img, (357 + 146 * 3 - 30, top + 1, 1500, top + 24), 1600)
-        for k, n in enumerate(cleared):
-            cell(top, 3 + k, n)
-
-    dark, light = img.crop((60, 436, 1692, 461)), img.crop((60, 462, 1692, 487))
-    for j, cleared in enumerate(mock):
-        i = 4 + j
-        top = row_top(i)
-        img.paste(light if i % 2 else dark, (60, top))
-        fill_rows(img, (62, top, 1500, top + 25), 1600)
-        name, cls = MOCK[j]
-        text(img, 69, top + 7, name, name_size, CLASS[cls])
-        for k, n in enumerate(cleared):
-            cell(top, k, n)
+            real, _, shown = inner.partition("|")
+            out.append((shown or real, FAKE[real], True))
+        rest = rest[j + 1:]
+    return out
 
 
-def info_log(img):
-    """Guild info box: a few more lines under the Discord link."""
-    size = fit("Discord Server", 102)
-    lines = ["", "Willkommen bei der Murloc Mafia! Mrglmrgl :)", "",
-             "Gildenabend: Mittwoch ab 20 Uhr, Treffpunkt Ironforge",
-             "Dungeon-Gruppen bitte im Gildenchat ansagen",
-             "Berufe teilen: Guildy installieren, Häkchen unten setzen",
-             "", "Gildenbank: bei Ran Fred oder Maerith melden"]
-    white = color_at(img, (139, 238, 245, 251))
-    for i, line in enumerate(lines):
-        if line:
-            text(img, 139, 252 + 14 * (i + 1), line, size, white, shadow=False)
+def find_lines(img, band, sample_x, thr=90):
+    """Text lines inside `band` as ink boxes (x0, y0, x1, y1), comparing every pixel row with the panel
+    colour at `sample_x` in that row."""
+    x0, y0, x1, y1 = band
+    a = np.asarray(img).astype(int)
+    bg = a[y0:y1, sample_x:sample_x + 1]
+    ink = np.abs(a[y0:y1, x0:x1] - bg).sum(2) > thr
+    rows = np.nonzero(ink.any(1))[0]
+    lines, start, prev = [], None, None
+    for r in rows:
+        if start is None:
+            start = prev = r
+        elif r - prev > 2:
+            lines.append((start, prev))
+            start = r
+        prev = r
+    if start is not None:
+        lines.append((start, prev))
+    out = []
+    for s, e in lines:
+        cols = np.nonzero(ink[s:e + 1].any(0))[0]
+        out.append((x0 + int(cols.min()), y0 + s, x0 + int(cols.max()), y0 + e))
+    return out
 
 
-JOBS = [
-    ("01-chat", "chat", None),
-    ("02-members", "members", None),
-    ("03-overview", "overview", None),
-    ("04-hall-of-fame", "hall-of-fame", hall_of_fame),
-    ("05-hall-of-fame-ranking", "hall-of-fame-ranking", hall_of_fame_ranking),
-    ("06-professions", "professions", None),
-    ("07-info-log", "info-log", info_log),
-    ("08-ranks", "ranks", None),
-]
+def _hsv(c):
+    r, g, b = [v / 255 for v in c]
+    mx, mn = max(r, g, b), min(r, g, b)
+    if mx == mn:
+        h = 0.0
+    elif mx == r:
+        h = (60 * (g - b) / (mx - mn)) % 360
+    elif mx == g:
+        h = 60 * (b - r) / (mx - mn) + 120
+    else:
+        h = 60 * (r - g) / (mx - mn) + 240
+    return h, (mx - mn) / mx if mx else 0.0, mx
+
+
+TEXT = [(0, 255, 0), (255, 32, 32), (255, 209, 0)]
+
+
+def seg_color(img, box, sample_x, is_name=False):
+    """Colour of a text segment. The screenshots are WebP with halved colour resolution, so thin text comes
+    out washed; the hue survives, so snap to the class colours (names) or the usual text colours."""
+    x0, y0, x1, y1 = box
+    a = np.asarray(img).astype(int)
+    reg = a[y0:y1 + 1, x0:x1 + 1].reshape(-1, 3)
+    bg = np.repeat(a[y0:y1 + 1, sample_x], x1 - x0 + 1, axis=0)
+    d = np.abs(reg - bg).sum(1)
+    if d.max() < 60:
+        return (255, 255, 255)
+    lit = reg[d > 0.5 * d.max()]
+    v = lit.max(1)
+    top = lit[v >= np.percentile(v, 70)]
+    sats = np.array([_hsv(c)[1] for c in top])
+    core = top[sats >= np.percentile(sats, 60)]
+    h, sat, _ = _hsv(tuple(np.median(core, axis=0)))
+    bright = float(np.percentile(v, 90)) / 255
+    if sat < 0.13:
+        g = int(round(255 * (1.0 if bright > 0.72 else bright * 1.1)))
+        return (g, g, g)
+    pal = [c for c in CLASS.values() if c != (255, 255, 255)] if is_name else TEXT
+    def dist(c):
+        ch, cs, _ = _hsv(c)
+        dh = min(abs(ch - h), 360 - abs(ch - h))
+        return dh + 40 * abs(cs - min(1.0, sat * 1.9))
+    best = min(pal, key=dist)
+    scale = min(1.0, bright / (max(best) / 255) * 1.04)
+    scale = 1.0 if scale > 0.68 else scale * 1.15  # washed but lit, or dimmed (offline members)
+    return tuple(int(round(c * scale)) for c in best)
+
+
+def replace_lines(img, band, sample_x, specs, font_path=None, sx=1.0, max_w=None, shadow=True, thr=90,
+                  probe=False):
+    """Re-sets every text line in `band`: specs[i] describes line i (None = leave it, "ERASE" = wipe it)."""
+    boxes = find_lines(img, band, sample_x, thr)
+    if probe or len(boxes) != len(specs):
+        print(f"  band {band}: {len(boxes)} lines, {len(specs)} specs")
+        for b in boxes:
+            print("   ", b)
+        if len(boxes) != len(specs):
+            raise SystemExit("line count mismatch")
+    for li, (box, spec) in enumerate(zip(boxes, specs)):
+        mw = max_w[li] if isinstance(max_w, list) else max_w
+        if spec is None:
+            continue
+        x0, y0, x1, y1 = box
+        fill_rows(img, (x0 - 2, y0 - 2, x1 + 3, y1 + 3), sample_x)
+        if spec == "ERASE":
+            continue
+        segs = parse(spec)
+        shown = "".join(s for s, _, _ in segs)
+        get = (lambda size: ImageFont.truetype(font_path, size)) if font_path else font
+        lo, hi = 6.0, 40.0
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            b = get(mid).getbbox(shown)
+            lo, hi = (mid, hi) if (b[2] - b[0]) * sx < x1 - x0 + 1 else (lo, mid)
+        f = get(lo)
+        b = f.getbbox(shown)
+        pen = x0 - b[0] * sx
+        # colours of the original segments
+        colors, idx = [], 0
+        for s, _, nm in segs:
+            a0 = pen + f.getlength(shown[:idx]) * sx
+            sb = (int(max(a0, x0)), y0, int(min(a0 + f.getlength(s) * sx, x1)), y1)
+            colors.append(seg_color(img_orig[0], sb, sample_x, nm) if sb[2] > sb[0] + 1 else (255, 255, 255))
+            idx += len(s)
+        news = [n for _, n, _ in segs]
+        if mw:
+            while f.getlength("".join(news)) * sx > mw:
+                k = max(i for i, (_, _, nm) in enumerate(segs) if nm)
+                t = news[k].rstrip(".")
+                news[k] = t[:-1].rstrip() + "..."
+        layer = Image.new("RGBA", (int(f.getlength("".join(news))) + 8, int(f.size * 2)), (0, 0, 0, 0))
+        d = ImageDraw.Draw(layer)
+        px = 0.0
+        for (s, n, nm), c, newtext in zip(segs, colors, news):
+            if shadow:
+                d.text((px + 1, 1), newtext, font=f, fill=(0, 0, 0, 255))
+            d.text((px, 0), newtext, font=f, fill=c + (255,))
+            if nm:
+                COLORS.setdefault(newtext, c)
+            px += f.getlength(newtext)
+        if sx != 1.0:
+            layer = layer.resize((max(1, round(layer.width * sx)), layer.height), Image.LANCZOS)
+        img.paste(layer, (round(pen), round(y0 - b[1])), layer)
+
+
+img_orig = [None]  # untouched copy of the screenshot being edited (colours are sampled from it)
+
+PROBE = os.environ.get("PROBE") == "1"
+
+
+def names(img, band, sample_x, specs, **kw):
+    replace_lines(img, band, sample_x, specs, probe=PROBE, **kw)
+
+
+def plain(*real):
+    return ["{%s}" % r for r in real]
 
 
 def main(only=None):
+    from screens import JOBS  # local only: real names and per-screen positions
     for out, src, edit in JOBS:
         if only and not out.startswith(only):
             continue
         im = Image.open(os.path.join(HERE, "src", src + ".webp")).convert("RGB")
-        if edit:
-            edit(im)
+        img_orig[0] = im.copy()
+        edit(im)
         compose(cutout(im)).save(os.path.join(HERE, out + ".jpg"), quality=90, optimize=True, progressive=True,
                                  subsampling=0)
         print(out + ".jpg")
 
 
+
+
+CHROME = os.environ.get("CHROME", "C:/Program Files/Google/Chrome/Application/chrome.exe")
+
+
+def render_sync():
+    """sync.html (the sync explainer) -> 11-sync.jpg (English) and sync-de.jpg (German), via headless Chrome."""
+    import subprocess
+    import tempfile
+    for out, frag in (("11-sync", ""), ("sync-de", "#de")):
+        png = os.path.join(tempfile.gettempdir(), out + ".png")
+        url = "file:///" + os.path.join(HERE, "sync.html").replace("\\", "/") + frag
+        subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                        "--force-device-scale-factor=1", "--window-size=1920,1080", "--virtual-time-budget=4000",
+                        "--allow-file-access-from-files", "--screenshot=" + png, url],
+                       check=True, capture_output=True)
+        Image.open(png).convert("RGB").save(os.path.join(HERE, out + ".jpg"), quality=92, optimize=True,
+                                            progressive=True, subsampling=0)
+        os.remove(png)
+        print(out + ".jpg")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else None)
+    import build  # run inside the importable module, which screens.py shares its state with
+    arg = sys.argv[1] if len(sys.argv) > 1 else None
+    if arg in (None, "11", "sync"):
+        build.render_sync()
+    if arg not in ("sync", "11"):
+        build.main(arg)
