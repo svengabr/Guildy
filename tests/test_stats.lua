@@ -1,6 +1,7 @@
 local T = ...
 local ns = T.pureNs()
 local Stats = ns.Stats
+Stats.LAUNCH_MONTH = "2026-01" -- these tests use ordinary months; the launch month has its own test
 
 -- fixed calendar: ts in days since 2026-01-01, any day >= 304 is November, >= 273 October
 local function date(fmt, ts)
@@ -47,6 +48,17 @@ T.describe("Stats months", function()
     T.eq(Stats.Value(member.stats, 107, "all", NOV + 86400, date), 340)
     T.eq(Stats.Value(member.stats, 107, "month", NOV + 86400, date), 40)
     T.eq(Stats.Value(member.stats, 107, "last", NOV + 86400, date), 200)
+  end)
+  T.it("counts the launch month from zero, equipment from the first reading", function()
+    Stats.LAUNCH_MONTH = "2026-10"
+    local member = {}
+    Stats.Update(member, { [107] = 100, [Stats.GEAR.ILVL] = 200 }, OCT, "self", date)
+    Stats.Update(member, { [107] = 150, [Stats.GEAR.ILVL] = 210 }, OCT + 86400, "self", date)
+    T.eq(Stats.Value(member.stats, 107, "month", OCT + 86400, date), 150)
+    T.eq(Stats.Value(member.stats, Stats.GEAR.ILVL, "month", OCT + 86400, date), 10)
+    Stats.Update(member, { [107] = 300 }, NOV, "self", date)
+    T.eq(Stats.Value(member.stats, 107, "last", NOV, date), 300) -- all of October, from 0
+    Stats.LAUNCH_MONTH = "2026-01"
   end)
   T.it("has no last month without both snapshots", function()
     local member = {}
@@ -98,5 +110,68 @@ T.describe("Stats ranking", function()
     T.eq(#ranking, 2)
     T.eq(ranking[1].name, "B")
     T.eq(Stats.Total(ranking), 40)
+  end)
+end)
+
+T.describe("Stats pages and gear", function()
+  local G = Stats.GEAR
+  T.it("reads the equipment: average item level, qualities, waits for item info", function()
+    local items = { [1] = "head", [5] = "chest", [16] = "sword" }
+    local info = { head = { 2, 30 }, chest = { 3, 34 }, sword = { 4, 41 } }
+    local function link(slot) return items[slot] end
+    local function get(l) local i = info[l] return "n", l, i[1], i[2] end
+    local gear = Stats.ReadGear(link, get)
+    T.eq(gear[G.ILVL], 350)
+    T.eq(gear[G.EPIC], 1)
+    T.eq(gear[G.RARE], 1)
+    T.eq(gear[G.UNCOMMON], 1)
+    info.chest = {}
+    T.eq(Stats.ReadGear(link, function(l) local i = info[l] return "n", l, i[1], i[2] end), nil)
+    T.eq(next(Stats.ReadGear(function() end, get)), nil)
+  end)
+  T.it("keeps the last equipment when a reading has none", function()
+    local member = {}
+    Stats.Update(member, { [107] = 10, [G.ILVL] = 380 }, NOV, "self", date)
+    Stats.Update(member, { [107] = 20 }, NOV + 60, "seen", date)
+    T.eq(member.stats.v[107], 20)
+    T.eq(member.stats.v[G.ILVL], 380)
+    Stats.Merge(member, Stats.Validate({ ts = NOV + 120, src = "relay", v = { ["107"] = 30 } }))
+    T.eq(member.stats.v[G.ILVL], 380)
+    Stats.Update(member, { [107] = 40, [G.ILVL] = 400 }, NOV + 180, "self", date)
+    T.eq(member.stats.v[G.ILVL], 400)
+  end)
+  T.it("counts equipment growth from the first equipment seen in the month", function()
+    local member = {}
+    Stats.Update(member, { [107] = 10 }, NOV, "self", date)
+    T.eq(Stats.Value(member.stats, G.ILVL, "month", NOV, date), nil)
+    Stats.Update(member, { [107] = 11, [G.ILVL] = 228 }, NOV + 60, "self", date)
+    T.eq(Stats.Value(member.stats, G.ILVL, "month", NOV + 60, date), 0)
+    Stats.Update(member, { [107] = 12, [G.ILVL] = 240 }, NOV + 120, "self", date)
+    T.eq(Stats.Value(member.stats, G.ILVL, "month", NOV + 120, date), 12)
+    T.eq(member.stats.months["2026-11"].v[107], 10)
+  end)
+  T.it("never asks the game for equipment", function()
+    T.eq(Stats.Wanted()[G.ILVL], nil)
+    T.truthy(Stats.Wanted()[339])
+  end)
+  T.it("sums spending and counts cleared dungeons", function()
+    local member = {}
+    Stats.Update(member, { [1146] = 500, [1148] = 30, [63570] = 3, [15027] = 1 }, NOV, "self", date)
+    T.eq(Stats.Value(member.stats, "spent", "all", NOV, date), 530)
+    T.eq(Stats.Value(member.stats, "dungeons", "all", NOV, date), 2)
+    T.eq(Stats.Value(member.stats, "bosses", "all", NOV, date), 4)
+  end)
+  T.it("splits the reputation statistics into standings", function()
+    local t = Stats.RepTiers({ [931] = 10, [1466] = 6, [529] = 3, [378] = 1 })
+    T.eq(t.exalted, 0)
+    T.eq(t.revered, 1)
+    T.eq(t.honored, 2)
+    T.eq(t.friendly, 3)
+  end)
+  T.it("rates equipment against the level", function()
+    T.eq(Stats.GearRating(42, 42), "good")
+    T.eq(Stats.GearRating(38, 42), "ok")
+    T.eq(Stats.GearRating(30, 42), "behind")
+    T.eq(Stats.GearRating(3, 5), "ok")
   end)
 end)

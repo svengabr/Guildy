@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+The Hall of Fame gets four pages: General, Economy, Dungeons and Reputation.
+
+- General: guild totals (now with mounts and pets) and title cards, plus an equipment table (average
+  item level compared to the level with a bar, one dot per epic, rare and uncommon item, growth this
+  month) and new titles (Best equipped, Stable master, Animal friend).
+- Economy: gold earned and spent, auctions posted and bought, where the gold comes from (quests, loot,
+  vendors, auction house) and where it goes (flights, postage, talent resets, barber), gold per member
+  and gold titles (Bargain hunter, Frequent flyer, Undecided, ...).
+- Dungeons: end bosses defeated, dungeons cleared, dungeon visits and deaths, titles (Dungeon veteran,
+  Boss hunter, Cannon fodder) and the dungeon progress table.
+- Reputation: factions met and at friendly, honored, revered or exalted, titles (Diplomat, Highly
+  regarded, Welcome everywhere, Well connected) and reputation per member with one dot per faction.
+- Guildy reads your equipment when you change it, and the equipment of guild members right after
+  their statistics (same rules: target in inspect range, not in combat, once an hour), and shares it
+  with the statistics. Older Guildy versions relay it but don't show it.
+- `/guildy statshow` without a name shows your own character, now with the equipment.
+- Tidier top bar: pages on the left, the period dropdown (all time, this month, last month) and "All
+  statistics" / "Back" on the right, on every page. The member counts moved into the title's tooltip.
+  In WoW Forever's launch month "this month" counts from the launch and "last month" is greyed out.
+- Opening Guildy comes back to the tab that was open last (before: always the chat tab).
+- Fix: resizing the window no longer jumps to the maximum size when the window was centered.
+
 ## 0.2.1
 
 See who else uses Guildy, and more reliable statistics.

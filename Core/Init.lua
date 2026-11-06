@@ -42,8 +42,10 @@ local HANDLERS = {
   end,
   PLAYER_LOGOUT = function() ns.GameStats.UpdateOwn() end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
+  PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
   UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
   INSPECT_ACHIEVEMENT_READY = function(guid) ns.GameStats.OnComparisonReady(guid) end,
+  INSPECT_READY = function(guid) ns.GameStats.OnInspectReady(guid) end,
   PLAYER_GUILD_UPDATE = function() ns.Roster.Request(true) end,
   GUILD_ROSTER_UPDATE = function() ns.Roster.ScheduleScan() end,
   GUILD_EVENT_LOG_UPDATE = function()

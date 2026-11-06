@@ -1,6 +1,6 @@
 -- The Guildy window: ButtonFrameTemplate with portrait, a narrow icon bar on the left (guild,
 -- Blizzard communities), the tab content area and bottom tabs. Resizable via a grip; size and
--- position are saved. Opening always selects the chat tab.
+-- position are saved. Opening selects the tab that was open last (the chat tab the first time).
 local _, ns = ...
 local W = ns.Widgets
 
@@ -252,6 +252,7 @@ function UI.SelectTab(key)
     tab.view = view or {}
   end
   current = tab
+  ns.Settings().lastTab = key -- opening the window comes back here
   tab.panel:Show()
   for i, t in ipairs(tabs) do
     if t == tab and rawget(_G, "PanelTemplates_SetTab") then pcall(PanelTemplates_SetTab, frame, i) end
@@ -275,7 +276,8 @@ function UI.Show()
   UpdateTitle()
   if ns.Roster then ns.Roster.Request() end
   frame:Show()
-  UI.SelectTab("chat")
+  local last = ns.Settings().lastTab
+  UI.SelectTab(byKey[last] and last or "chat")
 end
 
 function UI.Hide()

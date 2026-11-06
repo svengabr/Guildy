@@ -290,7 +290,9 @@ T.describe("Smoke", function()
     members.sort = "guildy"
     members:Refresh()
     ns.UI.SelectTab("professions")
+    ns.UI.Hide()
     ns.UI.Show()
+    T.eq(ns.UI.Current(), "professions") -- opening comes back to the last tab
     local A = ns.UI.Action
     env.GuildMicroButton = env.CreateFrame("Button", "GuildMicroButton")
     T.eq(A.BlizzardWindow().click, env.GuildMicroButton)
@@ -358,9 +360,31 @@ T.describe("Hall of Fame", function()
     end
     env.GetAchievementInfo = function(id) return id, "Siege über Edwin van Cleef (Todesminen)" end
     env.GetCategoryInfo = function(id) return "Kategorie " .. id end
+    env.GetInventoryItemLink = function(_, slot) if slot == 1 or slot == 16 then return "item" .. slot end end
+    env.GetItemInfo = function(link) return "Item", link, link == "item16" and 4 or 2, link == "item16" and 40 or 30 end
     ns.GameStats.UpdateOwn()
     local me = ns.GuildData().members[ns.Names.Key(ns.PlayerName())]
     T.eq(me.stats.v[107], 1298)
+    T.eq(me.stats.v[ns.Stats.GEAR.ILVL], 350)
+    T.eq(me.stats.v[ns.Stats.GEAR.EPIC], 1)
+    ns.GameStats.OnEquipmentChanged()
+    -- only C_Item.GetItemInfo, item info not loaded at first: the last equipment stays, a retry reads it
+    local getItemInfo, loaded, requested = env.GetItemInfo, false, 0
+    env.GetItemInfo = nil
+    env.GetInventoryItemID = function(_, slot) if slot == 1 or slot == 16 then return slot end end
+    env.C_Item = { GetItemInfo = function(link) if loaded then return getItemInfo(link) end end,
+      RequestLoadItemDataByID = function() requested = requested + 1 end }
+    env.GetInventoryItemLink = function(_, slot) if slot == 1 or slot == 16 then return "item16" end end
+    ns.GameStats.UpdateOwn()
+    T.eq(me.stats.v[ns.Stats.GEAR.ILVL], 350)
+    T.eq(requested, 2)
+    loaded = true
+    local serverTime = env.GetServerTime
+    env.GetServerTime = function() return 1700000100 end
+    RunTimers()
+    env.GetServerTime = serverTime
+    T.eq(me.stats.v[ns.Stats.GEAR.ILVL], 400)
+    env.GetItemInfo, env.C_Item = getItemInfo, nil
     T.eq(me.stats.v[63570], 2)
 
     -- a guild member in the target: comparison
@@ -380,6 +404,37 @@ T.describe("Hall of Fame", function()
     RunTimers(1)
     T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
     T.eq(ns.GuildData().members["au tsch"].stats.src, "seen")
+
+    -- with inspect: the equipment is read right after the statistics and stored with them
+    local inspected, cleared
+    env.NotifyInspect = function(unit) inspected = unit end
+    env.ClearInspectPlayer = function() cleared = true end
+    local ownLink = env.GetInventoryItemLink
+    env.GetInventoryItemLink = function(unit, slot)
+      if unit == "target" and (slot == 1 or slot == 16) then return "item16" end
+      return ownLink(unit, slot)
+    end
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    T.eq(inspected, "target")
+    T.eq(ns.GuildData().members["au tsch"].stats, nil) -- waits for the equipment
+    Fire("INSPECT_READY", "Player-1-03")
+    T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], 400)
+    T.truthy(cleared)
+    -- no inspect answer: the statistics are stored alone after the wait
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    RunTimers(1)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
+    T.eq(ns.GuildData().members["au tsch"].stats.v[ns.Stats.GEAR.ILVL], nil)
+    env.NotifyInspect, env.ClearInspectPlayer, env.GetInventoryItemLink = nil, nil, ownLink
 
     local testing = ns.GameStats.TESTING
     ns.GameStats.TESTING = false
@@ -437,16 +492,22 @@ T.describe("Hall of Fame", function()
 
     env.SlashCmdList.GUILDY("statshow Makira Farron")
     env.SlashCmdList.GUILDY("statshow Niemand")
+    env.SlashCmdList.GUILDY("statshow")
     ns.UI.Show()
     ns.UI.SelectTab("fame")
     local view = ns.UI.TabView("fame")
     T.truthy(view, "fame view built")
-    for _, period in ipairs({ "all", "month", "last" }) do
-      view.period = period
-      view:Refresh()
-      view:ShowDetail(107)
-      view:ShowDetail("bosses")
-      view:ShowHome()
+    for _, page in ipairs(ns.Stats.PAGES) do
+      view.page = page.key
+      for _, period in ipairs({ "all", "month", "last" }) do
+        view.period = period
+        view:Refresh()
+        view:ShowDetail(107)
+        view:ShowDetail("bosses")
+        view:ShowDetail(ns.Stats.GEAR.ILVL)
+        view:ShowDetail("spent")
+        view:ShowHome()
+      end
     end
     RunTimers()
     T.eq(errors, {})

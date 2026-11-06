@@ -8,6 +8,9 @@
 -- Guildy asks quietly when a guild member becomes the target: one request at a time, at most every
 -- 10 seconds, each member at most once an hour, never in combat and never while Blizzard's own
 -- achievement or inspect window may be using it.
+-- Right after the statistics Guildy inspects the same member (NotifyInspect + INSPECT_READY) for the
+-- equipment and stores both together; without an answer the statistics are stored alone and the last
+-- known equipment is kept.
 -- Mouseover is a second try under the same limits, off by default (/guildy statmouse). Each mouseover
 -- request leaves a mark in GuildyDB until it is answered or times out; a mark still there at the next
 -- login means the session ended during a request, and Guildy turns mouseover off again.
@@ -22,8 +25,10 @@ local REQUEST_GAP = 10
 local MEMBER_GAP = 3600
 local TIMEOUT = 5
 local RETRY = 120       -- no answer (out of range): try that member again after 2 minutes
+local INSPECT_WAIT = 3  -- seconds to wait for the equipment after the statistics
 
-local pending          -- { key, name, guid, at }
+local pending          -- { key, name, guid, unit, at }
+local inspecting       -- { request, values }: waiting for INSPECT_READY after the statistics
 local lastRequest = 0
 local tried = {}       -- nameKey -> GetTime() of the last request this session
 local lastOwnSend = 0
@@ -65,7 +70,50 @@ function GameStats.ReadOwn()
   end
   local db = ns.DB()
   if db and #ids > 0 then db.statIds = ids end
-  return any and values or nil
+  if not any then return nil end
+  for id, value in pairs(GameStats.ReadGear() or {}) do values[id] = value end
+  return values
+end
+
+-- Own equipment (Stats.GEAR), or nil while item info is still loading: then the game is asked to load
+-- it, the last equipment is kept and Guildy reads again a few seconds later (at most GEAR_TRIES times).
+local GEAR_TRIES = 5
+local gearTries = 0
+local function ItemInfoFunction()
+  return rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
+end
+
+-- Equipment of unit ("player" or an inspected member), nil while item info is missing
+local function ReadUnitGear(unit)
+  local getLink, getInfo = rawget(_G, "GetInventoryItemLink"), ItemInfoFunction()
+  if not getLink or not getInfo then return nil end
+  return S.ReadGear(function(slot) return ns.Try(getLink, unit, slot) end,
+    function(link) return ns.Try(getInfo, link) end)
+end
+
+-- Asks the game to load the item info of unit's equipment
+local function LoadUnitItems(unit)
+  local request = C_Item and C_Item.RequestLoadItemDataByID
+  local getID = rawget(_G, "GetInventoryItemID")
+  if not request or not getID then return end
+  for _, slot in ipairs(S.GEAR_SLOTS) do
+    local itemID = ns.Try(getID, unit, slot)
+    if itemID then ns.Try(request, itemID) end
+  end
+end
+
+function GameStats.ReadGear()
+  local gear = ReadUnitGear("player")
+  if gear then
+    gearTries = 0
+    return gear
+  end
+  LoadUnitItems("player")
+  if gearTries < GEAR_TRIES then
+    gearTries = gearTries + 1
+    C_Timer.After(3, function() ns.SafeCall(GameStats.UpdateOwn) end)
+  end
+  return nil
 end
 
 -- Every statistic ID to ask for: the ones the game listed, plus the catalog
@@ -96,6 +144,16 @@ function GameStats.UpdateOwn()
     lastOwnSend = GetTime()
     ns.Sync.ShareStats(ns.Names.Key(ns.PlayerName()))
   end
+end
+
+-- PLAYER_EQUIPMENT_CHANGED: read again a few seconds later (changing a whole set is one reading)
+local gearTimer
+function GameStats.OnEquipmentChanged()
+  if gearTimer then gearTimer:Cancel() end
+  gearTimer = C_Timer.NewTimer(5, function()
+    gearTimer = nil
+    ns.SafeCall(GameStats.UpdateOwn)
+  end)
 end
 
 -- Whether Blizzard's own windows may be using the comparison unit right now
@@ -145,6 +203,7 @@ function GameStats.TryUnit(unit)
     return Log(("%s: values are %d min old, read again after 60 min"):format(m.name, math.floor((ns.Now() - rec.ts) / 60)))
   end
   if pending then return Log(m.name .. ": waiting for the answer about " .. pending.name) end
+  if inspecting then return Log(m.name .. ": waiting for the equipment of " .. inspecting.request.name) end
   if InCombatLockdown() then return Log(m.name .. ": combat") end
   if BlizzardBusy() then return Log(m.name .. ": Blizzard window open") end
   if now - lastRequest < REQUEST_GAP then
@@ -161,7 +220,7 @@ function GameStats.TryUnit(unit)
   local range = near and "inspect range" or "beyond 28 yd"
   lastRequest = now
   tried[m.key] = now + RETRY
-  pending = { key = m.key, name = m.name, guid = ns.Try(rawget(_G, "UnitGUID"), unit), at = now }
+  pending = { key = m.key, name = m.name, guid = ns.Try(rawget(_G, "UnitGUID"), unit), unit = unit, at = now }
   if unit == "mouseover" then MarkProbe(m.name) end
   -- SetAchievementComparisonUnit returns nothing: only a failing call counts
   if not pcall(set, unit) then
@@ -232,22 +291,86 @@ function GameStats.OnComparisonReady(guid)
           :format(request.name, count, m.level, RETRY))
       end
       Log(("%s: read (%d values, %d at first)"):format(request.name, count, first))
-      local member = ns.Store.Member(guild, request.name)
-      if S.Update(member, values, ns.Now(), "seen", GameDate) then
-        Fire()
-        ns.Sync.ShareStats(request.key)
-      end
+      GameStats.InspectThenStore(request, values)
     end)
+  end)
+end
+
+-- Equipment after the statistics -----------------------------------------------------------------
+
+local function StoreRead(request, values)
+  local guild = ns.GuildData()
+  if not guild then return end
+  local member = ns.Store.Member(guild, request.name)
+  if S.Update(member, values, ns.Now(), "seen", GameDate) then
+    Fire()
+    ns.Sync.ShareStats(request.key)
+  end
+end
+
+local function ClearInspect()
+  local clear = rawget(_G, "ClearInspectPlayer")
+  if clear and not BlizzardBusy() then pcall(clear) end
+end
+
+local function SameUnit(request)
+  return request.unit and request.guid and ns.Try(rawget(_G, "UnitGUID"), request.unit) == request.guid
+end
+
+-- Inspects the member whose statistics were just read, then stores statistics and equipment together
+function GameStats.InspectThenStore(request, values)
+  local notify = rawget(_G, "NotifyInspect")
+  if not notify or not SameUnit(request) or InCombatLockdown() or BlizzardBusy() then
+    Log(request.name .. ": statistics stored without equipment")
+    return StoreRead(request, values)
+  end
+  local job = { request = request, values = values }
+  inspecting = job
+  if not pcall(notify, request.unit) then
+    inspecting = nil
+    Log(request.name .. ": inspect failed, statistics stored without equipment")
+    return StoreRead(request, values)
+  end
+  C_Timer.After(INSPECT_WAIT, function()
+    if inspecting ~= job then return end
+    inspecting = nil
+    Log(request.name .. ": no equipment answer, statistics stored without it")
+    ClearInspect()
+    ns.SafeCall(StoreRead, request, values)
+  end)
+end
+
+-- INSPECT_READY (guid of the inspected player): only the answer Guildy asked for
+function GameStats.OnInspectReady(guid)
+  local job = inspecting
+  if not job or (guid and job.request.guid and guid ~= job.request.guid) then return end
+  inspecting = nil
+  local function Done(gear)
+    for id, value in pairs(gear or {}) do job.values[id] = value end
+    Log(job.request.name .. (gear and gear[S.GEAR.ILVL] and (": equipment read, item level " .. gear[S.GEAR.ILVL] / 10)
+      or ": equipment not complete, kept the last one"))
+    ClearInspect()
+    StoreRead(job.request, job.values)
+  end
+  local gear = ReadUnitGear(job.request.unit)
+  if gear and gear[S.GEAR.ILVL] then return Done(gear) end
+  -- item info not loaded yet (or no links yet): load it and read once more
+  LoadUnitItems(job.request.unit)
+  C_Timer.After(1, function()
+    ns.SafeCall(function() Done(SameUnit(job.request) and ReadUnitGear(job.request.unit) or nil) end)
   end)
 end
 
 -- Tests only: forget request state (rate limits, retries)
 function GameStats._ResetForTest()
-  pending, lastRequest, tried = nil, 0, {}
+  pending, inspecting, lastRequest, tried = nil, nil, 0, {}
 end
 
--- /guildy statshow <name>: what Guildy knows about one member's statistics (for bug reports)
+-- /guildy statshow [name]: what Guildy knows about one member's statistics (for bug reports); without
+-- a name the own character
 function GameStats.Show(name)
+  name = name and name:match("^%s*(.-)%s*$") or ""
+  if name == "" then name = ns.PlayerName() end
   local guild = ns.GuildData()
   local key = ns.Names.Key(name or "")
   local m = ns.Roster.Find(name or "")
@@ -279,6 +402,17 @@ function GameStats.Show(name)
     if entry.key == key then listed = true end
   end
   ns.Print("  in the Hall of Fame list: " .. (listed and "yes" or "no"))
+  local gear = {}
+  for _, id in ipairs({ S.GEAR.ILVL, S.GEAR.EPIC, S.GEAR.RARE, S.GEAR.UNCOMMON, 339, 338 }) do
+    gear[#gear + 1] = id .. "=" .. tostring(rec.v and rec.v[id])
+  end
+  ns.Print("  equipment: " .. table.concat(gear, ", "))
+  if ns.Names.Same(name or "", ns.PlayerName()) then
+    local reading = GameStats.ReadGear()
+    ns.Print(("  reading now: link %s, item info %s, result %s"):format(
+      rawget(_G, "GetInventoryItemLink") and "yes" or "no", ItemInfoFunction() and "yes" or "no",
+      reading and tostring(reading[S.GEAR.ILVL]) or "nil"))
+  end
 end
 
 -- /guildy statmouse: switches reading guild members under the mouse on or off

@@ -11,57 +11,102 @@ local Stats = {}
 ns.Stats = Stats
 
 Stats.MONTHS_KEPT = 3
+Stats.LAUNCH_MONTH = "2026-11" -- WoW Forever went live in November 2026
 Stats.MAX_VALUES = 500
 
+-- Equipment of Guildy users, read by Guildy itself (Stats.ReadGear) and kept in the same record as
+-- the game's statistics under IDs far above Blizzard's, so it is shared, relayed (older Guildy
+-- versions keep unknown IDs too) and snapshotted per month without a new message type.
+Stats.GEAR = { ILVL = 9900001, EPIC = 9900002, RARE = 9900003, UNCOMMON = 9900004 }
+Stats.GEAR_BASE = 9900000
+Stats.GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 } -- no shirt, tabard, ammo
+
 -- Categories (Blizzard statistic category IDs) and the statistics Guildy tracks, in display order.
--- money = the game shows the value as gold/silver/copper.
+-- isLocal = read by Guildy itself, never asked from the game; label = locale key for the name.
 Stats.CATALOG = {
   { id = 128, stats = { 107, 1487, 108 } },                           -- victories: creatures, killing blows, critters
   { id = 122, stats = { 60, 594, 112, 114, 115, 113, 321, 918 } },    -- deaths: total, Hogger, drowning, falls, fire, fatigue, instances, 5-man
   { id = 133, stats = { 98, 94 } },                                   -- quests: completed, abandoned
-  { id = 140, stats = { 328, 333, 326, 919, 921, 334, 1146, 329, 330 } }, -- wealth
+  { id = 140, stats = { 328, 333, 326, 919, 921, 334, 1146, 1148, 1150, 1147, 329, 330, 331, 332 } }, -- wealth
   { id = 14807, stats = { 932 } },                                    -- dungeons entered
   { id = 14821, bosses = true, stats = { 15027, 63570, 15028, 1092, 15029, 6137, 6140, 6139, 1093, 6786,
     6141, 6142, 1094, 6143, 6144, 1095, 6146, 6145, 1096, 15030, 15031, 1098, 63571, 63572, 63589, 63573,
     63574, 63575, 63580, 63581 } },                                   -- end boss kills
   { id = 145, stats = { 347, 346, 345, 922, 923, 344 } },             -- consumables
-  { id = 191, stats = { 1044, 1043, 339, 342 } },                     -- gear: need, greed, mounts, epics
+  { id = 191, stats = { 1044, 1043, 339, 338, 342 } },                -- gear: need, greed, mounts, pets, epics
+  { id = "gear", label = "FAME_GEAR", isLocal = true,
+    stats = { Stats.GEAR.ILVL, Stats.GEAR.EPIC, Stats.GEAR.RARE, Stats.GEAR.UNCOMMON } },
   { id = 134, stats = { 349, 353 } },                                 -- travel: flight paths, hearthstone
   { id = 131, stats = { 1042, 1066, 1045, 1065, 1047, 1067 } },       -- social emotes
   { id = 21, stats = { 588, 319, 320, 839 } },                        -- PvP: honorable kills, duels, battlegrounds
-  { id = 147, stats = { 931 } },                                      -- reputation: factions met
+  { id = 147, stats = { 931, 1466, 529, 378, 377 } },                 -- reputation: met, friendly/honored/revered/exalted or higher
 }
 
-Stats.MONEY = { [328] = true, [333] = true, [326] = true, [919] = true, [921] = true, [334] = true, [1146] = true }
+-- money = the game shows the value as gold/silver/copper; tenths = stored times ten
+Stats.MONEY = { [328] = true, [333] = true, [326] = true, [919] = true, [921] = true, [334] = true, [1146] = true,
+  [1147] = true, [1148] = true, [1150] = true, [331] = true, [332] = true, spent = true }
+Stats.TENTHS = { [Stats.GEAR.ILVL] = true }
 
--- Titles for the Hall of Fame: holder = highest value in the chosen period
-Stats.TITLES = {
-  { stat = 107, key = "SLAYER", icon = "Ability_Warrior_SavageBlow" },
-  { stat = 98, key = "QUESTER", icon = "INV_Scroll_03" },
-  { stat = 328, key = "GOLD", icon = "INV_Misc_Coin_02" },
-  { stat = 329, key = "AUCTION", icon = "INV_Misc_Bag_10" },
-  { stat = 60, key = "DEATHS", icon = "Ability_Rogue_FeignDeath" },
-  { stat = 594, key = "HOGGER", icon = "INV_Misc_MonsterClaw_04" },
-  { stat = 347, key = "FOOD", icon = "INV_Misc_Food_14" },
-  { stat = 1042, key = "HUGS", icon = "Spell_Holy_Heal" },
-  { stat = 112, key = "DROWNED", icon = "Spell_Shadow_DemonBreath" },
-  { stat = 114, key = "FALLS", icon = "Spell_Magic_FeatherFall" },
-  { stat = 349, key = "TRAVEL", icon = "INV_Misc_Map_01" },
-  { stat = 1044, key = "NEED", icon = "INV_Misc_Gem_Pearl_04" },
-  { stat = 932, key = "DUNGEONS", icon = "INV_Misc_Key_03" },
-  { stat = 1487, key = "BLOWS", icon = "Ability_BackStab" },
+-- Where the gold comes from (adds up to 328, total gold acquired) and where it goes (Forever counts
+-- no repairs or training)
+Stats.INCOME = { 326, 333, 921, 919 }      -- quests, loot, vendors, auctions
+Stats.SPENDING = { 1146, 1148, 1150, 1147 } -- travel, postage, talent resets, barber
+
+-- The three pages of the Hall of Fame: big guild totals and title cards (holder = highest value in
+-- the chosen period). Special IDs: "bosses" = all end boss kills, "dungeons" = dungeons whose end
+-- boss was defeated, "spent" = all gold spending. A title with current = true always shows the current
+-- value (a state like the item level), whatever the period.
+Stats.PAGES = {
+  { key = "general", headline = { 107, 98, 60, 349, 339, 338 }, gear = true, titles = {
+    { stat = 107, key = "SLAYER", icon = "Ability_Warrior_SavageBlow" },
+    { stat = 98, key = "QUESTER", icon = "INV_Scroll_03" },
+    { stat = Stats.GEAR.ILVL, key = "GEAR", icon = "INV_Chest_Plate06", current = true }, -- a state, not growth
+    { stat = 339, key = "MOUNTS", icon = "Ability_Mount_RidingHorse" },
+    { stat = 338, key = "PETS", icon = "INV_Box_PetCarrier_01" },
+    { stat = 60, key = "DEATHS", icon = "Ability_Rogue_FeignDeath" },
+    { stat = 347, key = "FOOD", icon = "INV_Misc_Food_14" },
+    { stat = 112, key = "DROWNED", icon = "Spell_Shadow_DemonBreath" },
+    { stat = 114, key = "FALLS", icon = "Spell_Magic_FeatherFall" },
+    { stat = 594, key = "HOGGER", icon = "INV_Misc_MonsterClaw_04" },
+    { stat = 1042, key = "HUGS", icon = "Spell_Holy_Heal" },
+    { stat = 349, key = "TRAVEL", icon = "INV_Misc_Map_01" },
+    { stat = 1044, key = "NEED", icon = "INV_Misc_Gem_Pearl_04" },
+    { stat = 1487, key = "BLOWS", icon = "Ability_BackStab" },
+  } },
+  { key = "economy", headline = { 328, "spent", 329, 330 }, flows = true, titles = {
+    { stat = 328, key = "GOLD", icon = "INV_Misc_Coin_02" },
+    { stat = 329, key = "AUCTION", icon = "INV_Misc_Bag_10" },
+    { stat = 330, key = "BUYER", icon = "INV_Misc_Note_02" },
+    { stat = 921, key = "VENDOR", icon = "INV_Misc_Coin_04" },
+    { stat = 333, key = "LOOTER", icon = "INV_Misc_Bag_11" },
+    { stat = 1146, key = "FLYER", icon = "Ability_Hunter_EagleEye" },
+    { stat = 1148, key = "POSTAGE", icon = "INV_Letter_15" },
+    { stat = 1150, key = "RESPEC", icon = "INV_Misc_Book_09" },
+    { stat = 1147, key = "BARBER", icon = "INV_Misc_Comb_02" },
+  } },
+  { key = "dungeons", headline = { "bosses", "dungeons", 932, 918 }, dungeons = true, titles = {
+    { stat = "dungeons", key = "VETERAN", icon = "INV_Misc_Head_Dragon_01" },
+    { stat = "bosses", key = "BOSSES", icon = "Ability_Warrior_DecisiveStrike" },
+    { stat = 932, key = "DUNGEONS", icon = "INV_Misc_Key_03" },
+    { stat = 918, key = "FODDER", icon = "Spell_Shadow_DeathScream" },
+  } },
+  { key = "reputation", headline = { 931, 1466, 529, 378, 377 }, reputation = true, titles = {
+    { stat = 377, key = "EXALTED", icon = "INV_Crown_01" },
+    { stat = 378, key = "REVERED", icon = "INV_Misc_Ribbon_01" },
+    { stat = 529, key = "HONORED", icon = "Spell_Holy_SealOfSalvation" },
+    { stat = 931, key = "FACTIONS", icon = "INV_Misc_Map_01" },
+  } },
 }
-
--- The big guild totals on the Hall of Fame page ("bosses" = sum of all end boss kills)
-Stats.HEADLINE = { 107, 98, 60, 328, "bosses" }
 
 local wanted
--- { [statID] = true } for every tracked statistic
+-- { [statID] = true } for every statistic Guildy asks the game for
 function Stats.Wanted()
   if not wanted then
     wanted = {}
     for _, category in ipairs(Stats.CATALOG) do
-      for _, id in ipairs(category.stats) do wanted[id] = true end
+      if not category.isLocal then
+        for _, id in ipairs(category.stats) do wanted[id] = true end
+      end
     end
   end
   return wanted
@@ -72,6 +117,59 @@ function Stats.Bosses()
     if category.bosses then return category.stats end
   end
   return {}
+end
+
+-- Own equipment: { [GEAR id] = value } (average item level times ten, count of epic, rare and
+-- uncommon items; zeros left out), {} with nothing equipped, or nil while an item's info is not
+-- loaded yet. getLink(slot) -> item link; getInfo(link) -> name, link, quality, itemLevel.
+function Stats.ReadGear(getLink, getInfo)
+  local levels, count = 0, 0
+  local qualities = { [2] = 0, [3] = 0, [4] = 0 }
+  for _, slot in ipairs(Stats.GEAR_SLOTS) do
+    local link = getLink(slot)
+    if link then
+      local _, _, quality, level = getInfo(link)
+      if type(quality) ~= "number" or type(level) ~= "number" then return nil end
+      levels, count = levels + level, count + 1
+      local q = math.min(quality, 4)
+      if qualities[q] then qualities[q] = qualities[q] + 1 end
+    end
+  end
+  local values = {}
+  if count > 0 then values[Stats.GEAR.ILVL] = math.floor(levels / count * 10 + 0.5) end
+  if qualities[4] > 0 then values[Stats.GEAR.EPIC] = qualities[4] end
+  if qualities[3] > 0 then values[Stats.GEAR.RARE] = qualities[3] end
+  if qualities[2] > 0 then values[Stats.GEAR.UNCOMMON] = qualities[2] end
+  return values
+end
+
+function Stats.HasGear(values)
+  for id in pairs(values or {}) do
+    if type(id) == "number" and id > Stats.GEAR_BASE then return true end
+  end
+  return false
+end
+
+-- Reputation statistics count factions at a standing "or higher"
+Stats.REP = { MET = 931, FRIENDLY = 1466, HONORED = 529, REVERED = 378, EXALTED = 377 }
+
+-- Factions at exactly each standing: { exalted, revered, honored, friendly }
+function Stats.RepTiers(values)
+  local R = Stats.REP
+  local exalted = values[R.EXALTED] or 0
+  local revered = values[R.REVERED] or 0
+  local honored = values[R.HONORED] or 0
+  local friendly = values[R.FRIENDLY] or 0
+  return { exalted = exalted, revered = math.max(0, revered - exalted), honored = math.max(0, honored - revered),
+    friendly = math.max(0, friendly - honored) }
+end
+
+-- How the average item level compares to the character level: "good", "ok" or "behind"
+function Stats.GearRating(itemLevel, level)
+  if not itemLevel or not level or level < 10 then return "ok" end
+  if itemLevel >= level then return "good" end
+  if itemLevel < level - 7 then return "behind" end
+  return "ok"
 end
 
 local function Digits(text)
@@ -139,11 +237,24 @@ function Stats.Update(member, values, ts, src, date)
   local month = Stats.MonthKey(ts, date)
   local changed = false
   if not rec.ts or ts > rec.ts or (ts == rec.ts and (PRIORITY[src] or 0) > (PRIORITY[rec.src] or 0)) then
-    rec.ts, rec.src, rec.v = ts, src, Copy(values)
+    local new = Copy(values)
+    -- a reading without equipment (read nearby, item info not loaded) keeps the last known equipment
+    if not Stats.HasGear(values) then
+      for id, value in pairs(rec.v or {}) do
+        if id > Stats.GEAR_BASE then new[id] = value end
+      end
+    end
+    rec.ts, rec.src, rec.v = ts, src, new
     changed = true
   end
   if not rec.months[month] then
     rec.months[month] = { ts = ts, v = Copy(values) }
+    changed = true
+  elseif Stats.HasGear(values) and not Stats.HasGear(rec.months[month].v) then
+    -- equipment first seen this month: it is the month's starting point
+    for id, value in pairs(values) do
+      if id > Stats.GEAR_BASE then rec.months[month].v[id] = value end
+    end
     changed = true
   end
   PruneMonths(rec.months)
@@ -192,7 +303,13 @@ function Stats.Merge(member, incoming)
   local changed = false
   if not rec.ts or incoming.ts > rec.ts
     or (incoming.ts == rec.ts and (PRIORITY[incoming.src] or 0) > (PRIORITY[rec.src] or 0)) then
-    rec.ts, rec.src, rec.v = incoming.ts, incoming.src, Copy(incoming.v)
+    local values = Copy(incoming.v)
+    if not Stats.HasGear(values) then
+      for id, value in pairs(rec.v or {}) do
+        if id > Stats.GEAR_BASE then values[id] = value end
+      end
+    end
+    rec.ts, rec.src, rec.v = incoming.ts, incoming.src, values
     changed = true
   end
   for month, snap in pairs(incoming.months or {}) do
@@ -227,22 +344,28 @@ function Stats.Digest(guild)
   return digest
 end
 
+local function Sum(values, ids)
+  local sum = 0
+  for _, id in ipairs(ids) do sum = sum + (values[id] or 0) end
+  return sum
+end
+
 local function StatValue(values, id)
   if not values then return nil end
-  if id == "bosses" then
-    local sum, any = 0, false
+  if id == "bosses" then return Sum(values, Stats.Bosses()) end
+  if id == "spent" then return Sum(values, Stats.SPENDING) end
+  if id == "dungeons" then
+    local count = 0
     for _, boss in ipairs(Stats.Bosses()) do
-      if values[boss] then
-        sum = sum + values[boss]
-        any = true
-      end
+      if (values[boss] or 0) > 0 then count = count + 1 end
     end
-    return any and sum or 0
+    return count
   end
+  if type(id) == "number" and id > Stats.GEAR_BASE then return values[id] end -- unknown, not 0
   return values[id] or 0
 end
 
--- Value of statistic id ("bosses" = all end bosses) for a member record in a period:
+-- Value of statistic id (or a special ID of Stats.PAGES) for a member record in a period:
 --   "all"   = the current value
 --   "month" = growth in the month of now (since the first values seen this month)
 --   "last"  = growth in the month before (between the first values of both months)
@@ -254,16 +377,26 @@ function Stats.Value(rec, id, period, now, date)
   local months = rec.months or {}
   local this = Stats.MonthKey(now, date)
   if period == "month" then
-    local base = months[this]
-    local start = base and StatValue(base.v, id)
+    local start, ts = Stats.MonthStart(months, this, id)
     if not current or not start then return nil end
-    return math.max(0, current - start), base.ts
+    return math.max(0, current - start), ts
   end
-  local before = months[Stats.PreviousMonth(this)]
+  local from, ts = Stats.MonthStart(months, Stats.PreviousMonth(this), id)
   local after = months[this]
-  local from, to = before and StatValue(before.v, id), after and StatValue(after.v, id)
+  local to = after and StatValue(after.v, id)
   if not from or not to then return nil end
-  return math.max(0, to - from), before.ts
+  return math.max(0, to - from), ts
+end
+
+-- Value of id at the start of month and the timestamp it was read: the first values seen in the
+-- month; in Forever's launch month 0, since nothing happened before the launch (Guildy's first
+-- reading came days later). Equipment always counts from the first reading.
+function Stats.MonthStart(months, month, id)
+  local snap = months[month]
+  local gear = type(id) == "number" and id > Stats.GEAR_BASE
+  if month == Stats.LAUNCH_MONTH and not gear then return 0, snap and snap.ts end
+  if not snap then return nil end
+  return StatValue(snap.v, id), snap.ts
 end
 
 -- Ranking of a statistic over records { {key, name, rec} }: { {key, name, value, rec} } sorted desc

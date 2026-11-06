@@ -444,7 +444,16 @@ function W.ResizeGrip(frame, onDone)
   grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
   grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
   grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-  grip:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
+  grip:SetScript("OnMouseDown", function()
+    -- a frame anchored at its center grows to both sides and runs away from the cursor up to the
+    -- maximum size: anchor it at its top left corner first (same place on screen)
+    local left, top = frame:GetLeft(), frame:GetTop()
+    if left and top then
+      frame:ClearAllPoints()
+      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    end
+    frame:StartSizing("BOTTOMRIGHT")
+  end)
   grip:SetScript("OnMouseUp", function()
     frame:StopMovingOrSizing()
     if onDone then onDone(frame:GetWidth(), frame:GetHeight()) end

@@ -28,6 +28,16 @@ T.describe("Locales", function()
   T.it("defines every key the code uses", function()
     for key, file in pairs(UsedKeys()) do T.truthy(EN[key], file .. " uses undefined L." .. key) end
   end)
+  T.it("has the Hall of Fame's page, title and gold flow names", function()
+    local S = T.pureNs().Stats
+    for _, page in ipairs(S.PAGES) do
+      T.truthy(EN["FAME_PAGE_" .. page.key:upper()], "FAME_PAGE_" .. page.key:upper())
+      for _, fame in ipairs(page.titles) do T.truthy(EN["FAME_TITLE_" .. fame.key], "FAME_TITLE_" .. fame.key) end
+    end
+    for _, list in ipairs({ S.INCOME, S.SPENDING }) do
+      for _, id in ipairs(list) do T.truthy(EN["FAME_FLOW_" .. id], "FAME_FLOW_" .. id) end
+    end
+  end)
   T.it("has a name for every profession", function()
     local pure = T.pureNs()
     for _, key in pairs(pure.Professions.SKILL_LINES) do T.truthy(EN["PROF_" .. key], "PROF_" .. key) end
