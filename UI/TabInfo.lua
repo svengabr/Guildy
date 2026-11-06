@@ -275,7 +275,10 @@ local function Build(panel)
 
   function view:Refresh()
     local can = ns.Roster.Can()
-    local motdText = ns.Try(C_GuildInfo and C_GuildInfo.GetMOTD) or ns.Try(rawget(_G, "GetGuildRosterMOTD")) or ""
+    -- C_GuildInfo.GetMOTD is protected on Forever (ADDON_ACTION_BLOCKED even inside pcall):
+    -- only used when the old roster function is missing
+    local getMotd = rawget(_G, "GetGuildRosterMOTD") or (C_GuildInfo and C_GuildInfo.GetMOTD)
+    local motdText = ns.Try(getMotd) or ""
     self.Motd:SetText(motdText ~= "" and motdText or ("|cff999999" .. L.EMPTY .. "|r"))
     self.MotdEditor:Update(motdText, can.editMotd)
     local get = (C_GuildInfo and C_GuildInfo.GetInfoText) or rawget(_G, "GetGuildInfoText")

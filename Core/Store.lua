@@ -14,6 +14,7 @@ Store.DEFAULTS = {
   width = 1000,
   height = 600,
   listSort = "level",  -- online list sort on the chat tab
+  statMouseover = false, -- read statistics of guild members under the mouse (/guildy statmouse)
 }
 
 function Store.Init(db)

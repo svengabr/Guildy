@@ -42,6 +42,7 @@ local HANDLERS = {
   end,
   PLAYER_LOGOUT = function() ns.GameStats.UpdateOwn() end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
+  UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
   INSPECT_ACHIEVEMENT_READY = function(guid) ns.GameStats.OnComparisonReady(guid) end,
   PLAYER_GUILD_UPDATE = function() ns.Roster.Request(true) end,
   GUILD_ROSTER_UPDATE = function() ns.Roster.ScheduleScan() end,
@@ -101,6 +102,10 @@ SlashCmdList.GUILDY = function(msg)
   elseif msg == "statdebug" then
     ns.GameStats.debug = not ns.GameStats.debug
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))
+  elseif msg:match("^statshow") then
+    ns.GameStats.Show(raw:sub(10))
+  elseif msg == "statmouse" then
+    ns.GameStats.ToggleMouseover()
   elseif msg == "statdump" then
     -- every statistic of this character into GuildyDB.statDump (read from SavedVariables after /reload)
     local dump, count = {}, 0
