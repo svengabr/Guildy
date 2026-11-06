@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+Hotfix.
+
+- Fix: leaving a dungeon group no longer throws a Lua error. Inside instances the names of other
+  players are secret, and Guildy now leaves them alone (statistics reading and the invite suggestion).
+- Member tooltips follow the mouse like normal tooltips instead of covering the names above the row.
+- Hall of Fame: values and labels of the total tiles are centered vertically.
+
 ## 0.3.0
 
 The Hall of Fame gets four pages: General, Economy, Dungeons and Reputation, with equipment.
