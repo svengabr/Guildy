@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.2
+
+Equipment and statistics of guild members nearby.
+
+- Equipment read nearby is stored only when it is complete. Before, often only the first few items
+  arrived and were stored (a too low item level, too few quality dots). Such incomplete entries are
+  removed and read again; equipment that members share themselves stays.
+- Reading guild members nearby works much farther away than before (no longer only within 28 yards).
+- With mouseover reading (`/guildy statmouse`), the equipment is also read when the mouse has already
+  moved on: hovering over the member once more within a minute is enough.
+- Fix: no more Lua errors from Blizzard's achievement window while Guildy reads statistics.
+- `/guildy statreset` lets Guildy read every member again right away (for testing).
+
 ## 0.3.1
 
 Hotfix.
