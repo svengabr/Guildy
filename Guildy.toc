@@ -25,12 +25,14 @@ Core\Professions.lua
 Core\Search.lua
 Core\Protocol.lua
 Core\Manage.lua
+Core\Stats.lua
 Core\Runtime.lua
 Game\Roster.lua
 Game\Chat.lua
 Game\TradeSkill.lua
 Game\Harvest.lua
 Game\Sync.lua
+Game\Stats.lua
 Game\Redirect.lua
 UI\Widgets.lua
 UI\Main.lua
@@ -39,6 +41,7 @@ UI\Commands.lua
 UI\TabChat.lua
 UI\TabMembers.lua
 UI\TabOverview.lua
+UI\TabFame.lua
 UI\TabProfessions.lua
 UI\TabInfo.lua
 UI\TabRanks.lua

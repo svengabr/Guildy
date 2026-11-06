@@ -254,7 +254,7 @@ T.describe("Smoke", function()
     T.truthy(ns.UI.IsShown(), "J opens Guildy")
     T.eq(boundKeys.J, "GuildyToggleButton")
     T.eq(ns.UI.Current(), "chat")
-    for _, key in ipairs({ "members", "overview", "professions", "info", "ranks", "chat" }) do
+    for _, key in ipairs({ "members", "overview", "fame", "professions", "info", "ranks", "chat" }) do
       ns.UI.SelectTab(key)
       T.eq(ns.UI.Current(), key)
     end
@@ -333,6 +333,59 @@ T.describe("Harvest", function()
     ns.TradeSkill.Debug()
     env.SetItemRef = nil
     ns.UI.SelectTab("professions")
+    T.eq(errors, {})
+  end)
+end)
+T.describe("Hall of Fame", function()
+  T.it("reads own and nearby statistics, merges shared ones and shows both views", function()
+    env.GetStatisticsCategoryList = function() return { 128, 14821 } end
+    env.GetCategoryNumAchievements = function(cat) return cat == 128 and 2 or 1 end
+    env.GetStatistic = function(cat, i)
+      if cat == 128 then return i == 1 and "1298" or "672 (Humanoid)", false, i == 1 and 107 or 1487 end
+      return "2", false, 63570
+    end
+    env.GetAchievementInfo = function(id) return id, "Siege über Edwin van Cleef (Todesminen)" end
+    env.GetCategoryInfo = function(id) return "Kategorie " .. id end
+    ns.GameStats.UpdateOwn()
+    local me = ns.GuildData().members[ns.Names.Key(ns.PlayerName())]
+    T.eq(me.stats.v[107], 1298)
+    T.eq(me.stats.v[63570], 2)
+
+    -- a guild member in the target: comparison
+    local set
+    env.SetAchievementComparisonUnit = function(unit) set = unit return true end
+    env.ClearAchievementComparisonUnit = function() end
+    env.GetComparisonStatistic = function(id) return id == 107 and "1077" or "--" end
+    env.UnitExists = function() return true end
+    env.UnitIsPlayer = function() return true end
+    env.UnitIsUnit = function() return false end
+    env.UnitIsConnected = function() return true end
+    env.UnitName = function(unit) if unit == "target" then return "Au", "Tsch" end return "Ran", "Fred" end
+    env.UnitGUID = function() return "Player-1-03" end
+    Fire("PLAYER_TARGET_CHANGED")
+    T.eq(set, "target")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    T.eq(ns.GuildData().members["au tsch"].stats.v[107], 1077)
+    T.eq(ns.GuildData().members["au tsch"].stats.src, "seen")
+
+    -- a Guildy user shares their own statistics
+    local P = ns.Protocol
+    local payload = P.Encode("STAT", { m = "Makira Farron", s = { ts = 1800000000, src = "self", v = { ["107"] = 4210 } } })
+    for _, part in ipairs(P.Chunk("s1", payload)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end
+    T.eq(ns.GuildData().members["makira farron"].stats.v[107], 4210)
+
+    ns.UI.Show()
+    ns.UI.SelectTab("fame")
+    local view = ns.UI.TabView("fame")
+    T.truthy(view, "fame view built")
+    for _, period in ipairs({ "all", "month", "last" }) do
+      view.period = period
+      view:Refresh()
+      view:ShowDetail(107)
+      view:ShowDetail("bosses")
+      view:ShowHome()
+    end
+    RunTimers()
     T.eq(errors, {})
   end)
 end)

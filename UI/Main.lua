@@ -264,6 +264,12 @@ function UI.Current()
   return current and current.key
 end
 
+-- The view of a tab once it was built (tests, cross-tab calls)
+function UI.TabView(key)
+  local tab = byKey[key]
+  return tab and tab.view
+end
+
 function UI.Show()
   if not frame then Build() end
   UpdateTitle()
@@ -289,7 +295,7 @@ local function Refresh(event, ...)
   if not UI.IsShown() or not current or not current.view or not current.view.Refresh then return end
   ns.SafeCall(current.view.Refresh, current.view, event, ...)
 end
-for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST" }) do
+for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS" }) do
   ns.On(event, function(...) Refresh(event, ...) end)
 end
 ns.On("ROSTER", function() if frame then UpdateTitle() end end)

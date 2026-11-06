@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- New Hall of Fame tab: guild totals, title cards (Slayer, Quest machine, Hogger's favourite, ...) and
+  dungeon progress from Forever's character statistics, for all time, this month or last month; a click
+  opens the guild ranking of any tracked statistic. Guildy reads your own statistics and those of guild
+  members you target; Guildy users share theirs.
+- Preferred language and region of the guild in the Info tab (guild master can change them).
 - Promote, demote and remove members right in Guildy (member details and member menu), with a
   confirmation before removing. Runs Blizzard's secure slash commands through a secure button.
 - Message of the day and guild info are edited in the Info tab, in Blizzard's own edit box shown

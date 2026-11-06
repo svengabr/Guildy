@@ -38,7 +38,11 @@ local HANDLERS = {
     ns.Roster.Request(true)
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
     ns.Sync.Start()
+    ns.GameStats.Start()
   end,
+  PLAYER_LOGOUT = function() ns.GameStats.UpdateOwn() end,
+  PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
+  INSPECT_ACHIEVEMENT_READY = function(guid) ns.GameStats.OnComparisonReady(guid) end,
   PLAYER_GUILD_UPDATE = function() ns.Roster.Request(true) end,
   GUILD_ROSTER_UPDATE = function() ns.Roster.ScheduleScan() end,
   GUILD_EVENT_LOG_UPDATE = function()
@@ -94,6 +98,28 @@ SlashCmdList.GUILDY = function(msg)
     ns.TradeSkill.Probe(raw:sub(6))
   elseif msg:match("^rights") then
     ns.Roster.DebugRights(raw:sub(8))
+  elseif msg == "statdebug" then
+    ns.GameStats.debug = not ns.GameStats.debug
+    ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))
+  elseif msg == "statdump" then
+    -- every statistic of this character into GuildyDB.statDump (read from SavedVariables after /reload)
+    local dump, count = {}, 0
+    local list = ns.Try(rawget(_G, "GetStatisticsCategoryList")) or {}
+    for _, categoryID in ipairs(list) do
+      local name, parent = ns.Try(rawget(_G, "GetCategoryInfo"), categoryID)
+      local entry = { id = categoryID, name = name, parent = parent, stats = {} }
+      for i = 1, ns.Try(rawget(_G, "GetCategoryNumAchievements"), categoryID) or 0 do
+        local quantity, skip, statID = ns.Try(rawget(_G, "GetStatistic"), categoryID, i)
+        if statID then
+          local _, statName = ns.Try(rawget(_G, "GetAchievementInfo"), statID)
+          entry.stats[#entry.stats + 1] = { id = statID, name = statName, value = quantity, skip = skip }
+          count = count + 1
+        end
+      end
+      dump[#dump + 1] = entry
+    end
+    GuildyDB.statDump = dump
+    ns.Print(("statdump: %d categories, %d statistics stored. /reload to write them to disk."):format(#dump, count))
   elseif msg == "profdump" then
     ns.TradeSkill.ProfDump()
   elseif msg == "debug" then

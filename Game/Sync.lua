@@ -1,6 +1,8 @@
 -- Sharing profession data between Guildy users on the guild addon channel.
 --   SUM  {d = {nameKey = newestTs}}            "this is what I know" (after login)
 --   PROF {m = name, p = {["171"] = ProfRec}}   records of one member
+--   SUM also carries s = {nameKey = statsTs}, STAT {m = name, s = StatRec} (Core/Stats.lua): statistics
+--   of one member, own or read nearby; older Guildy versions ignore both.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
 -- someone else sent it first. Own changes are sent right away (debounced). The member's own data is
 -- marked "self" by the receiver; everything else counts as "relay". Sending own data can be switched
@@ -17,6 +19,7 @@ local msgCounter = 0
 local assembler = Proto.NewAssembler()
 local limiter = Proto.NewLimiter(30, 10)
 local seen = {}          -- nameKey -> newest ts seen on the channel (to skip duplicate offers)
+local seenStats = {}     -- same for statistics
 local warnedNewer = false
 local ownTimer
 local MAX_OFFERS = 25
@@ -81,7 +84,22 @@ end
 
 function Sync.SendSummary()
   local guild = ns.GuildData()
-  if guild then Send("SUM", { d = P.Digest(guild) }) end
+  if guild then Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild) }) end
+end
+
+local function SendStats(key)
+  local guild = ns.GuildData()
+  local record = guild and guild.members[key]
+  local stats = record and record.stats
+  if type(stats) ~= "table" or not stats.ts or not stats.v then return end
+  if IsOwnKey(key) and not ns.Settings().share then return end
+  Send("STAT", { m = record.name, s = ns.Stats.Wire(stats) })
+  seenStats[key] = math.max(seenStats[key] or 0, stats.ts)
+end
+
+-- Statistics of a member changed (own or read nearby): share them
+function Sync.ShareStats(key)
+  SendStats(key)
 end
 
 -- Data of another member changed (their recipe book was opened through a link): share it
@@ -112,6 +130,34 @@ local function OnSummary(data, sender)
       SendMember(key)
     end)
   end
+  -- statistics the same way (an older Guildy sends no s: then offer nothing, it can't use them)
+  if type(data.s) ~= "table" then return end
+  local myStats = ns.Stats.Digest(guild)
+  local statOffers = P.Outdated(myStats, data.s)
+  for i = 1, math.min(#statOffers, MAX_OFFERS) do
+    local key = statOffers[i]
+    local myTs = myStats[key]
+    C_Timer.After(8 + math.random() * 8 + i * 0.5, function()
+      if (seenStats[key] or 0) >= myTs then return end
+      SendStats(key)
+    end)
+  end
+end
+
+local function OnStats(data, sender)
+  local guild = ns.GuildData()
+  if not guild or type(data.m) ~= "string" then return end
+  if not ns.Roster.IsMember(data.m) and #ns.Roster.Members() > 0 then return end
+  local record = ns.Stats.Validate(data.s)
+  if not record then return end
+  if ns.Names.Same(sender, data.m) then
+    record.src = "self"
+  elseif record.src == "self" then
+    record.src = "relay"
+  end
+  local key = ns.Names.Key(data.m)
+  seenStats[key] = math.max(seenStats[key] or 0, record.ts)
+  if ns.Stats.Merge(ns.Store.Member(guild, data.m), record) then ns.Fire("STATS") end
 end
 
 local function OnProfessions(data, sender)
@@ -138,7 +184,7 @@ local function OnProfessions(data, sender)
   if changed then ns.Fire("PROFS") end
 end
 
-local HANDLERS = { SUM = OnSummary, PROF = OnProfessions }
+local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)
