@@ -182,6 +182,7 @@ function GameStats.TryUnit(unit)
   local set = rawget(_G, "SetAchievementComparisonUnit")
   if not set or not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsUnit(unit, "player") then return end
   local name = ns.Names.FromUnit(UnitName(unit))
+  if name == "" then return end -- secret name (instance) or no name
   local m = ns.Roster.Find(name)
   if not m then
     -- a member of the own guild Guildy can't find in the roster: name format problem

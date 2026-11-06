@@ -76,10 +76,17 @@ function Names.Normalize(name)
   return (Trim(name):gsub("%s+", " "))
 end
 
--- Name from UnitName(unit): the second value is the last name on Forever
+-- True for Forever's secret values (names of other players in instances), which addon code must not
+-- compare or inspect
+local function Secret(value)
+  local check = rawget(_G, "issecretvalue")
+  return check ~= nil and check(value) == true
+end
+
+-- Name from UnitName(unit): the second value is the last name on Forever. Secret names give "".
 function Names.FromUnit(name, lastName)
-  if type(name) ~= "string" or name == "" then return "" end
-  if type(lastName) == "string" and lastName ~= "" then name = name .. " " .. lastName end
+  if Secret(name) or type(name) ~= "string" or name == "" then return "" end
+  if not Secret(lastName) and type(lastName) == "string" and lastName ~= "" then name = name .. " " .. lastName end
   return Names.Normalize(name)
 end
 

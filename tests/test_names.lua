@@ -22,6 +22,22 @@ T.describe("Names", function()
   T.it("handles nil", function()
     T.eq(Names.Key(nil), "")
   end)
+  T.it("gives an empty name for secret unit names without inspecting them", function()
+    local secret = setmetatable({}, { __eq = function() error("secret value compared") end,
+      __index = function() error("secret value inspected") end })
+    local old = rawget(_G, "issecretvalue")
+    local asked = 0
+    _G.issecretvalue = function(v) asked = asked + 1; return rawequal(v, secret) end
+    local ok, result = pcall(Names.FromUnit, secret, "Blanko")
+    local ok2, result2 = pcall(Names.FromUnit, "Ranfredo", secret)
+    _G.issecretvalue = old
+    T.truthy(ok)
+    T.eq(result, "")
+    T.truthy(ok2)
+    T.eq(result2, "Ranfredo")
+    T.truthy(asked >= 2) -- the secret check runs (real secret names have type "string")
+    T.eq(Names.FromUnit("Ranfredo", "Blanko"), "Ranfredo Blanko")
+  end)
 end)
 
 T.describe("Store", function()

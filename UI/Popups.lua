@@ -46,7 +46,7 @@ end
 -- Tooltip for a roster member (owner frame given)
 function UI.MemberTooltip(owner, m)
   local L = ns.L
-  GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
+  GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
   GameTooltip:SetText(W.ClassName(m.name, m.classFile))
   GameTooltip:AddLine(L.LEVEL_CLASS:format(m.level or 0, m.className or ""), 1, 1, 1)
   if m.rank then GameTooltip:AddDoubleLine(L.RANK, m.rank, 1, 0.82, 0, 1, 1, 1) end
@@ -85,7 +85,9 @@ end
 local function TargetSuggestion()
   if not UnitExists("target") or not UnitIsPlayer("target") or UnitIsUnit("target", "player") then return nil end
   if GetGuildInfo("target") then return nil end
-  return (rawget(_G, "GetUnitName") and GetUnitName("target", true)) or UnitName("target")
+  local name = (rawget(_G, "GetUnitName") and GetUnitName("target", true)) or UnitName("target")
+  if ns.IsSecret(name) then return nil end -- names in instances can be secret
+  return name
 end
 
 function UI.InviteAction()
