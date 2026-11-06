@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
-The Hall of Fame gets four pages: General, Economy, Dungeons and Reputation.
+The Hall of Fame gets four pages: General, Economy, Dungeons and Reputation, with equipment.
 
 - General: guild totals (now with mounts and pets) and title cards, plus an equipment table (average
   item level compared to the level with a bar, one dot per epic, rare and uncommon item, growth this
