@@ -6,7 +6,7 @@ The default guild window shows a chat and a plain list. Guildy replaces it with 
 
 Made for **WoW Forever**.
 
-![Guildy](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/01-overview.jpg)
+![Guildy](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/01-chat.jpg)
 
 ## What it does
 
@@ -17,11 +17,11 @@ Made for **WoW Forever**.
 - **Professions**: who has which profession at what skill, and a recipe search ("who can make Elixir of Lion's Strength?"). Click a member to expand their recipes, or open their recipe book.
 - **Info & Log**: message of the day, guild information and the guild log.
 
-![Census](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/02-census.jpg)
+![Census](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/03-overview.jpg)
 
-![Professions](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/03-professions.jpg)
+![Professions](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/06-professions.jpg)
 
-![Members](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/04-members.jpg)
+![Members](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/02-members.jpg)
 
 ## Where the profession data comes from
 
@@ -31,7 +31,7 @@ Made for **WoW Forever**.
 - **Profession links**: click someone's profession link in chat and Guildy remembers their recipes.
 - **Guild notes**: notes like "Herb/Alch" or "Tank Schmied" count too, marked "from note". Real data always wins.
 
-![Invite and sharing](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/05-invite-sync.jpg)
+![Info and guild log](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/07-info-log.jpg)
 
 ## Inviting and managing
 
@@ -42,6 +42,10 @@ On Forever, guild management is reserved for Blizzard's own code. Guildy still d
 ## Hall of Fame
 
 Forever records character statistics: creatures killed, quests, deaths (including by Hogger), gold, auctions, dungeon bosses and more. The **Hall of Fame** tab turns them into guild totals, title cards and dungeon progress, for all time, this month or last month; click any of them for the guild ranking. Addons can only read their own character's statistics directly, so Guildy reads yours, asks the game for those of guild members you target and shares them with other Guildy users. The more members use Guildy, the more complete it gets.
+
+![Hall of Fame](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/04-hall-of-fame.jpg)
+
+![Hall of Fame ranking](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/05-hall-of-fame-ranking.jpg)
 
 ## Commands
 

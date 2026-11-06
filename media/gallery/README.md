@@ -1,18 +1,17 @@
 # Gallery images
 
-Source for the CurseForge gallery: one HTML page per image (1920×1080), shared look in `style.css` (taken over
-from KeepOrSell, plus the Guildy window styles at the end). Names, guild and chat are made up.
-
-Render all pages to JPG (or a single one with `sh render.sh 02-census.html`):
+The CurseForge gallery is built from real in-game screenshots (`src/*.webp`, German client). `build.py` cuts the
+Guildy window out of the game world, places it on a neutral background (1920×1080 JPG) and fills the Hall of
+Fame screenshots with made-up members (names, kills, dungeon clears) so the test guild doesn't look empty.
 
 ```sh
-sh render.sh
+python build.py        # all images
+python build.py 05     # only 05-hall-of-fame-ranking.jpg
 ```
 
-The logo is `../logo.svg`; `sh ../render-logo.sh` renders `../logo.png`.
-
-Not in the repo (Blizzard assets, git-ignored), fetch them before rendering:
+Needs Pillow and numpy, plus the game font, which is not in the repo (Blizzard asset, git-ignored):
 
 - `fonts/FRIZQT__.TTF`: `curl -L -o fonts/FRIZQT__.TTF https://wago.tools/api/casc/615960`
-- `icons/<name>.jpg`: `curl -o icons/<name>.jpg https://wow.zamimg.com/images/wow/icons/large/<name>.jpg`
-  for every `icons/…` referenced in the pages
+
+New screenshots: take them at the same UI scale and window size, else the pixel positions of the Hall of Fame
+edits in `build.py` need adjusting. The logo is `../logo.svg`; `sh ../render-logo.sh` renders `../logo.png`.
