@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1
+
+See who else uses Guildy, and more reliable statistics.
+
+- Members tab shows which online members use Guildy and which version (green: same or newer, orange:
+  older, "old": a Guildy before this version). Guildy users say hello on login.
+- "online" is shown in green in the members list and tooltip.
+- Statistics: answers that arrive in parts are read twice, and an answer without creature kills
+  (level 10 and up) counts as incomplete and is asked again later instead of being stored.
+- Optional: read statistics of guild members under the mouse (`/guildy statmouse`, off by default;
+  switched off again automatically if a session ends during such a request).
+- `/guildy statshow <name>` lists what Guildy knows about one member's statistics (for bug reports).
+- Fix: reading the message of the day no longer triggers a blocked-action error on Forever.
+
 ## 0.2.0
 
 Guild management without Blizzard's window, a Hall of Fame and a richer overview.
