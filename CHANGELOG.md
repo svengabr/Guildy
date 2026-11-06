@@ -1,23 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
-- Overview grows with the window and shows more: highest known skill per profession, last-online
-  activity (today to longer, click shows who), joins and departures of the last 30 days, and a class x
-  level matrix (click filters the members).
-- The Hall of Fame keeps every statistic the game reports, so later features can use data collected now.
+Guild management without Blizzard's window, a Hall of Fame and a richer overview.
+
+- Promote, demote and remove members right in Guildy (member details and member menu), with a
+  confirmation before removing.
+- Message of the day and guild info are edited in the Info tab, in Blizzard's own edit box shown
+  inside Guildy. Preferred language and region of the guild are there too (guild master can change them).
+- New Ranks tab: every rank with its permissions and members. The guild master edits ranks and
+  permissions there in Blizzard's rank editor, opened right inside the tab.
+- Only notes still open Blizzard's guild window (Forever saves notes only from Blizzard's own list).
 - New Hall of Fame tab: guild totals, title cards (Slayer, Quest machine, Hogger's favourite, ...) and
   dungeon progress from Forever's character statistics, for all time, this month or last month; a click
-  opens the guild ranking of any tracked statistic. Guildy reads your own statistics and those of guild
-  members you target; Guildy users share theirs.
-- Preferred language and region of the guild in the Info tab (guild master can change them).
-- Promote, demote and remove members right in Guildy (member details and member menu), with a
-  confirmation before removing. Runs Blizzard's secure slash commands through a secure button.
-- Message of the day and guild info are edited in the Info tab, in Blizzard's own edit box shown
-  inside Guildy.
-- New Ranks tab: every rank with its member count and permissions. The guild master edits ranks and
-  permissions there in Blizzard's rank editor, opened over the tab.
-- Only notes still open Blizzard's guild window.
+  opens the guild ranking of any statistic. Guildy reads your own statistics and those of guild members
+  you target nearby; Guildy users share theirs. Every statistic is kept for later features.
+- Overview grows with the window: levels 1-60 stacked by class, highest known skill per profession,
+  last-online activity, joins and departures of the last 30 days, and a class x level matrix. Clicks
+  filter the members tab.
+- Window minimum size 960 x 560.
 
 ## 0.1.0
 
