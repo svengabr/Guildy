@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.4
+
+Hotfix: the dungeon progress shows every dungeon and raid by level.
+
+- Hall of Fame dungeons: every dungeon and raid of Forever has its column, sorted by level (as on
+  raidy.app), raids last, even before anybody cleared it. Each column is a small dungeon icon (a
+  fitting game icon for the new Forever dungeons); the tooltip shows the name, the level range and the
+  end bosses.
+- A compact table that fits the smallest window: narrow columns grouped in level bands, the kill count
+  as a small number at the check mark, a "cleared" count per member, your own row highlighted and the
+  column under the mouse marked. Dungeons the game has no statistic for yet are grey, the new
+  Forever dungeons have a green edge.
+- From 100 kills the small number shows "99+"; hovering a cell shows member, dungeon and the exact
+  count.
+- The Guildy window is at least 1130 px wide (was 960), so the dungeon table shows every dungeon and
+  raid; a smaller saved size grows on the next opening.
+- Dalaran's two end bosses and the Scarlet Monastery's two wings count as one dungeon.
+- Blizzard counts an Alliance character's Hall of Thanes end boss as Bazzalan (Ragefire Chasm). For
+  the Alliance Guildy counts those kills as Hall of Thanes; Ragefire Chasm stays in the list without
+  a statistic (the tooltip says why). For the Horde they stay Ragefire Chasm.
+
 ## 0.3.3
 
 Hotfix: the equipment dots show every slot.
