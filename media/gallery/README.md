@@ -3,7 +3,7 @@
 The CurseForge gallery is built from real in-game screenshots (German client). `build.py` cuts the Guildy window
 out of the game world (day or night sky), places it on a neutral background (1920×1080 JPG) and replaces every
 character name with a made-up one in the same class colour and the game font; the guild chat is rewritten.
-`11-sync.jpg` (English) and `sync-de.jpg` (German) are rendered from `sync.html` with headless Chrome.
+`12-sync.jpg` (English) and `sync-de.jpg` (German) are rendered from `sync.html` with headless Chrome.
 
 ```sh
 python build.py        # everything

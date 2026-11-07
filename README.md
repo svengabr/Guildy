@@ -19,7 +19,7 @@ Made for **WoW Forever**.
 
 ![Census](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/03-overview.jpg)
 
-![Professions](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/08-professions.jpg)
+![Professions](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/09-professions.jpg)
 
 ![Members](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/02-members.jpg)
 
@@ -31,9 +31,9 @@ Made for **WoW Forever**.
 - **Profession links**: click someone's profession link in chat and Guildy remembers their recipes.
 - **Guild notes**: notes like "Herb/Alch" or "Tank Schmied" count too, marked "from note". Real data always wins.
 
-![How Guildy shares within your guild](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/11-sync.jpg)
+![How Guildy shares within your guild](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/12-sync.jpg)
 
-![Info and guild log](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/09-info-log.jpg)
+![Info and guild log](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/10-info-log.jpg)
 
 ## Inviting and managing
 
@@ -52,6 +52,8 @@ Forever records character statistics: creatures killed, quests, deaths (includin
 ![Hall of Fame: dungeons](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/06-hall-of-fame-dungeons.jpg)
 
 ![Hall of Fame: reputation](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/07-hall-of-fame-reputation.jpg)
+
+![Hall of Fame: PvP](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/08-hall-of-fame-pvp.jpg)
 
 ## Commands
 

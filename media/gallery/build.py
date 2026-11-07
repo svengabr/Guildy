@@ -127,7 +127,7 @@ def cutout(im):
     a = np.asarray(im).astype(int)
     # daytime sky (blue or bright) or a dark night sky (dark, at least as blue as red)
     day = ((a[..., 2] > 110) & (a[..., 2] > a[..., 0] + 12)) | (a.sum(2) > 540)
-    night = ((a[..., 2] >= a[..., 0] + 4) & (a.sum(2) < 200)) | (a.sum(2) < 24)
+    night = ((a[..., 2] >= a[..., 0] + 4) & (a.sum(2) < 200)) | (a.sum(2) < 24) | (a[..., 2] > a[..., 1] + 12)
     edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
     dark = edge.sum(1).mean() < 150
     sky = (night if dark else day).astype(np.uint8) * 255
@@ -163,8 +163,10 @@ def cutout(im):
     # Blizzard's own (hidden) guild tabs peek out under the frame right of Guildy's tabs: drop them.
     col = fg[:, w // 2 + 300]
     bottom = int(np.nonzero(col)[0].max())
-    tabs = np.nonzero(fg[bottom + 22, : w // 2 + 200])[0]
-    fg[bottom + 1:, int(tabs.max()) + 3:] = False
+    if bottom + 22 < h:
+        tabs = np.nonzero(fg[bottom + 22, : w // 2 + 200])[0]
+        if len(tabs):
+            fg[bottom + 1:, int(tabs.max()) + 3:] = False
 
     alpha = Image.fromarray((fg * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(3))
     alpha = alpha.filter(ImageFilter.GaussianBlur(0.6))
@@ -392,7 +394,7 @@ def render_sync():
     """sync.html (the sync explainer) -> 11-sync.jpg (English) and sync-de.jpg (German), via headless Chrome."""
     import subprocess
     import tempfile
-    for out, frag in (("11-sync", ""), ("sync-de", "#de")):
+    for out, frag in (("12-sync", ""), ("sync-de", "#de")):
         png = os.path.join(tempfile.gettempdir(), out + ".png")
         url = "file:///" + os.path.join(HERE, "sync.html").replace("\\", "/") + frag
         subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
@@ -408,7 +410,7 @@ def render_sync():
 if __name__ == "__main__":
     import build  # run inside the importable module, which screens.py shares its state with
     arg = sys.argv[1] if len(sys.argv) > 1 else None
-    if arg in (None, "11", "sync"):
+    if arg in (None, "12", "sync"):
         build.render_sync()
-    if arg not in ("sync", "11"):
+    if arg not in ("sync", "12"):
         build.main(arg)
