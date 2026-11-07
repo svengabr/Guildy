@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.3
+
+Hotfix: the equipment dots show every slot.
+
+- Hall of Fame equipment: one dot per slot in the character window's order (armor, rings and
+  trinkets, weapons), so members compare column by column. White, grey and legendary items get their
+  own dots, an empty slot is a red ring, the off hand next to a two-hander a dim dot.
+- Members whose equipment was read by an older Guildy version keep the old order (by quality) until
+  they are read again.
+- Smoother dots: Guildy brings its own round textures instead of the game's jagged ones (after
+  updating, restart the game once; `/reload` is not enough for new textures).
+
 ## 0.3.2
 
 Equipment and statistics of guild members nearby.
