@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5
+
+Hotfix: the Stockade is marked as not counted by Blizzard.
+
+- Hall of Fame dungeons: WoW Forever does not count the Stockade in the statistics yet (neither
+  Bazil Thredd nor dungeons entered go up). Its column is grey with a note in the tooltip until a
+  member has a kill in it.
+
 ## 0.3.4
 
 Hotfix: the dungeon progress shows every dungeon and raid by level.
