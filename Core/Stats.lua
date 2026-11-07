@@ -183,7 +183,7 @@ Stats.TENTHS = { [Stats.GEAR.ILVL] = true }
 Stats.INCOME = { 326, 333, 921, 919 }      -- quests, loot, vendors, auctions
 Stats.SPENDING = { 1146, 1148, 1150, 1147 } -- travel, postage, talent resets, barber
 
--- The three pages of the Hall of Fame: big guild totals and title cards (holder = highest value in
+-- The pages of the Hall of Fame: big guild totals and title cards (holder = highest value in
 -- the chosen period). Special IDs: "bosses" = all end boss kills, "dungeons" = dungeons whose end
 -- boss was defeated, "spent" = all gold spending. A title with current = true always shows the current
 -- value (a state like the item level), whatever the period.
@@ -226,6 +226,14 @@ Stats.PAGES = {
     { stat = 378, key = "REVERED", icon = "INV_Misc_Ribbon_01" },
     { stat = 529, key = "HONORED", icon = "Spell_Holy_SealOfSalvation" },
     { stat = 931, key = "FACTIONS", icon = "INV_Misc_Map_01" },
+  } },
+  -- honorable kills, duels won and lost, battlegrounds played. No killing blows (1487): they count
+  -- creatures too, tens of thousands against a hundred honorable kills.
+  { key = "pvp", headline = { 588, 319, 320, 839 }, pvp = true, titles = {
+    { stat = 588, key = "HEADHUNTER", icon = "INV_BannerPVP_02" },
+    { stat = 319, key = "DUELIST", icon = "Ability_DualWield" },
+    { stat = 839, key = "FRONTLINE", icon = "Ability_Warrior_Challange" },
+    { stat = 320, key = "PUNCHBAG", icon = "Spell_Holy_SealOfSacrifice" },
   } },
 }
 

@@ -1,4 +1,4 @@
--- Hall of Fame tab: three pages (general with equipment, economy, dungeons) of guild totals, title
+-- Hall of Fame tab: five pages (general with equipment, economy, dungeons, reputation, PvP) of guild totals, title
 -- cards and a page-specific box, from the members' statistics (Core/Stats.lua, Game/Stats.lua), with
 -- a period switch (all time / this month / last month). A click on a total, a card, a gold source or
 -- a dungeon opens the detail view: every tracked statistic in a tree on the left, the guild ranking of
@@ -295,8 +295,9 @@ local function Build(panel)
   end
 
   -- a member table filling the rest of a page: the columns share the width by weight, the age column
-  -- sits at the right edge. cols = { {key, weight, text, stat, bar} }; fill(row, entry, box) sets the
-  -- cells (box.width[key] = width of a column).
+  -- sits at the right edge. cols = { {key, weight, text, stat, bar} }; bar = true is one bar texture,
+  -- bar = "split" a second one (cell.Rest) right after it; fill(row, entry, box) sets the cells
+  -- (box.width[key] = width of a column).
   local AGE_WIDTH = 70
   local function MemberTable(titleText, cols, fill)
     local box = W.Box(home)
@@ -323,6 +324,11 @@ local function Build(panel)
         if col.bar then
           local bar = row:CreateTexture(nil, "ARTWORK")
           bar:SetHeight(8)
+          if col.bar == "split" then
+            bar.Rest = row:CreateTexture(nil, "ARTWORK")
+            bar.Rest:SetHeight(8)
+            bar.Rest:SetPoint("LEFT", bar, "RIGHT", 0, 0)
+          end
           row.Cols[col.key] = bar
         else
           local text = W.Text(row, "GameFontHighlightSmall")
@@ -467,6 +473,48 @@ local function Build(panel)
   end)
   view.Reputation.Hint:SetText(L.FAME_REP_HINT)
   view.Reputation.Empty:SetText(L.FAME_REP_EMPTY)
+
+  -- PvP: honorable kills with a bar in the class color, duels won : lost as a green and red bar
+  -- (its length the member's duels), win rate, battlegrounds, honorable kills this month
+  local DASH = "|cff9a8f78–|r"
+  view.Pvp = MemberTable(L.FAME_PVP_TABLE, {
+    { key = "name", weight = 3, text = L.COL_NAME },
+    { key = "level", weight = 0.8, text = L.COL_LEVEL },
+    { key = "kills", weight = 1.5, text = L.FAME_PVP_KILLS, stat = 588 },
+    { key = "killBar", weight = 2.2, bar = true },
+    { key = "duels", weight = 1.1, text = L.FAME_PVP_DUELS, stat = 319 },
+    { key = "duelBar", weight = 1.9, bar = "split" },
+    { key = "rate", weight = 1, text = L.FAME_PVP_RATE },
+    { key = "bgs", weight = 1.5, text = L.FAME_PVP_BGS, stat = 839 },
+    { key = "month", weight = 1.4, text = L.FAME_THIS_MONTH, stat = 588 },
+  }, function(row, entry, box)
+    local function Get(id, period) return S.Value(entry.rec, id, period or view.period, ns.Now(), ns.GameStats.Date) or 0 end
+    local kills, won, lost, bgs = Get(588), Get(319), Get(320), Get(839)
+    local level = entry.member and entry.member.level
+    row.Cols.level:SetText(level or "–")
+    row.Cols.kills:SetText(kills > 0 and Format(588, kills) or DASH)
+    local r, g, b = W.ClassColor(entry.classFile)
+    local killBar = row.Cols.killBar
+    killBar:SetColorTexture(r, g, b, 0.85)
+    killBar:SetWidth(math.max(1, math.max(10, (box.width.killBar or 100) - 12) * kills / math.max(1, box.maxKills or 1)))
+    killBar:SetShown(kills > 0) -- no sliver for nothing
+    local duels = won + lost
+    row.Cols.duels:SetText(duels > 0 and (won .. " : " .. lost) or DASH)
+    local length = math.max(10, (box.width.duelBar or 100) - 12) * duels / math.max(1, box.maxDuels or 1)
+    local winBar = row.Cols.duelBar
+    -- a member without a win keeps an invisible pixel, so the red part still starts at the column
+    winBar:SetWidth(won > 0 and math.max(1, length * won / duels) or 1)
+    if won > 0 then winBar:SetColorTexture(0.25, 0.75, 0.25, 0.9) else winBar:SetColorTexture(0, 0, 0, 0) end
+    winBar:SetShown(duels > 0)
+    winBar.Rest:SetColorTexture(0.72, 0.25, 0.18, 0.9)
+    winBar.Rest:SetWidth(math.max(1, length * lost / math.max(1, duels)))
+    winBar.Rest:SetShown(lost > 0)
+    row.Cols.rate:SetText(duels > 0 and (math.floor(won * 100 / duels + 0.5) .. " %") or DASH)
+    row.Cols.bgs:SetText(bgs > 0 and Format(839, bgs) or DASH)
+    local month = Get(588, "month")
+    row.Cols.month:SetText(month > 0 and ("|cff40e040+" .. Format(588, month) .. "|r") or DASH)
+  end)
+  view.Pvp.Empty:SetText(L.FAME_PVP_EMPTY)
 
 
   -- dungeons: end bosses per member, one narrow column per dungeon in level bands
@@ -695,17 +743,18 @@ local function Build(panel)
       tile:SetPoint("TOPLEFT", home, "TOPLEFT", (i - 1) * (tileWidth + gap), 0)
       PlaceTile(tile)
     end
-    local cardWidth = (width - gap * 3) / 4
+    local perRow = Page(self.page).cardColumns or 4
+    local cardWidth = (width - gap * (perRow - 1)) / perRow
     for i, card in ipairs(self.Cards) do
       card:ClearAllPoints()
       card:SetWidth(cardWidth)
-      local column, row = (i - 1) % 4, math.floor((i - 1) / 4)
+      local column, row = (i - 1) % perRow, math.floor((i - 1) / perRow)
       card:SetPoint("TOPLEFT", home, "TOPLEFT", column * (cardWidth + gap), -72 - row * 56)
     end
     local shownCards = 0
     for _, card in ipairs(self.Cards) do if card:IsShown() then shownCards = shownCards + 1 end end
-    local top = -72 - math.ceil(shownCards / 4) * 56
-    for _, box in ipairs({ gear, dungeons, self.Reputation }) do
+    local top = -72 - math.ceil(shownCards / perRow) * 56
+    for _, box in ipairs({ gear, dungeons, self.Reputation, self.Pvp }) do
       box:ClearAllPoints()
       box:SetPoint("TOPLEFT", home, "TOPLEFT", 0, top)
       box:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", 0, 0)
@@ -726,6 +775,7 @@ local function Build(panel)
     gear:Columns()
     self.Reputation:Columns()
     self.Economy:Columns()
+    self.Pvp:Columns()
     local boardWidth = board:GetWidth() or 0
     local boardTile = (boardWidth - 24 - gap * 2) / 3
     for i, tile in ipairs(self.BoardTiles) do
@@ -857,6 +907,30 @@ local function Build(panel)
     for i, row in ipairs(rows) do items[i] = row.entry end
     self.Reputation.List:SetItems(items)
     self.Reputation.Empty:SetShown(#items == 0)
+  end
+
+  -- members with a PvP value in the period, by honorable kills, then duels
+  function view:RefreshPvp(entries)
+    local rows, maxKills, maxDuels = {}, 1, 1
+    for _, entry in ipairs(entries) do
+      local function Get(id) return S.Value(entry.rec, id, self.period, ns.Now(), ns.GameStats.Date) or 0 end
+      local kills, duels, bgs = Get(588), Get(319) + Get(320), Get(839)
+      if kills > 0 or duels > 0 or bgs > 0 then
+        rows[#rows + 1] = { entry = entry, kills = kills, duels = duels }
+        maxKills, maxDuels = math.max(maxKills, kills), math.max(maxDuels, duels)
+      end
+    end
+    table.sort(rows, function(a, b)
+      if a.kills ~= b.kills then return a.kills > b.kills end
+      if a.duels ~= b.duels then return a.duels > b.duels end
+      return a.entry.name < b.entry.name
+    end)
+    local items = {}
+    for i, row in ipairs(rows) do items[i] = row.entry end
+    self.Pvp.maxKills, self.Pvp.maxDuels = maxKills, maxDuels
+    self.Pvp.Hint:SetText(L.FAME_GEAR_HINT:format(#items, #ns.Roster.Members()))
+    self.Pvp.List:SetItems(items)
+    self.Pvp.Empty:SetShown(#items == 0)
   end
 
   function view:RefreshEconomy(entries)
@@ -1056,6 +1130,7 @@ local function Build(panel)
     self.Economy:SetShown(page.flows == true)
     self.Dungeons:SetShown(page.dungeons == true)
     self.Reputation:SetShown(page.reputation == true)
+    self.Pvp:SetShown(page.pvp == true)
     self:Layout() -- the page box sits below the shown cards
     if page.gear then self:RefreshGear(entries) end
     if page.flows then
@@ -1065,6 +1140,7 @@ local function Build(panel)
     end
     if page.dungeons then self:RefreshDungeons(entries) end
     if page.reputation then self:RefreshReputation(entries) end
+    if page.pvp then self:RefreshPvp(entries) end
   end
 
   function view:RefreshDetail(entries)

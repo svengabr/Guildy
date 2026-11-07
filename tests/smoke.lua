@@ -580,6 +580,16 @@ T.describe("Hall of Fame", function()
     ns.UI.SelectTab("fame")
     local view = ns.UI.TabView("fame")
     T.truthy(view, "fame view built")
+    -- PvP page: a member with honorable kills and duels gets a row (honorable kills, duels won : lost)
+    local pvp = P.Encode("STAT", { m = "Makira Farron", s = { ts = 1800000100, src = "self",
+      v = { ["107"] = 4210, ["588"] = 41, ["319"] = 14, ["320"] = 13, ["839"] = 5 } } })
+    for _, part in ipairs(P.Chunk("s2", pvp)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end
+    view.page, view.period = "pvp", "all"
+    view:ShowHome()
+    T.truthy(view.Pvp:IsShown(), "PvP table shown on the PvP page")
+    T.truthy(view.Pvp.List.rows[1] and view.Pvp.List.rows[1]:IsShown(), "PvP row for Makira")
+    T.eq(view.Pvp.List.rows[1].Cols.duels:GetText(), "14 : 13")
+    T.eq(view.Pvp.List.rows[1].Cols.rate:GetText(), "52 %")
     for _, page in ipairs(ns.Stats.PAGES) do
       view.page = page.key
       for _, period in ipairs({ "all", "month", "last" }) do
