@@ -105,6 +105,50 @@ local function DungeonName(id)
   return name:match("%(([^%)]+)%)%s*$") or name
 end
 
+-- column icon of a dungeon (Stats.DUNGEONS): the game's dungeon picture, else the placeholder icon
+-- (cropped = true: an Interface\Icons icon with its border), nil when the game has neither
+local function DungeonIcon(dungeon)
+  if dungeon.icon then
+    local path = "Interface\\LFGFrame\\LFGIcon-" .. dungeon.icon
+    if W.TextureExists(path) then return path, false end
+  end
+  if dungeon.art then
+    local path = "Interface\\Icons\\" .. dungeon.art
+    if W.TextureExists(path) then return path, true end
+  end
+  return nil
+end
+
+-- the dungeon's name: from the game's statistic, from the locale while the game has none
+local function DungeonTitle(dungeon)
+  local id = dungeon.nameStat or dungeon.stats[1]
+  if id then return DungeonName(id) end
+  return ns.L["FAME_DUNGEON_" .. dungeon.key:upper()]
+end
+
+-- short tag for a dungeon without an icon: initials of the capitalized words ("Halle der Thanen" →
+-- "HT"), a single word gives its first three letters ("Dalaran" → "Dal")
+local function DungeonTag(name)
+  local initials = {}
+  for word in name:gmatch("[^%s:%-]+") do
+    local first = word:sub(1, 1)
+    if first:match("%u") then initials[#initials + 1] = first end
+  end
+  if #initials >= 2 then return table.concat(initials, "", 1, math.min(3, #initials)) end
+  return name:sub(1, 3)
+end
+
+-- highest kill count over a dungeon's end boss statistics in the period (Dalaran's two bosses are
+-- one run), nil when none is known
+local function DungeonKills(rec, dungeon, period)
+  local best
+  for _, id in ipairs(dungeon.stats) do
+    local kills = S.Value(rec, id, period, ns.Now(), ns.GameStats.Date)
+    if kills and (not best or kills > best) then best = kills end
+  end
+  return best
+end
+
 local function Number(n)
   local big = rawget(_G, "BreakUpLargeNumbers")
   return big and big(n) or tostring(n)
@@ -425,46 +469,118 @@ local function Build(panel)
   view.Reputation.Empty:SetText(L.FAME_REP_EMPTY)
 
 
-  -- dungeons: end bosses per member
+  -- dungeons: end bosses per member, one narrow column per dungeon in level bands
+  local NAME_WIDTH, DONE_WIDTH, BAND_GAP = 158, 56, 8
   local dungeons = W.Box(home)
   view.Dungeons = dungeons
   local dungeonTitle = W.Text(dungeons, "GameFontNormal", L.FAME_DUNGEONS)
   dungeonTitle:SetPoint("TOPLEFT", 10, -8)
   local dungeonHint = W.Text(dungeons, "GameFontDisableSmall", L.FAME_DUNGEONS_HINT)
   dungeonHint:SetPoint("LEFT", dungeonTitle, "RIGHT", 8, 0)
-  view.DungeonHeads = {}
+  view.DungeonHeads, view.DungeonBands, view.dungeonCols = {}, {}, {}
+  view.DungeonDone = W.Text(dungeons, "GameFontDisableSmall", L.FAME_DUNGEON_DONE)
+  view.DungeonDone:SetJustifyH("RIGHT")
+  -- the column under the mouse (icon or cell), from the header down to the last row
+  view.DungeonColHi = dungeons:CreateTexture(nil, "BORDER")
+  view.DungeonColHi:SetColorTexture(1, 0.82, 0, 0.10)
+  view.DungeonColHi:Hide()
+  function view:HighlightDungeon(col)
+    local hi = self.DungeonColHi
+    if not col then hi:Hide() return end
+    hi:ClearAllPoints()
+    hi:SetPoint("TOPLEFT", self.Dungeons, "TOPLEFT", 8 + col.x, -42)
+    hi:SetPoint("BOTTOM", self.Dungeons, "BOTTOM", 0, 8)
+    hi:SetWidth(self.dungeonColWidth)
+    hi:Show()
+  end
+  local function ColumnAt(row)
+    local left, scale = row:GetLeft(), row:GetEffectiveScale()
+    local getCursor = rawget(_G, "GetCursorPosition")
+    if not left or not scale or not getCursor then return nil end
+    local x = getCursor() / scale - left
+    for _, col in ipairs(view.dungeonCols) do
+      if x >= col.x and x < col.x + view.dungeonColWidth then return col end
+    end
+  end
   view.DungeonRows = W.ScrollList(dungeons, 18, function(row)
     row.Name = W.Text(row, "GameFontHighlightSmall")
     row.Name:SetPoint("LEFT", 4, 0)
-    row.Name:SetWidth(150)
+    row.Name:SetWidth(NAME_WIDTH - 8)
     row.Name:SetWordWrap(false)
+    row.Done = W.Text(row, "GameFontDisableSmall")
+    row.Done:SetPoint("RIGHT", -6, 0)
+    row.Done:SetJustifyH("RIGHT")
+    row.Mine = row:CreateTexture(nil, "BACKGROUND")
+    row.Mine:SetAllPoints()
+    row.Mine:SetColorTexture(1, 0.82, 0, 0.12)
     row.Cells = {}
+    row:EnableMouse(true)
+    -- the column under the mouse: highlighted, and a tooltip with member, dungeon and the exact count
+    row:SetScript("OnEnter", function(self)
+      self:SetScript("OnUpdate", function(r)
+        local col = ColumnAt(r)
+        if col == r.hoverCol then return end
+        r.hoverCol = col
+        view:HighlightDungeon(col)
+        if not col or not r.entry then GameTooltip:Hide() return end
+        local kills = DungeonKills(r.entry.rec, col.dungeon, view.period) or 0
+        GameTooltip:SetOwner(r, "ANCHOR_CURSOR")
+        GameTooltip:SetText(W.ClassName(r.entry.name, r.entry.classFile))
+        GameTooltip:AddLine(DungeonTitle(col.dungeon), 1, 0.82, 0)
+        if kills > 0 then GameTooltip:AddLine(L.FAME_DUNGEON_KILLS:format(kills), 1, 1, 1)
+        else GameTooltip:AddLine(L.FAME_DUNGEON_NOT_YET, 0.6, 0.6, 0.6) end
+        GameTooltip:Show()
+      end)
+    end)
+    row:SetScript("OnLeave", function(self)
+      self:SetScript("OnUpdate", nil)
+      self.hoverCol = nil
+      view:HighlightDungeon(nil)
+      GameTooltip:Hide()
+    end)
   end, function(row, entry)
+    row.entry = entry
+    row.hoverCol = nil
     row.Name:SetText(W.ClassName(entry.name, entry.classFile))
-    for i, id in ipairs(view.dungeonColumns or {}) do
+    row.Mine:SetShown(entry.key == ns.Names.Key(ns.PlayerName()))
+    local done = 0
+    for i, col in ipairs(view.dungeonCols) do
       local cell = row.Cells[i]
       if not cell then
         cell = W.Text(row, "GameFontHighlightSmall")
         cell:SetJustifyH("CENTER")
+        -- the kill count as a small number at the check mark's top right, so the column stays narrow
+        cell.Count = W.Text(row, "GameFontNormalSmall")
+        local font, _, flags = cell.Count:GetFont()
+        if font then cell.Count:SetFont(font, 9, flags) end
+        cell.Count:SetPoint("BOTTOMLEFT", cell, "CENTER", 4, 0)
         row.Cells[i] = cell
       end
       cell:ClearAllPoints()
-      cell:SetPoint("LEFT", 158 + (i - 1) * view.dungeonColWidth, 0)
+      cell:SetPoint("LEFT", col.x, 0)
       cell:SetWidth(view.dungeonColWidth)
-      local kills = S.Value(entry.rec, id, view.period, ns.Now(), ns.GameStats.Date)
+      local kills = DungeonKills(entry.rec, col.dungeon, view.period)
       if kills and kills > 0 then
-        cell:SetText("|T" .. W.ICON_YES .. ":12|t" .. (kills > 1 and (" " .. kills) or ""))
+        done = done + 1
+        cell:SetText("|T" .. W.ICON_YES .. ":12|t")
+        cell.Count:SetText(S.ShortCount(kills))
       else
         cell:SetText("|cff4a3d29·|r")
+        cell.Count:SetText("")
       end
       cell:Show()
+      cell.Count:Show()
     end
-    for i = #(view.dungeonColumns or {}) + 1, #row.Cells do row.Cells[i]:Hide() end
+    for i = #view.dungeonCols + 1, #row.Cells do
+      row.Cells[i]:Hide()
+      row.Cells[i].Count:Hide()
+    end
+    row.Done:SetText("|cffffd100" .. done .. "|r/" .. #S.DUNGEONS)
   end)
-  view.DungeonRows:SetPoint("TOPLEFT", 8, -46)
+  view.DungeonRows:SetPoint("TOPLEFT", 8, -66)
   view.DungeonRows:SetPoint("BOTTOMRIGHT", -28, 8)
   view.DungeonEmpty = W.Text(dungeons, "GameFontDisable", L.FAME_DUNGEONS_EMPTY)
-  view.DungeonEmpty:SetPoint("TOPLEFT", 12, -50)
+  view.DungeonEmpty:SetPoint("TOPLEFT", 12, -70)
 
   view.Empty = W.Text(home, "GameFontDisable", L.FAME_EMPTY)
   view.Empty:SetPoint("CENTER", 0, 20)
@@ -646,9 +762,9 @@ local function Build(panel)
       return S.Total(ranking), #ranking > 0
     end
     local count, known = 0, false
-    for _, boss in ipairs(S.Bosses()) do
+    for _, dungeon in ipairs(S.DUNGEONS) do
       for _, entry in ipairs(entries) do
-        local kills = S.Value(entry.rec, boss, period, ns.Now(), ns.GameStats.Date)
+        local kills = DungeonKills(entry.rec, dungeon, period)
         if kills then known = true end
         if kills and kills > 0 then
           count = count + 1
@@ -777,49 +893,134 @@ local function Build(panel)
     end
   end
 
+  -- a column head: the dungeon's icon (grey without a statistic, a green edge when new in Forever)
+  -- or a short tag; name, level range and end bosses in the tooltip, a click opens the ranking
+  local function DungeonHead(parent)
+    local head = CreateFrame("Button", nil, parent)
+    head:SetHeight(20)
+    head.Edge = head:CreateTexture(nil, "ARTWORK")
+    head.Edge:SetSize(20, 20)
+    head.Edge:SetPoint("CENTER")
+    head.Icon = head:CreateTexture(nil, "OVERLAY")
+    head.Icon:SetSize(18, 18)
+    head.Icon:SetPoint("CENTER")
+    head.Text = W.Text(head, "GameFontNormalSmall")
+    head.Text:SetAllPoints()
+    head.Text:SetJustifyH("CENTER")
+    head.Text:SetWordWrap(false)
+    head:SetScript("OnClick", function(b)
+      if b.col.dungeon.stats[1] then view:ShowDetail(b.col.dungeon.stats[1]) end
+    end)
+    head:SetScript("OnEnter", function(b)
+      local d = b.col.dungeon
+      view:HighlightDungeon(b.col)
+      GameTooltip:SetOwner(b, "ANCHOR_TOP")
+      GameTooltip:SetText(DungeonTitle(d), 1, 0.82, 0)
+      GameTooltip:AddLine(d.raid and L.FAME_DUNGEON_RAID or L.FAME_DUNGEON_LEVEL:format(d.min, d.max), 1, 1, 1)
+      if d.new then GameTooltip:AddLine(L.FAME_DUNGEON_NEW, 0.31, 0.84, 0.31) end
+      for _, id in ipairs(d.stats) do GameTooltip:AddLine(StatName(id), 0.8, 0.8, 0.8, true) end
+      if d.lost then GameTooltip:AddLine(L.FAME_DUNGEON_LOST, 0.6, 0.6, 0.6, true)
+      elseif not d.stats[1] then GameTooltip:AddLine(L.FAME_DUNGEON_NO_STAT, 0.6, 0.6, 0.6, true) end
+      if d.merged then GameTooltip:AddLine(L.FAME_DUNGEON_MERGED, 0.6, 0.6, 0.6, true) end
+      GameTooltip:Show()
+    end)
+    head:SetScript("OnLeave", function()
+      view:HighlightDungeon(nil)
+      GameTooltip:Hide()
+    end)
+    return head
+  end
+
+  local function SetHead(head, dungeon)
+    local icon, cropped = DungeonIcon(dungeon)
+    head.Icon:SetTexture(icon)
+    if cropped then head.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else head.Icon:SetTexCoord(0, 1, 0, 1) end
+    local known = dungeon.stats[1] ~= nil
+    head.Icon:SetDesaturated(not known)
+    if known then head.Icon:SetVertexColor(1, 1, 1) else head.Icon:SetVertexColor(0.6, 0.6, 0.6) end
+    head.Icon:SetShown(icon ~= nil)
+    if not icon then head.Edge:SetColorTexture(0, 0, 0, 0)
+    elseif dungeon.new and known then head.Edge:SetColorTexture(0.31, 0.84, 0.31, 0.6)
+    elseif known then head.Edge:SetColorTexture(1, 0.82, 0, 0.25)
+    else head.Edge:SetColorTexture(0, 0, 0, 0.6) end
+    head.Text:SetText(icon and "" or DungeonTag(DungeonTitle(dungeon)))
+  end
+
+  -- band label centered over its columns, a thin line to each side
+  local function BandLabel(parent)
+    local band = {}
+    band.Label = W.Text(parent, "GameFontNormalSmall")
+    band.Label:SetTextColor(0.79, 0.64, 0.15)
+    band.Left = parent:CreateTexture(nil, "ARTWORK")
+    band.Right = parent:CreateTexture(nil, "ARTWORK")
+    for _, line in ipairs({ band.Left, band.Right }) do
+      line:SetColorTexture(0.35, 0.29, 0.19, 0.9)
+      line:SetHeight(1)
+    end
+    function band:Place(x, width, text)
+      self.Label:SetText(text)
+      self.Label:ClearAllPoints()
+      self.Label:SetPoint("TOP", parent, "TOPLEFT", 8 + x + width / 2, -28)
+      local half = (self.Label:GetStringWidth() or 60) / 2 + 5
+      local side = math.max(0, width / 2 - half - 2)
+      self.Left:ClearAllPoints()
+      self.Left:SetPoint("RIGHT", self.Label, "LEFT", -5, 0)
+      self.Left:SetWidth(math.max(1, side))
+      self.Right:ClearAllPoints()
+      self.Right:SetPoint("LEFT", self.Label, "RIGHT", 5, 0)
+      self.Right:SetWidth(math.max(1, side))
+      self.Label:Show()
+      self.Left:SetShown(side > 4)
+      self.Right:SetShown(side > 4)
+    end
+    function band:Hide()
+      for _, part in ipairs({ self.Label, self.Left, self.Right }) do part:Hide() end
+    end
+    return band
+  end
+
   function view:RefreshDungeons(entries)
     local now = ns.Now()
-    -- dungeon columns: bosses somebody killed (in the period), as many as fit
-    local columns = {}
-    for _, boss in ipairs(S.Bosses()) do
-      for _, entry in ipairs(entries) do
-        local kills = S.Value(entry.rec, boss, self.period, now, ns.GameStats.Date)
-        if kills and kills > 0 then
-          columns[#columns + 1] = boss
-          break
+    -- every dungeon and raid by level in its band, cleared or not: the columns share the room
+    -- (24 to 40 pixels each); in a window too narrow for 24 the last ones are left out
+    local bands = S.DungeonBands()
+    local width = (self.Dungeons:GetWidth() or 600) - 36
+    local room = width - NAME_WIDTH - DONE_WIDTH - BAND_GAP * (#bands - 1)
+    self.dungeonColWidth = math.max(24, math.min(40, math.floor(room / #S.DUNGEONS)))
+    local colWidth, limit = self.dungeonColWidth, width - DONE_WIDTH
+    local cols, x = {}, NAME_WIDTH
+    for b, band in ipairs(bands) do
+      if b > 1 then x = x + BAND_GAP end
+      local start, count = x, 0
+      for _, dungeon in ipairs(band.dungeons) do
+        if x + colWidth <= limit then
+          cols[#cols + 1] = { dungeon = dungeon, x = x }
+          x = x + colWidth
+          count = count + 1
         end
       end
-    end
-    local room = (self.Dungeons:GetWidth() or 600) - 40 - 158
-    self.dungeonColWidth = 104
-    local fit = math.max(1, math.floor(room / self.dungeonColWidth))
-    while #columns > fit do table.remove(columns) end
-    self.dungeonColumns = columns
-    for i, id in ipairs(columns) do
-      local head = self.DungeonHeads[i]
-      if not head then
-        head = CreateFrame("Button", nil, self.Dungeons)
-        head:SetSize(104, 16)
-        head.Text = W.Text(head, "GameFontDisableSmall")
-        head.Text:SetAllPoints()
-        head.Text:SetJustifyH("CENTER")
-        head.Text:SetWordWrap(false)
-        head:SetScript("OnClick", function(b) view:ShowDetail(b.stat) end)
-        head:SetScript("OnEnter", function(b)
-          GameTooltip:SetOwner(b, "ANCHOR_TOP")
-          GameTooltip:SetText(StatName(b.stat), 1, 1, 1, 1, true)
-          GameTooltip:Show()
-        end)
-        head:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        self.DungeonHeads[i] = head
+      local label = self.DungeonBands[b] or BandLabel(self.Dungeons)
+      self.DungeonBands[b] = label
+      if count > 0 then
+        label:Place(start, count * colWidth, band.raid and L.FAME_DUNGEON_RAIDS or L.FAME_DUNGEON_BAND:format(band.min, band.max))
+      else
+        label:Hide()
       end
-      head.stat = id
+    end
+    self.dungeonCols = cols
+    for i, col in ipairs(cols) do
+      local head = self.DungeonHeads[i] or DungeonHead(self.Dungeons)
+      self.DungeonHeads[i] = head
+      head.col = col
+      head:SetWidth(colWidth)
       head:ClearAllPoints()
-      head:SetPoint("TOPLEFT", self.Dungeons, "TOPLEFT", 8 + 158 + (i - 1) * 104, -28)
-      head.Text:SetText(DungeonName(id))
+      head:SetPoint("TOPLEFT", self.Dungeons, "TOPLEFT", 8 + col.x, -42)
+      SetHead(head, col.dungeon)
       head:Show()
     end
-    for i = #columns + 1, #self.DungeonHeads do self.DungeonHeads[i]:Hide() end
+    for i = #cols + 1, #self.DungeonHeads do self.DungeonHeads[i]:Hide() end
+    self.DungeonDone:ClearAllPoints()
+    self.DungeonDone:SetPoint("TOPRIGHT", self.Dungeons, "TOPLEFT", 8 + width - 6, -46)
     local rows = {}
     for _, entry in ipairs(entries) do
       local sum = S.Value(entry.rec, "bosses", self.period, now, ns.GameStats.Date)
@@ -903,6 +1104,8 @@ local function Build(panel)
 
   function view:Refresh()
     if self.period == "last" and self:LaunchMonth() then self.period = "all" end
+    -- the guild's dungeons as the own faction sees them (Stats.SetFaction)
+    S.SetFaction((ns.Try(rawget(_G, "UnitFactionGroup"), "player")))
     self.Period:SetValue(self.period)
     self.Pages:SetValue(self.page)
     local entries = ns.GameStats.Entries()

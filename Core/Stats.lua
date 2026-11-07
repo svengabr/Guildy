@@ -43,9 +43,7 @@ Stats.CATALOG = {
   { id = 133, stats = { 98, 94 } },                                   -- quests: completed, abandoned
   { id = 140, stats = { 328, 333, 326, 919, 921, 334, 1146, 1148, 1150, 1147, 329, 330, 331, 332 } }, -- wealth
   { id = 14807, stats = { 932 } },                                    -- dungeons entered
-  { id = 14821, bosses = true, stats = { 15027, 63570, 15028, 1092, 15029, 6137, 6140, 6139, 1093, 6786,
-    6141, 6142, 1094, 6143, 6144, 1095, 6146, 6145, 1096, 15030, 15031, 1098, 63571, 63572, 63589, 63573,
-    63574, 63575, 63580, 63581 } },                                   -- end boss kills
+  { id = 14821, bosses = true, stats = {} },                          -- end boss kills (Stats.DUNGEONS)
   { id = 145, stats = { 347, 346, 345, 922, 923, 344 } },             -- consumables
   { id = 191, stats = { 1044, 1043, 339, 338, 342 } },                -- gear: need, greed, mounts, pets, epics
   { id = "gear", label = "FAME_GEAR", isLocal = true,
@@ -55,6 +53,123 @@ Stats.CATALOG = {
   { id = 21, stats = { 588, 319, 320, 839 } },                        -- PvP: honorable kills, duels, battlegrounds
   { id = 147, stats = { 931, 1466, 529, 378, 377 } },                 -- reputation: met, friendly/honored/revered/exalted or higher
 }
+
+-- Five-player dungeons of Forever by minimum level (as on raidy.app), then the raids; stats = their end
+-- boss statistics (Dalaran and the Scarlet Monastery have two, dungeons the game has no statistic for
+-- yet none: their name is the locale key FAME_DUNGEON_<KEY>). icon = the game's dungeon picture
+-- Interface\LFGFrame\LFGIcon-<icon>; art = an icon of Interface\Icons in its place (the new Forever
+-- dungeons have no picture, older clients may lack one). new = added by WoW Forever.
+-- Faction (Stats.SetFaction): Blizzard counts an Alliance character's Hall of Thanes end boss as
+-- Bazzalan (Ragefire Chasm, 15027). For the Alliance `alliance` adds those statistics to the Hall of
+-- Thanes, and Ragefire Chasm (`allianceLost`) stays in the list without a statistic. A Blizzard bug:
+-- once fixed (Alliance kills show up in Durgen Dirgehammer, 63573), drop both fields.
+Stats.ALL_DUNGEONS = {
+  { key = "thanes", new = true, min = 13, max = 18, stats = { 63573 }, alliance = { 15027 }, art = "INV_Hammer_09" },
+  { key = "ragefire", allianceLost = true, min = 13, max = 18, stats = { 15027 }, icon = "RagefireChasm", art = "Spell_Fire_Incinerate" },
+  { key = "lordaeron", new = true, min = 15, max = 20, stats = { 63571 }, art = "INV_Misc_Bone_HumanSkull_01" },
+  { key = "wailing", min = 17, max = 24, stats = { 15028 }, icon = "WailingCaverns", art = "Spell_Nature_NullifyPoison" },
+  { key = "deadmines", min = 17, max = 26, stats = { 63570 }, icon = "Deadmines", art = "INV_Pick_02" },
+  { key = "shadowfang", min = 22, max = 30, stats = { 1092 }, icon = "ShadowfangKeep", art = "Spell_Shadow_SummonFelHunter" },
+  { key = "excavation", new = true, min = 24, max = 29, stats = {}, art = "Trade_Archaeology" },
+  { key = "blackfathom", min = 24, max = 32, stats = { 6137 }, icon = "BlackfathomDeeps", art = "Spell_Frost_SummonWaterElemental" },
+  { key = "stockade", min = 24, max = 32, stats = { 15029 }, icon = "StormwindStockades", art = "INV_Misc_Key_04" },
+  { key = "dalaran", new = true, min = 28, max = 33, stats = { 63572, 63589 }, art = "Spell_Holy_MagicalSentry" },
+  { key = "gnomeregan", min = 29, max = 38, stats = { 6140 }, icon = "Gnomeregan", art = "INV_Gizmo_02" },
+  { key = "kraul", min = 29, max = 38, stats = { 6139 }, icon = "RazorfenKraul", art = "INV_Misc_Root_01" },
+  { key = "scarlet", min = 34, max = 45, stats = { 6786, 1093 }, icon = "ScarletMonastery", art = "INV_Helmet_17" },
+  { key = "drowned", new = true, min = 35, max = 40, stats = {}, art = "Spell_Frost_FrostWard" },
+  { key = "downs", min = 37, max = 46, stats = { 6141 }, icon = "RazorfenDowns", art = "Spell_Frost_FrostNova" },
+  { key = "kroldok", new = true, min = 40, max = 45, stats = {}, art = "Ability_Warrior_WarCry" },
+  { key = "uldaman", min = 41, max = 51, stats = { 6142 }, icon = "Uldaman", art = "INV_Misc_StoneTablet_05" },
+  { key = "zulfarrak", min = 44, max = 54, stats = { 1094 }, icon = "ZulFarak", art = "INV_Misc_Head_Troll_01" },
+  { key = "maraudon", min = 46, max = 55, stats = { 6143 }, icon = "Maraudon", art = "Spell_Nature_EarthBindTotem" },
+  { key = "alcaz", new = true, min = 48, max = 53, stats = { 63575 }, art = "Spell_Shadow_Teleport" },
+  { key = "sunken", min = 50, max = 60, stats = { 6144 }, icon = "SunkenTemple", art = "INV_Misc_Head_Dragon_Green" },
+  { key = "brd", min = 52, max = 60, stats = { 1095 }, icon = "BlackrockDepths", art = "INV_Hammer_Unique_Sulfuras" },
+  { key = "blackmaw", new = true, min = 55, max = 60, stats = {}, art = "Ability_Hunter_Pet_Bear" },
+  { key = "lbrs", min = 55, max = 60, stats = { 6145 }, icon = "BlackrockSpire", art = "INV_Misc_Head_Orc_01" },
+  { key = "ubrs", min = 55, max = 60, stats = { 1096 }, icon = "BlackrockSpire", art = "INV_Misc_Head_Dragon_Black" },
+  { key = "diremaul", min = 56, max = 60, stats = { 6146 }, icon = "DireMaul", art = "INV_Misc_Head_Ogre_01" },
+  { key = "shaper", new = true, min = 58, max = 60, stats = { 63574 }, art = "INV_Misc_Rune_01" },
+  { key = "scholomance", min = 58, max = 60, stats = { 15030 }, icon = "Scholomance", art = "Spell_Shadow_Charm" },
+  { key = "stratholme", min = 58, max = 60, stats = { 15031 }, icon = "Stratholme", art = "Spell_Shadow_RaiseDead" },
+  { key = "barrow", raid = true, stats = { 63581 }, art = "INV_Misc_Bone_ElfSkull_01" },
+  { key = "hyjal", raid = true, stats = { 63580 }, art = "INV_Misc_Herb_02" },
+  { key = "onyxia", raid = true, stats = { 1098 }, icon = "Onyxia", art = "INV_Misc_Head_Dragon_01" },
+}
+for _, category in ipairs(Stats.CATALOG) do
+  if category.bosses then
+    for _, dungeon in ipairs(Stats.ALL_DUNGEONS) do
+      for _, id in ipairs(dungeon.stats) do category.stats[#category.stats + 1] = id end
+    end
+  end
+end
+
+-- The dungeons as the player's faction ("Alliance", "Horde", nil = both) sees them: Stats.DUNGEONS.
+-- An entry with statistics added for the faction has merged = true and nameStat = its own statistic
+-- (the name), its stats start with the added ones (the ranking of a click); one whose statistic
+-- counts elsewhere has lost = true, no stats and nameStat for the name.
+local dungeonOf, faction = {}, false
+function Stats.SetFaction(new)
+  if new == faction then return end
+  faction = new
+  local list = {}
+  for _, def in ipairs(Stats.ALL_DUNGEONS) do
+    local alliance = faction == "Alliance"
+    if alliance and (def.alliance or def.allianceLost) then
+      local copy = {}
+      for k, v in pairs(def) do copy[k] = v end
+      copy.stats, copy.nameStat = {}, def.stats[1]
+      if def.alliance then
+        copy.merged = true
+        for _, id in ipairs(def.alliance) do copy.stats[#copy.stats + 1] = id end
+        for _, id in ipairs(def.stats) do copy.stats[#copy.stats + 1] = id end
+      else
+        copy.lost = true
+      end
+      def = copy
+    end
+    list[#list + 1] = def
+  end
+  Stats.DUNGEONS = list
+  dungeonOf = {}
+  for _, dungeon in ipairs(list) do
+    for _, id in ipairs(dungeon.stats) do dungeonOf[id] = dungeon end
+  end
+end
+Stats.SetFaction(nil)
+
+-- Level bands of the dungeon table: the dungeons up to and including `last`, the raids last
+Stats.DUNGEON_BANDS = { { last = "dalaran" }, { last = "kroldok" }, { last = "stratholme" }, { raid = true } }
+
+-- { {raid, min, max, dungeons = {...}} } in table order; min/max span the band's dungeons
+function Stats.DungeonBands()
+  local bands, b = {}, 1
+  for _, def in ipairs(Stats.DUNGEON_BANDS) do bands[#bands + 1] = { raid = def.raid, dungeons = {} } end
+  for _, dungeon in ipairs(Stats.DUNGEONS) do
+    if dungeon.raid then b = #bands end
+    local band = bands[b]
+    band.dungeons[#band.dungeons + 1] = dungeon
+    if not dungeon.raid then
+      band.min = math.min(band.min or dungeon.min, dungeon.min)
+      band.max = math.max(band.max or dungeon.max, dungeon.max)
+    end
+    if Stats.DUNGEON_BANDS[b].last == dungeon.key then b = b + 1 end
+  end
+  return bands
+end
+
+-- Kill count at a check mark of the dungeon table: nothing for one kill, "99+" from 100 on (the exact
+-- number is in the cell's tooltip), so it never gets wider than two digits
+function Stats.ShortCount(kills)
+  if not kills or kills <= 1 then return "" end
+  return kills > 99 and "99+" or tostring(kills)
+end
+
+-- Stats.DUNGEONS entry of an end boss statistic
+function Stats.DungeonOf(id)
+  return dungeonOf[id]
+end
 
 -- money = the game shows the value as gold/silver/copper; tenths = stored times ten
 Stats.MONEY = { [328] = true, [333] = true, [326] = true, [919] = true, [921] = true, [334] = true, [1146] = true,
@@ -427,8 +542,8 @@ local function StatValue(values, id)
   if id == "spent" then return Sum(values, Stats.SPENDING) end
   if id == "dungeons" then
     local count = 0
-    for _, boss in ipairs(Stats.Bosses()) do
-      if (values[boss] or 0) > 0 then count = count + 1 end
+    for _, dungeon in ipairs(Stats.DUNGEONS) do
+      if Sum(values, dungeon.stats) > 0 then count = count + 1 end
     end
     return count
   end

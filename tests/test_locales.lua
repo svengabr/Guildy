@@ -38,6 +38,14 @@ T.describe("Locales", function()
       for _, id in ipairs(list) do T.truthy(EN["FAME_FLOW_" .. id], "FAME_FLOW_" .. id) end
     end
   end)
+  T.it("names every dungeon the game has no statistic for", function()
+    for _, dungeon in ipairs(T.pureNs().Stats.DUNGEONS) do
+      if not dungeon.stats[1] then
+        T.truthy(EN["FAME_DUNGEON_" .. dungeon.key:upper()], "FAME_DUNGEON_" .. dungeon.key:upper())
+      end
+      T.truthy(dungeon.icon or dungeon.art, dungeon.key .. " has no icon")
+    end
+  end)
   T.it("has a name for every profession", function()
     local pure = T.pureNs()
     for _, key in pairs(pure.Professions.SKILL_LINES) do T.truthy(EN["PROF_" .. key], "PROF_" .. key) end

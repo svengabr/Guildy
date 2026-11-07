@@ -204,6 +204,65 @@ T.describe("Stats pages and gear", function()
     T.eq(Stats.Value(member.stats, "dungeons", "all", NOV, date), 2)
     T.eq(Stats.Value(member.stats, "bosses", "all", NOV, date), 4)
   end)
+  T.it("counts a dungeon with two end bosses once", function()
+    local member = {}
+    Stats.Update(member, { [63572] = 1, [63589] = 2, [1093] = 1 }, NOV, "self", date)
+    T.eq(Stats.Value(member.stats, "dungeons", "all", NOV, date), 2)
+    T.eq(Stats.Value(member.stats, "bosses", "all", NOV, date), 4)
+  end)
+  T.it("orders the dungeons by level and covers every boss statistic", function()
+    local covered, lastMin, raids = {}, 0, false
+    for _, d in ipairs(Stats.DUNGEONS) do
+      if d.raid then raids = true else
+        T.eq(raids, false)
+        T.truthy(d.min >= lastMin)
+        lastMin = d.min
+      end
+      for _, id in ipairs(d.stats) do covered[id] = true end
+    end
+    for _, id in ipairs(Stats.Bosses()) do T.truthy(covered[id]) end
+    T.eq(Stats.DungeonOf(63589).key, "dalaran")
+    T.eq(Stats.DungeonOf(15027).key, "ragefire")
+  end)
+  T.it("counts the Alliance's Hall of Thanes from Blizzard's Ragefire statistic", function()
+    Stats.SetFaction("Alliance")
+    local keys = {}
+    for _, d in ipairs(Stats.DUNGEONS) do keys[d.key] = d end
+    T.eq(#keys.ragefire.stats, 0)
+    T.eq(keys.ragefire.lost, true)
+    T.eq(#Stats.DUNGEONS, #Stats.ALL_DUNGEONS)
+    T.eq(keys.thanes.stats[1], 15027)
+    T.eq(keys.thanes.nameStat, 63573)
+    T.eq(Stats.DungeonOf(15027).key, "thanes")
+    local member = {}
+    Stats.Update(member, { [15027] = 2, [63573] = 1, [63570] = 1 }, NOV, "self", date)
+    T.eq(Stats.Value(member.stats, "dungeons", "all", NOV, date), 2)
+    Stats.SetFaction("Horde")
+    T.eq(Stats.DungeonOf(15027).key, "ragefire")
+    T.eq(#Stats.DUNGEONS, #Stats.ALL_DUNGEONS)
+    Stats.SetFaction(nil)
+  end)
+  T.it("shortens kill counts to at most two digits", function()
+    T.eq(Stats.ShortCount(1), "")
+    T.eq(Stats.ShortCount(nil), "")
+    T.eq(Stats.ShortCount(2), "2")
+    T.eq(Stats.ShortCount(99), "99")
+    T.eq(Stats.ShortCount(100), "99+")
+    T.eq(Stats.ShortCount(412), "99+")
+  end)
+  T.it("splits the dungeons into level bands, raids last", function()
+    local bands, count = Stats.DungeonBands(), 0
+    T.eq(#bands, 4)
+    T.eq(bands[1].min, 13)
+    T.eq(bands[1].max, 33)
+    T.eq(bands[1].dungeons[#bands[1].dungeons].key, "dalaran")
+    T.eq(bands[2].dungeons[1].key, "gnomeregan")
+    T.eq(bands[3].max, 60)
+    T.eq(bands[4].raid, true)
+    T.eq(#bands[4].dungeons, 3)
+    for _, band in ipairs(bands) do count = count + #band.dungeons end
+    T.eq(count, #Stats.DUNGEONS)
+  end)
   T.it("splits the reputation statistics into standings", function()
     local t = Stats.RepTiers({ [931] = 10, [1466] = 6, [529] = 3, [378] = 1 })
     T.eq(t.exalted, 0)

@@ -12,7 +12,9 @@ local byKey = {}
 local frame
 local current
 
-UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 960, 560, 1600, 1000 -- overview needs ~520 px
+-- overview needs ~520 px height; the Hall of Fame's dungeon table needs ~1130 px width for all 32
+-- dungeons and raids at 26 px each (UI/TabFame.lua)
+UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 1130, 560, 1600, 1000
 
 -- Tab modules call this at load time; builder(panel) returns a view with Refresh(event) and optional
 -- OnShow() / OnHide()
