@@ -922,6 +922,7 @@ local function Build(panel)
       if d.lost then GameTooltip:AddLine(L.FAME_DUNGEON_LOST, 0.6, 0.6, 0.6, true)
       elseif not d.stats[1] then GameTooltip:AddLine(L.FAME_DUNGEON_NO_STAT, 0.6, 0.6, 0.6, true) end
       if d.merged then GameTooltip:AddLine(L.FAME_DUNGEON_MERGED, 0.6, 0.6, 0.6, true) end
+      if d.uncounted and not b.col.cleared then GameTooltip:AddLine(L.FAME_DUNGEON_UNCOUNTED, 0.6, 0.6, 0.6, true) end
       GameTooltip:Show()
     end)
     head:SetScript("OnLeave", function()
@@ -931,11 +932,13 @@ local function Build(panel)
     return head
   end
 
-  local function SetHead(head, dungeon)
+  local function SetHead(head, col)
+    local dungeon = col.dungeon
     local icon, cropped = DungeonIcon(dungeon)
     head.Icon:SetTexture(icon)
     if cropped then head.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else head.Icon:SetTexCoord(0, 1, 0, 1) end
-    local known = dungeon.stats[1] ~= nil
+    -- grey: no statistic, or one Blizzard does not count yet (until a member has a kill in it)
+    local known = dungeon.stats[1] ~= nil and not (dungeon.uncounted and not col.cleared)
     head.Icon:SetDesaturated(not known)
     if known then head.Icon:SetVertexColor(1, 1, 1) else head.Icon:SetVertexColor(0.6, 0.6, 0.6) end
     head.Icon:SetShown(icon ~= nil)
@@ -1015,7 +1018,13 @@ local function Build(panel)
       head:SetWidth(colWidth)
       head:ClearAllPoints()
       head:SetPoint("TOPLEFT", self.Dungeons, "TOPLEFT", 8 + col.x, -42)
-      SetHead(head, col.dungeon)
+      if col.dungeon.uncounted then
+        col.cleared = false
+        for _, entry in ipairs(entries) do
+          if (DungeonKills(entry.rec, col.dungeon, "all") or 0) > 0 then col.cleared = true break end
+        end
+      end
+      SetHead(head, col)
       head:Show()
     end
     for i = #cols + 1, #self.DungeonHeads do self.DungeonHeads[i]:Hide() end

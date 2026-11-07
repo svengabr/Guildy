@@ -63,6 +63,8 @@ Stats.CATALOG = {
 -- Bazzalan (Ragefire Chasm, 15027). For the Alliance `alliance` adds those statistics to the Hall of
 -- Thanes, and Ragefire Chasm (`allianceLost`) stays in the list without a statistic. A Blizzard bug:
 -- once fixed (Alliance kills show up in Durgen Dirgehammer, 63573), drop both fields.
+-- uncounted = Blizzard does not count this dungeon yet (the Stockade: neither Bazil Thredd nor
+-- "dungeons entered" go up); grey with a note until a member has a kill in it.
 Stats.ALL_DUNGEONS = {
   { key = "thanes", new = true, min = 13, max = 18, stats = { 63573 }, alliance = { 15027 }, art = "INV_Hammer_09" },
   { key = "ragefire", allianceLost = true, min = 13, max = 18, stats = { 15027 }, icon = "RagefireChasm", art = "Spell_Fire_Incinerate" },
@@ -72,7 +74,7 @@ Stats.ALL_DUNGEONS = {
   { key = "shadowfang", min = 22, max = 30, stats = { 1092 }, icon = "ShadowfangKeep", art = "Spell_Shadow_SummonFelHunter" },
   { key = "excavation", new = true, min = 24, max = 29, stats = {}, art = "Trade_Archaeology" },
   { key = "blackfathom", min = 24, max = 32, stats = { 6137 }, icon = "BlackfathomDeeps", art = "Spell_Frost_SummonWaterElemental" },
-  { key = "stockade", min = 24, max = 32, stats = { 15029 }, icon = "StormwindStockades", art = "INV_Misc_Key_04" },
+  { key = "stockade", uncounted = true, min = 24, max = 32, stats = { 15029 }, icon = "StormwindStockades", art = "INV_Misc_Key_04" },
   { key = "dalaran", new = true, min = 28, max = 33, stats = { 63572, 63589 }, art = "Spell_Holy_MagicalSentry" },
   { key = "gnomeregan", min = 29, max = 38, stats = { 6140 }, icon = "Gnomeregan", art = "INV_Gizmo_02" },
   { key = "kraul", min = 29, max = 38, stats = { 6139 }, icon = "RazorfenKraul", art = "INV_Misc_Root_01" },
