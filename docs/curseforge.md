@@ -57,7 +57,7 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: Where the guild's gold comes from (quests, loot, vendors, auction house) and where it goes (flights, mail). Title cards for the top earners and traders, plus gold earned, spent and auctions per member.
 6. `media/gallery/06-hall-of-fame-dungeons.jpg`
    - Title: Hall of Fame: Dungeons
-   - Description: Dungeon bosses killed, dungeons cleared and entered, and deaths inside. The progress grid shows who has beaten which end boss; click a dungeon for its ranking.
+   - Description: Dungeon bosses killed, dungeons cleared and entered, and deaths inside. The progress grid covers all 32 dungeons and raids, grouped by level, and counts each member's clears; click a dungeon for its ranking.
 7. `media/gallery/07-hall-of-fame-reputation.jpg`
    - Title: Hall of Fame: Reputation
    - Description: Factions met and standings reached across the guild, with the reputation of every member from Friendly to Exalted. Switch between all time, this month and last month.
