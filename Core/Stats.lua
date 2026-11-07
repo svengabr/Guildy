@@ -20,9 +20,20 @@ Stats.MAX_VALUES = 500
 -- COUNT = number of equipped items read. Equipment read nearby (src "seen") without it is from before
 -- Guildy checked that every slot had arrived (often only a few items) and is dropped (Stats.CleanRecord);
 -- a member's own equipment ("self", "relay") was always complete and is kept.
-Stats.GEAR = { ILVL = 9900001, EPIC = 9900002, RARE = 9900003, UNCOMMON = 9900004, COUNT = 9900005 }
+-- COMMON/POOR = white/grey items, LEGENDARY = legendary or better, EMPTY = empty slots (the off hand
+-- next to a two-hander is not empty). Readings of older versions have none of these and count
+-- legendaries as epic.
+Stats.GEAR = { ILVL = 9900001, EPIC = 9900002, RARE = 9900003, UNCOMMON = 9900004, COUNT = 9900005,
+  COMMON = 9900006, POOR = 9900007, EMPTY = 9900008, LEGENDARY = 9900009 }
 Stats.GEAR_BASE = 9900000
 Stats.GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 } -- no shirt, tabard, ammo
+-- Quality per slot: ID GEAR_SLOT_BASE + slot, value quality + 1 (1 grey .. 6 legendary or better) or
+-- SLOT_TWO_HANDED for an off hand taken by a two-hander; an empty slot has no value. Readings of older
+-- versions have no slot values at all.
+Stats.GEAR_SLOT_BASE = 9900100
+Stats.SLOT_TWO_HANDED = 7
+-- Slots in the character window's order, in groups: armor, rings and trinkets, weapons
+Stats.GEAR_SLOT_GROUPS = { { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8 }, { 11, 12, 13, 14 }, { 16, 17, 18 } }
 
 -- Categories (Blizzard statistic category IDs) and the statistics Guildy tracks, in display order.
 -- isLocal = read by Guildy itself, never asked from the game; label = locale key for the name.
@@ -122,31 +133,62 @@ function Stats.Bosses()
   return {}
 end
 
--- Own equipment: { [GEAR id] = value } (average item level times ten, count of epic, rare and
--- uncommon items; zeros left out), {} with nothing equipped, or nil while an item's info is not
--- loaded yet. getLink(slot) -> item link; getInfo(link) -> name, link, quality, itemLevel.
+-- Own equipment: { [GEAR id] = value } (average item level times ten, count of items per quality,
+-- empty slots; zeros left out), {} with nothing equipped, or nil while an item's info is not loaded
+-- yet. getLink(slot) -> item link; getInfo(link) -> GetItemInfo's returns (quality 3rd, item level
+-- 4th, equip location 9th).
+local QUALITY_IDS = { [0] = "POOR", [1] = "COMMON", [2] = "UNCOMMON", [3] = "RARE", [4] = "EPIC", [5] = "LEGENDARY" }
 function Stats.ReadGear(getLink, getInfo)
-  local levels, count = 0, 0
-  local qualities = { [2] = 0, [3] = 0, [4] = 0 }
+  local levels, count, empty, twoHanded = 0, 0, 0, false
+  local qualities = { [0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0 }
+  local slots = {}
+  local emptyOffHand = false
   for _, slot in ipairs(Stats.GEAR_SLOTS) do
     local link = getLink(slot)
     if link then
-      local _, _, quality, level = getInfo(link)
+      local _, _, quality, level, _, _, _, _, equipLoc = getInfo(link)
       if type(quality) ~= "number" or type(level) ~= "number" then return nil end
       levels, count = levels + level, count + 1
-      local q = math.min(quality, 4)
-      if qualities[q] then qualities[q] = qualities[q] + 1 end
+      local q = math.max(0, math.min(quality, 5))
+      qualities[q] = qualities[q] + 1
+      slots[slot] = q + 1
+      if slot == 16 and equipLoc == "INVTYPE_2HWEAPON" then twoHanded = true end
+    elseif slot == 17 then
+      emptyOffHand = true
+    else
+      empty = empty + 1
     end
+  end
+  if emptyOffHand then
+    if twoHanded then slots[17] = Stats.SLOT_TWO_HANDED else empty = empty + 1 end
   end
   local values = {}
   if count > 0 then
     values[Stats.GEAR.ILVL] = math.floor(levels / count * 10 + 0.5)
     values[Stats.GEAR.COUNT] = count
+    if empty > 0 then values[Stats.GEAR.EMPTY] = empty end
+    for slot, value in pairs(slots) do values[Stats.GEAR_SLOT_BASE + slot] = value end
   end
-  if qualities[4] > 0 then values[Stats.GEAR.EPIC] = qualities[4] end
-  if qualities[3] > 0 then values[Stats.GEAR.RARE] = qualities[3] end
-  if qualities[2] > 0 then values[Stats.GEAR.UNCOMMON] = qualities[2] end
+  for q, key in pairs(QUALITY_IDS) do
+    if qualities[q] > 0 then values[Stats.GEAR[key]] = qualities[q] end
+  end
   return values
+end
+
+-- Quality per slot in the character window's order: { { value per slot }, ... } per group (value as
+-- in GEAR_SLOT_BASE, false for an empty slot), or nil for a reading without slot values
+function Stats.GearSlots(values)
+  local any = false
+  for _, slot in ipairs(Stats.GEAR_SLOTS) do
+    if values[Stats.GEAR_SLOT_BASE + slot] then any = true end
+  end
+  if not any then return nil end
+  local groups = {}
+  for g, group in ipairs(Stats.GEAR_SLOT_GROUPS) do
+    groups[g] = {}
+    for i, slot in ipairs(group) do groups[g][i] = values[Stats.GEAR_SLOT_BASE + slot] or false end
+  end
+  return groups
 end
 
 -- Removes equipment values without an item count (incomplete reads of older versions); returns values

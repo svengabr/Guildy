@@ -612,7 +612,8 @@ function GameStats.Show(name)
   end
   ns.Print("  in the Hall of Fame list: " .. (listed and "yes" or "no"))
   local gear = {}
-  for _, id in ipairs({ S.GEAR.ILVL, S.GEAR.EPIC, S.GEAR.RARE, S.GEAR.UNCOMMON, 339, 338 }) do
+  for _, id in ipairs({ S.GEAR.ILVL, S.GEAR.EPIC, S.GEAR.RARE, S.GEAR.UNCOMMON, S.GEAR.COMMON,
+    S.GEAR.POOR, S.GEAR.LEGENDARY, S.GEAR.EMPTY, S.GEAR.COUNT, 339, 338 }) do
     gear[#gear + 1] = id .. "=" .. tostring(rec.v and rec.v[id])
   end
   ns.Print("  equipment: " .. table.concat(gear, ", "))

@@ -13,23 +13,65 @@ local SPECIAL = { bosses = "FAME_BOSSES", dungeons = "FAME_DUNGEONS_DONE", spent
   [S.GEAR.UNCOMMON] = "FAME_GEAR_UNCOMMON", [339] = "FAME_MOUNTS", [338] = "FAME_PETS",
   [931] = "FAME_REP_931", [1466] = "FAME_REP_1466", [529] = "FAME_REP_529", [378] = "FAME_REP_378", [377] = "FAME_REP_377" }
 
--- a round dot in an item quality color, one per equipped item (the font has no dot character)
-local DOT = "|TInterface\\CHARACTERFRAME\\TempPortraitAlphaMask:9:9:0:0:64:64:0:64:0:64:%d:%d:%d|t"
-local QUALITY_DOTS = { { S.GEAR.EPIC, 163, 53, 238 }, { S.GEAR.RARE, 0, 112, 221 }, { S.GEAR.UNCOMMON, 30, 255, 0 } }
+-- a round dot in an item quality color, one per equipped item (the font has no dot character). Own
+-- textures with soft edges (Textures/Dot.tga, Ring.tga): the game's round masks look jagged this small.
+local TEXTURES = "Interface\\AddOns\\Guildy\\Textures\\"
+local DOT = "|T" .. TEXTURES .. "Dot:9:9:0:0:32:32:0:32:0:32:%d:%d:%d|t"
+local QUALITY_DOTS = { { S.GEAR.LEGENDARY, 255, 128, 0 }, { S.GEAR.EPIC, 163, 53, 238 }, { S.GEAR.RARE, 0, 112, 221 },
+  { S.GEAR.UNCOMMON, 30, 255, 0 }, { S.GEAR.COMMON, 255, 255, 255 }, { S.GEAR.POOR, 157, 157, 157 } }
+-- an empty slot: a hollow ring in muted red, same size as a dot
+local EMPTY = "|T" .. TEXTURES .. "Ring:9:9:0:0:32:32:0:32:0:32:210:75:60|t"
+-- per slot value (S.GEAR_SLOT_BASE): grey, white, green, blue, purple, orange; an off hand taken by a
+-- two-hander is a dim dot so the columns stay aligned
+local SLOT_COLORS = { { 157, 157, 157 }, { 255, 255, 255 }, { 30, 255, 0 }, { 0, 112, 221 }, { 163, 53, 238 },
+  { 255, 128, 0 }, [S.SLOT_TWO_HANDED] = { 78, 68, 52 } }
+-- 4 pixels of nothing between the slot groups: a transparent corner of the dot texture (a space is
+-- far wider in this font)
+local GROUP_GAP = "|T" .. TEXTURES .. "Dot:9:4:0:0:32:32:0:1:0:1|t"
 
--- dots = { {count, r, g, b} } with colors 0-255
+-- dots = { {count, r, g, b, texture?} } with colors 0-255; texture defaults to DOT
 local function DotRow(dots)
   local parts = {}
   for _, d in ipairs(dots) do
-    local dot = DOT:format(d[2], d[3], d[4])
+    local dot = (d[5] or DOT):format(d[2], d[3], d[4])
     for _ = 1, math.min(d[1] or 0, 30 - #parts) do parts[#parts + 1] = dot end
   end
   return #parts > 0 and table.concat(parts) or "|cff9a8f78–|r"
 end
 
+-- one dot per slot in the character window's order (armor, rings and trinkets, weapons), a ring for
+-- an empty slot, so members compare column by column
+local function SlotDots(groups)
+  local parts = {}
+  for g, group in ipairs(groups) do
+    if g > 1 then parts[#parts + 1] = GROUP_GAP end
+    for _, value in ipairs(group) do
+      local color = value and SLOT_COLORS[value]
+      parts[#parts + 1] = color and DOT:format(color[1], color[2], color[3]) or EMPTY
+    end
+  end
+  return table.concat(parts)
+end
+
+-- Readings with slot values: SlotDots. Older readings: one dot per equipped item by quality, then one
+-- ring per empty slot; without white, grey or empty counts their items without a quality count show
+-- as white.
 local function Dots(values)
-  local dots = {}
-  for i, quality in ipairs(QUALITY_DOTS) do dots[i] = { values[quality[1]] or 0, quality[2], quality[3], quality[4] } end
+  local groups = S.GearSlots(values)
+  if groups then return SlotDots(groups) end
+  local G = S.GEAR
+  local dots, colored, common = {}, 0, nil
+  for i, quality in ipairs(QUALITY_DOTS) do
+    local n = values[quality[1]] or 0
+    if quality[1] == G.COMMON then common = i
+    elseif quality[1] ~= G.POOR then colored = colored + n end
+    dots[i] = { n, quality[2], quality[3], quality[4] }
+  end
+  local count = values[G.COUNT]
+  if count and not values[G.COMMON] and not values[G.POOR] and not values[G.EMPTY] then
+    dots[common][1] = math.max(0, count - colored)
+  end
+  dots[#dots + 1] = { values[G.EMPTY] or 0, 0, 0, 0, EMPTY }
   return DotRow(dots)
 end
 

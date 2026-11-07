@@ -130,6 +130,29 @@ T.describe("Stats pages and gear", function()
     T.eq(Stats.ReadGear(link, function(l) local i = info[l] return "n", l, i[1], i[2] end), nil)
     T.eq(next(Stats.ReadGear(function() end, get)), nil)
   end)
+  T.it("counts white and grey items and empty slots, not the off hand next to a two-hander", function()
+    local items = { [1] = "hat", [5] = "rag", [16] = "staff" }
+    local info = { hat = { 1, 5 }, rag = { 0, 3 }, staff = { 2, 10, "INVTYPE_2HWEAPON" } }
+    local function link(slot) return items[slot] end
+    local function get(l) local i = info[l] return "n", l, i[1], i[2], nil, nil, nil, nil, i[3] end
+    local gear = Stats.ReadGear(link, get)
+    T.eq(gear[G.COMMON], 1)
+    T.eq(gear[G.POOR], 1)
+    T.eq(gear[G.UNCOMMON], 1)
+    T.eq(gear[G.EMPTY], #Stats.GEAR_SLOTS - 4) -- 3 items, off hand taken by the staff
+    info.hat = { 5, 60 }
+    T.eq(Stats.ReadGear(link, get)[G.LEGENDARY], 1)
+    T.eq(gear[Stats.GEAR_SLOT_BASE + 5], 1) -- grey chest
+    T.eq(gear[Stats.GEAR_SLOT_BASE + 17], Stats.SLOT_TWO_HANDED)
+    local groups = Stats.GearSlots(gear)
+    T.eq(groups[1][1], 2) -- head first, white
+    T.eq(groups[1][2], false) -- neck empty
+    T.eq(groups[3][1], 3) -- main hand, green
+    info.staff[3] = "INVTYPE_WEAPON"
+    T.eq(Stats.ReadGear(link, get)[G.EMPTY], #Stats.GEAR_SLOTS - 3)
+    T.eq(Stats.ReadGear(link, get)[Stats.GEAR_SLOT_BASE + 17], nil)
+    T.eq(Stats.GearSlots({ [G.COUNT] = 3 }), nil) -- older reading
+  end)
   T.it("keeps the last equipment when a reading has none", function()
     local member = {}
     Stats.Update(member, { [107] = 10, [G.ILVL] = 380, [G.COUNT] = 15 }, NOV, "self", date)
