@@ -185,6 +185,10 @@ local function Build()
   if rawget(_G, "ButtonFrameTemplate_HideButtonBar") then ButtonFrameTemplate_HideButtonBar(frame) end
   if frame.Inset then frame.Inset:Hide() end
   tinsert(UISpecialFrames, "GuildyFrame")
+  -- the template's close button calls HideUIPanel, which goes through Blizzard's protected panel
+  -- manager and is blocked in combat; hide directly, like Escape does
+  local close = frame.CloseButton or rawget(_G, "GuildyFrameCloseButton")
+  if type(close) == "table" and close.SetScript then close:SetScript("OnClick", function() frame:Hide() end) end
 
   -- guild emblem in the portrait (Blizzard's own drawing; the grey helmet when the guild has none)
   frame.Emblem = UI.GuildEmblem(frame, 60)
