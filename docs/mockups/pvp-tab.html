@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PvP-Seite Varianten</title>
+<style>
+@font-face{font-family:"Friz";src:url("../../media/gallery/fonts/FRIZQT__.TTF")}
+:root{--bg:#22252a;--frame:#16120e;--edge:#6b5631;--inset:#0d0b09;--line:#3a3022;--gold:#ffd100;--text:#e6dcc4;--dim:#9a8f78;--grn:#40e040;--red:#e05a48;--row:#1a150f}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at top,#2c3036,#17191c);color:var(--text);font-family:"Friz","Palatino Linotype",Georgia,serif;padding:28px 16px 60px}
+::selection{background:#5a4415;color:var(--gold)}
+.intro{max-width:1080px;margin:0 auto 26px;font-family:system-ui,sans-serif;color:#cfc7b4;font-size:14px;line-height:1.55}
+.intro h1{font-family:"Friz",Georgia,serif;color:var(--gold);font-weight:normal;font-size:26px;margin:0 0 8px}
+.intro code{background:#111;padding:1px 5px;border-radius:3px;color:#e8d9a8;font-size:12.5px}
+.intro table{border-collapse:collapse;margin:10px 0;font-size:13px}
+.intro td{padding:3px 14px 3px 0;vertical-align:top}.intro td:first-child{color:#e8d9a8;white-space:nowrap}
+.cap{max-width:1080px;margin:42px auto 10px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;color:#cfc7b4}
+.cap b{font-family:"Friz",Georgia,serif;font-weight:normal;color:var(--gold);font-size:20px;display:block;margin-bottom:2px}
+.cap ul{margin:6px 0 0;padding-left:18px}
+
+/* window */
+.wow{position:relative;max-width:1080px;margin:0 auto;background:var(--frame);border:3px solid var(--edge);outline:1px solid #000;border-radius:7px;box-shadow:inset 0 0 0 1px #2e2519,0 6px 22px rgba(0,0,0,.6);font-size:12px}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:var(--gold);text-align:center;padding:6px 0;font-size:14px;border-bottom:2px solid var(--edge);text-shadow:0 1px 1px #000;border-radius:4px 4px 0 0}
+.wclose{position:absolute;right:5px;top:4px;width:20px;height:20px;background:linear-gradient(#b3200f,#5c0b05);border:1px solid #d4a94a;border-radius:3px;color:var(--gold);font-size:11px;line-height:18px;text-align:center}
+.wbody{padding:8px 10px 10px;height:560px;display:flex;flex-direction:column;gap:8px}
+.top{display:flex;align-items:center;gap:10px}
+.top h2{margin:0 6px 0 4px;font-weight:normal;color:var(--gold);font-size:17px;text-shadow:0 1px 1px #000}
+.rbtn{background:linear-gradient(#a0170e,#560a05);border:1px solid #c9a24a;color:var(--gold);border-radius:3px;padding:2px 10px;font-size:11px;white-space:nowrap}
+.rbtn.on{background:linear-gradient(#3a3a3a,#1a1a1a);color:#fff;border-color:#9a9a9a}
+.rbtn.new{position:relative}
+.rbtn.new:after{content:"neu";position:absolute;top:-8px;right:-6px;background:var(--grn);color:#000;font-family:system-ui;font-size:8px;padding:0 3px;border-radius:2px}
+.sp{flex:1}
+.tabs{display:flex;gap:4px;padding:0 14px;max-width:1080px;margin:-1px auto 0}
+.tab{background:linear-gradient(#2a2219,#14100b);border:2px solid #5a4a2c;border-top:none;border-radius:0 0 6px 6px;color:var(--gold);padding:4px 14px;font-size:11.5px}
+.tab.on{background:linear-gradient(#5a4520,#2a2010);border-color:#c9a24a}
+.box{background:linear-gradient(#1b1610,#120e0a);border:1px solid #4a3d29;border-radius:3px;box-shadow:inset 0 0 8px rgba(0,0,0,.7)}
+.tiles{display:grid;gap:8px}
+.tile{height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.tile .v{color:var(--gold);font-size:22px;line-height:1}
+.tile .l{color:var(--dim);font-size:10.5px;margin-top:3px}
+.tile .t{font-size:10px;margin-top:2px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.card{height:46px;display:flex;align-items:center;gap:8px;padding:0 6px;min-width:0}
+.card img,.ico{width:34px;height:34px;border:1px solid #000;border-radius:2px;flex:none;box-shadow:0 0 0 1px #5a4a2c}
+.card div{min-width:0}
+.card .ct{color:var(--gold);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .cn{font-size:10.5px}
+.card .cv{color:var(--dim);font-size:10px;white-space:nowrap}
+.bh{display:flex;align-items:baseline;gap:8px;padding:7px 10px 2px}
+.bh .h{color:var(--gold);font-size:13px}
+.bh .hint{color:var(--dim);font-size:10.5px}
+table.m{width:100%;border-collapse:collapse;font-size:11px}
+table.m th{color:var(--dim);font-weight:normal;text-align:left;padding:4px 6px 3px;font-size:10.5px;white-space:nowrap}
+table.m th.s{color:var(--gold)}
+table.m td{padding:2px 6px;height:20px;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.m tr:nth-child(even) td{background:rgba(255,255,255,.025)}
+table.m tr.me td{background:rgba(255,209,0,.15)}
+.r{text-align:right}.dim{color:var(--dim)}.g{color:var(--grn)}.red{color:var(--red)}.gold{color:var(--gold)}
+.bar{height:8px;display:inline-block;vertical-align:middle}
+.wl{display:inline-flex;height:8px;width:120px;vertical-align:middle;background:#221c14;border:1px solid #000}
+.wl i{display:block;height:100%}
+.note{font-family:system-ui,sans-serif;font-size:11px;color:#b9ad8f;border:1px dashed #6b5631;border-radius:3px;padding:6px 8px;background:#15110c}
+/* class colors */
+.PAL{color:#F48CBA}.DRU{color:#FF7C0A}.WAR{color:#C69B6D}.SHA{color:#0070DD}.PRI{color:#fff}.MAG{color:#3FC7EB}.ROG{color:#FFF468}.HUN{color:#AAD372}.WLK{color:#8788EE}
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>PvP in der Ruhmeshalle: drei Wege</h1>
+  Eine fünfte Seite neben Allgemein · Wirtschaft · Dungeons · Ruf. Alle drei Varianten nutzen nur, was Guildy schon liest (<code>Stats.CATALOG</code>, Kategorie 21 und 128), und funktionieren mit dem Zeitraum-Schalter:
+  <table>
+    <tr><td>588</td><td>Ehrenhafte Siege</td></tr>
+    <tr><td>319 / 320</td><td>Duelle gewonnen / verloren (daraus: Duelle gesamt, Siegquote)</td></tr>
+    <tr><td>839</td><td>Schlachtfelder gespielt</td></tr>
+    <tr><td>1487</td><td>Todesstöße (steht heute auf „Allgemein“ als Karte „BLOWS“; zählt auch PvE-Todesstöße)</td></tr>
+  </table>
+  Was fehlt: gewonnene Schlachtfelder und Werte je Schlachtfeld. Die stehen in der Spielstatistik, Guildy fragt sie aber noch nicht ab. Variante C zeigt, wo sie hinkämen. Werte unten sind ausgedacht, passend zu Stufe 15–35.
+</div>
+
+<!-- ===================================================== A -->
+<div class="cap"><b>A · Wie die anderen Seiten</b>
+Kacheln, Titelkarten, eine Tabelle pro Mitglied. Kein neues Muster; wer Wirtschaft und Ruf kennt, findet sich sofort zurecht.
+<ul><li>Die Duellbilanz ist ein geteilter Balken (grün gewonnen, rot verloren), daneben die Quote.</li>
+<li>Titel: <i>Kopfjäger</i> (meiste ehrenhafte Siege), <i>Duellmeister</i>, <i>Prügelknabe</i> (meiste Niederlagen), <i>Frontschwein</i> (meiste Schlachtfelder), <i>Henker</i> (Todesstöße, wandert von Allgemein hierher).</li></ul></div>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia · Guildy</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div class="top"><h2>Ruhmeshalle</h2>
+      <span class="rbtn">Allgemein</span><span class="rbtn">Wirtschaft</span><span class="rbtn">Dungeons</span><span class="rbtn">Ruf</span><span class="rbtn on new">PvP</span>
+      <span class="sp"></span><span class="rbtn">Zeitraum: Gesamt</span><span class="rbtn">Alle Statistiken</span></div>
+    <div class="tiles" style="grid-template-columns:repeat(5,1fr)">
+      <div class="box tile"><div class="v">612</div><div class="l">Ehrenhafte Siege</div></div>
+      <div class="box tile"><div class="v">1.204</div><div class="l">Todesstöße</div></div>
+      <div class="box tile"><div class="v">187</div><div class="l">Duelle gewonnen</div></div>
+      <div class="box tile"><div class="v">171</div><div class="l">Duelle verloren</div></div>
+      <div class="box tile"><div class="v">48</div><div class="l">Schlachtfelder gespielt</div></div>
+    </div>
+    <div class="cards" style="grid-template-columns:repeat(5,1fr)">
+      <div class="box card"><img class="ico" src="https://wow.zamimg.com/images/wow/icons/large/inv_bannerpvp_02.jpg" alt=""><div><div class="ct">Kopfjäger</div><div class="cn DRU">Grok Zarn</div><div class="cv">141 · Ehrenhafte Siege</div></div></div>
+      <div class="box card"><img class="ico" src="https://wow.zamimg.com/images/wow/icons/large/ability_dualwield.jpg" alt=""><div><div class="ct">Duellmeister</div><div class="cn ROG">Lyra Fae</div><div class="cv">38 · Duelle gewonnen</div></div></div>
+      <div class="box card"><img class="ico" src="https://wow.zamimg.com/images/wow/icons/large/ability_warrior_challange.jpg" alt=""><div><div class="ct">Frontschwein</div><div class="cn SHA">Ruun Fels</div><div class="cv">12 · Schlachtfelder gespielt</div></div></div>
+      <div class="box card"><img class="ico" src="https://wow.zamimg.com/images/wow/icons/large/ability_backstab.jpg" alt=""><div><div class="ct">Henker</div><div class="cn PAL">Ylvara Dusk</div><div class="cv">214 · Todesstöße</div></div></div>
+      <div class="box card"><img class="ico" src="https://wow.zamimg.com/images/wow/icons/large/spell_holy_sealofsacrifice.jpg" alt=""><div><div class="ct">Prügelknabe</div><div class="cn MAG">Maximus Sog</div><div class="cv">29 · Duelle verloren</div></div></div>
+    </div>
+    <div class="box" style="flex:1;min-height:0;overflow:hidden">
+      <div class="bh"><span class="h">PvP pro Mitglied</span><span class="hint">14 von 72 · von Guildy-Nutzern geteilt oder in der Nähe gelesen</span></div>
+      <table class="m" id="tA"><thead><tr><th>Name</th><th>St.</th><th class="s">Ehrenhafte Siege</th><th></th><th>Duelle</th><th></th><th class="r">Quote</th><th class="r">Schlachtfelder</th><th class="r">diesen Monat</th><th class="r">Stand</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+<div class="tabs"><span class="tab">Chat</span><span class="tab">Mitglieder</span><span class="tab">Übersicht</span><span class="tab on">Ruhmeshalle</span><span class="tab">Berufe</span><span class="tab">Info &amp; Log</span><span class="tab">Ränge</span></div>
+
+<!-- ===================================================== B -->
+<div class="cap"><b>B · Zwei Ranglisten: Duelle und Feld</b>
+PvP in Classic sind zwei verschiedene Spiele: das Duell vor Orgrimmar und das offene Feld. Darum zwei Tabellen nebeneinander, jede nach ihrem eigenen Wert sortiert, mit Platzziffern.
+<ul><li>Links die Duell-Rangliste, sortiert nach Siegquote. Wer weniger als 5 Duelle hat, steht grau unten, damit ein 1:0 nicht Platz 1 wird.</li>
+<li>Rechts das Feld, sortiert nach ehrenhaften Siegen, mit Schlachtfeldern und Todesstößen.</li>
+<li>Oben drei Kacheln mit Vergleich zum Vormonat und statt einer Kartenreihe nur die zwei Spitzen des Zeitraums.</li></ul></div>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia · Guildy</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div class="top"><h2>Ruhmeshalle</h2>
+      <span class="rbtn">Allgemein</span><span class="rbtn">Wirtschaft</span><span class="rbtn">Dungeons</span><span class="rbtn">Ruf</span><span class="rbtn on new">PvP</span>
+      <span class="sp"></span><span class="rbtn">Zeitraum: Diesen Monat</span><span class="rbtn">Alle Statistiken</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2.2fr;gap:8px">
+      <div class="box tile"><div class="v">96</div><div class="l">Ehrenhafte Siege</div><div class="t g">+31 zum Vormonat</div></div>
+      <div class="box tile"><div class="v">74</div><div class="l">Duelle ausgetragen</div><div class="t g">+12 zum Vormonat</div></div>
+      <div class="box tile"><div class="v">9</div><div class="l">Schlachtfelder gespielt</div><div class="t red">−2 zum Vormonat</div></div>
+      <div class="box" style="display:flex;align-items:center;gap:14px;padding:0 12px">
+        <img class="ico" src="https://wow.zamimg.com/images/wow/icons/large/ability_dualwield.jpg" alt="">
+        <div style="font-size:11px;line-height:1.6">
+          <div><span class="gold">Duellmeister des Monats</span> · <span class="ROG">Lyra Fae</span> <span class="dim">11 : 2</span></div>
+          <div><span class="gold">Kopfjäger des Monats</span> · <span class="DRU">Grok Zarn</span> <span class="dim">27 Siege</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="box" style="overflow:hidden">
+        <div class="bh"><span class="h">Duelle</span><span class="hint">nach Siegquote · ab 5 Duellen</span></div>
+        <table class="m" id="tB1"><thead><tr><th class="r">#</th><th>Name</th><th></th><th class="r">S : N</th><th class="r s">Quote</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="box" style="overflow:hidden">
+        <div class="bh"><span class="h">Feld</span><span class="hint">nach ehrenhaften Siegen</span></div>
+        <table class="m" id="tB2"><thead><tr><th class="r">#</th><th>Name</th><th class="r s">Ehrenh. Siege</th><th></th><th class="r">Schlachtf.</th><th class="r">Todesstöße</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="tabs"><span class="tab">Chat</span><span class="tab">Mitglieder</span><span class="tab">Übersicht</span><span class="tab on">Ruhmeshalle</span><span class="tab">Berufe</span><span class="tab">Info &amp; Log</span><span class="tab">Ränge</span></div>
+
+<!-- ===================================================== C -->
+<div class="cap"><b>C · Monatswertung</b>
+Ehrenhafte Siege als Wettbewerb, der jeden Monat neu beginnt, so wie die Ehre im alten System wöchentlich abgerechnet wurde. Der Zeitraum-Schalter ist hier der Kern der Seite, nicht ein Filter.
+<ul><li>Links das Podium des Monats, rechts die Wertung mit Bewegung zum Vormonat (▲ 3 = drei Plätze aufgestiegen).</li>
+<li>Unten ein schmaler Streifen „Schlachtfelder“, der mit gespielten Schlachtfeldern startet. Gewonnene Schlachtfelder und Werte je Schlachtfeld (gestrichelt) kommen dazu, sobald Guildy sie abfragt.</li></ul></div>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia · Guildy</div><div class="wclose">✕</div>
+  <div class="wbody">
+    <div class="top"><h2>Ruhmeshalle</h2>
+      <span class="rbtn">Allgemein</span><span class="rbtn">Wirtschaft</span><span class="rbtn">Dungeons</span><span class="rbtn">Ruf</span><span class="rbtn on new">PvP</span>
+      <span class="sp"></span><span class="rbtn">Zeitraum: November</span><span class="rbtn">Alle Statistiken</span></div>
+    <div style="flex:1;min-height:0;display:grid;grid-template-columns:330px 1fr;gap:8px">
+      <div style="display:flex;flex-direction:column;gap:8px;min-height:0">
+        <div class="box" style="padding:10px 12px 12px;flex:1;display:flex;flex-direction:column">
+          <div class="h gold" style="font-size:13px">Wertung November</div>
+          <div class="dim" style="font-size:10.5px">Ehrenhafte Siege seit dem 1. · noch 23 Tage</div>
+          <div style="flex:1;display:flex;align-items:flex-end;justify-content:center;gap:8px;padding-top:14px">
+            <div style="text-align:center;width:88px"><div class="MAG" style="font-size:12px">Maximus Sog</div><div class="dim" style="font-size:10.5px;margin:2px 0 4px">19</div><div style="height:78px;background:linear-gradient(#5d6066,#2c2e32);border:1px solid #000;border-radius:2px 2px 0 0;color:#d8dade;font-size:22px;padding-top:6px">2</div></div>
+            <div style="text-align:center;width:96px"><img class="ico" style="margin-bottom:4px" src="https://wow.zamimg.com/images/wow/icons/large/inv_bannerpvp_02.jpg" alt=""><div class="DRU" style="font-size:13px">Grok Zarn</div><div class="dim" style="font-size:10.5px;margin:2px 0 4px">27</div><div style="height:112px;background:linear-gradient(#a8860c,#4d3c05);border:1px solid #000;border-radius:2px 2px 0 0;color:#1a1205;font-size:26px;padding-top:6px">1</div></div>
+            <div style="text-align:center;width:88px"><div class="PAL" style="font-size:12px">Ylvara Dusk</div><div class="dim" style="font-size:10.5px;margin:2px 0 4px">16</div><div style="height:56px;background:linear-gradient(#7a4a26,#3a220f);border:1px solid #000;border-radius:2px 2px 0 0;color:#fff0e0;font-size:20px;padding-top:6px">3</div></div>
+          </div>
+        </div>
+        <div class="box" style="padding:8px 12px">
+          <div class="dim" style="font-size:10.5px;margin-bottom:4px">Oktober gewonnen von</div>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px"><span class="ROG">Lyra Fae</span><span class="dim">34 Siege</span></div>
+        </div>
+      </div>
+      <div class="box" style="overflow:hidden;display:flex;flex-direction:column">
+        <div class="bh"><span class="h">Wertung</span><span class="hint">Platz im Vormonat zum Vergleich</span></div>
+        <table class="m" id="tC"><thead><tr><th class="r">#</th><th></th><th>Name</th><th class="r s">Ehrenh. Siege</th><th></th><th class="r">Duelle S : N</th><th class="r">Schlachtf.</th><th class="r">Stand</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="box" style="display:flex;align-items:center;gap:18px;padding:8px 12px">
+      <span class="gold" style="font-size:13px">Schlachtfelder</span>
+      <span>9 <span class="dim">gespielt im November</span></span>
+      <span class="note" style="flex:1">gewonnen · Kriegshymnenschlucht · Arathibecken · Alteractal: kommt dazu, sobald Guildy diese Spielstatistiken abfragt</span>
+    </div>
+  </div>
+</div>
+<div class="tabs"><span class="tab">Chat</span><span class="tab">Mitglieder</span><span class="tab">Übersicht</span><span class="tab on">Ruhmeshalle</span><span class="tab">Berufe</span><span class="tab">Info &amp; Log</span><span class="tab">Ränge</span></div>
+
+<script>
+// name, class, level, honorable kills, duels won, lost, battlegrounds, killing blows, HK this month, me
+const M=[
+ ["Grok Zarn","DRU",27,141,22,14,9,188,27],
+ ["Ylvara Dusk","PAL",35,118,19,9,7,214,16],
+ ["Ruun Fels","SHA",24,77,8,11,12,121,9],
+ ["Maximus Sog","MAG",15,64,12,29,4,98,19],
+ ["Lyra Fae","ROG",17,58,38,9,3,140,6],
+ ["Bo Halder","DRU",23,41,14,13,5,86,4,1],
+ ["Sariel Mondhauch","WAR",26,33,17,16,2,103,3],
+ ["Tam Tam","SHA",24,28,9,8,3,64,5],
+ ["Kalia Venn","WAR",24,21,6,4,1,59,2],
+ ["Serafine Liedwacht","PRI",22,14,3,12,2,22,1],
+ ["Mira Asmund","HUN",21,9,11,6,0,47,3],
+ ["Tolan Erdenruf","SHA",17,5,2,1,0,30,1],
+ ["Lila Lautstark","PAL",17,3,4,5,0,19,0],
+ ["Kesh Dornpfeil","HUN",14,0,1,0,0,13,0],
+];
+const COL={DRU:"#FF7C0A",PAL:"#F48CBA",SHA:"#0070DD",MAG:"#3FC7EB",ROG:"#FFF468",WAR:"#C69B6D",PRI:"#ffffff",HUN:"#AAD372"};
+const dash='<span class="dim">–</span>';
+const n=v=>v?v.toLocaleString("de-DE"):dash;
+const pct=(w,l)=>w+l?Math.round(w*100/(w+l))+" %":dash;
+const wl=(w,l,max)=>{const s=120*(w+l)/max;return `<span class="wl" style="width:${Math.max(s,2)}px"><i style="width:${w/(w+l||1)*100}%;background:#3fbf3f"></i><i style="flex:1;background:#b8402f"></i></span>`};
+const rowCls=m=>m[9]?' class="me"':'';
+// A
+const maxHK=Math.max(...M.map(m=>m[3])),maxD=Math.max(...M.map(m=>m[4]+m[5]));
+document.querySelector("#tA tbody").innerHTML=M.map(m=>`<tr${rowCls(m)}><td class="${m[1]}">${m[0]}</td><td>${m[2]}</td><td>${n(m[3])}</td><td><span class="bar" style="width:${m[3]?Math.max(1,140*m[3]/maxHK):0}px;background:${COL[m[1]]};opacity:.85"></span></td><td>${m[4]} : ${m[5]}</td><td>${m[4]+m[5]?wl(m[4],m[5],maxD):""}</td><td class="r">${pct(m[4],m[5])}</td><td class="r">${n(m[6])}</td><td class="r">${m[8]?'<span class="g">+'+m[8]+'</span>':dash}</td><td class="r dim">heute</td></tr>`).join("");
+// B1 duels
+const ranked=M.filter(m=>m[4]+m[5]>=5).sort((a,b)=>b[4]/(b[4]+b[5])-a[4]/(a[4]+a[5]));
+const few=M.filter(m=>m[4]+m[5]<5);
+const maxD2=Math.max(...ranked.map(m=>m[4]+m[5]));
+document.querySelector("#tB1 tbody").innerHTML=ranked.map((m,i)=>`<tr${rowCls(m)}><td class="r ${i<3?'gold':'dim'}">${i+1}.</td><td class="${m[1]}">${m[0]}</td><td>${wl(m[4],m[5],maxD2)}</td><td class="r">${m[4]} : ${m[5]}</td><td class="r">${pct(m[4],m[5])}</td></tr>`).join("")+few.map(m=>`<tr><td class="r dim">–</td><td class="dim">${m[0]}</td><td class="dim" style="font-size:10px">zu wenige Duelle</td><td class="r dim">${m[4]} : ${m[5]}</td><td class="r dim">–</td></tr>`).join("");
+// B2 field
+const byHK=[...M].sort((a,b)=>b[3]-a[3]);
+document.querySelector("#tB2 tbody").innerHTML=byHK.map((m,i)=>`<tr${rowCls(m)}><td class="r ${i<3?'gold':'dim'}">${i+1}.</td><td class="${m[1]}">${m[0]}</td><td class="r">${n(m[3])}</td><td><span class="bar" style="width:${m[3]?Math.max(1,90*m[3]/maxHK):0}px;background:${COL[m[1]]};opacity:.85"></span></td><td class="r">${n(m[6])}</td><td class="r">${n(m[7])}</td></tr>`).join("");
+// C month ranking with movement
+const prev={"Lyra Fae":1,"Grok Zarn":2,"Ylvara Dusk":3,"Ruun Fels":4,"Maximus Sog":7,"Bo Halder":5,"Tam Tam":9,"Sariel Mondhauch":6,"Mira Asmund":8,"Kalia Venn":10,"Serafine Liedwacht":11,"Tolan Erdenruf":12};
+const byMonth=[...M].sort((a,b)=>b[8]-a[8]||b[3]-a[3]);
+const maxM=byMonth[0][8];
+document.querySelector("#tC tbody").innerHTML=byMonth.map((m,i)=>{const p=prev[m[0]];let mv;
+ if(!m[8])mv=dash;else if(!p)mv='<span class="gold" style="font-size:9.5px">neu</span>';else if(p>i+1)mv=`<span class="g">▲ ${p-i-1}</span>`;else if(p<i+1)mv=`<span class="red">▼ ${i+1-p}</span>`;else mv='<span class="dim">=</span>';
+ return `<tr${rowCls(m)}><td class="r ${i<3&&m[8]?'gold':'dim'}">${m[8]?i+1+'.':'–'}</td><td style="font-size:10px;width:34px">${mv}</td><td class="${m[1]}">${m[0]}</td><td class="r">${n(m[8])}</td><td><span class="bar" style="width:${m[8]?Math.max(1,150*m[8]/maxM):0}px;background:${COL[m[1]]};opacity:.85"></span></td><td class="r">${m[4]} : ${m[5]}</td><td class="r">${n(m[6])}</td><td class="r dim">heute</td></tr>`}).join("");
+// missing icon fallback
+document.querySelectorAll("img.ico").forEach(i=>i.onerror=()=>{i.src="https://wow.zamimg.com/images/wow/icons/large/inv_misc_questionmark.jpg"});
+</script>
+</body>
+</html>
