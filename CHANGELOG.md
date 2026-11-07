@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+The Hall of Fame gets a fifth page: PvP. The window now closes with its X in combat too.
+
+- PvP: honorable kills, duels won and lost and battlegrounds played as guild totals, for all time,
+  this month or last month, and title cards (Headhunter, Duel master, Front-line regular, Punching
+  bag).
+- PvP per member: honorable kills with a bar in the class color, duels won : lost as a green and red
+  bar with the win rate, battlegrounds and honorable kills this month.
+- Killing blows stay on General: Blizzard's statistic counts creatures too.
+- The close button (X) works in combat. It used to do nothing until the fight was over; Escape
+  already worked.
+
 ## 0.3.5
 
 Hotfix: the Stockade is marked as not counted by Blizzard.
