@@ -71,7 +71,7 @@ local function Build(panel)
     local canOpen = ns.TradeSkill.CanOpenBook(m)
     local items = {
       { text = W.ClassName(m.name, m.classFile) .. " · " .. ns.TradeSkill.Name(skillLine), isTitle = true },
-      { text = canOpen and L.OPEN_BOOK or (m.online and L.OPEN_BOOK_OTHER_SERVER or L.OPEN_BOOK_OFFLINE),
+      { text = canOpen and L.OPEN_BOOK or L.OPEN_BOOK_OFFLINE,
         disabled = not canOpen, onClick = function() ns.TradeSkill.OpenBook(m, skillLine) end },
     }
     if prof and prof.recipes then
@@ -127,43 +127,145 @@ local function Build(panel)
   local status = W.Box(panel)
   status:SetPoint("TOPRIGHT", 0, -30)
   status:SetPoint("BOTTOMRIGHT", 0, 0)
-  status:SetWidth(290)
+  status:SetWidth(560)
+  -- wide enough for a member's row, but never more than about half of the tab
+  panel:HookScript("OnSizeChanged", function(_, width)
+    status:SetWidth(math.max(400, math.min(560, (width or 1000) * 0.46)))
+  end)
   status.Title = W.Text(status, "GameFontNormal", L.HARVEST_STATUS)
   status.Title:SetPoint("TOPLEFT", 10, -8)
   status.Progress = W.Text(status, "GameFontHighlightSmall")
   status.Progress:SetPoint("TOPLEFT", 10, -28)
   status.Progress:SetPoint("RIGHT", -10, 0)
+  -- progress bar: looks done of looks planned, with an estimate of the time left
+  local bar = CreateFrame("StatusBar", nil, status)
+  bar:SetPoint("TOPLEFT", status.Progress, "BOTTOMLEFT", 0, -6)
+  bar:SetPoint("RIGHT", -10, 0)
+  bar:SetHeight(16)
+  bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+  bar:SetStatusBarColor(0.83, 0.63, 0.09)
+  bar:SetMinMaxValues(0, 1)
+  bar.Back = bar:CreateTexture(nil, "BACKGROUND")
+  bar.Back:SetAllPoints()
+  bar.Back:SetColorTexture(0, 0, 0, 0.5)
+  bar.Text = W.Text(bar, "GameFontHighlightSmall")
+  bar.Text:SetPoint("CENTER")
+  status.Bar = bar
   status.Current = W.Text(status, "GameFontHighlight")
-  status.Current:SetPoint("TOPLEFT", status.Progress, "BOTTOMLEFT", 0, -6)
+  status.Current:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 0, -6)
   status.Current:SetPoint("RIGHT", -10, 0)
   status.Current:SetWordWrap(false)
   status.Hint = W.Text(status, "GameFontDisableSmall", L.HARVEST_RESULTS)
   status.Hint:SetPoint("TOPLEFT", status.Current, "BOTTOMLEFT", 0, -10)
-  status.Log = W.ScrollList(status, 18, function(row)
-    row.Icon = row:CreateTexture(nil, "ARTWORK")
-    row.Icon:SetSize(14, 14)
-    row.Icon:SetPoint("LEFT", 2, 0)
-    row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    row.Name = W.Text(row, "GameFontHighlightSmall")
-    row.Name:SetPoint("LEFT", 20, 0)
-    row.Name:SetWidth(120)
-    row.Name:SetWordWrap(false)
-    row.Result = W.Text(row, "GameFontHighlightSmall")
-    row.Result:SetPoint("LEFT", 144, 0)
-    row.Result:SetPoint("RIGHT", -2, 0)
-    row.Result:SetWordWrap(false)
-  end, function(row, e)
-    row.Icon:SetTexture(ns.Professions.ICONS[e.skillLine])
-    row.Name:SetText(W.ClassName(e.member, e.classFile))
+  -- one row per member: server id, one icon per profession looked at (bright with the recipe count =
+  -- book read, faded = doesn't have it, faded with "?" = no answer), a short summary; details on hover
+  local MAX_ICONS = 8
+  local ICON_X, SERVER_X = 156, 156 + MAX_ICONS * 24 + 6
+
+  local function LookLine(e)
+    local text, note
     if e.result == "found" then
-      row.Result:SetText("|cff40e040" .. L.HARVEST_FOUND:format(e.recipes or 0, e.rank or 0) .. "|r")
+      text = "|cff40e040" .. L.HARVEST_FOUND:format(e.recipes or 0, e.rank or 0) .. "|r"
     elseif e.result == "silent" then
-      row.Result:SetText("|cff999999" .. L.HARVEST_SILENT .. "|r")
+      text, note = "|cffff9933" .. L.HARVEST_SILENT .. "|r", L.HARVEST_DETAIL_SILENT
     elseif e.result == "absent" then
-      row.Result:SetText("|cff999999" .. L.HARVEST_ABSENT .. "|r")
+      text, note = "|cff999999" .. L.HARVEST_ABSENT .. "|r", L.HARVEST_DETAIL_ABSENT
     else
-      row.Result:SetText("|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r")
+      text, note = "|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r", L.HARVEST_DETAIL_NO_ANSWER
     end
+    local line = (e.skill or "?") .. ": " .. text .. " |cff9a8f78(" .. tostring(e.seconds or "?") .. " s, "
+      .. L.HARVEST_LOOK:format(e.look or 0, e.of or 0) .. ")|r"
+    return note and (line .. "\n   |cff9a8f78" .. note .. "|r") or line
+  end
+
+  status.Log = W.ScrollList(status, 26, function(row)
+    row.Name = W.Text(row, "GameFontHighlight")
+    row.Name:SetPoint("LEFT", 4, 0)
+    row.Name:SetWidth(ICON_X - 10)
+    row.Name:SetJustifyH("LEFT")
+    row.Name:SetWordWrap(false)
+    row.Icons = {}
+    for i = 1, MAX_ICONS do
+      local icon = row:CreateTexture(nil, "ARTWORK")
+      icon:SetSize(20, 20)
+      icon:SetPoint("LEFT", ICON_X + (i - 1) * 24, 0)
+      icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      icon.Mark = W.Text(row, "NumberFontNormalSmall")
+      icon.Mark:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -1)
+      row.Icons[i] = icon
+    end
+    row.Server = W.Text(row, "GameFontDisableSmall")
+    row.Server:SetPoint("LEFT", SERVER_X, 0)
+    row.Server:SetWidth(40)
+    row.Server:SetJustifyH("LEFT")
+    row.Summary = W.Text(row, "GameFontHighlightSmall")
+    row.Summary:SetPoint("LEFT", SERVER_X + 44, 0)
+    row.Summary:SetPoint("RIGHT", -4, 0)
+    row.Summary:SetJustifyH("LEFT")
+    row.Summary:SetWordWrap(false)
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", function(self)
+      if not self.Tip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      GameTooltip:SetText(self.TipTitle or "", 1, 0.82, 0)
+      for _, line in ipairs(self.Tip) do GameTooltip:AddLine(line, 1, 1, 1, true) end
+      GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  end, function(row, item)
+    for _, icon in ipairs(row.Icons) do
+      icon:Hide()
+      icon.Mark:SetText("")
+    end
+    if item.kind == "server" then
+      local e = item.entry
+      row.Name:SetText("|cffff9933" .. L.HARVEST_SERVER_BAD:format(tostring(e.server)) .. "|r")
+      row.Name:SetWidth(SERVER_X - 10)
+      row.Server:SetText("")
+      row.Summary:SetText("|cff9a8f78" .. L.HARVEST_SERVER_BAD_SHORT:format(e.skipped or 0) .. "|r")
+      row.TipTitle = L.HARVEST_SERVER_BAD:format(tostring(e.server))
+      row.Tip = { L.HARVEST_SERVER_BAD_DETAIL:format(e.misses or 0, e.skipped or 0) }
+      return
+    end
+    row.Name:SetWidth(ICON_X - 10)
+    row.Name:SetText(W.ClassName(item.member, item.classFile))
+    row.Server:SetText(item.server or "")
+    local books, recipes, silent, absent = 0, 0, 0, 0
+    local tip = {}
+    for i, e in ipairs(item.looks) do
+      local icon = row.Icons[i]
+      if icon then
+        icon:SetTexture(ns.Professions.ICONS[e.skillLine])
+        icon:Show()
+        local found = e.result == "found"
+        icon:SetDesaturated(not found)
+        icon:SetAlpha(found and 1 or 0.35)
+        if found then
+          icon.Mark:SetText("|cff40e040" .. (e.recipes or 0) .. "|r")
+        elseif e.result ~= "absent" then
+          icon.Mark:SetText("|cffff9933?|r")
+        end
+      end
+      if e.result == "found" then
+        books, recipes = books + 1, recipes + (e.recipes or 0)
+      elseif e.result == "absent" then
+        absent = absent + 1
+      else
+        silent = silent + 1
+      end
+      tip[#tip + 1] = LookLine(e)
+    end
+    local summary
+    if books > 0 then
+      summary = "|cff40e040" .. L.HARVEST_SUM_FOUND:format(books, recipes) .. "|r"
+    elseif silent > 0 then
+      summary = "|cffff9933" .. L.HARVEST_SUM_SILENT .. "|r"
+    else
+      summary = "|cff999999" .. L.HARVEST_SUM_NONE .. "|r"
+    end
+    row.Summary:SetText(summary)
+    row.TipTitle = item.member .. (item.server and ("  |cff9a8f78" .. L.HARVEST_SERVER:format(item.server) .. "|r") or "")
+    row.Tip = tip
   end)
   status.Log:SetPoint("TOPLEFT", status.Hint, "BOTTOMLEFT", -4, -4)
   status.Log:SetPoint("BOTTOMRIGHT", -26, 6)
@@ -188,20 +290,53 @@ local function Build(panel)
       self.ListBox:SetPoint("BOTTOMRIGHT", 0, 0)
     end
     if not shown then return end
+    self.Status.Bar:SetShown(running)
     if running then
-      local done, total, found = ns.Harvest.Progress()
+      local done, total, found, look, looks, left = ns.Harvest.Progress()
+      self.Status.Bar:SetValue(looks > 0 and look / looks or 0)
+      local eta = left >= 60 and L.HARVEST_ETA:format(math.floor(left / 60 + 0.5)) or L.HARVEST_ETA_SHORT
+      self.Status.Bar.Text:SetText(L.HARVEST_BAR:format(look, looks) .. " · " .. eta)
+      self.Status.Current:ClearAllPoints()
+      self.Status.Current:SetPoint("TOPLEFT", self.Status.Bar, "BOTTOMLEFT", 0, -6)
+      self.Status.Current:SetPoint("RIGHT", -10, 0)
       local progress = L.HARVEST_PROGRESS:format(done, total, found)
+      if (ns.Harvest.users or 0) > 0 then progress = progress .. "\n" .. L.HARVEST_USERS:format(ns.Harvest.users) end
       if (ns.Harvest.otherRealm or 0) > 0 then progress = progress .. "\n" .. L.HARVEST_OTHER_SERVER:format(ns.Harvest.otherRealm) end
       self.Status.Progress:SetText(progress)
       local name, skill, classFile = ns.Harvest.Current()
-      self.Status.Current:SetText(name and L.HARVEST_NOW:format(W.ClassName(name, classFile), skill) or L.HARVEST_WAITING)
+      local wait, slowed = ns.Harvest.Waiting()
+      if ns.Harvest.InCombatPause() then
+        self.Status.Current:SetText("|cffff9933" .. L.HARVEST_COMBAT .. "|r")
+      elseif name then
+        self.Status.Current:SetText(L.HARVEST_NOW:format(W.ClassName(name, classFile), skill))
+      elseif slowed and wait then
+        self.Status.Current:SetText("|cffff9933" .. L.HARVEST_SLOWED:format(math.ceil(wait)) .. "|r")
+      else
+        self.Status.Current:SetText(L.HARVEST_WAITING)
+      end
     else
       local idle = L.HARVEST_IDLE
       if (ns.Harvest.otherRealm or 0) > 0 then idle = L.HARVEST_OTHER_SERVER:format(ns.Harvest.otherRealm) .. "\n" .. idle end
+      if (ns.Harvest.users or 0) > 0 then idle = L.HARVEST_USERS:format(ns.Harvest.users) .. "\n" .. idle end
       self.Status.Progress:SetText(idle)
       self.Status.Current:SetText("")
+      self.Status.Current:ClearAllPoints()
+      self.Status.Current:SetPoint("TOPLEFT", self.Status.Progress, "BOTTOMLEFT", 0, -6)
+      self.Status.Current:SetPoint("RIGHT", -10, 0)
     end
-    self.Status.Log:SetItems(log)
+    -- the log is newest first: consecutive looks at one member become one row (looks in the order made)
+    local rows = {}
+    for _, e in ipairs(log) do
+      local last = rows[#rows]
+      if e.result == "serverbad" then
+        rows[#rows + 1] = { kind = "server", entry = e }
+      elseif last and last.kind == "member" and last.member == e.member then
+        table.insert(last.looks, 1, e)
+      else
+        rows[#rows + 1] = { kind = "member", member = e.member, classFile = e.classFile, server = e.server, looks = { e } }
+      end
+    end
+    self.Status.Log:SetItems(rows)
   end
   view.List = W.ScrollList(listBox, ROW, function(row)
     row:EnableMouse(true)

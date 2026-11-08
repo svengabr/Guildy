@@ -306,13 +306,10 @@ function TradeSkill.BuildLink(m, skillLine)
   return ("trade:%s:%d:%d"):format(m.guid, spell, skillLine)
 end
 
--- Whether Blizzard can show this member's recipe book now: online and on the player's server shard
--- (books of other shards never open on Forever)
+-- Whether Blizzard may show this member's recipe book now: online (it opens only when they are on the
+-- player's current server, which no data tells beforehand)
 function TradeSkill.CanOpenBook(m)
-  if not (m and m.online and m.guid) then return false end
-  local mine = ns.Try(rawget(_G, "UnitGUID"), "player")
-  local server = ns.Harvest.ServerId
-  return not mine or server(mine) == server(m.guid)
+  return m and m.online and m.guid and true or false
 end
 
 -- Opens a member's recipe book in Blizzard's window (it gets stored like a clicked link)
@@ -402,10 +399,14 @@ function TradeSkill.Debug()
     tostring((C_TradeSkillUI and rawget(C_TradeSkillUI, "IsTradeSkillLinked")) ~= nil or rawget(_G, "IsTradeSkillLinked") ~= nil)))
   if ns.Harvest then
     if ns.Harvest.IsRunning() then
-      local done, total, found = ns.Harvest.Progress()
+      local done, total, found, look, looks = ns.Harvest.Progress()
       local name, skill = ns.Harvest.Current()
-      print(("  reading members: running, %d/%d members, %d found, now %s %s"):format(done, total, found,
-        tostring(name), tostring(skill)))
+      local wait, slowed = ns.Harvest.Waiting()
+      print(("  reading members: running, %d/%d members, %d found, look %d/%d, now %s %s"):format(done, total, found,
+        look, looks, tostring(name), tostring(skill)))
+      print(("  waiting: %s s%s, combat pause %s, InCombatLockdown %s"):format(
+        wait and string.format("%.1f", wait) or "-", slowed and " (slowed)" or "",
+        tostring(ns.Harvest.InCombatPause()), tostring(InCombatLockdown())))
     else
       print("  reading members: not running")
     end

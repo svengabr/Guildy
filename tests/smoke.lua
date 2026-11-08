@@ -322,28 +322,74 @@ T.describe("Harvest", function()
     local queue, total = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end)
     T.eq(total, 1)
     T.eq(ns.Harvest.ServerId("Player-6949-0074341C"), "6949")
-    local _, sameTotal, other = ns.Harvest.BuildQueue({
-      { key = "x", name = "X", online = true, guid = "Player-6949-01" },
-      { key = "y", name = "Y", online = true, guid = "Player-6945-02" },
-    }, { members = {} }, now, function() return false end, "6949")
-    T.eq(sameTotal, 1)
-    T.eq(other, 1)
+    -- order: members in the player's zone first, then those with the player's server id, then the rest;
+    -- nobody is left out for their server id beforehand (it changes with the zone)
+    local shards = {
+      { key = "y", name = "Y", online = true, guid = "Player-6945-02", zone = "Dun Morogh" },
+      { key = "x", name = "X", online = true, guid = "Player-6949-01", zone = "Dun Morogh" },
+      { key = "z", name = "Z", online = true, guid = "Player-6950-03", zone = "Ironforge" },
+    }
+    local shardQueue, shardTotal = ns.Harvest.BuildQueue(shards, { members = {} }, now, function() return false end,
+      "6949", nil, "Ironforge")
+    T.eq(shardTotal, 3)
+    T.eq(shardQueue[1].member.key, "z")
+    T.eq(shardQueue[#shardQueue].member.key, "y")
     T.eq(#queue, #ns.Harvest.ORDER - 2) -- alchemy is fresh, blacksmithing known absent
+    -- members who run Guildy share their recipes themselves: not read, only counted
+    local _, userTotal, users = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end, nil,
+      function(m) return m.key == "a" end)
+    T.eq(userTotal, 0)
+    T.eq(users, 1)
+    -- after /guildy scanreset fresh data counts as old: alchemy is read again
+    guild.scanResetAt = now
+    local again = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end)
+    T.eq(#again, #ns.Harvest.ORDER - 1)
     for _, entry in ipairs(queue) do T.eq(entry.member.key, "a") end
   end)
 
   T.it("runs through online members and stops", function()
     local opened = {}
     env.SetItemRef = function(link) opened[#opened + 1] = link end
+    T.truthy(ns.Harvest.IsGuildyUser(ns.Roster.Find("Au Tsch")), "Au Tsch sent Guildy data earlier")
+    local isUser = ns.Harvest.IsGuildyUser
+    ns.Harvest.IsGuildyUser = function() return false end -- read Au Tsch anyway for this test
+    ns.Harvest.log = { { result = "found", member = "Old" } }
+    -- sound effects are off while reading and come back afterwards
+    local cvars = { Sound_EnableSFX = "1" }
+    env.GetCVar = function(name) return cvars[name] end
+    env.SetCVar = function(name, value) cvars[name] = value end
     ns.Harvest.Start()
+    T.eq(cvars.Sound_EnableSFX, "0")
+    T.eq(#ns.Harvest.log, 0) -- a new run starts with an empty log
+    ns.Harvest.IsGuildyUser = isUser
     T.truthy(ns.Harvest.IsRunning(), "running")
+    ns.UI.Show()
+    ns.UI.SelectTab("professions") -- status column with progress bar while running
+    -- in combat the run pauses and the status column says so; afterwards it goes on
+    env.InCombatLockdown = function() return true end
+    RunTimers(2)
+    T.truthy(ns.Harvest.IsRunning(), "still running in combat")
+    T.truthy(ns.Harvest.InCombatPause(), "paused in combat")
+    env.InCombatLockdown = function() return false end
     RunTimers(60)
     T.eq(ns.Harvest.IsRunning(), false)
+    T.eq(cvars.Sound_EnableSFX, "1")
+    T.eq(env.GuildyDB.harvestSfx, nil)
+    -- cut off by a reload: given back at the next login
+    env.GuildyDB.harvestSfx = "1"
+    cvars.Sound_EnableSFX = "0"
+    ns.Harvest.RestoreSound()
+    T.eq(cvars.Sound_EnableSFX, "1")
+    env.GetCVar, env.SetCVar = nil, nil
     T.truthy(#opened > 0, "opened links")
     T.eq(ns.GuildData().absent["au tsch"], nil) -- no answer is not "absent"
     T.eq(ns.Harvest.log[1].result, "silent") -- first look unanswered: member skipped
     T.eq(#opened, 1)
-    T.truthy(ns.GuildData().silent["au tsch"], "remembered as silent")
+    -- no book was read in this run: the silence may be the server slowing down, so it is not remembered
+    T.eq((ns.GuildData().silent or {})["au tsch"], nil)
+    ns.GuildData().silent = { ["au tsch"] = ns.Now() }
+    env.SlashCmdList.GUILDY("scanreset")
+    T.eq(ns.GuildData().silent["au tsch"], nil)
     ns.TradeSkill.Debug()
     env.SetItemRef = nil
     ns.UI.SelectTab("professions")

@@ -34,6 +34,7 @@ local HANDLERS = {
       hooksecurefunc("SetItemRef", function(link) ns.SafeCall(ns.TradeSkill.OnLinkClicked, link) end)
     end
     ns.Redirect.Apply()
+    ns.Harvest.RestoreSound() -- a run cut off by /reload or a crash left the sound effects off
     ns.Sync.Register()
     ns.Roster.Request(true)
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
@@ -106,6 +107,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))
   elseif msg:match("^statshow") then
     ns.GameStats.Show(raw:sub(10))
+  elseif msg == "scanreset" then
+    ns.Harvest.ResetMarks()
   elseif msg == "statreset" then
     ns.GameStats.ResetWaits()
   elseif msg == "statmouse" then
