@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0
+
+The professions tab is rebuilt: professions on the left, their members in the middle, the recipe book of
+the selected member on the right. Reading online members works per server.
+
+- Professions: a rail with every profession, its members, how many are online and the best skill. One
+  click shows its members, without scrolling through all professions.
+- Members: online first, then the offline ones below a divider; filter all, online or with recipes.
+  The skill is a bar with marks at the trainer caps, members at the cap of their rank are marked
+  "trainer". The age of the data only shows when it isn't from today.
+- Recipe book: the recipes of the selected member with their item icons, an own search and buttons to
+  open the recipe book, whisper or invite. Shift-click links a recipe in chat.
+- Recipe icons are the made items' icons, remembered whenever a recipe book is read. Open your own
+  books once, or use `/guildy scanreset` and read online members again, to fill them in.
+- Reading online members: only members on your current server answer, so members in your zone go
+  first, then those on your server; silent members are skipped for an hour instead of a day.
+- Members who run Guildy are not read, they share their recipes themselves.
+- The game's sound effects are off while reading and come back afterwards, also after a reload.
+- The status column shows one row per member with profession icons and recipe counts, a progress bar
+  with the time left, combat pauses and slowdowns.
+- `/guildy scanreset` reads every profession again.
+
 ## 0.4.0
 
 The Hall of Fame gets a fifth page: PvP. The window now closes with its X in combat too.
