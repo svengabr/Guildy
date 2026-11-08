@@ -43,8 +43,8 @@ function UI.MemberMenu(m, anchor)
   W.OpenMenu(anchor, items, 200)
 end
 
--- Tooltip for a roster member (owner frame given)
-function UI.MemberTooltip(owner, m)
+-- Tooltip for a roster member (owner frame given); hint replaces the default click hint
+function UI.MemberTooltip(owner, m, hint)
   local L = ns.L
   GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
   GameTooltip:SetText(W.ClassName(m.name, m.classFile))
@@ -75,7 +75,7 @@ function UI.MemberTooltip(owner, m)
     end
   end
   GameTooltip:AddLine(" ")
-  GameTooltip:AddLine(L.MEMBER_CLICK_HINT, 0.6, 0.6, 0.6, true)
+  GameTooltip:AddLine(hint or L.MEMBER_CLICK_HINT, 0.6, 0.6, 0.6, true)
   GameTooltip:Show()
 end
 

@@ -1,10 +1,18 @@
--- Professions tab: recipe search across all known members (who can craft X?) and, without a search,
--- the list of professions with their members, skill, data age and source.
+-- Professions tab in three parts: a rail with every profession (members, online, best skill), the members
+-- of the selected profession (skill bar, recipe count, data age) and the recipe book of the selected
+-- member. A search replaces members and book with the recipe results (who can craft X?).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
-local ROW = 18
+local RAIL_W, BOOK_W = 240, 300
+local RAIL_ROW, MEMBER_ROW, RECIPE_ROW = 44, 20, 20
+local BAR_W = 110
+local SKILL_SCALE = 300 -- the bar's full width: highest trainer cap of the game
+local BOOK_ICON = "Interface\\Icons\\INV_Misc_Book_09"
+local UNKNOWN_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local DOT_ON, DOT_OFF = "Interface\\COMMON\\Indicator-Green", "Interface\\COMMON\\Indicator-Gray"
+local GREEN, MUTED = "|cff40e040", "|cff9a8f78"
 
 local function SourceText(src)
   local L = ns.L
@@ -14,33 +22,93 @@ local function SourceText(src)
   return L.SRC_RELAY
 end
 
-local function ExpandKey(m, skillLine)
-  return m.key .. ":" .. skillLine
+-- "über Guildy" for today's data, "vor 3 Tg. · über Guildy" for older (amber after a week)
+local function DataText(prof)
+  if prof.src == "note" then return SourceText(prof.src) end
+  local days = type(prof.ts) == "number" and math.floor((ns.Now() - prof.ts) / 86400) or nil
+  if not days then return SourceText(prof.src) end
+  if days <= 0 then return SourceText(prof.src) end
+  local age = ns.L.DAYS_AGO:format(days)
+  if days > 7 then age = "|cffff9f2e" .. age .. "|r" end
+  return age .. " · " .. SourceText(prof.src)
 end
 
--- Recipe rows of an expanded member profession, sorted by name
-local function RecipeRows(m, prof, skillLine)
-  local rows = {}
-  for _, spellID in ipairs(prof.recipes or {}) do
-    local name = ns.TradeSkill.RecipeName(spellID) or ("#" .. spellID)
-    rows[#rows + 1] = { recipe = spellID, name = name, member = m, skillLine = skillLine }
+-- Icon of a recipe: the made item's icon from a recipe book read earlier. Without one, the recipe spell's
+-- icon, unless that is a stand-in (a "W", a blue swirl, the question mark ... different per profession):
+-- then the profession's icon.
+local KNOWN_PLACEHOLDERS = {
+  [136235] = true, [134400] = true,
+  ["interface\\icons\\temp"] = true, ["interface\\icons\\inv_misc_questionmark"] = true,
+}
+local iconCache = {}  -- spellID -> icon as the client gives it (false: none)
+local placeholders    -- skillLine -> set of stand-in icons; rebuilt on every refresh
+
+local function RawIcon(spellID)
+  if iconCache[spellID] == nil then
+    local get = (C_Spell and C_Spell.GetSpellTexture) or rawget(_G, "GetSpellTexture")
+    local icon = get and ns.Try(get, spellID)
+    iconCache[spellID] = icon or false
   end
-  table.sort(rows, function(a, b) return a.name < b.name end)
-  return rows
+  return iconCache[spellID] or nil
 end
 
--- Rows for the profession overview: a header per profession, then its members (online first, skill
--- desc), with the recipes of expanded members below them
-local function OverviewRows(expanded)
+-- stand-in icons per profession, from all recipes of the guild
+local function Placeholders()
+  if placeholders then return placeholders end
+  placeholders = {}
   local guild = ns.GuildData()
-  local rows = {}
-  if not guild then return rows end
+  local seen = {}
+  for _, record in pairs(guild and guild.members or {}) do
+    for skillLine, prof in pairs(record.profs or {}) do
+      seen[skillLine] = seen[skillLine] or {}
+      for _, spellID in ipairs(prof.recipes or {}) do seen[skillLine][spellID] = true end
+    end
+  end
+  for skillLine, spells in pairs(seen) do
+    local icons = {}
+    for spellID in pairs(spells) do
+      local icon = RawIcon(spellID)
+      if icon then icons[#icons + 1] = icon end
+    end
+    placeholders[skillLine] = ns.Professions.PlaceholderIcons(icons)
+  end
+  return placeholders
+end
+
+local function SpellIcon(spellID, skillLine)
+  local made = ns.TradeSkill.RecipeIcon(spellID)
+  if made then return made end
+  local icon = RawIcon(spellID)
+  local key = type(icon) == "string" and icon:lower() or icon
+  local standIns = Placeholders()[skillLine]
+  if icon and not KNOWN_PLACEHOLDERS[key] and not (standIns and standIns[icon]) then return icon end
+  return ns.Professions.ICONS[skillLine] or UNKNOWN_ICON
+end
+
+local function InsertRecipeLink(spellID)
+  local getLink = (C_Spell and C_Spell.GetSpellLink) or rawget(_G, "GetSpellLink")
+  local link = getLink and ns.Try(getLink, spellID)
+  local insert = rawget(_G, "ChatEdit_InsertLink") or (ChatFrameUtil and ChatFrameUtil.InsertLink)
+  if link and insert then pcall(insert, link) end
+end
+
+-- One entry per profession somebody has: its members (online first, skill desc, name) and the numbers
+-- for the rail
+local function Groups()
+  local guild = ns.GuildData()
+  local groups = {}
+  if not guild then return groups end
   for _, skillLine in ipairs(ns.Professions.ORDER) do
-    local members = {}
+    local members, online, best, books = {}, 0, nil, 0
     for key, record in pairs(guild.members) do
       local prof = record.profs and record.profs[skillLine]
-      local m = ns.Roster.Find(key)
-      if prof and m then members[#members + 1] = { member = m, prof = prof } end
+      local m = prof and ns.Roster.Find(key)
+      if m then
+        members[#members + 1] = { member = m, prof = prof }
+        if m.online then online = online + 1 end
+        if prof.rank and (not best or prof.rank > best) then best = prof.rank end
+        if prof.recipes and #prof.recipes > 0 then books = books + 1 end
+      end
     end
     if #members > 0 then
       table.sort(members, function(a, b)
@@ -49,50 +117,81 @@ local function OverviewRows(expanded)
         if ra ~= rb then return ra > rb end
         return a.member.name < b.member.name
       end)
-      rows[#rows + 1] = { header = true, skillLine = skillLine, count = #members }
-      for _, entry in ipairs(members) do
-        local open = expanded[ExpandKey(entry.member, skillLine)] and entry.prof.recipes ~= nil
-        rows[#rows + 1] = { member = entry.member, prof = entry.prof, skillLine = skillLine, open = open }
-        if open then
-          for _, recipeRow in ipairs(RecipeRows(entry.member, entry.prof, skillLine)) do rows[#rows + 1] = recipeRow end
-        end
-      end
+      groups[#groups + 1] = { skillLine = skillLine, members = members, online = online, best = best, books = books }
     end
   end
-  return rows
+  return groups
+end
+
+-- Skill bar on the whole 0-300 scale: thin ticks at the trainer caps, the current cap shaded, the fill
+-- bright gold when the member is at the cap of their rank
+local function SkillBar(parent)
+  local bar = CreateFrame("Frame", nil, parent)
+  bar:SetSize(BAR_W, 6)
+  bar.Track = bar:CreateTexture(nil, "BACKGROUND")
+  bar.Track:SetAllPoints()
+  bar.Track:SetColorTexture(0, 0, 0, 0.75)
+  bar.Cap = bar:CreateTexture(nil, "BORDER")
+  bar.Cap:SetPoint("TOPLEFT")
+  bar.Cap:SetPoint("BOTTOMLEFT")
+  bar.Cap:SetColorTexture(1, 1, 1, 0.07)
+  bar.Fill = bar:CreateTexture(nil, "ARTWORK")
+  bar.Fill:SetPoint("TOPLEFT")
+  bar.Fill:SetPoint("BOTTOMLEFT")
+  for i = 1, 3 do
+    local tick = bar:CreateTexture(nil, "OVERLAY")
+    tick:SetSize(1, 10)
+    tick:SetPoint("LEFT", BAR_W * i / 4, 0)
+    tick:SetColorTexture(1, 1, 1, 0.14)
+  end
+  function bar:SetSkill(rank, max)
+    local scale = math.max(SKILL_SCALE, max or 0)
+    self.Cap:SetShown(max ~= nil)
+    if max then self.Cap:SetWidth(math.max(1, BAR_W * math.min(max, scale) / scale)) end
+    self.Fill:SetWidth(math.max(1, BAR_W * math.min(rank, scale) / scale))
+    if max and rank >= max then
+      self.Fill:SetColorTexture(1, 0.85, 0.3, 1)
+    else
+      self.Fill:SetColorTexture(0.75, 0.56, 0.15, 1)
+    end
+  end
+  return bar
+end
+
+local dotTextures
+local function Dot(parent)
+  if dotTextures == nil then dotTextures = W.TextureExists(DOT_ON) and W.TextureExists(DOT_OFF) end
+  local dot = parent:CreateTexture(nil, "ARTWORK")
+  dot:SetSize(12, 12)
+  function dot:SetOnline(on)
+    if dotTextures then
+      self:SetTexture(on and DOT_ON or DOT_OFF)
+    else -- small square in the client's online green / grey
+      self:SetSize(6, 6)
+      if on then self:SetColorTexture(0.25, 0.88, 0.25, 1) else self:SetColorTexture(0.4, 0.4, 0.4, 1) end
+    end
+    self:SetAlpha(on and 1 or 0.6)
+  end
+  return dot
 end
 
 local function Build(panel)
   local L = ns.L
-  local view = { query = "", expanded = {} }
+  local view = { query = "", recipeQuery = "", filter = "all", skill = nil, memberKey = nil }
 
-  -- Menu for a member's profession: open Blizzard's recipe book, show/hide recipes, whisper, invite
-  local function ProfessionMenu(anchor, m, skillLine, prof)
+  -- Menu for a member's profession: open Blizzard's recipe book, whisper, invite
+  local function ProfessionMenu(anchor, m, skillLine)
     local canOpen = ns.TradeSkill.CanOpenBook(m)
-    local items = {
+    W.OpenMenu(anchor, {
       { text = W.ClassName(m.name, m.classFile) .. " · " .. ns.TradeSkill.Name(skillLine), isTitle = true },
       { text = canOpen and L.OPEN_BOOK or L.OPEN_BOOK_OFFLINE,
         disabled = not canOpen, onClick = function() ns.TradeSkill.OpenBook(m, skillLine) end },
-    }
-    if prof and prof.recipes then
-      local key = ExpandKey(m, skillLine)
-      items[#items + 1] = { text = view.expanded[key] and L.HIDE_RECIPES or L.SHOW_RECIPES, onClick = function()
-        view.expanded[key] = not view.expanded[key] or nil
-        view:Refresh()
-      end }
-    end
-    items[#items + 1] = { text = L.WHISPER, disabled = not m.online, onClick = function() UI.Whisper(m.fullName) end }
-    items[#items + 1] = { text = L.GROUP_INVITE, disabled = not m.online, onClick = function() ns.Roster.GroupInvite(m) end }
-    W.OpenMenu(anchor, items, 230)
+      { text = L.WHISPER, disabled = not m.online, onClick = function() UI.Whisper(m.fullName) end },
+      { text = L.GROUP_INVITE, disabled = not m.online, onClick = function() ns.Roster.GroupInvite(m) end },
+    }, 230)
   end
 
-  local function InsertRecipeLink(spellID)
-    local getLink = (C_Spell and C_Spell.GetSpellLink) or rawget(_G, "GetSpellLink")
-    local link = getLink and ns.Try(getLink, spellID)
-    local insert = rawget(_G, "ChatEdit_InsertLink") or (ChatFrameUtil and ChatFrameUtil.InsertLink)
-    if link and insert then pcall(insert, link) end
-  end
-
+  -- top row: search, hint, reading members --------------------------------------------------------------
   local search = W.EditBox(panel, 320)
   search:SetPoint("TOPLEFT", 54, -4) -- clear of the portrait
   search.Hint = W.Text(search, "GameFontDisableSmall", L.SEARCH_RECIPES)
@@ -123,15 +222,11 @@ local function Build(panel)
   view.Info:SetJustifyH("LEFT")
   view.Info:SetWordWrap(false)
 
-  -- status column while reading members: current look and the latest results
+  -- status column while reading members: current look and the latest results ----------------------------
   local status = W.Box(panel)
   status:SetPoint("TOPRIGHT", 0, -30)
   status:SetPoint("BOTTOMRIGHT", 0, 0)
-  status:SetWidth(560)
-  -- wide enough for a member's row, but never more than about half of the tab
-  panel:HookScript("OnSizeChanged", function(_, width)
-    status:SetWidth(math.max(400, math.min(560, (width or 1000) * 0.46)))
-  end)
+  status:SetWidth(BOOK_W + 100)
   status.Title = W.Text(status, "GameFontNormal", L.HARVEST_STATUS)
   status.Title:SetPoint("TOPLEFT", 10, -8)
   status.Progress = W.Text(status, "GameFontHighlightSmall")
@@ -157,15 +252,16 @@ local function Build(panel)
   status.Current:SetWordWrap(false)
   status.Hint = W.Text(status, "GameFontDisableSmall", L.HARVEST_RESULTS)
   status.Hint:SetPoint("TOPLEFT", status.Current, "BOTTOMLEFT", 0, -10)
-  -- one row per member: server id, one icon per profession looked at (bright with the recipe count =
-  -- book read, faded = doesn't have it, faded with "?" = no answer), a short summary; details on hover
+  -- one row per member: one icon per profession looked at (bright with the recipe count = book read,
+  -- faded = doesn't have it, faded with "?" = no answer), a short summary; details on hover
   local MAX_ICONS = 8
-  local ICON_X, SERVER_X = 156, 156 + MAX_ICONS * 24 + 6
+  local ICON_X = 130
+  local SUMMARY_X = ICON_X + MAX_ICONS * 22 + 6
 
   local function LookLine(e)
     local text, note
     if e.result == "found" then
-      text = "|cff40e040" .. L.HARVEST_FOUND:format(e.recipes or 0, e.rank or 0) .. "|r"
+      text = GREEN .. L.HARVEST_FOUND:format(e.recipes or 0, e.rank or 0) .. "|r"
     elseif e.result == "silent" then
       text, note = "|cffff9933" .. L.HARVEST_SILENT .. "|r", L.HARVEST_DETAIL_SILENT
     elseif e.result == "absent" then
@@ -173,35 +269,29 @@ local function Build(panel)
     else
       text, note = "|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r", L.HARVEST_DETAIL_NO_ANSWER
     end
-    local line = (e.skill or "?") .. ": " .. text .. " |cff9a8f78(" .. tostring(e.seconds or "?") .. " s, "
+    local line = (e.skill or "?") .. ": " .. text .. " " .. MUTED .. "(" .. tostring(e.seconds or "?") .. " s, "
       .. L.HARVEST_LOOK:format(e.look or 0, e.of or 0) .. ")|r"
-    return note and (line .. "\n   |cff9a8f78" .. note .. "|r") or line
+    return note and (line .. "\n   " .. MUTED .. note .. "|r") or line
   end
 
-  status.Log = W.ScrollList(status, 26, function(row)
-    row.Name = W.Text(row, "GameFontHighlight")
+  status.Log = W.ScrollList(status, 24, function(row)
+    row.Name = W.Text(row, "GameFontHighlightSmall")
     row.Name:SetPoint("LEFT", 4, 0)
-    row.Name:SetWidth(ICON_X - 10)
-    row.Name:SetJustifyH("LEFT")
+    row.Name:SetWidth(ICON_X - 8)
     row.Name:SetWordWrap(false)
     row.Icons = {}
     for i = 1, MAX_ICONS do
       local icon = row:CreateTexture(nil, "ARTWORK")
-      icon:SetSize(20, 20)
-      icon:SetPoint("LEFT", ICON_X + (i - 1) * 24, 0)
+      icon:SetSize(18, 18)
+      icon:SetPoint("LEFT", ICON_X + (i - 1) * 22, 0)
       icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
       icon.Mark = W.Text(row, "NumberFontNormalSmall")
       icon.Mark:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -1)
       row.Icons[i] = icon
     end
-    row.Server = W.Text(row, "GameFontDisableSmall")
-    row.Server:SetPoint("LEFT", SERVER_X, 0)
-    row.Server:SetWidth(40)
-    row.Server:SetJustifyH("LEFT")
     row.Summary = W.Text(row, "GameFontHighlightSmall")
-    row.Summary:SetPoint("LEFT", SERVER_X + 44, 0)
+    row.Summary:SetPoint("LEFT", SUMMARY_X, 0)
     row.Summary:SetPoint("RIGHT", -4, 0)
-    row.Summary:SetJustifyH("LEFT")
     row.Summary:SetWordWrap(false)
     row:EnableMouse(true)
     row:SetScript("OnEnter", function(self)
@@ -220,17 +310,15 @@ local function Build(panel)
     if item.kind == "server" then
       local e = item.entry
       row.Name:SetText("|cffff9933" .. L.HARVEST_SERVER_BAD:format(tostring(e.server)) .. "|r")
-      row.Name:SetWidth(SERVER_X - 10)
-      row.Server:SetText("")
-      row.Summary:SetText("|cff9a8f78" .. L.HARVEST_SERVER_BAD_SHORT:format(e.skipped or 0) .. "|r")
+      row.Name:SetWidth(SUMMARY_X - 8)
+      row.Summary:SetText(MUTED .. L.HARVEST_SERVER_BAD_SHORT:format(e.skipped or 0) .. "|r")
       row.TipTitle = L.HARVEST_SERVER_BAD:format(tostring(e.server))
       row.Tip = { L.HARVEST_SERVER_BAD_DETAIL:format(e.misses or 0, e.skipped or 0) }
       return
     end
-    row.Name:SetWidth(ICON_X - 10)
+    row.Name:SetWidth(ICON_X - 8)
     row.Name:SetText(W.ClassName(item.member, item.classFile))
-    row.Server:SetText(item.server or "")
-    local books, recipes, silent, absent = 0, 0, 0, 0
+    local books, recipes, silent = 0, 0, 0
     local tip = {}
     for i, e in ipairs(item.looks) do
       local icon = row.Icons[i]
@@ -241,30 +329,28 @@ local function Build(panel)
         icon:SetDesaturated(not found)
         icon:SetAlpha(found and 1 or 0.35)
         if found then
-          icon.Mark:SetText("|cff40e040" .. (e.recipes or 0) .. "|r")
+          icon.Mark:SetText(GREEN .. (e.recipes or 0) .. "|r")
         elseif e.result ~= "absent" then
           icon.Mark:SetText("|cffff9933?|r")
         end
       end
       if e.result == "found" then
         books, recipes = books + 1, recipes + (e.recipes or 0)
-      elseif e.result == "absent" then
-        absent = absent + 1
-      else
+      elseif e.result ~= "absent" then
         silent = silent + 1
       end
       tip[#tip + 1] = LookLine(e)
     end
     local summary
     if books > 0 then
-      summary = "|cff40e040" .. L.HARVEST_SUM_FOUND:format(books, recipes) .. "|r"
+      summary = GREEN .. L.HARVEST_SUM_FOUND:format(books, recipes) .. "|r"
     elseif silent > 0 then
       summary = "|cffff9933" .. L.HARVEST_SUM_SILENT .. "|r"
     else
       summary = "|cff999999" .. L.HARVEST_SUM_NONE .. "|r"
     end
     row.Summary:SetText(summary)
-    row.TipTitle = item.member .. (item.server and ("  |cff9a8f78" .. L.HARVEST_SERVER:format(item.server) .. "|r") or "")
+    row.TipTitle = item.member .. (item.server and ("  " .. MUTED .. L.HARVEST_SERVER:format(item.server) .. "|r") or "")
     row.Tip = tip
   end)
   status.Log:SetPoint("TOPLEFT", status.Hint, "BOTTOMLEFT", -4, -4)
@@ -272,24 +358,353 @@ local function Build(panel)
   status:Hide()
   view.Status = status
 
-  local listBox = W.Box(panel)
-  listBox:SetPoint("TOPLEFT", 0, -30)
-  listBox:SetPoint("BOTTOMRIGHT", 0, 0)
-  view.ListBox = listBox
+  -- rail: one row per profession ------------------------------------------------------------------------
+  local rail = W.Box(panel)
+  rail:SetPoint("TOPLEFT", 0, -30)
+  rail:SetPoint("BOTTOMLEFT", 0, 0)
+  rail:SetWidth(RAIL_W)
+  view.Rail = W.ScrollList(rail, RAIL_ROW, function(row)
+    row:EnableMouse(true)
+    row.Selected = row:CreateTexture(nil, "BACKGROUND")
+    row.Selected:SetAllPoints()
+    row.Selected:SetColorTexture(1, 0.82, 0, 0.16)
+    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 0.82, 0, 0.08)
+    row.Icon = W.Icon(row, 30)
+    row.Icon.Border:SetPoint("LEFT", 6, 0)
+    row.Name = W.Text(row, "GameFontHighlight")
+    row.Name:SetPoint("TOPLEFT", 46, -7)
+    row.Name:SetPoint("RIGHT", -34, 0)
+    row.Name:SetWordWrap(false)
+    row.Counts = W.Text(row, "GameFontDisableSmall")
+    row.Counts:SetPoint("TOPLEFT", row.Name, "BOTTOMLEFT", 0, -3)
+    row.Counts:SetPoint("RIGHT", -34, 0)
+    row.Counts:SetWordWrap(false)
+    row.Best = W.Text(row, "GameFontDisableSmall")
+    row.Best:SetPoint("RIGHT", -6, 0)
+    row.Best:SetJustifyH("RIGHT")
+    row:SetScript("OnMouseUp", function(self)
+      if not self.group then return end
+      view.skill, view.memberKey, view.recipeQuery = self.group.skillLine, nil, ""
+      view.BookSearch:SetText("")
+      if view.query ~= "" then view.Search:SetText("") else view:Refresh() end
+    end)
+  end, function(row, group)
+    row.group = group
+    local selected = view.query == "" and group.skillLine == view.skill
+    row.Selected:SetShown(selected)
+    row.Icon:SetTexture(ns.Professions.ICONS[group.skillLine])
+    row.Name:SetText(ns.TradeSkill.Name(group.skillLine))
+    if selected then row.Name:SetTextColor(1, 0.82, 0) else row.Name:SetTextColor(1, 1, 1) end
+    row.Counts:SetText(#group.members .. "  " .. GREEN .. L.ONLINE_N:format(group.online) .. "|r")
+    row.Best:SetText(group.best or "")
+  end)
+  view.Rail:SetPoint("TOPLEFT", 4, -4)
+  view.Rail:SetPoint("BOTTOMRIGHT", -26, 4)
+
+  -- members of the selected profession ------------------------------------------------------------------
+  local members = W.Box(panel)
+  members:SetPoint("TOPLEFT", rail, "TOPRIGHT", 6, 0)
+  view.MembersBox = members
+  local header = CreateFrame("Frame", nil, members)
+  header:SetPoint("TOPLEFT", 8, -8)
+  header:SetPoint("RIGHT", -8, 0)
+  header:SetHeight(40)
+  header.Icon = W.Icon(header, 36)
+  header.Icon.Border:SetPoint("LEFT", 2, 0)
+  header.Title = W.Text(header, "GameFontNormalLarge")
+  header.Title:SetPoint("TOPLEFT", 48, -2)
+  header.Counts = W.Text(header, "GameFontHighlightSmall")
+  header.Counts:SetPoint("TOPLEFT", header.Title, "BOTTOMLEFT", 0, -4)
+  header.Counts:SetWordWrap(false)
+  header.Filter = W.Segmented(header, {
+    { value = "all", text = L.ALL }, { value = "online", text = L.FILTER_ONLINE }, { value = "book", text = L.FILTER_BOOKS },
+  }, function(value)
+    view.filter = value
+    view:Refresh()
+  end)
+  header.Filter:SetPoint("RIGHT", 0, 0)
+  header.Counts:SetPoint("RIGHT", header.Filter, "LEFT", -8, 0)
+  view.Header = header
+
+  local NAME_X, SKILL_X, RECIPES_X, DATA_X = 22, 182, 404, 456
+  local columns = CreateFrame("Frame", nil, members)
+  columns:SetPoint("TOPLEFT", 4, -54)
+  columns:SetPoint("RIGHT", -26, 0)
+  columns:SetHeight(16)
+  for _, col in ipairs({ { L.COL_MEMBER, NAME_X }, { L.COL_SKILL, SKILL_X }, { L.COL_RECIPES, RECIPES_X }, { L.COL_DATA, DATA_X } }) do
+    local label = W.Text(columns, "GameFontDisableSmall", col[1])
+    label:SetPoint("LEFT", col[2], 0)
+  end
+  local line = columns:CreateTexture(nil, "ARTWORK")
+  line:SetPoint("BOTTOMLEFT", 0, -2)
+  line:SetPoint("BOTTOMRIGHT", 0, -2)
+  line:SetHeight(1)
+  line:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.3)
+  view.Columns = columns
+
+  view.Members = W.ScrollList(members, MEMBER_ROW, function(row)
+    row:EnableMouse(true)
+    row.Selected = row:CreateTexture(nil, "BACKGROUND")
+    row.Selected:SetAllPoints()
+    row.Selected:SetColorTexture(1, 0.82, 0, 0.18)
+    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 0.82, 0, 0.08)
+    row.Dot = Dot(row)
+    row.Dot:SetPoint("LEFT", 6, 0)
+    row.Name = W.Text(row, "GameFontHighlightSmall")
+    row.Name:SetPoint("LEFT", NAME_X, 0)
+    row.Name:SetWidth(SKILL_X - NAME_X - 6)
+    row.Name:SetWordWrap(false)
+    row.Skill = W.Text(row, "GameFontHighlightSmall")
+    row.Skill:SetPoint("LEFT", SKILL_X, 0)
+    row.Skill:SetWidth(52)
+    row.Skill:SetJustifyH("RIGHT")
+    row.Bar = SkillBar(row)
+    row.Bar:SetPoint("LEFT", SKILL_X + 58, 0)
+    row.Trainer = W.Text(row, "GameFontNormalSmall", L.TRAINER)
+    row.Trainer:SetPoint("LEFT", row.Bar, "RIGHT", 5, 0)
+    row.Book = row:CreateTexture(nil, "ARTWORK")
+    row.Book:SetSize(13, 13)
+    row.Book:SetPoint("LEFT", RECIPES_X, 0)
+    row.Book:SetTexture(BOOK_ICON)
+    row.Book:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.Recipes = W.Text(row, "GameFontNormalSmall")
+    row.Recipes:SetPoint("LEFT", RECIPES_X + 17, 0)
+    row.Data = W.Text(row, "GameFontDisableSmall")
+    row.Data:SetPoint("LEFT", DATA_X, 0)
+    row.Data:SetPoint("RIGHT", -4, 0)
+    row.Data:SetWordWrap(false)
+    -- offline divider: one label over the whole row
+    row.Divider = W.Text(row, "GameFontDisableSmall")
+    row.Divider:SetPoint("LEFT", 6, 0)
+    row:SetScript("OnEnter", function(self)
+      local item = self.item
+      if not (item and item.member) then return end
+      UI.MemberTooltip(self, item.member, L.PROF_MEMBER_HINT)
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row:SetScript("OnMouseUp", function(self, button)
+      local item = self.item
+      if not (item and item.member) then return end
+      if button == "RightButton" then
+        ProfessionMenu(self, item.member, view.skill)
+        return
+      end
+      view.memberKey, view.recipeQuery = item.member.key, ""
+      view.BookSearch:SetText("")
+      view:Refresh()
+    end)
+  end, function(row, item)
+    row.item = item
+    local isMember = item.member ~= nil
+    for _, part in ipairs({ row.Dot, row.Name, row.Skill, row.Bar, row.Data }) do part:SetShown(isMember) end
+    row.Divider:SetShown(not isMember)
+    row.Selected:SetShown(isMember and item.member.key == view.memberKey)
+    if not isMember then
+      row.Trainer:Hide()
+      row.Book:Hide()
+      row.Recipes:SetText("")
+      row.Divider:SetText(L.OFFLINE_N:format(item.offline))
+      return
+    end
+    local m, prof = item.member, item.prof
+    row.Dot:SetOnline(m.online)
+    row.Name:SetText(W.ClassName(m.name, m.classFile))
+    row.Name:SetAlpha(m.online and 1 or 0.7)
+    if prof.rank then
+      row.Skill:SetText(prof.rank .. (prof.max and (MUTED .. "/" .. prof.max .. "|r") or ""))
+      row.Bar:SetSkill(prof.rank, prof.max)
+    else
+      row.Skill:SetText(MUTED .. "–|r")
+      row.Bar:Hide()
+    end
+    row.Trainer:SetShown(prof.rank ~= nil and prof.max ~= nil and prof.rank >= prof.max and prof.max < SKILL_SCALE)
+    local count = prof.recipes and #prof.recipes or 0
+    row.Book:SetShown(count > 0)
+    row.Recipes:SetText(count > 0 and count or (MUTED .. "–|r"))
+    row.Recipes:ClearAllPoints()
+    row.Recipes:SetPoint("LEFT", count > 0 and (RECIPES_X + 17) or RECIPES_X, 0)
+    row.Data:SetText(DataText(prof))
+  end)
+  view.Members:SetPoint("TOPLEFT", 4, -74)
+  view.Members:SetPoint("BOTTOMRIGHT", -26, 4)
+
+  view.Empty = W.Text(members, "GameFontDisable")
+  view.Empty:SetPoint("TOPLEFT", 14, -84)
+  view.Empty:SetPoint("RIGHT", -14, 0)
+  view.Empty:SetWordWrap(true)
+
+  -- search results (replace members and book while searching)
+  view.Results = W.ScrollList(members, MEMBER_ROW, function(row)
+    row:EnableMouse(true)
+    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 0.82, 0, 0.1)
+    row.Icon = row:CreateTexture(nil, "ARTWORK")
+    row.Icon:SetSize(16, 16)
+    row.Icon:SetPoint("LEFT", 4, 0)
+    row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.Recipe = W.Text(row, "GameFontHighlightSmall")
+    row.Recipe:SetPoint("LEFT", 26, 0)
+    row.Recipe:SetWidth(300)
+    row.Recipe:SetWordWrap(false)
+    row.Dot = Dot(row)
+    row.Dot:SetPoint("LEFT", 334, 0)
+    row.Member = W.Text(row, "GameFontHighlightSmall")
+    row.Member:SetPoint("LEFT", 350, 0)
+    row.Member:SetWidth(200)
+    row.Member:SetWordWrap(false)
+    row.Prof = W.Text(row, "GameFontDisableSmall")
+    row.Prof:SetPoint("LEFT", 556, 0)
+    row.Prof:SetPoint("RIGHT", -6, 0)
+    row.Prof:SetWordWrap(false)
+    row:SetScript("OnEnter", function(self)
+      local e = self.entry
+      if not e then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      if not pcall(GameTooltip.SetSpellByID, GameTooltip, e.spellID) then GameTooltip:SetText(e.recipeName or "?") end
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.RESULT_CLICK_HINT, 0.6, 0.6, 0.6, true)
+      GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row:SetScript("OnMouseUp", function(self, button)
+      local e = self.entry
+      local m = e and ns.Roster.Find(e.memberKey)
+      if not m then return end
+      if IsShiftKeyDown() then
+        InsertRecipeLink(e.spellID)
+      elseif button == "RightButton" then
+        ProfessionMenu(self, m, e.skillLine)
+      elseif ns.TradeSkill.CanOpenBook(m) then
+        ns.TradeSkill.OpenBook(m, e.skillLine)
+      else
+        UI.Whisper(m.fullName)
+      end
+    end)
+  end, function(row, e)
+    row.entry = e
+    local m = ns.Roster.Find(e.memberKey)
+    row.Icon:SetTexture(SpellIcon(e.spellID, e.skillLine))
+    row.Recipe:SetText(e.recipeName)
+    row.Dot:SetOnline(m and m.online)
+    row.Member:SetText(m and W.ClassName(m.name, m.classFile) or e.memberName)
+    row.Prof:SetText(ns.TradeSkill.Name(e.skillLine))
+  end)
+  view.Results:SetPoint("TOPLEFT", 4, -8)
+  view.Results:SetPoint("BOTTOMRIGHT", -26, 4)
+
+  -- recipe book of the selected member -----------------------------------------------------------------
+  local book = W.Box(panel)
+  book:SetPoint("TOPRIGHT", 0, -30)
+  book:SetPoint("BOTTOMRIGHT", 0, 0)
+  book:SetWidth(BOOK_W)
+  view.BookBox = book
+  book.Dot = Dot(book)
+  book.Dot:SetPoint("TOPLEFT", 10, -11)
+  book.Who = W.Text(book, "GameFontNormal")
+  book.Who:SetPoint("LEFT", book.Dot, "RIGHT", 4, 0)
+  book.Who:SetPoint("RIGHT", -10, 0)
+  book.Who:SetWordWrap(false)
+  book.Meta = W.Text(book, "GameFontHighlightSmall")
+  book.Meta:SetPoint("TOPLEFT", 10, -30)
+  book.Meta:SetPoint("RIGHT", -10, 0)
+  book.Meta:SetWordWrap(false)
+  local function Selected()
+    local m = view.memberKey and ns.Roster.Find(view.memberKey)
+    return m, view.skill
+  end
+  book.Open = W.Button(book, L.OPEN_BOOK_SHORT, function()
+    local m, skillLine = Selected()
+    if m and ns.TradeSkill.CanOpenBook(m) then ns.TradeSkill.OpenBook(m, skillLine) end
+  end, 92, { small = true })
+  book.Open:SetPoint("TOPLEFT", 8, -48)
+  W.Tooltip(book.Open, L.OPEN_BOOK, L.OPEN_BOOK_TIP)
+  book.Whisper = W.Button(book, L.WHISPER, function()
+    local m = Selected()
+    if m then UI.Whisper(m.fullName) end
+  end, 80, { small = true })
+  book.Whisper:SetPoint("LEFT", book.Open, "RIGHT", 4, 0)
+  book.Invite = W.Button(book, L.GROUP_INVITE_SHORT, function()
+    local m = Selected()
+    if m then ns.Roster.GroupInvite(m) end
+  end, 80, { small = true })
+  book.Invite:SetPoint("LEFT", book.Whisper, "RIGHT", 4, 0)
+
+  local bookSearch = W.EditBox(book, BOOK_W - 30)
+  bookSearch:SetPoint("TOPLEFT", 16, -78)
+  bookSearch.Hint = W.Text(bookSearch, "GameFontDisableSmall")
+  bookSearch.Hint:SetPoint("LEFT", 2, 0)
+  bookSearch:SetScript("OnTextChanged", function(self)
+    view.recipeQuery = self:GetText() or ""
+    self.Hint:SetShown(view.recipeQuery == "")
+    view:RenderBook()
+  end)
+  view.BookSearch = bookSearch
+
+  view.Recipes = W.ScrollList(book, RECIPE_ROW, function(row)
+    row:EnableMouse(true)
+    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 0.82, 0, 0.1)
+    row.Icon = row:CreateTexture(nil, "ARTWORK")
+    row.Icon:SetSize(16, 16)
+    row.Icon:SetPoint("LEFT", 4, 0)
+    row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.Name = W.Text(row, "GameFontHighlightSmall")
+    row.Name:SetPoint("LEFT", 26, 0)
+    row.Name:SetPoint("RIGHT", -4, 0)
+    row.Name:SetWordWrap(false)
+    row.Name:SetTextColor(0.85, 0.78, 0.63)
+    row:SetScript("OnEnter", function(self)
+      if not self.spellID then return end
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      if not pcall(GameTooltip.SetSpellByID, GameTooltip, self.spellID) then GameTooltip:SetText(self.Name:GetText() or "?") end
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.RECIPE_CLICK_HINT, 0.6, 0.6, 0.6, true)
+      GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row:SetScript("OnMouseUp", function(self)
+      if self.spellID and IsShiftKeyDown() then InsertRecipeLink(self.spellID) end
+    end)
+  end, function(row, recipe)
+    row.spellID = recipe.spellID
+    row.Icon:SetTexture(SpellIcon(recipe.spellID, recipe.skillLine))
+    row.Name:SetText(recipe.name)
+  end)
+  view.Recipes:SetPoint("TOPLEFT", 6, -104)
+  view.Recipes:SetPoint("BOTTOMRIGHT", -26, 6)
+
+  view.BookEmpty = W.Text(book, "GameFontDisable")
+  view.BookEmpty:SetPoint("TOPLEFT", 12, -110)
+  view.BookEmpty:SetPoint("RIGHT", -12, 0)
+  view.BookEmpty:SetWordWrap(true)
+
+  -- rendering -------------------------------------------------------------------------------------------
+
+  -- members box: between the rail and the book, or the status column while reading
+  function view:Layout(statusShown, searching)
+    self.Status:SetShown(statusShown)
+    self.BookBox:SetShown(not statusShown and not searching)
+    self.MembersBox:ClearAllPoints()
+    self.MembersBox:SetPoint("TOPLEFT", rail, "TOPRIGHT", 6, 0)
+    if statusShown then
+      self.MembersBox:SetPoint("BOTTOMRIGHT", self.Status, "BOTTOMLEFT", -6, 0)
+    elseif searching then
+      self.MembersBox:SetPoint("BOTTOMRIGHT", 0, 0)
+    else
+      self.MembersBox:SetPoint("BOTTOMRIGHT", self.BookBox, "BOTTOMLEFT", -6, 0)
+    end
+  end
 
   function view:RenderStatus()
     local log = ns.Harvest.log
     local running = ns.Harvest.IsRunning()
-    local shown = running or #log > 0
-    self.Status:SetShown(shown)
-    self.ListBox:ClearAllPoints()
-    self.ListBox:SetPoint("TOPLEFT", 0, -30)
-    if shown then
-      self.ListBox:SetPoint("BOTTOMRIGHT", self.Status, "BOTTOMLEFT", -8, 0)
-    else
-      self.ListBox:SetPoint("BOTTOMRIGHT", 0, 0)
-    end
-    if not shown then return end
+    if not (running or #log > 0) then return end
     self.Status.Bar:SetShown(running)
     if running then
       local done, total, found, look, looks, left = ns.Harvest.Progress()
@@ -338,129 +753,148 @@ local function Build(panel)
     end
     self.Status.Log:SetItems(rows)
   end
-  view.List = W.ScrollList(listBox, ROW, function(row)
-    row:EnableMouse(true)
-    row.Icon = row:CreateTexture(nil, "ARTWORK")
-    row.Icon:SetSize(16, 16)
-    row.Icon:SetPoint("LEFT", 4, 0)
-    row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    row.A = W.Text(row, "GameFontHighlightSmall")
-    row.A:SetPoint("LEFT", 26, 0)
-    row.A:SetWidth(260)
-    row.A:SetWordWrap(false)
-    row.B = W.Text(row, "GameFontHighlightSmall")
-    row.B:SetPoint("LEFT", 292, 0)
-    row.B:SetWidth(170)
-    row.B:SetWordWrap(false)
-    row.C = W.Text(row, "GameFontDisableSmall")
-    row.C:SetPoint("LEFT", 468, 0)
-    row.C:SetPoint("RIGHT", -6, 0)
-    row.C:SetWordWrap(false)
-    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(1, 0.82, 0, 0.1)
-    row:SetScript("OnEnter", function(self)
-      local item = self.item
-      if not item then return end
-      local spellID = (item.entry and item.entry.spellID) or item.recipe
-      if spellID then
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if not pcall(GameTooltip.SetSpellByID, GameTooltip, spellID) then
-          GameTooltip:SetText((item.entry and item.entry.recipeName) or item.name or "?")
-        end
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(item.entry and L.RESULT_CLICK_HINT or L.RECIPE_CLICK_HINT, 0.6, 0.6, 0.6, true)
-        GameTooltip:Show()
-      elseif item.member and item.prof then
-        UI.MemberTooltip(self, item.member)
-        GameTooltip:AddLine(L.PROF_CLICK_HINT, 0.6, 0.6, 0.6, true)
-        GameTooltip:Show()
-      end
-    end)
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    row:SetScript("OnMouseUp", function(self, button)
-      local item = self.item
-      if not item or item.header then return end
-      if item.recipe then
-        if IsShiftKeyDown() then InsertRecipeLink(item.recipe) end
-        return
-      end
-      if item.entry then
-        local m = ns.Roster.Find(item.entry.memberKey)
-        if not m then return end
-        if IsShiftKeyDown() then
-          InsertRecipeLink(item.entry.spellID)
-        elseif button == "RightButton" then
-          ProfessionMenu(self, m, item.entry.skillLine, nil)
-        elseif ns.TradeSkill.CanOpenBook(m) then
-          ns.TradeSkill.OpenBook(m, item.entry.skillLine)
-        else
-          UI.Whisper(m.fullName)
-        end
-        return
-      end
-      local m, prof = item.member, item.prof
-      if button == "RightButton" then
-        ProfessionMenu(self, m, item.skillLine, prof)
-      elseif prof.recipes then
-        local key = ExpandKey(m, item.skillLine)
-        view.expanded[key] = not view.expanded[key] or nil
-        view:Refresh()
-      elseif ns.TradeSkill.CanOpenBook(m) then
-        ns.TradeSkill.OpenBook(m, item.skillLine)
-      end
-    end)
-  end, function(row, item)
-    row.item = item
-    if item.header then
-      row.Icon:SetTexture(ns.Professions.ICONS[item.skillLine])
-      row.Icon:Show()
-      row.A:SetText("|cffffd100" .. ns.TradeSkill.Name(item.skillLine) .. "|r")
-      row.B:SetText("")
-      row.C:SetText(L.MEMBERS_COUNT:format(item.count))
-    elseif item.recipe then
-      row.Icon:Hide()
-      row.A:SetText("        |cffd8c8a0" .. item.name .. "|r")
-      row.B:SetText("")
-      row.C:SetText("")
-    elseif item.entry then
-      local e = item.entry
-      local m = ns.Roster.Find(e.memberKey)
-      row.Icon:SetTexture(ns.Professions.ICONS[e.skillLine])
-      row.Icon:Show()
-      row.A:SetText(e.recipeName)
-      row.B:SetText(m and (W.ClassName(m.name, m.classFile) .. (m.online and " |cff40e040" .. L.ONLINE .. "|r" or "")) or e.memberName)
-      row.C:SetText(ns.TradeSkill.Name(e.skillLine))
-    else
-      local m, prof = item.member, item.prof
-      row.Icon:Hide()
-      local arrow = prof.recipes and (item.open and "|cffffd100-|r " or "|cffffd100+|r ") or "   "
-      row.A:SetText("  " .. arrow .. W.ClassName(m.name, m.classFile) .. (m.online and " |cff40e040" .. L.ONLINE .. "|r" or ""))
-      local level = UI.ProfLevel(prof)
-      local recipes = prof.recipes and (" · " .. L.RECIPES_COUNT:format(#prof.recipes)) or ""
-      row.B:SetText(level .. recipes)
-      row.C:SetText(prof.src == "note" and SourceText(prof.src) or (UI.Age(prof.ts) .. " · " .. SourceText(prof.src)))
-    end
-  end)
-  view.List:SetPoint("TOPLEFT", 4, -4)
-  view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  function view:Refresh(event)
-    local running = ns.Harvest.IsRunning()
-    self.Harvest:SetText(running and L.HARVEST_STOP or L.HARVEST)
-    self:RenderStatus()
-    if event == "HARVEST" and running then return end
-    if ns.Search.Normalize(self.query) == "" then
-      local rows = OverviewRows(self.expanded)
-      self.List:SetItems(rows)
-      self.Info:SetText(#rows == 0 and L.NO_PROFESSION_DATA or L.PROFESSIONS_HINT)
+  function view:RenderBook()
+    local group = self.group
+    local entry
+    for _, e in ipairs(group and group.members or {}) do
+      if e.member.key == self.memberKey then entry = e end
+    end
+    local box = self.BookBox
+    local hasMember = entry ~= nil
+    for _, part in ipairs({ box.Dot, box.Who, box.Meta, box.Open, box.Whisper, box.Invite }) do part:SetShown(hasMember) end
+    if not entry then
+      self.BookSearch:Hide()
+      self.Recipes:SetItems({})
+      self.BookEmpty:SetText(L.BOOK_PICK)
+      self.BookEmpty:Show()
       return
     end
+    local m, prof = entry.member, entry.prof
+    box.Dot:SetOnline(m.online)
+    box.Who:SetText(W.ClassName(m.name, m.classFile) .. MUTED .. " · " .. ns.TradeSkill.Name(group.skillLine) .. "|r")
+    local meta = { UI.ProfLevel(prof) }
+    if prof.recipes then meta[#meta + 1] = L.RECIPES_COUNT:format(#prof.recipes) end
+    meta[#meta + 1] = prof.src == "note" and SourceText(prof.src) or (SourceText(prof.src) .. ", " .. UI.Age(prof.ts))
+    box.Meta:SetText(table.concat(meta, " · "))
+    box.Open:SetEnabled(ns.TradeSkill.CanOpenBook(m))
+    box.Whisper:SetEnabled(m.online)
+    box.Invite:SetEnabled(m.online)
+
+    local recipes = {}
+    local query = ns.Search.Normalize(self.recipeQuery)
+    for _, spellID in ipairs(prof.recipes or {}) do
+      local name = ns.TradeSkill.RecipeName(spellID) or ("#" .. spellID)
+      if query == "" or ns.Search.Normalize(name):find(query, 1, true) then
+        recipes[#recipes + 1] = { spellID = spellID, name = name, skillLine = group.skillLine }
+      end
+    end
+    table.sort(recipes, function(a, b) return a.name < b.name end)
+    local known = prof.recipes and #prof.recipes or 0
+    self.BookSearch:SetShown(known > 0)
+    self.BookSearch.Hint:SetText(L.BOOK_SEARCH:format(known))
+    self.Recipes:SetItems(recipes)
+    if known == 0 then
+      self.BookEmpty:SetText(L.BOOK_NONE)
+    elseif #recipes == 0 then
+      self.BookEmpty:SetText(L.BOOK_NO_MATCH)
+    end
+    self.BookEmpty:SetShown(known == 0 or #recipes == 0)
+  end
+
+  function view:RenderMembers(groups)
+    local group
+    for _, g in ipairs(groups) do
+      if g.skillLine == self.skill then group = g end
+    end
+    if not group then
+      group = groups[1]
+      self.skill = group and group.skillLine
+    end
+    self.group = group
+    self.Header:SetShown(group ~= nil)
+    self.Columns:SetShown(group ~= nil)
+    self.Members:Show()
+    self.Results:Hide()
+    if not group then
+      self.Members:SetItems({})
+      self.Empty:SetText(L.NO_PROFESSION_DATA)
+      self.Empty:Show()
+      self.memberKey = nil
+      self:RenderBook()
+      return
+    end
+    self.Header.Icon:SetTexture(ns.Professions.ICONS[group.skillLine])
+    self.Header.Title:SetText(ns.TradeSkill.Name(group.skillLine))
+    local counts = { L.MEMBERS_COUNT:format(#group.members), GREEN .. L.ONLINE_N:format(group.online) .. "|r" }
+    if group.books > 0 then counts[#counts + 1] = L.BOOKS_KNOWN:format(group.books) end
+    self.Header.Counts:SetText(table.concat(counts, "   "))
+    self.Header.Filter:SetValue(self.filter)
+
+    local items, offline, divider = {}, 0, nil
+    local selectedVisible = false
+    for _, e in ipairs(group.members) do
+      local keep = self.filter == "all" or (self.filter == "online" and e.member.online)
+        or (self.filter == "book" and e.prof.recipes and #e.prof.recipes > 0)
+      if keep then
+        if not e.member.online then
+          offline = offline + 1
+          if not divider and #items > 0 then
+            divider = { offline = 0 }
+            items[#items + 1] = divider
+          end
+        end
+        items[#items + 1] = e
+        if e.member.key == self.memberKey then selectedVisible = true end
+      end
+    end
+    if divider then divider.offline = offline end
+    -- without a (visible) selection the first member with recipes, else the first one, fills the book
+    if not selectedVisible then
+      self.memberKey = nil
+      for _, item in ipairs(items) do
+        if item.member and item.prof.recipes and #item.prof.recipes > 0 then
+          self.memberKey = item.member.key
+          break
+        end
+      end
+      if not self.memberKey and items[1] then self.memberKey = items[1].member.key end
+    end
+    self.Members:SetItems(items)
+    self.Empty:SetText(L.NO_FILTER_MATCH)
+    self.Empty:SetShown(#items == 0)
+    self:RenderBook()
+  end
+
+  function view:RenderResults()
+    self.Header:Hide()
+    self.Columns:Hide()
+    self.Members:Hide()
+    self.Members:SetItems({})
+    self.Results:Show()
     local results = ns.Search.Recipes(ns.TradeSkill.RecipeEntries(), self.query)
-    local items = {}
-    for i, entry in ipairs(results) do items[i] = { entry = entry } end
-    self.List:SetItems(items)
-    self.Info:SetText(L.RESULTS_COUNT:format(#items))
+    self.Results:SetItems(results)
+    self.Empty:SetText(L.NO_RESULTS)
+    self.Empty:SetShown(#results == 0)
+    self.Info:SetText(L.RESULTS_COUNT:format(#results))
+  end
+
+  function view:Refresh(event)
+    placeholders = nil -- new recipes may have come in
+    local running = ns.Harvest.IsRunning()
+    self.Harvest:SetText(running and L.HARVEST_STOP or L.HARVEST)
+    local searching = ns.Search.Normalize(self.query) ~= ""
+    self:Layout(running or #ns.Harvest.log > 0, searching)
+    self:RenderStatus()
+    if event == "HARVEST" and running then return end
+    local groups = Groups()
+    self.Rail:SetItems(groups)
+    if searching then
+      self:RenderResults()
+    else
+      self.Info:SetText(#groups == 0 and "" or L.PROFESSIONS_HINT)
+      self:RenderMembers(groups)
+    end
   end
 
   return view

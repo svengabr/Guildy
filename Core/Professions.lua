@@ -230,3 +230,20 @@ function Professions.ParseTradeLinks(text)
   end
   return found
 end
+
+-- Icons the client shows instead of a real one: recipes that make an item often have no icon of their
+-- own, and every profession has its own stand-in for them (a "W", a blue swirl, ...). An icon used by at
+-- least 5 recipes and a quarter of all recipes of one profession counts as such a stand-in.
+-- icons: one icon per distinct recipe of a profession; returns the set of stand-in icons
+function Professions.PlaceholderIcons(icons)
+  local counts, total = {}, 0
+  for _, icon in ipairs(icons) do
+    counts[icon] = (counts[icon] or 0) + 1
+    total = total + 1
+  end
+  local found = {}
+  for icon, count in pairs(counts) do
+    if count >= 5 and count * 4 >= total then found[icon] = true end
+  end
+  return found
+end

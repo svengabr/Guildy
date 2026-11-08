@@ -124,3 +124,17 @@ T.describe("Professions.ParseTradeLinks", function()
     T.eq(P.ParseTradeLinks(nil), {})
   end)
 end)
+
+T.describe("Professions.PlaceholderIcons", function()
+  T.it("finds the icon most recipes of a profession share", function()
+    local icons = { "a", "b", "c", "d" }
+    for _ = 1, 6 do icons[#icons + 1] = "w" end
+    T.eq(P.PlaceholderIcons(icons), { w = true })
+  end)
+  T.it("leaves a few shared icons alone", function()
+    T.eq(P.PlaceholderIcons({ "p", "p", "p", "a", "b" }), {}) -- fewer than 5
+    local icons = { "p", "p", "p", "p", "p" }
+    for i = 1, 30 do icons[#icons + 1] = "i" .. i end
+    T.eq(P.PlaceholderIcons(icons), {}) -- not a quarter of the book
+  end)
+end)

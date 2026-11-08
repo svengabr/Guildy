@@ -50,6 +50,32 @@ function TradeSkill.RecipeName(spellID)
   return name or nil
 end
 
+-- Icons of what recipes make, as the open recipe book shows them (the recipe spells themselves often only
+-- have a stand-in icon). Kept per account in GuildyDB.recipeIcons, not shared: spellID -> icon
+local function RememberIcon(spellID, icon)
+  local db = ns.DB()
+  if not (db and spellID) or ns.IsSecret(icon) then return end
+  if type(icon) ~= "number" and type(icon) ~= "string" then return end
+  db.recipeIcons = db.recipeIcons or {}
+  db.recipeIcons[spellID] = icon
+end
+
+-- Icon of what a recipe makes: from a recipe book read earlier, else what the client knows about the
+-- made item; nil when neither is known
+function TradeSkill.RecipeIcon(spellID)
+  local db = ns.DB()
+  local known = db and db.recipeIcons and db.recipeIcons[spellID]
+  if known then return known end
+  local output = C_TradeSkillUI and rawget(C_TradeSkillUI, "GetRecipeOutputItemData")
+  local data = output and ns.Try(output, spellID)
+  local itemID = type(data) == "table" and data.itemID
+  if not itemID then return nil end
+  local getIcon = (C_Item and C_Item.GetItemIconByID) or rawget(_G, "GetItemIcon")
+  local icon = getIcon and ns.Try(getIcon, itemID)
+  if icon then RememberIcon(spellID, icon) end
+  return icon
+end
+
 function TradeSkill.Name(skillLine)
   local key = P.SKILL_LINES[skillLine]
   return key and ns.L["PROF_" .. key] or tostring(skillLine)
@@ -191,7 +217,10 @@ function TradeSkill.ScanOpen()
       local _, kind = ns.Try(rawget(_G, "GetTradeSkillInfo"), i)
       if kind and kind ~= "header" and kind ~= "subheader" then
         local id = IdFromLink(ns.Try(rawget(_G, "GetTradeSkillRecipeLink"), i))
-        if id then recipes[#recipes + 1] = id end
+        if id then
+          recipes[#recipes + 1] = id
+          RememberIcon(id, ns.Try(rawget(_G, "GetTradeSkillIcon"), i))
+        end
       end
     end
     TradeSkill.lastScan = { path = "GetTradeSkillLine", name = lineName, skillLine = SkillByName(lineName), rank = rank,
@@ -207,7 +236,10 @@ function TradeSkill.ScanOpen()
       local _, _, kind = ns.Try(rawget(_G, "GetCraftInfo"), i)
       if kind and kind ~= "header" then
         local id = IdFromLink(ns.Try(rawget(_G, "GetCraftRecipeLink"), i))
-        if id then recipes[#recipes + 1] = id end
+        if id then
+          recipes[#recipes + 1] = id
+          RememberIcon(id, ns.Try(rawget(_G, "GetCraftIcon"), i))
+        end
       end
     end
     TradeSkill.lastScan = { path = "GetCraftDisplaySkillLine", name = craftName, skillLine = SkillByName(craftName),
@@ -223,7 +255,10 @@ function TradeSkill.ScanOpen()
     local recipes = {}
     for _, id in ipairs(ns.Try(getAll) or {}) do
       local recipe = ns.Try(C_TradeSkillUI.GetRecipeInfo, id)
-      if recipe and recipe.learned then recipes[#recipes + 1] = id end
+      if recipe and recipe.learned then
+        recipes[#recipes + 1] = id
+        RememberIcon(id, recipe.icon)
+      end
     end
     TradeSkill.lastScan = { path = "C_TradeSkillUI", name = info.professionName, skillLine = skillLine,
       rank = info.skillLevel, recipes = #recipes }

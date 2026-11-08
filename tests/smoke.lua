@@ -215,13 +215,15 @@ T.describe("Smoke", function()
     local linked = true
     env.C_TradeSkillUI = {
       GetAllRecipeIDs = function() return { 11, 12, 13 } end,
-      GetRecipeInfo = function(id) return { learned = id ~= 13 } end,
+      GetRecipeInfo = function(id) return { learned = id ~= 13, icon = 5000 + id } end,
       GetBaseProfessionInfo = function() return { professionID = 171, professionName = "Alchimie", skillLevel = 99, maxSkillLevel = 150 } end,
       IsTradeSkillLinked = function() return linked, "Au-Tsch" end,
     }
     ns.TradeSkill.ScanOpen()
     T.eq(guild.members["au tsch"].profs[171].recipes, { 11, 12 })
     T.eq(guild.members["au tsch"].profs[171].src, "link")
+    T.eq(ns.TradeSkill.RecipeIcon(11), 5011) -- the made item's icon, remembered from the open book
+    T.eq(ns.TradeSkill.RecipeIcon(99), nil)
     T.eq(guild.members["ran fred"].profs[171].recipes, nil)
     -- own window again
     linked = false
@@ -290,6 +292,20 @@ T.describe("Smoke", function()
     members.sort = "guildy"
     members:Refresh()
     ns.UI.SelectTab("professions")
+    -- rail, members with filters, recipe book and the search results
+    local profs = ns.UI.TabView("professions")
+    T.eq(profs.skill, 171)
+    T.eq(profs.memberKey, "au tsch") -- first member with recipes (online, highest skill) fills the book
+    for _, filter in ipairs({ "online", "book", "all" }) do
+      profs.filter = filter
+      profs:Refresh()
+    end
+    profs.recipeQuery = "rezept 1"
+    profs:RenderBook()
+    profs.query = "rezept"
+    profs:Refresh()
+    profs.query = ""
+    profs:Refresh()
     ns.UI.Hide()
     ns.UI.Show()
     T.eq(ns.UI.Current(), "professions") -- opening comes back to the last tab
