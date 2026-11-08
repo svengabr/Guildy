@@ -6,6 +6,7 @@ manual-changelog:
 
 ignore:
   - tests
+  - tools
   - docs
   - media
   - .impeccable

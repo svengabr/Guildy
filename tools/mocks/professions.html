@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Berufe-Mocks</title>
+<style>
+@font-face { font-family: "Friz"; src: url("../../media/gallery/fonts/FRIZQT__.TTF"); }
+:root {
+  --gold: #ffd100; --gold-soft: #d9b54a; --gold-line: rgba(255, 209, 0, .22);
+  --text: #ece6d6; --muted: #a39b88; --faint: #7d7563;
+  --bg: #0d0b08; --panel: #17140f; --row: #1d1913; --row-alt: #1a1610; --raised: #25201a; --edge: #5a4720; --edge-dark: #2b2317;
+  --green: #4ce04c; --amber: #ff9f2e;
+  --druid: #ff7c0a; --paladin: #f48cba; --shaman: #0070dd; --priest: #ffffff; --mage: #3fc7eb; --hunter: #aad372;
+  --rogue: #fff468; --warrior: #c69b6d; --warlock: #8788ee;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #2a2b2f; font-family: "Friz", Georgia, serif; color: var(--text); padding: 30px; }
+.sheet-title { font-size: 26px; color: var(--gold); margin: 6px 0 4px; font-weight: normal; }
+.sheet-sub { font-size: 15px; color: #c8c2b2; margin-bottom: 18px; max-width: 1100px; line-height: 1.45; }
+section.mock { margin-bottom: 46px; }
+body.single { padding: 20px; }
+body.single .sheet-title, body.single .sheet-sub { display: none; }
+
+/* ---------- game window ---------- */
+.win {
+  width: 1440px; height: 820px; position: relative; display: flex; flex-direction: column;
+  background: var(--bg); border: 3px solid #3d3020; border-radius: 6px;
+  box-shadow: inset 0 0 0 1px #000, inset 0 0 0 3px var(--edge-dark), 0 18px 40px rgba(0,0,0,.55);
+  overflow: hidden;
+}
+.titlebar { height: 32px; display: grid; place-items: center; position: relative;
+  background: linear-gradient(#2a2117, #17120c); border-bottom: 1px solid var(--edge); }
+.titlebar h1 { font-size: 16px; font-weight: normal; color: var(--gold); letter-spacing: .3px; }
+.close { position: absolute; right: 4px; top: 3px; width: 24px; height: 24px; border-radius: 3px;
+  background: radial-gradient(circle at 40% 35%, #c2261b, #5c0c07); border: 1px solid #000; display: grid; place-items: center; }
+.portrait { position: absolute; left: -6px; top: -6px; width: 74px; height: 74px; border-radius: 50%;
+  background: radial-gradient(circle at 45% 40%, #4a4a4a, #151515); border: 3px solid #6e5a2c; z-index: 3;
+  box-shadow: 0 3px 8px rgba(0,0,0,.6); }
+.toolbar { height: 44px; display: flex; align-items: center; gap: 14px; padding: 0 10px 0 82px; }
+.search { width: 360px; height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 8px;
+  background: #000; border: 1px solid #4b4234; border-radius: 3px; color: var(--faint); font-size: 13px; flex: none; }
+.search span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hint { font-size: 13px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn { height: 26px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+  color: var(--gold); background: linear-gradient(#8a1a10, #4a0905); border: 1px solid #000; border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18); white-space: nowrap; }
+.btn.ghost { background: linear-gradient(#2c251b, #19150f); color: var(--text); border-color: #4b4234; }
+.btn.on { background: linear-gradient(#3b3220, #241e13); color: var(--gold); border-color: var(--edge); }
+.body { flex: 1; min-height: 0; display: flex; gap: 8px; padding: 0 8px 8px; }
+.box { background: var(--panel); border: 1px solid var(--edge-dark); border-radius: 3px; min-height: 0; overflow: hidden; position: relative; }
+
+/* shared bits */
+.cls-druid { color: var(--druid); } .cls-paladin { color: var(--paladin); } .cls-shaman { color: var(--shaman); }
+.cls-priest { color: var(--priest); } .cls-mage { color: var(--mage); } .cls-hunter { color: var(--hunter); }
+.cls-rogue { color: var(--rogue); } .cls-warrior { color: var(--warrior); } .cls-warlock { color: var(--warlock); }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #3b362d; box-shadow: inset 0 0 0 1px #000; }
+.dot.on { background: var(--green); box-shadow: 0 0 0 2px rgba(76,224,76,.18); }
+.off-name { opacity: .62; }
+.icon { width: 20px; height: 20px; border-radius: 3px; border: 1px solid #000; flex: none; object-fit: cover; }
+.icon.lg { width: 34px; height: 34px; }
+.icon.xl { width: 44px; height: 44px; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); } .faint { color: var(--faint); } .gold { color: var(--gold); } .amber { color: var(--amber); }
+svg.i { width: 13px; height: 13px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* skill bar: whole scale 0–300, ticks at the trainer caps, current cap shaded */
+.skill { display: flex; align-items: center; gap: 10px; }
+.skill .val { width: 62px; text-align: right; font-size: 13px; white-space: nowrap; }
+.skill .val b { font-weight: normal; color: var(--text); }
+.skill .val span { color: var(--faint); }
+.bar { position: relative; height: 7px; flex: 1; max-width: 180px; background: #0a0806; border: 1px solid #000; border-radius: 2px; }
+.bar .cap { position: absolute; top: 0; bottom: 0; left: 0; background: rgba(255,255,255,.06); }
+.bar .fill { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(#c7962a, #8a6416); border-radius: 1px; }
+.bar .fill.max { background: linear-gradient(#ffe066, #c99a12); }
+.bar .tick { position: absolute; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.14); }
+.capnote { font-size: 11px; color: var(--gold-soft); white-space: nowrap; }
+
+/* ================= A: table ================= */
+.A .box { flex: 1; display: flex; flex-direction: column; }
+.A .filters { display: flex; gap: 6px; align-items: center; }
+.A .thead, .A .tr { display: grid; grid-template-columns: 34px minmax(260px, 1.3fr) minmax(300px, 1.3fr) 110px minmax(180px, .8fr); align-items: center; }
+.A .thead { height: 28px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--edge-dark); background: #120f0b; padding-right: 20px; }
+.A .tbody { flex: 1; overflow: hidden; padding-right: 20px; }
+.A .tr { height: 26px; font-size: 13px; }
+.A .tr:nth-child(even of .m) { background: var(--row-alt); }
+.A .tr.m:hover { background: #2a2418; }
+.A .tr .name { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.A .chev { width: 14px; display: grid; place-items: center; color: var(--gold-soft); }
+.A .chev svg { width: 11px; height: 11px; }
+.A .ph { height: 38px; background: linear-gradient(#262016, #1c1710); border-top: 1px solid #000; border-bottom: 1px solid var(--gold-line); }
+.A .ph .name { gap: 10px; font-size: 15px; color: var(--gold); }
+.A .ph .sum { font-size: 12px; color: var(--muted); display: flex; gap: 14px; }
+.A .ph .sum b { color: var(--text); font-weight: normal; }
+.A .ph .sum .g { color: var(--green); }
+.A .ph.closed { background: #18140e; border-bottom-color: var(--edge-dark); }
+.A .ph.closed .name { color: #e6c55a; }
+.A .sep { height: 22px; font-size: 11px; color: var(--faint); display: flex; align-items: center; gap: 8px; padding-left: 56px; }
+.A .sep::after { content: ""; flex: 1; height: 1px; background: var(--edge-dark); margin-right: 12px; }
+.A .rec { color: var(--text); }
+.A .stand { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint); }
+.A .more { height: 26px; padding-left: 56px; font-size: 12px; color: var(--gold-soft); display: flex; align-items: center; gap: 6px; }
+.A .recipes { padding: 6px 20px 10px 56px; background: #110e0a; border-top: 1px solid #000; border-bottom: 1px solid #000;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 18px; }
+.A .recipes .r { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #d8c8a0; height: 22px; white-space: nowrap; overflow: hidden; }
+.A .recipes .r img { width: 16px; height: 16px; border: 1px solid #000; border-radius: 2px; }
+.A .recipes .head { grid-column: 1 / -1; font-size: 11px; color: var(--faint); height: 20px; display: flex; align-items: center; justify-content: space-between; }
+.scroll { position: absolute; right: 3px; top: 32px; bottom: 4px; width: 12px; background: #0a0806; border-radius: 6px; }
+.scroll::after { content: ""; position: absolute; left: 2px; right: 2px; top: 4px; height: 110px; border-radius: 4px; background: #5a4a2c; }
+
+/* ================= B: master/detail ================= */
+.B .rail { width: 250px; flex: none; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.B .ri { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 3px; height: 52px; }
+.B .ri:hover { background: #211c14; }
+.B .ri.sel { background: linear-gradient(90deg, #3a2f18, #241e13); box-shadow: inset 0 0 0 1px var(--edge); }
+.B .ri .t { flex: 1; min-width: 0; }
+.B .ri .n { font-size: 14px; color: var(--text); }
+.B .ri.sel .n { color: var(--gold); }
+.B .ri .s { font-size: 11px; color: var(--muted); margin-top: 3px; display: flex; gap: 8px; }
+.B .ri .s .g { color: var(--green); }
+.B .ri .best { font-size: 12px; color: var(--faint); }
+.B .detail { flex: 1; display: flex; flex-direction: column; }
+.B .dh { display: flex; align-items: center; gap: 14px; padding: 12px 14px 10px; border-bottom: 1px solid var(--edge-dark); }
+.B .dh h2 { font-size: 20px; color: var(--gold); font-weight: normal; }
+.B .dh .s { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 14px; }
+.B .dh .s .g { color: var(--green); }
+.B .seg { margin-left: auto; display: flex; border: 1px solid #4b4234; border-radius: 3px; overflow: hidden; }
+.B .seg span { font-size: 12px; padding: 5px 11px; color: var(--muted); background: #15120d; }
+.B .seg span + span { border-left: 1px solid #4b4234; }
+.B .seg span.on { color: var(--gold); background: #2e2617; }
+.B .thead, .B .tr { display: grid; grid-template-columns: minmax(200px, 1fr) 270px 74px 92px; align-items: center; padding: 0 14px; gap: 8px; }
+.B .thead { height: 26px; font-size: 11px; color: var(--faint); border-bottom: 1px solid var(--edge-dark); }
+.B .tr { height: 28px; font-size: 13px; }
+.B .tr:nth-child(even) { background: var(--row-alt); }
+.B .tr.sel { background: #2e2617 !important; box-shadow: inset 0 0 0 1px var(--edge); }
+.B .tr .name { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.B .tr .age { font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.B .sub { padding: 6px 14px; font-size: 11px; color: var(--faint); background: #120f0b; border-top: 1px solid var(--edge-dark); border-bottom: 1px solid var(--edge-dark); }
+.B .book { width: 380px; flex: none; display: flex; flex-direction: column; }
+.B .bh { padding: 12px 14px 10px; border-bottom: 1px solid var(--edge-dark); }
+.B .bh .who { font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.B .bh .meta { font-size: 12px; color: var(--muted); margin-top: 5px; display: flex; gap: 10px; align-items: center; }
+.B .bh .acts { display: flex; gap: 6px; margin-top: 10px; }
+.B .bsearch { margin: 8px 12px; height: 24px; border: 1px solid #4b4234; background: #000; border-radius: 3px; font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 6px; padding: 0 8px; }
+.B .grp { font-size: 11px; color: var(--gold-soft); padding: 8px 14px 4px; }
+.B .r { display: flex; align-items: center; gap: 8px; padding: 0 14px; height: 25px; font-size: 13px; color: #d8c8a0; }
+.B .r img { width: 18px; height: 18px; border: 1px solid #000; border-radius: 2px; }
+.B .r .lv { margin-left: auto; font-size: 11px; color: var(--faint); }
+
+/* ================= C: board ================= */
+.C .board { flex: 1; padding: 8px; columns: 3; column-gap: 8px; }
+.C .blk { break-inside: avoid; background: var(--panel); border: 1px solid var(--edge-dark); border-radius: 3px; margin-bottom: 8px; }
+.C .bh { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: linear-gradient(#262016, #1c1710); border-bottom: 1px solid var(--gold-line); }
+.C .bh .n { font-size: 15px; color: var(--gold); flex: 1; }
+.C .bh .s { font-size: 11px; color: var(--muted); display: flex; gap: 10px; }
+.C .bh .s .g { color: var(--green); }
+.C .tier { display: flex; align-items: center; gap: 8px; padding: 6px 10px 2px; font-size: 11px; color: var(--gold-soft); }
+.C .tier .ln { flex: 1; height: 1px; background: var(--edge-dark); }
+.C .tier .c { color: var(--faint); }
+.C .chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 10px 6px; }
+.C .chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 7px 0 6px; font-size: 12px; background: #120f0b; border: 1px solid #2a231a; border-radius: 3px; white-space: nowrap; }
+.C .chip .v { color: var(--faint); font-size: 11px; }
+.C .chip.rb { border-color: #4a3c1e; }
+.C .chip .bk { color: var(--gold-soft); display: inline-flex; }
+.C .chip.dim { opacity: .55; }
+.C .moreline { font-size: 11px; color: var(--gold-soft); padding: 0 10px 8px; }
+.C .legend { display: flex; gap: 16px; align-items: center; font-size: 12px; color: var(--muted); }
+.C .legend .chip { font-size: 11px; height: 20px; }
+</style>
+</head>
+<body>
+
+<h2 class="sheet-title">Berufe-Ansicht · drei Richtungen</h2>
+<p class="sheet-sub">Gleiche Daten in allen drei Mocks. A behält die Liste und räumt sie auf, B teilt in Berufsleiste, Mitglieder und Rezeptbuch, C zeigt alle Berufe gleichzeitig als Board nach Rang.</p>
+
+<section class="mock" id="a"><h2 class="sheet-title">A · Aufgeräumte Tabelle</h2><div class="win A"></div></section>
+<section class="mock" id="b"><h2 class="sheet-title">B · Berufsleiste + Rezeptbuch</h2><div class="win B"></div></section>
+<section class="mock" id="c"><h2 class="sheet-title">C · Board nach Rang</h2><div class="win C"></div></section>
+
+<script>
+const IC = "../../media/gallery/icons/";
+const SVG = {
+  search: '<svg class="i" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>',
+  down: '<svg class="i" viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>',
+  right: '<svg class="i" viewBox="0 0 12 12"><path d="M4.5 2.5 8 6 4.5 9.5"/></svg>',
+  self: '<svg class="i" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.6"/><path d="M3 14c.6-2.8 2.6-4.2 5-4.2s4.4 1.4 5 4.2"/></svg>',
+  relay: '<svg class="i" viewBox="0 0 16 16"><path d="M3 6h9l-2.5-2.5M13 10H4l2.5 2.5"/></svg>',
+  link: '<svg class="i" viewBox="0 0 16 16"><path d="M6.5 9.5 9.5 6.5M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1"/></svg>',
+  note: '<svg class="i" viewBox="0 0 16 16"><path d="M3 13l1-3.5L10.5 3 13 5.5 6.5 12z"/></svg>',
+  book: '<svg class="i" viewBox="0 0 16 16"><path d="M3 3.5h4a1.5 1.5 0 0 1 1 .5 1.5 1.5 0 0 1 1-.5h4V12H9a1 1 0 0 0-1 1 1 1 0 0 0-1-1H3z"/><path d="M8 4v9"/></svg>',
+  mail: '<svg class="i" viewBox="0 0 16 16"><rect x="2.5" y="4" width="11" height="8" rx="1"/><path d="m3 5 5 4 5-4"/></svg>',
+  chat: '<svg class="i" viewBox="0 0 16 16"><path d="M3 4h10v6.5H7l-3 2.5v-2.5H3z"/></svg>',
+  x: '<svg class="i" viewBox="0 0 16 16" style="stroke:#ffd9a0;width:12px;height:12px;stroke-width:2.4"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+};
+const SRC = { self: ["eigene Daten", SVG.self], relay: ["über Guildy", SVG.relay], link: ["über Link", SVG.link], note: ["laut Notiz", SVG.note] };
+
+// [name, class, rank, cap, recipes|null, online, days, src]
+const PROFS = [
+  { name: "Alchemie", icon: "trade_alchemy", total: 22, members: [
+    ["Ran Fred", "druid", 190, 225, 39, 1, 0, "self"], ["Maerith Withersong", "priest", 110, 150, 15, 1, 0, "self"],
+    ["Zera Tops", "shaman", 83, 150, null, 1, 0, "relay"], ["Lelandi Brendir", "priest", 61, 150, null, 1, 0, "relay"],
+    ["Optimus Drain", "mage", 59, 75, null, 1, 0, "relay"], ["Druilicious Liebtnatur", "druid", 41, 75, null, 1, 0, "relay"],
+    ["Primal Tekk", "druid", 225, 225, null, 0, 0, "relay"], ["Syd Syd", "shaman", 209, 225, 27, 0, 0, "relay"],
+    ["Frust Abbau", "hunter", 190, 225, null, 0, 0, "link"], ["Seshi Sturmbringer", "shaman", 190, 225, null, 0, 0, "link"],
+    ["Varothen Bragison", "warlock", 190, 225, null, 0, 0, "link"], ["Stone Totem", "shaman", 186, 225, 24, 0, 0, "link"],
+    ["Goenndhir Hartmann", "rogue", 148, 150, null, 0, 0, "relay"], ["Nyxi Indivaron", "mage", 130, 150, 17, 0, 0, "self"],
+    ["Parsival Prachtprügel", "paladin", 108, 150, null, 0, 0, "link"], ["Raven Blackk", "warlock", 84, 150, null, 0, 1, "link"],
+    ["Jimmy Graubart", "paladin", 83, 150, null, 0, 0, "relay"], ["Ranada Moonveil", "priest", 80, 150, null, 0, 0, "relay"],
+    ["Nalahrina Matata", "shaman", 60, 75, null, 0, 0, "relay"], ["Erril Vonstandi", "paladin", 59, 150, null, 0, 9, "relay"],
+    ["Xii Lightspark", "priest", 57, 75, null, 0, 0, "relay"], ["Nunti Lucem", "mage", null, null, null, 0, 1, "note"] ] },
+  { name: "Schmiedekunst", icon: "trade_blacksmithing", total: 13, members: [
+    ["Eziiria Ash", "druid", 140, 225, 38, 1, 1, "self"], ["Xulkar Tempest", "druid", 96, 150, 21, 1, 0, "relay"],
+    ["Eoy Goldcog", "rogue", 54, 75, null, 1, 0, "relay"], ["Jimmy Brendir", "warrior", 49, 75, null, 1, 0, "relay"],
+    ["Smite Stonebringer", "paladin", 132, 225, null, 0, 0, "relay"], ["Grimmly Deephammer", "paladin", 126, 150, null, 0, 0, "relay"],
+    ["Carenio Inopinatus", "paladin", 100, 150, null, 0, 0, "relay"], ["Borgar Eisenfaust", "warrior", 225, 225, 61, 0, 3, "link"],
+    ["Hruna Stahlbart", "warrior", 160, 225, null, 0, 0, "relay"], ["Tilda Funkenschlag", "paladin", 74, 75, null, 0, 12, "relay"],
+    ["Korrin Amboss", "warrior", 41, 75, null, 0, 0, "relay"], ["Mira Glutherz", "paladin", 30, 75, null, 0, 0, "relay"],
+    ["Ulf Hammerhand", "warrior", 12, 75, null, 0, 2, "relay"] ] },
+  { name: "Schneiderei", icon: "trade_tailoring", total: 11, members: [
+    ["Selvara Nachtseide", "mage", 225, 225, 54, 1, 0, "self"], ["Odelia Faden", "priest", 168, 225, null, 1, 0, "relay"],
+    ["Ilyra Morgentau", "warlock", 150, 150, 31, 0, 0, "link"], ["Nebelwisp", "mage", 140, 150, null, 0, 0, "relay"],
+    ["Quill Ashweaver", "warlock", 122, 150, null, 0, 0, "relay"], ["Fenna Garnrolle", "priest", 98, 150, null, 0, 4, "relay"],
+    ["Tamsin Leinweber", "mage", 75, 75, null, 0, 0, "relay"], ["Orla Spindel", "priest", 66, 75, null, 0, 0, "relay"],
+    ["Vex Schattenstich", "warlock", 40, 75, null, 0, 0, "relay"], ["Pip Knopfloch", "mage", 22, 75, null, 0, 0, "relay"],
+    ["Wenna Saum", "priest", 9, 75, null, 0, 0, "relay"] ] },
+  { name: "Ingenieurskunst", icon: "trade_engineering", total: 7, members: [
+    ["Fizzbolt Kurbelfix", "rogue", 205, 225, 44, 1, 0, "self"], ["Gearda Zahnrad", "warrior", 150, 150, null, 0, 0, "relay"],
+    ["Tock Bolzenbart", "hunter", 131, 150, 22, 0, 0, "link"], ["Nixi Funkenspule", "mage", 88, 150, null, 0, 0, "relay"],
+    ["Brakk Schraubzwinge", "warrior", 70, 75, null, 0, 6, "relay"], ["Sprocket Lunte", "rogue", 51, 75, null, 0, 0, "relay"],
+    ["Kettle Ölfinger", "hunter", 18, 75, null, 0, 0, "relay"] ] },
+  { name: "Verzauberkunst", icon: "trade_engraving", total: 8, members: [
+    ["Aelith Sternenstaub", "mage", 215, 225, 47, 1, 0, "self"], ["Corwen Runenhand", "priest", 172, 225, null, 1, 0, "relay"],
+    ["Lyss Mondglanz", "warlock", 150, 150, null, 0, 0, "relay"], ["Thalan Silberzweig", "druid", 140, 150, 26, 0, 0, "link"],
+    ["Yvaine Arkanfeder", "mage", 110, 150, null, 0, 1, "relay"], ["Mordo Glimmstab", "warlock", 72, 75, null, 0, 0, "relay"],
+    ["Elra Funkelstein", "priest", 44, 75, null, 0, 0, "relay"], ["Sorrin Zauberzwirn", "mage", 15, 75, null, 0, 0, "relay"] ] },
+  { name: "Lederverarbeitung", icon: "inv_misc_pelt_wolf_01", total: 6, members: [
+    ["Grak Wolfsfell", "hunter", 225, 225, 58, 0, 0, "self"], ["Rhea Pirschgang", "druid", 180, 225, null, 1, 0, "relay"],
+    ["Toren Gerbhaut", "rogue", 145, 150, null, 0, 0, "relay"], ["Lark Fährtenleser", "hunter", 102, 150, null, 0, 0, "relay"],
+    ["Scar Nahtstich", "rogue", 60, 75, null, 0, 0, "relay"], ["Wiska Riemen", "druid", 33, 75, null, 0, 0, "relay"] ] },
+];
+const RECIPES = [
+  ["Arkanelixier", 175, "inv_potion_32"], ["Elixier der Feuerkraft", 140, "inv_potion_54"], ["Elixier der Löwenstärke", 1, "inv_potion_51"],
+  ["Elixier der Unterwasseratmung", 90, "inv_potion_32"], ["Elixier der Verteidigung", 130, "inv_potion_51"], ["Elixier großer Beweglichkeit", 185, "inv_potion_54"],
+  ["Geringer Heiltrank", 55, "inv_potion_51"], ["Geringer Manatrank", 120, "inv_potion_32"], ["Großer Heiltrank", 155, "inv_potion_51"],
+  ["Heiltrank", 110, "inv_potion_51"], ["Manatrank", 160, "inv_potion_32"], ["Schwacher Heiltrank", 1, "inv_potion_51"],
+  ["Schwacher Manatrank", 25, "inv_potion_32"], ["Schwacher Verjüngungstrank", 40, "inv_potion_54"], ["Trank der Rage", 60, "inv_potion_54"],
+  ["Trank der Wasserwandelei", 135, "inv_potion_32"],
+];
+
+const m = r => ({ name: r[0], cls: r[1], rank: r[2], cap: r[3], recipes: r[4], online: !!r[5], days: r[6], src: r[7] });
+PROFS.forEach(p => {
+  p.list = p.members.map(m).sort((a, b) => (b.online - a.online) || ((b.rank ?? -1) - (a.rank ?? -1)) || a.name.localeCompare(b.name));
+  p.onlineCount = p.list.filter(x => x.online).length;
+  p.best = Math.max(...p.list.map(x => x.rank || 0));
+  p.withBook = p.list.filter(x => x.recipes).length;
+});
+
+const name = (x) => `<span class="cls-${x.cls} ${x.online ? "" : "off-name"}">${x.name}</span>`;
+const dot = (x) => `<span class="dot ${x.online ? "on" : ""}"></span>`;
+const icon = (p, cls = "") => `<img class="icon ${cls}" src="${IC}${p.icon}.jpg" alt="">`;
+function bar(x) {
+  if (x.rank == null) return `<div class="skill"><div class="val faint">–</div><span class="faint" style="font-size:12px">kein Wert</span></div>`;
+  const pct = v => (v / 300 * 100).toFixed(2) + "%";
+  const max = x.rank >= x.cap;
+  return `<div class="skill"><div class="val num"><b>${x.rank}</b><span>/${x.cap}</span></div>
+    <div class="bar"><div class="cap" style="width:${pct(x.cap)}"></div><div class="fill ${max ? "max" : ""}" style="width:${pct(x.rank)}"></div>
+    <i class="tick" style="left:25%"></i><i class="tick" style="left:50%"></i><i class="tick" style="left:75%"></i></div>
+    ${max && x.cap < 300 ? `<span class="capnote">Lehrer</span>` : ""}</div>`;
+}
+const age = x => {
+  const [label, ic] = SRC[x.src];
+  if (x.src === "note") return `<span title="${label}">${ic}</span> laut Notiz`;
+  const when = x.days === 0 ? "" : `<span class="${x.days > 7 ? "amber" : ""}">vor ${x.days} Tg.</span>`;
+  return `<span title="${label}">${ic}</span>${when || '<span class="faint">heute</span>'}`;
+};
+const chrome = (inner, toolbarExtra = "") => `
+  <div class="portrait"></div>
+  <div class="titlebar"><h1>Murloc Mafia · Guildy</h1><div class="close">${SVG.x}</div></div>
+  <div class="toolbar">
+    <div class="search">${SVG.search}<span>Rezept oder Gegenstand suchen (Link per Shift-Klick) …</span></div>
+    ${toolbarExtra}
+    <span class="btn">Online-Mitglieder einlesen</span>
+  </div>
+  <div class="body">${inner}</div>`;
+
+/* ---------- A ---------- */
+(function () {
+  const rows = [];
+  PROFS.forEach((p, i) => {
+    const open = i === 0;
+    rows.push(`<div class="tr ph ${open ? "" : "closed"}">
+      <span class="chev">${open ? SVG.down : SVG.right}</span>
+      <span class="name">${icon(p)}${p.name}</span>
+      <span class="sum">bester Wert <b class="num">${p.best}</b></span>
+      <span class="sum">${p.withBook ? `<b class="num">${p.withBook}</b>&nbsp;Bücher` : ""}</span>
+      <span class="sum"><b class="num">${p.total}</b> Mitglieder <span class="g num">${p.onlineCount} online</span></span>
+    </div>`);
+    if (!open) return;
+    let shownOff = 0, sep = false;
+    p.list.forEach(x => {
+      if (!x.online && !sep) { sep = true; rows.push(`<div class="sep">Offline · ${p.list.length - p.onlineCount}</div>`); }
+      if (!x.online && ++shownOff > 7) return;
+      const expanded = x.name === "Ran Fred";
+      rows.push(`<div class="tr m">
+        <span class="chev">${x.recipes ? (expanded ? SVG.down : SVG.right) : ""}</span>
+        <span class="name">${dot(x)}${name(x)}</span>
+        ${bar(x)}
+        <span class="rec num">${x.recipes ? x.recipes : '<span class="faint">–</span>'}</span>
+        <span class="stand">${age(x)}</span>
+      </div>`);
+      if (expanded) rows.push(`<div class="recipes"><div class="head"><span>39 Rezepte · Shift-Klick verlinkt im Chat</span><span class="gold">Rezeptbuch öffnen</span></div>
+        ${RECIPES.map(r => `<div class="r"><img src="${IC}${r[2]}.jpg" alt="">${r[0]}</div>`).join("")}</div>`);
+    });
+    rows.push(`<div class="more">${SVG.down} 8 weitere offline anzeigen</div>`);
+  });
+  document.querySelector(".win.A").innerHTML = chrome(`
+    <div class="box">
+      <div class="thead"><span></span><span>Beruf · Mitglied</span><span>Fertigkeit</span><span>Rezepte</span><span>Stand</span></div>
+      <div class="tbody">${rows.join("")}</div><div class="scroll"></div>
+    </div>`,
+    `<div class="filters"><span class="btn ghost on">Nur online</span><span class="btn ghost">Alle aufklappen</span></div><span class="hint"></span>`);
+})();
+
+/* ---------- B ---------- */
+(function () {
+  const p = PROFS[0];
+  const rail = PROFS.map((q, i) => `<div class="ri ${i === 0 ? "sel" : ""}">${icon(q, "lg")}
+    <div class="t"><div class="n">${q.name}</div><div class="s"><span class="num">${q.total}</span><span class="g num">${q.onlineCount} online</span></div></div>
+    <span class="best num">${q.best}</span></div>`).join("");
+  const tr = x => `<div class="tr ${x.name === "Ran Fred" ? "sel" : ""}"><span class="name">${dot(x)}${name(x)}</span>${bar(x)}
+    <span class="num" style="text-align:right">${x.recipes ? `<span class="gold" style="display:inline-flex;gap:5px;align-items:center">${SVG.book}${x.recipes}</span>` : '<span class="faint">–</span>'}</span>
+    <span class="age">${age(x)}</span></div>`;
+  const on = p.list.filter(x => x.online), off = p.list.filter(x => !x.online);
+  const recipes = RECIPES.slice().sort((a, b) => b[1] - a[1]);
+  document.querySelector(".win.B").innerHTML = chrome(`
+    <div class="box rail">${rail}</div>
+    <div class="box detail">
+      <div class="dh">${icon(p, "xl")}<div><h2>Alchemie</h2><div class="s"><span>${p.total} Mitglieder</span><span class="g">${p.onlineCount} online</span><span>${p.withBook} Rezeptbücher bekannt</span></div></div>
+        <div class="seg"><span class="on">Alle</span><span>Online</span><span>Mit Rezepten</span></div></div>
+      <div class="thead"><span>Mitglied</span><span>Fertigkeit</span><span style="text-align:right">Rezepte</span><span style="text-align:right">Stand</span></div>
+      ${on.map(tr).join("")}
+      <div class="sub">Offline · ${off.length}</div>
+      ${off.slice(0, 13).map(tr).join("")}
+    </div>
+    <div class="box book">
+      <div class="bh"><div class="who"><span class="dot on"></span><span class="cls-druid">Ran Fred</span><span class="muted" style="font-size:13px">· Alchemie</span></div>
+        <div class="meta num"><span>190/225</span><span>39 Rezepte</span><span style="display:inline-flex;gap:5px;align-items:center">${SVG.self} eigene Daten, heute</span></div>
+        <div class="acts"><span class="btn ghost">${SVG.book} Rezeptbuch</span><span class="btn ghost">${SVG.chat} Flüstern</span><span class="btn ghost">${SVG.mail} Post</span></div></div>
+      <div class="bsearch">${SVG.search}In 39 Rezepten suchen …</div>
+      <div class="grp">Höchste zuerst</div>
+      ${recipes.map(r => `<div class="r"><img src="${IC}${r[2]}.jpg" alt="">${r[0]}<span class="lv num">${r[1]}</span></div>`).join("")}
+    </div>`, `<span class="hint">Daten aus Berufsfenstern von Guildy-Nutzern und Berufslinks im Chat.</span>`);
+})();
+
+/* ---------- C ---------- */
+(function () {
+  const TIERS = [[225, "Fachmann"], [150, "Experte"], [75, "Geselle"], [0, "Lehrling"]];
+  const tierOf = x => x.cap == null ? null : TIERS.find(t => x.cap > t[0]) || TIERS[3];
+  const LIMIT = { "Alchemie": 14 };
+  const blocks = PROFS.map(p => {
+    const groups = new Map(TIERS.map(t => [t[1], []]));
+    const nodata = [];
+    p.list.forEach(x => { const t = tierOf(x); t ? groups.get(t[1]).push(x) : nodata.push(x); });
+    let body = "", shown = 0, hidden = 0;
+    const lim = LIMIT[p.name] || 99;
+    groups.forEach((xs, tier) => {
+      if (!xs.length) return;
+      const visible = xs.filter(() => shown++ < lim);
+      hidden += xs.length - visible.length;
+      if (!visible.length) return;
+      body += `<div class="tier">${tier}<span class="ln"></span><span class="c num">${xs.length}</span></div><div class="chips">` +
+        visible.map(x => `<span class="chip ${x.recipes ? "rb" : ""} ${x.online ? "" : "dim"}">${dot(x)}<span class="cls-${x.cls}">${x.name}</span><span class="v num">${x.rank}</span>${x.recipes ? `<span class="bk">${SVG.book}</span>` : ""}</span>`).join("") + `</div>`;
+    });
+    if (hidden + nodata.length) body += `<div class="moreline">+ ${hidden + nodata.length} weitere</div>`;
+    return `<div class="blk"><div class="bh">${icon(p, "lg")}<span class="n">${p.name}</span><span class="s"><span class="num">${p.total}</span><span class="g num">${p.onlineCount} online</span></span></div>${body}</div>`;
+  }).join("");
+  document.querySelector(".win.C").innerHTML = chrome(`<div class="box board">${blocks}</div>`,
+    `<span class="legend"><span class="chip">${dot({ online: 1 })}online</span><span class="chip dim">${dot({})}offline</span><span class="chip rb"><span class="bk" style="color:var(--gold-soft);display:inline-flex">${SVG.book}</span>Rezepte bekannt</span><span>Zahl = Fertigkeit</span></span><span class="hint"></span>`);
+})();
+
+const v = location.hash.slice(1);
+if (v) { document.body.classList.add("single"); document.querySelectorAll("section.mock").forEach(s => s.style.display = s.id === v ? "" : "none"); }
+</script>
+</body>
+</html>
