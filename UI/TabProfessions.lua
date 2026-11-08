@@ -229,6 +229,15 @@ local function Build(panel)
   status:SetWidth(BOOK_W + 100)
   status.Title = W.Text(status, "GameFontNormal", L.HARVEST_STATUS)
   status.Title:SetPoint("TOPLEFT", 10, -8)
+  -- after a run: close the results to get the recipe book back (the next run shows them again)
+  status.Close = CreateFrame("Button", nil, status, "UIPanelCloseButton")
+  status.Close:SetSize(24, 24)
+  status.Close:SetPoint("TOPRIGHT", -2, -2)
+  status.Close:SetScript("OnClick", function()
+    view.statusClosed = true
+    view:Refresh()
+  end)
+  W.Tooltip(status.Close, L.HARVEST_CLOSE)
   status.Progress = W.Text(status, "GameFontHighlightSmall")
   status.Progress:SetPoint("TOPLEFT", 10, -28)
   status.Progress:SetPoint("RIGHT", -10, 0)
@@ -255,8 +264,8 @@ local function Build(panel)
   -- one row per member: one icon per profession looked at (bright with the recipe count = book read,
   -- faded = doesn't have it, faded with "?" = no answer), a short summary; details on hover
   local MAX_ICONS = 8
-  local ICON_X = 130
-  local SUMMARY_X = ICON_X + MAX_ICONS * 22 + 6
+  local ICON_X = 100
+  local SUMMARY_X = ICON_X + MAX_ICONS * 20 + 4
 
   local function LookLine(e)
     local text, note
@@ -266,6 +275,8 @@ local function Build(panel)
       text, note = "|cffff9933" .. L.HARVEST_SILENT .. "|r", L.HARVEST_DETAIL_SILENT
     elseif e.result == "absent" then
       text, note = "|cff999999" .. L.HARVEST_ABSENT .. "|r", L.HARVEST_DETAIL_ABSENT
+    elseif e.result == "retry" then
+      text, note = "|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r", L.HARVEST_DETAIL_RETRY
     else
       text, note = "|cffff9933" .. L.HARVEST_NO_ANSWER .. "|r", L.HARVEST_DETAIL_NO_ANSWER
     end
@@ -283,7 +294,7 @@ local function Build(panel)
     for i = 1, MAX_ICONS do
       local icon = row:CreateTexture(nil, "ARTWORK")
       icon:SetSize(18, 18)
-      icon:SetPoint("LEFT", ICON_X + (i - 1) * 22, 0)
+      icon:SetPoint("LEFT", ICON_X + (i - 1) * 20, 0)
       icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
       icon.Mark = W.Text(row, "NumberFontNormalSmall")
       icon.Mark:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -1)
@@ -343,7 +354,7 @@ local function Build(panel)
     end
     local summary
     if books > 0 then
-      summary = GREEN .. L.HARVEST_SUM_FOUND:format(books, recipes) .. "|r"
+      summary = GREEN .. L.HARVEST_SUM_FOUND:format(recipes) .. "|r"
     elseif silent > 0 then
       summary = "|cffff9933" .. L.HARVEST_SUM_SILENT .. "|r"
     else
@@ -704,7 +715,7 @@ local function Build(panel)
   function view:RenderStatus()
     local log = ns.Harvest.log
     local running = ns.Harvest.IsRunning()
-    if not (running or #log > 0) then return end
+    if not (running or #log > 0) or (self.statusClosed and not running) then return end
     self.Status.Bar:SetShown(running)
     if running then
       local done, total, found, look, looks, left = ns.Harvest.Progress()
@@ -884,7 +895,9 @@ local function Build(panel)
     local running = ns.Harvest.IsRunning()
     self.Harvest:SetText(running and L.HARVEST_STOP or L.HARVEST)
     local searching = ns.Search.Normalize(self.query) ~= ""
-    self:Layout(running or #ns.Harvest.log > 0, searching)
+    if running then self.statusClosed = nil end
+    self.Status.Close:SetShown(not running)
+    self:Layout(running or (#ns.Harvest.log > 0 and not self.statusClosed), searching)
     self:RenderStatus()
     if event == "HARVEST" and running then return end
     local groups = Groups()

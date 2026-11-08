@@ -22,6 +22,7 @@ Harvest.DATA_VERSION = 4       -- bump to drop "absent"/"silent"/server marks ma
 Harvest.SERVER_MISSES = 1      -- silent members of another server id before it is skipped for the run
 Harvest.SILENT = 3600          -- a member without any answer is left out this long (they may change servers)
 Harvest.ABSENT_GRACE = 1.5     -- seconds an empty book may still fill before it counts as "doesn't have it"
+Harvest.FIRST_WAIT = 8         -- the run's first look loads Blizzard's profession window: it may take longer
 
 local state
 
@@ -64,8 +65,9 @@ end
 
 -- Server id in a player GUID ("Player-6949-0074341C" -> "6949"). Only members on the server the player
 -- is on right now answer, and on Forever that changes with the zone (2026-11-08). So nothing about
--- servers is remembered: members in the player's zone go first, then those with the player's server id,
--- and within a run an id whose member stayed silent is skipped for the rest of that run.
+-- servers is remembered: members with the player's server id go first (those in the player's zone
+-- before the others), then other ids in the zone, then the rest; within a run an id whose member stayed
+-- silent is skipped for the rest of that run.
 function Harvest.ServerId(guid)
   return type(guid) == "string" and guid:match("^Player%-(%d+)%-") or nil
 end
@@ -73,6 +75,37 @@ end
 -- Pure: which (member, profession) pairs to look at. members = roster entries, guild = stored data,
 -- myServer/myZone = the player's server id and zone (members there go first). isUser(m) = the member
 -- runs Guildy (shares their own professions): not read, only counted. Returns queue, member count, users.
+-- A profession Guildy knows the member has: a skill level, recipes or the guild note says so
+local function Known(prof)
+  return prof ~= nil and (prof.rank ~= nil or prof.recipes ~= nil or prof.src == "note")
+end
+
+-- Professions to look at for one member: when Guildy knows any of their professions, only those, plus
+-- the other book professions while fewer than MAX_PRIMARY primary ones are known (a second one may be
+-- missing); known ones first. Members Guildy knows nothing about get every book profession.
+function Harvest.Professions(record)
+  local profs = record and record.profs or {}
+  local knownAny, knownPrimary = false, 0
+  for skillLine, prof in pairs(profs) do
+    if Known(prof) then
+      knownAny = true
+      if P.PRIMARY[skillLine] then knownPrimary = knownPrimary + 1 end
+    end
+  end
+  local list = {}
+  for _, skillLine in ipairs(Harvest.ORDER) do
+    if Known(profs[skillLine]) then list[#list + 1] = skillLine end
+  end
+  for _, skillLine in ipairs(Harvest.ORDER) do
+    if not Known(profs[skillLine]) then
+      if not knownAny or (P.PRIMARY[skillLine] and knownPrimary < Harvest.MAX_PRIMARY) then
+        list[#list + 1] = skillLine
+      end
+    end
+  end
+  return list
+end
+
 function Harvest.BuildQueue(members, guild, now, isOwn, myServer, isUser, myZone)
   local queue, memberSet = {}, {}
   local absent = guild.absent or {}
@@ -84,19 +117,12 @@ function Harvest.BuildQueue(members, guild, now, isOwn, myServer, isUser, myZone
     if reachable and isUser and isUser(m) then
       users = users + 1
     elseif reachable and not quiet then
-      local rank = (myZone and m.zone == myZone and 1) or (myServer and Harvest.ServerId(m.guid) == myServer and 2) or 3
+      -- the player's server id first (in the player's zone before elsewhere), then other ids in the zone
+      local own = not myServer or Harvest.ServerId(m.guid) == myServer
+      local here = myZone and m.zone == myZone
+      local rank = (own and here and 1) or (own and 2) or (here and 3) or 4
       local record = guild.members[m.key]
-      -- professions the guild note mentions go first: the first look decides whether a member is skipped
-      local order = {}
-      for _, skillLine in ipairs(Harvest.ORDER) do
-        local prof = record and record.profs and record.profs[skillLine]
-        if prof and prof.src == "note" then order[#order + 1] = skillLine end
-      end
-      for _, skillLine in ipairs(Harvest.ORDER) do
-        local prof = record and record.profs and record.profs[skillLine]
-        if not (prof and prof.src == "note") then order[#order + 1] = skillLine end
-      end
-      for _, skillLine in ipairs(order) do
+      for _, skillLine in ipairs(Harvest.Professions(record)) do
         local prof = record and record.profs and record.profs[skillLine]
         -- read less than a day ago, and not before /guildy scanreset
         local fresh = prof and prof.recipes and now - (prof.ts or 0) < Harvest.FRESH and (prof.ts or 0) > (guild.scanResetAt or 0)
@@ -250,6 +276,7 @@ local function Check(entry, startedAt)
   local server = Harvest.ServerId(entry.member.guid)
   local proven = state.lastFound and state.index - state.lastFound <= Harvest.PROOF_LOOKS
   local result = verdict or "no answer"
+  if verdict then state.anyAnswer = true end
   if verdict == "found" then
     state.found = state.found + 1
     state.lastFound, state.streak = state.index, 0
@@ -267,6 +294,13 @@ local function Check(entry, startedAt)
       absent[key] = absent[key] or {}
       absent[key][entry.skillLine] = ns.Now()
     end
+  elseif not verdict and not state.firstDone and not entry.retried then
+    -- the run's very first look often stays silent while Blizzard's window loads: the same look once
+    -- more right after the pause, no marks
+    entry.retried = true
+    state.looks[key] = 0
+    table.insert(state.queue, state.index + 1, entry)
+    result = "retry"
   elseif not verdict and state.looks[key] == 1 and not state.answered[key] then
     -- no answer at the first look: skip the rest of the member in this run; remembered for an hour only
     -- while reading is proven to work (members without any profession get no answer)
@@ -286,6 +320,8 @@ local function Check(entry, startedAt)
       end
     end
   end
+  -- after the first look (and its one retry) Blizzard's window is loaded: normal waits from now on
+  if result ~= "retry" then state.firstDone = true end
   Log(entry, result, scan, startedAt)
   if state.serverBadPending then
     local note = state.serverBadPending
@@ -383,7 +419,7 @@ Step = function()
         SetHidden(true) -- the frame may only exist after the first link
         ns.Fire("HARVEST")
         -- normally OnScanned decides much earlier; this only catches "no answer" (went offline)
-        C_Timer.After(Harvest.WAIT, function() Check(entry, startedAt) end)
+        C_Timer.After(state.firstDone and Harvest.WAIT or Harvest.FIRST_WAIT, function() Check(entry, startedAt) end)
         return
       end
     end
@@ -427,7 +463,7 @@ function Harvest.Start()
     ns.SafeCall(function()
       if not state or state.inCombat then return end
       local now = GetTime()
-      if state.current and now - state.startedAt > Harvest.WAIT + Harvest.ABSENT_GRACE + 5 then
+      if state.current and now - state.startedAt > Harvest.FIRST_WAIT + Harvest.ABSENT_GRACE + 5 then
         Check(state.current, state.startedAt)
       elseif not state.current and state.waitUntil and now > state.waitUntil + 8 then
         Step()

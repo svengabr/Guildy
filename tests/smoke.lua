@@ -348,9 +348,17 @@ T.describe("Harvest", function()
     local shardQueue, shardTotal = ns.Harvest.BuildQueue(shards, { members = {} }, now, function() return false end,
       "6949", nil, "Ironforge")
     T.eq(shardTotal, 3)
-    T.eq(shardQueue[1].member.key, "z")
+    -- own server id in the zone, own id elsewhere, other ids in the zone, the rest
+    T.eq(shardQueue[1].member.key, "x")
     T.eq(shardQueue[#shardQueue].member.key, "y")
-    T.eq(#queue, #ns.Harvest.ORDER - 2) -- alchemy is fresh, blacksmithing known absent
+    local zoned = ns.Harvest.BuildQueue(shards, { members = {} }, now, function() return false end, "6949", nil, "Dun Morogh")
+    T.eq(zoned[1].member.key, "x")
+    T.eq(zoned[#zoned].member.key, "z")
+    -- A is known to have alchemy (fresh): only primary professions besides it are tried, a second one may
+    -- be missing; no secondary ones, and blacksmithing is known absent
+    local primaries = 0
+    for _, skillLine in ipairs(ns.Harvest.ORDER) do if ns.Professions.PRIMARY[skillLine] then primaries = primaries + 1 end end
+    T.eq(#queue, primaries - 2)
     -- members who run Guildy share their recipes themselves: not read, only counted
     local _, userTotal, users = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end, nil,
       function(m) return m.key == "a" end)
@@ -359,7 +367,12 @@ T.describe("Harvest", function()
     -- after /guildy scanreset fresh data counts as old: alchemy is read again
     guild.scanResetAt = now
     local again = ns.Harvest.BuildQueue(members, guild, now, function(m) return m.key == "me" end)
-    T.eq(#again, #ns.Harvest.ORDER - 1)
+    T.eq(#again, primaries - 1)
+    -- two known primary professions: only the known ones are read
+    local two = { members = { a = { profs = { [171] = { rank = 100 }, [182] = { rank = 50 }, [185] = { src = "note" } } } } }
+    local twoQueue = ns.Harvest.BuildQueue(members, two, now, function(m) return m.key == "me" end)
+    T.eq(#twoQueue, 2) -- alchemy and cooking (herbalism has no book)
+    T.eq(twoQueue[1].skillLine, 171)
     for _, entry in ipairs(queue) do T.eq(entry.member.key, "a") end
   end)
 
@@ -370,6 +383,9 @@ T.describe("Harvest", function()
     local isUser = ns.Harvest.IsGuildyUser
     ns.Harvest.IsGuildyUser = function() return false end -- read Au Tsch anyway for this test
     ns.Harvest.log = { { result = "found", member = "Old" } }
+    -- Guildy knows nothing about Au Tsch's professions here: every book profession is tried
+    local auProfs = ns.GuildData().members["au tsch"].profs
+    ns.GuildData().members["au tsch"].profs = {}
     -- sound effects are off while reading and come back afterwards
     local cvars = { Sound_EnableSFX = "1" }
     env.GetCVar = function(name) return cvars[name] end
@@ -397,10 +413,14 @@ T.describe("Harvest", function()
     ns.Harvest.RestoreSound()
     T.eq(cvars.Sound_EnableSFX, "1")
     env.GetCVar, env.SetCVar = nil, nil
+    ns.GuildData().members["au tsch"].profs = auProfs
     T.truthy(#opened > 0, "opened links")
     T.eq(ns.GuildData().absent["au tsch"], nil) -- no answer is not "absent"
-    T.eq(ns.Harvest.log[1].result, "silent") -- first look unanswered: member skipped
-    T.eq(#opened, 1)
+    -- the run's first look got no answer: tried once more, then the member is skipped
+    T.eq(ns.Harvest.log[2].result, "retry")
+    T.eq(ns.Harvest.log[1].result, "silent")
+    T.eq(#opened, 2)
+    T.eq(opened[1], opened[2])
     -- no book was read in this run: the silence may be the server slowing down, so it is not remembered
     T.eq((ns.GuildData().silent or {})["au tsch"], nil)
     ns.GuildData().silent = { ["au tsch"] = ns.Now() }
@@ -409,6 +429,11 @@ T.describe("Harvest", function()
     ns.TradeSkill.Debug()
     env.SetItemRef = nil
     ns.UI.SelectTab("professions")
+    -- after the run the results can be closed: the recipe book comes back
+    local profView = ns.UI.TabView("professions")
+    T.truthy(profView.Status:IsShown(), "results shown after the run")
+    profView.Status.Close:GetScript("OnClick")()
+    T.eq(profView.Status:IsShown(), false)
     T.eq(errors, {})
   end)
 end)
