@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1
+
+Hotfix for reading online members.
+
+- The results of a run can be closed with the X in their corner, so the recipe book comes back.
+- Members whose professions Guildy knows are only read for those professions, not for every one.
+- The first member of a run no longer stays without an answer: the first look waits longer and is tried
+  once more. Members on your server come first, before others in your zone.
+- The result rows fit the narrower column again.
+
 ## 0.5.0
 
 The professions tab is rebuilt: professions on the left, their members in the middle, the recipe book of
