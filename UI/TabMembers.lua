@@ -1,5 +1,6 @@
--- Members tab: search, filters (class, level bracket, profession, group, online only, without note)
--- and sortable columns. Twinks hang under their main (or fold into it); the group comes from notes
+-- Members tab: search, filters (class, group, online only, without note) and sortable columns;
+-- level and profession only come as drill-downs from the overview.
+-- Twinks hang under their main (or fold into it); the group comes from notes
 -- like "Main, Murloc Raid" (any name, Core/Family.lua) and twinks inherit their main's.
 -- A click on a member opens the character page (UI/CharacterPage.lua), a right click the member menu.
 local _, ns = ...
@@ -92,28 +93,8 @@ local function Build(panel)
         onClick = function() view:SetFilterValue("classFile", classFile) end }
     end
     return items
-  end, 90)
+  end, 90, 150)
   view.ClassButton:SetPoint("LEFT", search, "RIGHT", 8, 0)
-
-  view.LevelButton = W.MenuButton(main, L.FILTER_LEVEL, function()
-    local items = { { text = L.ALL, checked = view.filter.bracket == nil, onClick = function() view:SetFilterValue("bracket", nil) end } }
-    for bracket = 1, ns.Census.BRACKETS do
-      items[#items + 1] = { text = ns.Census.BracketLabel(bracket), checked = view.filter.bracket == bracket,
-        onClick = function() view:SetFilterValue("bracket", bracket) end }
-    end
-    return items
-  end, 80)
-  view.LevelButton:SetPoint("LEFT", view.ClassButton, "RIGHT", 4, 0)
-
-  view.ProfButton = W.MenuButton(main, L.FILTER_PROFESSION, function()
-    local items = { { text = L.ALL, checked = view.filter.skillLine == nil, onClick = function() view:SetFilterValue("skillLine", nil) end } }
-    for _, skillLine in ipairs(ns.Professions.ORDER) do
-      items[#items + 1] = { text = ns.TradeSkill.Name(skillLine), checked = view.filter.skillLine == skillLine,
-        onClick = function() view:SetFilterValue("skillLine", skillLine) end }
-    end
-    return items
-  end, 90)
-  view.ProfButton:SetPoint("LEFT", view.LevelButton, "RIGHT", 4, 0)
 
   -- the guild's own groups, as found in the notes
   view.GroupButton = W.MenuButton(main, L.FILTER_GROUP, function()
@@ -122,8 +103,18 @@ local function Build(panel)
       items[#items + 1] = { text = GroupText(group), checked = view.group == group, onClick = function() view.group = group; view:Refresh() end }
     end
     return items
-  end, 90)
-  view.GroupButton:SetPoint("LEFT", view.ProfButton, "RIGHT", 4, 0)
+  end, 90, 170)
+  view.GroupButton:SetPoint("LEFT", view.ClassButton, "RIGHT", 4, 0)
+
+  for _, button in ipairs({ view.ClassButton, view.GroupButton }) do
+    button:SetScript("OnEnter", function(self)
+      if not self.tip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+      GameTooltip:SetText(self.tip)
+      GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  end
 
   local function Check(label, anchor, onClick)
     local check = CreateFrame("CheckButton", nil, main, "UICheckButtonTemplate")
@@ -183,7 +174,7 @@ local function Build(panel)
 
   local listBox = W.Box(main)
   listBox:SetPoint("TOPLEFT", 0, -54)
-  listBox:SetPoint("BOTTOMRIGHT", 0, 0)
+  listBox:SetPoint("BOTTOMRIGHT", 0, 18) -- room for the summary below
   view.List = W.ScrollList(listBox, ROW, function(row)
     row:EnableMouse(true)
     row.Cells = {}
@@ -242,8 +233,9 @@ local function Build(panel)
   view.List:SetPoint("TOPLEFT", 4, -4)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  view.Summary = W.Text(header, "GameFontDisableSmall")
-  view.Summary:SetPoint("RIGHT", header, "RIGHT", -28, 0)
+  -- below the list: in the header it ran into the officer note column
+  view.Summary = W.Text(main, "GameFontDisableSmall")
+  view.Summary:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -6, 2)
   view.Summary:SetJustifyH("RIGHT")
 
   -- behaviour ----------------------------------------------------------------------------------
@@ -259,8 +251,10 @@ local function Build(panel)
     self:Refresh()
   end
 
+  -- a set filter shows only its value (the full text is in the tooltip), so the toolbar fits
   local function Label(button, base, value)
-    button:SetText(value and (base .. ": " .. value) or base)
+    button:SetText(value or base)
+    button.tip = value and (base .. ": " .. value) or nil
   end
 
   function view:Refresh()
@@ -333,14 +327,17 @@ local function Build(panel)
       end
     end
     self.List:SetItems(items)
-    self.Summary:SetText(L.SHOWN_COUNT:format(#kept, #members))
+    -- level and profession have no menu here; a drill-down from the overview names them in the summary
+    local summary = L.SHOWN_COUNT:format(#kept, #members)
+    local level = (self.filter.level and tostring(self.filter.level))
+      or (self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket))
+    if level then summary = L.FILTER_LEVEL .. " " .. level .. " · " .. summary end
+    if self.filter.skillLine then summary = ns.TradeSkill.Name(self.filter.skillLine) .. " · " .. summary end
+    self.Summary:SetText(summary)
     self.NoNoteCheck.Label:SetText(L.NO_NOTE .. " |cffffd100" .. noNote .. "|r")
     self.NoOfficerNoteCheck.Label:SetText(L.NO_OFFICER_NOTE .. " |cffffd100" .. noOfficerNote .. "|r")
     Label(self.GroupButton, L.FILTER_GROUP, self.group)
     Label(self.ClassButton, L.FILTER_CLASS, self.filter.classFile and ClassLabel(self.filter.classFile))
-    Label(self.LevelButton, L.FILTER_LEVEL, (self.filter.level and tostring(self.filter.level))
-      or (self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket)))
-    Label(self.ProfButton, L.FILTER_PROFESSION, self.filter.skillLine and ns.TradeSkill.Name(self.filter.skillLine))
     for key, button in pairs(self.Headers) do
       local text = L["COL_" .. key:upper()]
       if key == self.sort then text = text .. (self.desc and " v" or " ^") end

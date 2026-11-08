@@ -124,11 +124,21 @@ function W.Button(parent, text, onClick, width, opts)
   local base = width or 120
   if opts.fit then base = W.FitWidth(opts.small and "GameFontNormalSmall" or "GameFontNormal", opts.fit, base, pad) end
   button:SetSize(base, 22)
-  -- the given width is a minimum: longer texts (also set later) widen the button instead of overflowing
+  -- the given width is a minimum: longer texts (also set later) widen the button instead of overflowing,
+  -- up to opts.maxWidth, beyond which the text is cut off with "..."
   local function Fit()
     local label = button:GetFontString()
-    local textWidth = label and label:GetStringWidth()
-    if textWidth then button:SetWidth(math.max(base, math.ceil(textWidth) + pad)) end
+    if not label then return end
+    if opts.maxWidth then label:SetWidth(0) end -- measure the full text
+    local textWidth = label:GetStringWidth()
+    if not textWidth then return end
+    local width = math.max(base, math.ceil(textWidth) + pad)
+    if opts.maxWidth and width > opts.maxWidth then
+      width = opts.maxWidth
+      label:SetWordWrap(false)
+      label:SetWidth(width - pad)
+    end
+    button:SetWidth(width)
   end
   if hooksecurefunc then hooksecurefunc(button, "SetText", Fit) end
   button:SetText(text)
@@ -397,13 +407,13 @@ end
 
 -- Button that opens a menu built on click; a small arrow on the right marks it as a menu
 local MENU_ARROW = "Interface\\Buttons\\Arrow-Down-Up"
-function W.MenuButton(parent, text, buildItems, width)
+function W.MenuButton(parent, text, buildItems, width, maxWidth)
   local button
   local arrow = W.TextureExists(MENU_ARROW)
   button = W.Button(parent, text, function()
     if menu and menu:IsShown() then CloseMenu() return end
     W.OpenMenu(button, buildItems(), math.max(width or 120, 180))
-  end, width, arrow and { pad = 38 } or nil)
+  end, width, { pad = arrow and 38 or nil, maxWidth = maxWidth })
   if arrow then
     local icon = button:CreateTexture(nil, "OVERLAY")
     icon:SetSize(12, 12)
