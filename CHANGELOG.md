@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.6.0
+
+Chat history, a character page for every member, twinks and groups from notes, and an account tab
+for all your characters.
+
+Chat
+- The chat reaches back through the whole guild chat history, like Blizzard's window: scrolling up
+  loads older messages from the server. Every line has its time, every day a divider.
+- A timeline right of the chat: a mark per day and one for "new since your last login", click to jump,
+  drag the thumb. A strip on top names the day you are reading, or says that older messages are loading
+  or that the start is reached. With only a few lines it stays empty.
+- "New since your last login" divider; a reload keeps it. A button at the bottom jumps back to the
+  newest line and counts the lines below.
+- The input shows the channel it sends to ("Guild:" / "Officers:"). Wider online list, so zones fit;
+  slim gold scrollbar; menu buttons carry an arrow.
+- Lines of members who left show their name when the game still knows it, else a grey "Former member".
+
+Members
+- Members are clickable the same way everywhere (chat names, online list, members and ranks tab): click
+  opens the character page, right-click the menu, shift-click whispers.
+- The member menu lists the ranks under "Set rank": one click sets that rank (several /gpromote or
+  /gdemote steps in one click). "Copy name" shows the name selected for Ctrl+C. "Remove from guild" is
+  red, last in the menu and always asks first.
+- The character page is a hero card: portrait by race and gender, level, the Hall of Fame title and
+  medals, notes, and for officers the rank menu, notes and removal. Next to it the family (twinks in
+  this guild), kills, quests, deaths and item level with the place in the guild, the dungeon collection
+  and the professions with their trainer caps. Opening the window again returns to the page.
+- Twinks: Guildy users share the characters they have in the guild (only with sharing on); for others
+  notes like "Alt, Name", "Twink of Name" or "Main: Name" connect the characters.
+- Members tab: class icons, a group column (whatever follows "Main," in the note, e.g. "Main, Murloc
+  Raid" or "Main, Friends", so every guild uses its own; twinks take their main's group), item level and
+  the officer note (for those who may read it); the professions column is gone. Twinks hang under their
+  main or fold into it ("Fold twinks"). Filters by group, "Without note" and "Without officer note" with
+  counts show who still needs one.
+
+Account
+- New "Account" side tab under the guild tab: an overview of your account (characters, levels,
+  professions, kills, quests, deaths and dungeon bosses together, your guilds), all your characters in
+  any guild or none, and every profession of the account with its skill. A click on a character opens
+  its page in account mode: the family shows all your characters, the open one highlighted. Guildy
+  remembers your characters on this computer at each login and never sends them.
+- Without a guild the account is the only tab; joining a guild brings the other tabs and the chat back.
+
+Window
+- Guildy always opens on the chat tab after a login or reload (within a session it remembers the tab)
+  and plays Blizzard's open and close sounds.
+- Resizing the window no longer jumps: the bottom right corner follows the cursor, the window stays
+  within its bounds and the screen.
+- Lists show their scroll bar only when there is something to scroll.
+- `/guildy chatdebug` tells where the chat history goes missing.
+
 ## 0.5.1
 
 Hotfix for reading online members.
