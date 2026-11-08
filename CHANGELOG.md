@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1
+
+Hotfix for the members tab at the smallest window size.
+
+- The filter bar fits again: the level and profession menus are gone (clicks on a level or a profession
+  in the overview still filter and name the filter next to the count). A set class or group shows only
+  its value, long group names are cut off, the full text is in the tooltip.
+- The "x of y shown" count sits below the list instead of running into the officer note column.
+
 ## 0.6.0
 
 Chat history, a character page for every member, twinks and groups from notes, and an account tab
