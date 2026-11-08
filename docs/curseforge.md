@@ -66,7 +66,9 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: Honorable kills, duels won and lost, and battlegrounds played across the guild. Title cards for the top fighter and the duel master, plus win rate and this month's kills for every member.
 9. `media/gallery/09-professions.jpg`
    - Title: Professions
-   - Description: Who has which profession, at what skill and with how many recipes? Search for a recipe or item to find who can craft it. Data comes from Guildy users, profession links in chat, guild notes, or from reading the recipe books of online members.
+   - Description: Every profession at a glance: how many members have it and how many are online. Pick one for its members with skill, recipes and data source, and browse a member's recipes right next to it. The search finds who can craft an item.
+   - Second image `media/gallery/09-professions-leatherworking.jpg`, Title: Professions: Leatherworking
+   - Description: Online members first, then offline, with skill bars and who is a trainer-level master. Data comes from Guildy users, profession links in chat, guild notes, or from reading the recipe books of online members.
 10. `media/gallery/10-info-log.jpg`
    - Title: Info & Log
    - Description: Message of the day and guild information, both editable right in the window, next to the full guild log: joins, leaves, invites, promotions and demotions. Your sharing settings are here too.

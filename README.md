@@ -14,12 +14,14 @@ Made for **WoW Forever**.
 - **Who's online**: next to the chat, every online member with level, class colour, professions and zone. Hover for rank, notes and skills, click to whisper, right-click for the menu.
 - **Members**: search name, zone or note, filter by class, level bracket and profession, sort by any column. The details panel shows notes, rank, last online and professions.
 - **Overview**: the census of your guild. Classes, levels and professions of the members who were online in the last month, three months, six months, or all of them. Click a bar to see who it is.
-- **Professions**: who has which profession at what skill, and a recipe search ("who can make Elixir of Lion's Strength?"). Click a member to expand their recipes, or open their recipe book.
+- **Professions**: every profession in a list on the left, with how many members have it and how many are online. Pick one to see its members with skill, recipes and where the data comes from; filter by online or by members with recipes, and browse a member's recipes right next to it. The search finds who can craft a recipe or item ("who can make Elixir of Lion's Strength?").
 - **Info & Log**: message of the day, guild information and the guild log.
 
 ![Census](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/03-overview.jpg)
 
 ![Professions](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/09-professions.jpg)
+
+![Professions: leatherworking](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/09-professions-leatherworking.jpg)
 
 ![Members](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/02-members.jpg)
 
@@ -80,7 +82,7 @@ Das Standard-Gildenfenster zeigt einen Chat und eine schlichte Liste. Guildy ers
 - **Chat**: Gildenchat mit Verlauf und etwas größerer Schrift, Offizierschat mit einem Klick, Beitritte als graue Zeile. Daneben alle Online-Mitglieder mit Stufe, Klassenfarbe, Berufen und Zone. Klick flüstert an, Rechtsklick öffnet das Menü.
 - **Mitglieder**: Suche nach Name, Zone oder Notiz, Filter für Klasse, Stufe und Beruf, sortierbare Spalten und eine Detailansicht.
 - **Übersicht**: der Census eurer Gilde. Klassen, Stufen und Berufe der Mitglieder, die im letzten Monat, in den letzten drei oder sechs Monaten oder überhaupt online waren. Ein Klick auf einen Balken zeigt, wer es ist.
-- **Berufe**: wer welchen Beruf mit welchem Skill hat, und eine Rezeptsuche („wer kann mir das herstellen?“). Ein Klick klappt die Rezepte eines Mitglieds auf, per Rechtsklick öffnest du sein Rezeptbuch.
+- **Berufe**: links alle Berufe mit der Zahl der Mitglieder und wie viele davon online sind. Ein Klick zeigt die Mitglieder des Berufs mit Skill, Rezepten und Datenquelle, filterbar nach online oder mit Rezepten, und daneben die Rezepte des gewählten Mitglieds. Die Suche findet, wer ein Rezept oder einen Gegenstand herstellen kann („wer kann mir das herstellen?“).
 - **Info & Log**: Nachricht des Tages, Gildeninformation und Gildenlog.
 
 **Woher die Berufe kommen:** aus deinen eigenen Berufsfenstern (einmal öffnen reicht), automatisch von anderen Guildy-Nutzern (inklusive Sammelberufe, abschaltbar), aus angeklickten Berufslinks, aus Gildennotizen wie „Herb/Alch“ und per Knopf „Online-Mitglieder einlesen“. Der öffnet nacheinander die Rezeptbücher aller Online-Mitglieder deines Server-Bereichs und merkt sich die Rezepte.

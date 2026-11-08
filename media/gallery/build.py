@@ -123,6 +123,27 @@ def stamp(img, spr, x, y):
 
 # --- cut the window out of the game world -------------------------------------------------------------
 
+def cutout_rect(im, rect):
+    """For screenshots where the world behind the window is neither sky nor night: cut along the measured
+    outer frame `rect` (x0, y0, x1, y1), plus the portrait ring and the tabs below (dark shapes)."""
+    a = np.asarray(im).astype(int)
+    h, w = a.shape[:2]
+    x0, y0, x1, y1 = rect
+    fg = np.zeros((h, w), bool)
+    fg[y0:y1 + 1, x0:x1 + 1] = True
+    yy, xx = np.mgrid[0:h, 0:w]
+    fg |= (xx - (x0 + 39)) ** 2 + (yy - (y0 + 37)) ** 2 <= 45 ** 2
+    tz = np.zeros((h, w), bool)
+    tz[y1 + 1:min(h, y1 + 52), x0 + 20:x0 + 790] = True
+    dark = Image.fromarray(((a.sum(2) < 200) & tz).astype(np.uint8) * 255)
+    dark = dark.filter(ImageFilter.MaxFilter(11)).filter(ImageFilter.MinFilter(11))
+    fg |= (np.asarray(dark) > 0) & tz
+    alpha = Image.fromarray((fg * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))
+    out = im.convert("RGBA")
+    out.putalpha(alpha)
+    return out.crop(out.getbbox())
+
+
 def cutout(im):
     a = np.asarray(im).astype(int)
     # daytime sky (blue or bright) or a dark night sky (dark, at least as blue as red)
@@ -374,13 +395,13 @@ def plain(*real):
 
 def main(only=None):
     from screens import JOBS  # local only: real names and per-screen positions
-    for out, src, edit in JOBS:
+    for out, src, edit, *rect in JOBS:
         if only and not out.startswith(only):
             continue
         im = Image.open(os.path.join(HERE, "src", src + ".webp")).convert("RGB")
         img_orig[0] = im.copy()
         edit(im)
-        compose(cutout(im)).save(os.path.join(HERE, out + ".jpg"), quality=90, optimize=True, progressive=True,
+        compose(cutout_rect(im, rect[0]) if rect else cutout(im)).save(os.path.join(HERE, out + ".jpg"), quality=90, optimize=True, progressive=True,
                                  subsampling=0)
         print(out + ".jpg")
 
