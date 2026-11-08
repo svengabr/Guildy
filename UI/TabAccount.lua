@@ -24,7 +24,7 @@ local function Characters()
     all[#all + 1] = m
     if c.key == meKey then me = m else list[#list + 1] = m end
   end
-  return me, list, all, meKey
+  return me, list, all
 end
 
 local function Build(panel)
@@ -247,8 +247,8 @@ local function Build(panel)
     hero.Numbers[3].Value:SetText(count)
   end
 
-  -- every character of the account in a fixed order (level, name), the logged-in one highlighted
-  function view:RenderChars(list, meKey)
+  -- every character of the account in a fixed order (level, name), none highlighted (overview)
+  function view:RenderChars(list)
     local width = (right:GetWidth() or 600) - 24
     local cardW = math.floor((width - (CARD_COLS - 1) * 6) / CARD_COLS)
     local maxCards = CARD_COLS * CARD_ROWS
@@ -319,9 +319,9 @@ local function Build(panel)
 
   function view:Refresh()
     if ns.RememberSelf then ns.SafeCall(ns.RememberSelf) end
-    local me, list, all, meKey = Characters()
+    local me, list, all = Characters()
     self:RenderHero(me, list)
-    self:RenderChars(all, meKey)
+    self:RenderChars(all)
     self:RenderProfs(me or {}, list)
   end
   function view:OnResize() self:Refresh() end
