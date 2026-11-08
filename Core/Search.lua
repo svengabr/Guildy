@@ -87,13 +87,15 @@ local GETTERS = {
   zone = function(m) return ns.Names.Lower(m.zone or "") end,
   rank = function(m) return tonumber(m.rankIndex) or 99 end,
   class = function(m) return m.classFile or "" end,
-  profs = function(m) return m.profCount or 0 end,
   lastOnline = LastOnlineValue,
   -- Guildy users first (set by the members tab: version, "" for an old Guildy), then by version text
   guildy = function(m) return m.guildy and ("1" .. m.guildy) or "0" end,
+  -- set by the members tab: the note group (members without one last) and the average item level
+  group = function(m) return m.group and ("0" .. ns.Names.Lower(m.group)) or "1" end,
+  ilvl = function(m) return m.ilvl or 0 end,
 }
 
--- Sorts in place by field; desc reverses. Ties by name. Default directions: level and profs high first.
+-- Sorts in place by field; desc reverses. Ties by name. Default directions: level high first.
 function Search.SortMembers(list, field, desc)
   local get = GETTERS[field] or GETTERS.name
   table.sort(list, function(a, b)

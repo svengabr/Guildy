@@ -21,6 +21,8 @@ function Store.Init(db)
   if type(db) ~= "table" then db = {} end
   db.version = db.version or Store.VERSION
   if type(db.settings) ~= "table" then db.settings = {} end
+  -- where the window was left is session state now (UI/Main.lua, UI/TabFame.lua); drop old saves
+  db.settings.lastTab, db.settings.famePage = nil, nil
   for key, value in pairs(Store.DEFAULTS) do
     if db.settings[key] == nil then db.settings[key] = value end
   end

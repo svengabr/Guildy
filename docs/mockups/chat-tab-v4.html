@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat-Tab v4</title>
+<style>
+:root{--frame:#6b5631;--hi:#c9a24a;--bg:#16120e;--inset:#0d0b09;--line:#4a3d29;--gold:#ffd100;--text:#e6dcc4;--dim:#8f8268;--stamp:#8d836e;--grn:#40e040;--off:#40c040}
+*{box-sizing:border-box}
+body{margin:0;background:#211a12;color:var(--text);font-family:"Palatino Linotype",Georgia,serif;padding:28px 16px 60px}
+::selection{background:#6b5631;color:#fff}
+.page{max-width:1180px;margin:0 auto}
+h1{color:var(--gold);font-weight:normal;font-size:24px;margin:0 0 6px}
+.lead{color:#c8b98f;max-width:72ch;line-height:1.5;margin:0 0 18px}
+.toolbar{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.toolbar button{background:#1d1711;border:1px solid var(--frame);color:#c8b98f;border-radius:3px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer}
+.toolbar button.on{border-color:var(--hi);color:var(--gold);background:#2a2010}
+
+.wow{position:relative;background:var(--bg);border:3px solid var(--frame);outline:1px solid #000;box-shadow:inset 0 0 0 1px #2e2519,0 6px 22px rgba(0,0,0,.55);border-radius:7px;overflow:hidden}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:var(--gold);text-align:center;padding:7px 0;font-size:15px;border-bottom:2px solid var(--frame)}
+.wbody{display:flex;gap:8px;padding:10px;height:560px}
+.left{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.right{width:290px;flex:none;display:flex;flex-direction:column;gap:6px}
+.bar{display:flex;align-items:center;justify-content:space-between;height:26px;gap:8px}
+.dd{background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 26px 3px 14px;font:inherit;font-size:13px;position:relative;cursor:pointer}
+.dd svg{position:absolute;right:9px;top:9px}
+.count{color:var(--gold);font-size:14px}.count span{color:#c8b98f}
+.inset{position:relative;flex:1;background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8);overflow:hidden}
+
+/* chat */
+.strip{position:absolute;left:0;right:46px;top:0;height:24px;z-index:3;display:flex;align-items:center;gap:10px;padding:0 20px;background:linear-gradient(var(--inset) 75%,rgba(13,11,9,0));color:var(--gold);font-size:12.5px}
+.strip:before,.strip:after{content:"";flex:1;height:1px;background:rgba(201,162,74,.45)}
+.strip.status{color:#c8b98f}
+.strip .spin{display:inline-block;width:10px;height:10px;border:2px solid #6b5631;border-top-color:var(--gold);border-radius:50%;margin-right:6px;vertical-align:-1px;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scroll{position:absolute;left:0;right:46px;top:24px;bottom:0;overflow-y:scroll;scrollbar-width:none;padding:2px 10px 8px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5}
+.scroll::-webkit-scrollbar{display:none}
+.ln{padding-left:42px;text-indent:-42px;color:var(--grn)}
+.ts{color:var(--stamp);display:inline-block;width:38px;text-indent:0;font-size:12.5px;margin-right:4px}
+.sys{color:#a0a0a0;font-size:13px}
+.day{color:var(--gold);text-align:center;font-family:"Palatino Linotype",Georgia,serif;font-size:12.5px;margin:8px 0 4px;display:flex;align-items:center;gap:10px}
+.day:before,.day:after{content:"";flex:1;height:1px;background:rgba(201,162,74,.45)}
+.newsince{color:#ff8c40;font-family:"Palatino Linotype",Georgia,serif;font-size:12px;margin:8px 0 4px;display:flex;align-items:center;gap:10px}
+.newsince:before,.newsince:after{content:"";flex:1;height:1px;background:rgba(255,140,64,.6)}
+.WAR{color:#C69B6D}.PAL{color:#F48CBA}.HUN{color:#AAD372}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.MAG{color:#3FC7EB}.WLK{color:#8788EE}.DRU{color:#FF7C0A}
+
+/* rail (fix 2) */
+.rail{position:absolute;top:8px;bottom:8px;right:4px;width:40px;cursor:pointer}
+.rail .track{position:absolute;right:9px;top:0;bottom:0;width:2px;background:rgba(201,162,74,.35);border-radius:1px}
+.rail .thumb{position:absolute;right:6px;width:8px;min-height:18px;background:var(--hi);border-radius:4px;box-shadow:0 0 0 1px #000;cursor:grab}
+.rail .mark{position:absolute;right:10px;display:flex;align-items:center;transform:translateY(-50%);color:var(--dim);font-size:10.5px;cursor:pointer}
+.rail .mark i{display:block;width:7px;height:1px;background:rgba(201,162,74,.7);margin-left:3px}
+.rail .mark.cur{color:var(--gold)}
+.rail .mark.new{color:#ff8c40}.rail .mark.new i{background:#ff8c40}
+
+/* jump */
+.jump{position:absolute;left:calc(50% - 23px);transform:translateX(-50%);bottom:10px;z-index:4;background:#1d1711;border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 12px;font:inherit;font-size:12px;cursor:pointer;display:none;align-items:center;gap:6px;box-shadow:0 3px 10px rgba(0,0,0,.7)}
+.jump.show{display:flex}
+
+/* input (fix 1) */
+.input{display:flex;align-items:center;gap:6px;background:#0d0b09;border:1px solid var(--line);border-radius:4px;height:28px;padding:0 8px;font-family:Arial,sans-serif;font-size:14px}
+.input .ch{font-weight:bold}
+.input .ph{color:#8d836e}
+.input.focus{border-color:var(--hi)}
+
+/* online list (fix 4, 5) */
+.listbox{position:relative;flex:1;background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8);overflow:hidden}
+.list{position:absolute;inset:0 14px 0 0;overflow-y:scroll;scrollbar-width:none;padding:3px 0}
+.list::-webkit-scrollbar{display:none}
+.row{display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;font-size:12.5px;cursor:pointer}
+.row:nth-child(even){background:rgba(255,255,255,.03)}
+.row:hover{background:rgba(255,209,0,.1)}
+.row .lv{width:18px;text-align:right;color:var(--dim);font-size:11.5px}
+.row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .pf{display:flex;gap:2px}
+.row .pf b{width:14px;height:14px;border-radius:2px;border:1px solid #000;display:block}
+.row .zn{width:104px;text-align:right;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lsb{position:absolute;top:6px;bottom:6px;right:4px;width:6px}
+.lsb .track{position:absolute;left:2px;top:0;bottom:0;width:2px;background:rgba(201,162,74,.35)}
+.lsb .thumb{position:absolute;left:0;width:6px;background:var(--hi);border-radius:3px;box-shadow:0 0 0 1px #000}
+.invite{align-self:flex-end;background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:4px 18px;font:inherit;font-size:13px}
+
+/* annotations */
+.num{position:absolute;z-index:9;width:20px;height:20px;border-radius:50%;background:#ff8c40;color:#1d1711;font:bold 12px Arial,sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #1d1711}
+body.clean .num{display:none}
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px 26px;margin-top:20px}
+.note{display:flex;gap:10px;line-height:1.45;color:#c8b98f;font-size:14px}
+.note .num{position:static;flex:none}
+.note b{color:var(--gold);font-weight:normal}
+@media (max-width:860px){.wbody{flex-direction:column;height:auto}.left{height:520px}.right{width:auto;height:360px}}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Chat-Tab: alle Punkte aus der Kritik</h1>
+<p class="lead">Scrollbar und klickbar. Die orangen Nummern zeigen, wo welcher Kritikpunkt umgesetzt ist; mit „Ohne Nummern“ siehst du den Tab so, wie er im Spiel wäre.</p>
+<div class="toolbar">
+  <button data-t="guild" class="on">Kanal: Gilde</button>
+  <button data-t="officer">Kanal: Offiziere</button>
+  <button data-t="top">Oben: lädt</button>
+  <button data-t="start">Oben: Anfang erreicht</button>
+  <button data-t="clean">Ohne Nummern</button>
+</div>
+
+<div class="wow">
+  <div class="wtitle">Murloc Mafia · Guildy</div>
+  <div class="wbody">
+    <div class="left">
+      <div class="bar">
+        <button class="dd" id="channel">Gilde<svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg></button>
+      </div>
+      <div class="inset" id="chatbox">
+        <div class="strip" id="strip">Heute</div>
+        <div class="scroll" id="scroll"></div>
+        <div class="rail" id="rail"><div class="track"></div><div class="thumb"></div></div>
+        <button class="jump" id="jump"><svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg><span>Zu neuen Nachrichten</span></button>
+      </div>
+      <div class="input" id="input"><span class="ch" id="ch">Gilde:</span><span class="ph" id="ph">Nachricht an die Gilde …</span></div>
+    </div>
+    <div class="right">
+      <div class="bar">
+        <span class="count">37 <span>/ 94 online</span></span>
+        <button class="dd">Nach Stufe<svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg></button>
+      </div>
+      <div class="listbox"><div class="list" id="list"></div><div class="lsb" id="lsb"><div class="track"></div><div class="thumb"></div></div></div>
+      <button class="invite">Mitglied einladen</button>
+    </div>
+  </div>
+  <span class="num" style="left:6px;bottom:50px">1</span>
+  <span class="num" id="n2" style="right:358px;top:150px">2</span>
+  <span class="num" style="left:46%;top:56px">3</span>
+  <span class="num" style="right:24px;top:140px">4</span>
+  <span class="num" style="right:6px;top:300px">5</span>
+  <span class="num" style="left:118px;top:48px">6</span>
+  <span class="num" style="left:30%;top:300px">7</span>
+</div>
+
+<div class="notes">
+  <div class="note"><span class="num">1</span><div><b>Kanal im Eingabefeld.</b> Links steht „Gilde:“ oder „Offiziere:“ in der Kanalfarbe, dazu ein Platzhalter. Probier oben „Kanal: Offiziere“.</div></div>
+  <div class="note"><span class="num">2</span><div><b>Sichtbare Spur.</b> Die Zeitleiste hat eine gedämpft goldene Linie, die Marken hängen mit ihrem Strich daran, der Schieber liegt mittig darauf.</div></div>
+  <div class="note"><span class="num">3</span><div><b>Ränder des Verlaufs.</b> Die Tagesleiste oben zeigt „Ältere Nachrichten werden geladen …“ und am Ende „Anfang des Gildenchats“. Siehe die Knöpfe oben.</div></div>
+  <div class="note"><span class="num">4</span><div><b>Breitere Liste.</b> 290 statt 250 px, die Zonenspalte wächst von 62 auf 104 px. „Rotkammgebirge“ und „Dämmerwald“ passen ganz.</div></div>
+  <div class="note"><span class="num">5</span><div><b>Ein Scrollbalken-Stil.</b> Die Online-Liste bekommt dieselbe schmale goldene Spur wie der Chat, ohne Pfeile.</div></div>
+  <div class="note"><span class="num">6</span><div><b>Menüs als Menüs.</b> „Gilde“ und „Nach Stufe“ tragen einen Pfeil, die Sortierung sagt, wonach sie sortiert.</div></div>
+  <div class="note"><span class="num">7</span><div><b>Neu seit deinem letzten Login.</b> Eine orange Linie im Verlauf und eine orange Marke auf der Zeitleiste. Uhrzeiten sind kleiner und dunkler, die Namen führen. Der Sprung-Knopf zählt neue Zeilen.</div></div>
+</div>
+</div>
+
+<script>
+const DAYS = [
+  { key:"fr", label:"Freitag, 06.11.2026", short:"Fr", lines:[
+    ["20:14","SHA","Syd Syd","hätte bock, aber würd nur lv 13 schaffen denke ich"],
+    ["20:15","PAL","Makira Farron","^16 wäre gut damit du alle quests nehmen kannst"],
+    ["20:31","WAR","Naughty One","und es gibt murloc motors"],
+    ["21:02","DRU","Ran Fred","krasser slacker syd"],
+  ]},
+  { key:"gestern", label:"Gestern", short:"Gest.", lines:[
+    ["00:49","SHA","Aqu Earthwhisper","gn8"],
+    ["01:04","WAR","Au Tsch","Yo Ezira heast, ab welchem lvl gibtsn in riverglades so die quests?"],
+    ["01:04","PAL","Eziiria Ash","Gute Frage, bin jetzt erst mit 42 rein gegangen"],
+    ["01:06","PAL","Eziiria Ash","also das größte problem an der zone ist, dass die wege schon sehr weit sind"],
+    ["03:56","SHA","Syd Syd","gn8"],
+    ["06:35","DRU","Marliss Mirandel","morgen"],
+    ["07:29","SHA","Le Filou","Hat noch jemand das Problem, wenn man zulange grade aus gelaufen ist …"],
+    ["08:07","PRI","Eoy Goldcog","hat irgendjemand tips wo man auf 38+ hin kann was nicht komplett überfarmed ist?"],
+    ["08:08","PAL","Xulkar Tempest","ich glaub am wochende nichts überfarmtes zu finden is basicly nicht mögliich"],
+  ]},
+  { key:"heute", label:"Heute", short:"Heute", lines:[
+    ["10:03","PAL","Xulkar Tempest","wurde verfolgt um mir mehrer nodes zu klauen"],
+    ["10:04","PRI","Lelandi Brendir","mögen deren Kissen heute nacht heiß und schwitzig sein"],
+    ["10:09","PAL","Xulkar Tempest","aber mal ernsthaft wo kann ich die legacy erfolge einsehen"],
+    ["10:09","DRU","Aguma Oida","erst ab 25"],
+    "NEW",
+    ["10:25","DRU","Ran Fred","Krass wir haben nur 3 Leute mit Ingenieurskunst"],
+    ["10:25","SHA","Tralin Stormhammer","ist für den ersten char auch suboptimal"],
+    ["11:10","MAG","Nyxi Indivaron","Good Morning Murlocs"],
+    ["11:11","MAG","Optimus Drain","moin"],
+    ["11:13","PAL","Eziiria Ash","lets go!"],
+    ["11:46","PAL","Xulkar Tempest","[Muster: Filigrane glänzende Robe] braucht das wer ? sollte nicht soulbound sein"],
+    ["11:47","PRI","Wuzuw Goldencog","binds on pickup"],
+    ["11:47","DRU","Ran Fred","das kann man handeln"],
+    ["11:52","DRU","Jen Dämmerpfote","kann das hier jemand gebrauchen ?[Schriftrolle: Unterping Sonstwem]"],
+  ]},
+];
+const ONLINE = [
+  [46,"PAL","Eziiria Ash","Ödland"],[40,"PRI","Eoy Goldcog","Flusslande"],[40,"PRI","Wuzuw Goldencog","Flusslande"],
+  [39,"SHA","Harad Flutbinder","Vorgebirge"],[37,"DRU","Aguma Oida","Westfall"],[36,"HUN","Espe Shiverleaf","Dunkelküste"],
+  [35,"HUN","Binia Zhyse","Arathihochland"],[35,"SHA","Tralin Stormhammer","Schlingendorntal"],[34,"HUN","Moku Hila","Tausend Nadeln"],
+  [32,"DRU","Ran Fred","Dämmerwald"],[30,"PRI","Maerith Withersong","Sumpfland"],[28,"ROG","Ariane Lalatoya","Dämmerwald"],
+  [28,"ROG","Goenndhir Hartmut","Blackfathomtiefen"],[27,"PAL","Grimmly Deephammer","Sumpfland"],[27,"SHA","Varadir Earthcaller","Sumpfland"],
+  [26,"MAG","Zera Tops","Sumpfland"],[25,"PAL","Fontgomery Burns","Loch Modan"],[25,"MAG","Nyxi Indivaron","Dämmerwald"],
+  [24,"HUN","Dynys Afa","Wald von Elwynn"],[20,"MAG","Optimus Drain","Rotkammgebirge"],[20,"WAR","Wiener Original","Rotkammgebirge"],
+  [18,"PRI","Severinus Miltiades","Dunkelküste"],[18,"PAL","Xulkar Tempest","Die Todesmine"],[16,"HUN","Ira Dusk","Rotkammgebirge"],
+];
+const PROF = ["#9a6b3a","#7aa0b0","#c08030","#8a8a9a","#6a9a5a","#b07ac0"];
+
+const scroll = document.getElementById("scroll"), rail = document.getElementById("rail");
+const railThumb = rail.querySelector(".thumb"), jump = document.getElementById("jump"), strip = document.getElementById("strip");
+let html = "", newCount = 0, afterNew = false;
+for (const d of DAYS) {
+  html += `<div data-anchor="${d.key}"></div><div class="day">${d.label}</div>`;
+  for (const l of d.lines) {
+    if (l === "NEW") { html += `<div data-anchor="new"></div><div class="newsince">Neu seit deinem letzten Login</div>`; afterNew = true; continue; }
+    if (afterNew) newCount++;
+    const [t,c,n,m] = l;
+    html += `<div class="ln"><span class="ts">${t}</span><span class="${c}">[${n}]</span>: ${m}</div>`;
+  }
+}
+scroll.innerHTML = html;
+scroll.scrollTop = scroll.scrollHeight;
+
+const marks = DAYS.map(d => ({ key:d.key, label:d.label, short:d.short })).concat([{ key:"new", label:"Neu seit deinem letzten Login", short:"Neu", isNew:true }]);
+marks.forEach(m => {
+  const el = document.createElement("div");
+  el.className = "mark" + (m.isNew ? " new" : "");
+  el.innerHTML = `<span>${m.short}</span><i></i>`;
+  el.title = m.label;
+  m.anchor = scroll.querySelector(`[data-anchor="${m.key}"]`);
+  el.onclick = e => { e.stopPropagation(); scroll.scrollTo({ top: m.anchor.offsetTop - 2, behavior: "smooth" }); };
+  rail.appendChild(el); m.el = el;
+});
+marks.sort((a, b) => a.anchor.offsetTop - b.anchor.offsetTop);
+
+let stripMode = null;
+function update() {
+  const h = rail.clientHeight, max = scroll.scrollHeight - scroll.clientHeight;
+  const th = Math.max(18, h * scroll.clientHeight / scroll.scrollHeight);
+  railThumb.style.height = th + "px";
+  railThumb.style.top = (max ? scroll.scrollTop / max * (h - th) : 0) + "px";
+  let prev = -99, cur = null;
+  for (const m of marks) {
+    const y = Math.min(h - 6, Math.max(6, prev + 14, m.anchor.offsetTop / scroll.scrollHeight * h));
+    m.el.style.top = y + "px"; prev = y;
+    if (!m.isNew && m.anchor.offsetTop <= scroll.scrollTop + 4) cur = m;
+  }
+  marks.forEach(m => m.el.classList.toggle("cur", m === cur));
+  const fromBottom = max - scroll.scrollTop;
+  jump.classList.toggle("show", fromBottom > 4);
+  const below = [...scroll.querySelectorAll(".ln")].filter(el => el.offsetTop > scroll.scrollTop + scroll.clientHeight).length;
+  jump.querySelector("span").textContent = below > 0 ? `${below} neue Nachricht${below === 1 ? "" : "en"}` : "Zu neuen Nachrichten";
+  if (stripMode === "top" && scroll.scrollTop < 2) {
+    strip.className = "strip status"; strip.innerHTML = '<span><span class="spin"></span>Ältere Nachrichten werden geladen …</span>';
+  } else if (stripMode === "start" && scroll.scrollTop < 2) {
+    strip.className = "strip status"; strip.textContent = "Anfang des Gildenchats";
+  } else {
+    strip.className = "strip"; strip.textContent = cur ? cur.label : DAYS[0].label;
+  }
+}
+scroll.addEventListener("scroll", update);
+rail.addEventListener("click", e => {
+  const r = rail.getBoundingClientRect();
+  scroll.scrollTop = (e.clientY - r.top) / r.height * (scroll.scrollHeight - scroll.clientHeight);
+});
+railThumb.addEventListener("pointerdown", e => {
+  e.preventDefault(); e.stopPropagation(); railThumb.setPointerCapture(e.pointerId);
+  const grab = e.clientY - railThumb.getBoundingClientRect().top;
+  const move = ev => {
+    const r = rail.getBoundingClientRect(), range = r.height - railThumb.offsetHeight;
+    scroll.scrollTop = (ev.clientY - r.top - grab) / range * (scroll.scrollHeight - scroll.clientHeight);
+  };
+  const up = () => { railThumb.removeEventListener("pointermove", move); railThumb.removeEventListener("pointerup", up); };
+  railThumb.addEventListener("pointermove", move); railThumb.addEventListener("pointerup", up);
+});
+railThumb.addEventListener("click", e => e.stopPropagation());
+jump.onclick = () => scroll.scrollTo({ top: scroll.scrollHeight, behavior: "smooth" });
+
+// online list
+const list = document.getElementById("list"), lsb = document.getElementById("lsb"), lthumb = lsb.querySelector(".thumb");
+list.innerHTML = ONLINE.map(([lv,c,n,z], i) =>
+  `<div class="row" title="${n} · ${z}"><span class="lv">${lv}</span><span class="nm ${c}">${n}</span><span class="pf"><b style="background:${PROF[i%6]}"></b><b style="background:${PROF[(i+3)%6]}"></b></span><span class="zn">${z}</span></div>`).join("");
+function ulist() {
+  const h = lsb.clientHeight, th = Math.max(18, h * list.clientHeight / list.scrollHeight), max = list.scrollHeight - list.clientHeight;
+  lthumb.style.height = th + "px"; lthumb.style.top = (max ? list.scrollTop / max * (h - th) : 0) + "px";
+}
+list.addEventListener("scroll", ulist);
+
+// toolbar
+const input = document.getElementById("input"), ch = document.getElementById("ch"), ph = document.getElementById("ph"), channel = document.getElementById("channel");
+function setChannel(kind) {
+  const officer = kind === "officer";
+  ch.textContent = officer ? "Offiziere:" : "Gilde:";
+  ch.style.color = officer ? "#40c040" : "#40e040";
+  ph.textContent = officer ? "Nachricht an die Offiziere …" : "Nachricht an die Gilde …";
+  channel.firstChild.textContent = officer ? "Offiziere" : "Gilde";
+}
+document.querySelectorAll(".toolbar button").forEach(b => b.onclick = () => {
+  const t = b.dataset.t;
+  if (t === "guild" || t === "officer") {
+    document.querySelectorAll('[data-t="guild"],[data-t="officer"]').forEach(x => x.classList.toggle("on", x === b));
+    setChannel(t);
+  } else if (t === "clean") {
+    b.classList.toggle("on"); document.body.classList.toggle("clean");
+  } else {
+    const on = !b.classList.contains("on");
+    document.querySelectorAll('[data-t="top"],[data-t="start"]').forEach(x => x.classList.remove("on"));
+    b.classList.toggle("on", on); stripMode = on ? t : null;
+    if (on) scroll.scrollTop = 0;
+    update();
+  }
+});
+setChannel("guild");
+requestAnimationFrame(() => { update(); ulist(); });
+</script>
+</body>
+</html>

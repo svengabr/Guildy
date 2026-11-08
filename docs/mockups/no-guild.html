@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="de">
+<head>
+<!-- Guildy mock: the window on a character without a guild, three versions -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ohne Gilde</title>
+<style>
+:root{--frame:#6b5631;--hi:#c9a24a;--bg:#16120e;--inset:#0d0b09;--line:#4a3d29;--gold:#ffd100;--text:#e6dcc4;--dim:#8f8268;--soft:#c8b98f;--tag:#40ff40}
+*{box-sizing:border-box}
+body{margin:0;background:#211a12;color:var(--text);font-family:"Palatino Linotype",Georgia,serif;padding:28px 16px 60px}
+.page{max-width:1180px;margin:0 auto}
+h1{color:var(--gold);font-weight:normal;font-size:24px;margin:0 0 6px}
+.lead{color:var(--soft);max-width:78ch;line-height:1.5;margin:0 0 14px}
+.switch{display:flex;gap:6px;flex-wrap:wrap}
+.switch button{background:#1d1711;border:1px solid var(--frame);color:var(--soft);border-radius:3px;padding:5px 14px;font:inherit;font-size:14px;cursor:pointer}
+.switch button.on{border-color:var(--hi);color:var(--gold);background:#2a2010}
+.vdesc{color:var(--soft);max-width:82ch;line-height:1.5;margin:8px 0 12px;min-height:4.5em}
+.vdesc b{color:var(--gold);font-weight:normal}
+
+.wow{position:relative;background:var(--bg);border:3px solid var(--frame);outline:1px solid #000;box-shadow:0 6px 22px rgba(0,0,0,.55);border-radius:7px;overflow:hidden}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:var(--gold);text-align:center;padding:6px 0;font-size:14px;border-bottom:2px solid var(--frame)}
+.wbody{padding:10px;height:620px;position:relative}
+.v{display:none;height:100%;gap:10px}.v.on{display:flex}
+.panel{background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8)}
+.btn{background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 14px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+h4{margin:0 0 10px;color:var(--gold);font-weight:normal;font-size:13.5px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h4 small{color:var(--dim);font-size:12px}
+.muted{color:var(--dim)}
+.tag{color:var(--tag)}
+.DRU{color:#FF7C0A}.MAG{color:#3FC7EB}.WAR{color:#C69B6D}.HUN{color:#AAD372}.PAL{color:#F48CBA}.WLK{color:#8788EE}.PRI{color:#fff}
+
+.ic{display:inline-block;border-radius:3px;border:1px solid #000;background:#2a2219 center/cover no-repeat;flex:none;vertical-align:middle}
+.ic.s14{width:14px;height:14px;border-radius:2px}.ic.s16{width:16px;height:16px}
+.portrait{position:relative;border-radius:50%;border:3px solid;box-shadow:0 0 0 2px #000,0 4px 10px rgba(0,0,0,.6);background:#2a2219 center/cover no-repeat;flex:none}
+.lvl{position:absolute;right:-6px;bottom:-6px;min-width:22px;height:22px;padding:0 3px;border-radius:11px;background:#120f0b;border:1px solid var(--hi);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:11px}
+
+/* character card */
+.card{padding:9px 10px;display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:4px;background:rgba(0,0,0,.35);cursor:pointer;min-width:0}
+.card:hover{border-color:var(--hi)}
+.card.me{border-color:var(--hi);background:linear-gradient(180deg,rgba(255,209,0,.07),transparent),rgba(0,0,0,.35)}
+.card .head{display:flex;gap:10px;align-items:center;min-width:0}
+.card .portrait{width:42px;height:42px;border-width:2px}
+.card .nm{min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.card .nm small{display:block;font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.card .cls{width:16px;height:16px;border-radius:50%;align-self:flex-start}
+.card .pl{display:flex;gap:12px;font-size:11.5px;color:var(--soft)}
+.card .pl span{display:flex;gap:4px;align-items:center}
+.me-badge{font-size:10.5px;color:var(--gold);border:1px solid var(--hi);border-radius:8px;padding:0 6px;margin-left:6px;vertical-align:2px}
+
+/* version 1 */
+.v1{flex-direction:column}
+.hint{display:flex;align-items:center;gap:18px;padding:18px 22px}
+.crest{width:64px;height:64px;border-radius:50%;border:2px dashed var(--frame);display:flex;align-items:center;justify-content:center;color:var(--frame);font-size:30px;flex:none}
+.hint h2{margin:0 0 4px;color:var(--gold);font-weight:normal;font-size:20px}
+.hint p{margin:0;color:var(--soft);font-size:13px;line-height:1.5;max-width:70ch}
+.groups{flex:1;overflow:auto;padding:14px 16px}
+.group{margin-bottom:16px}
+.group .gh{display:flex;align-items:baseline;gap:10px;font-size:13.5px;margin-bottom:8px;border-bottom:1px solid #2a2219;padding-bottom:4px}
+.group .gh small{color:var(--dim);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+
+/* version 2 */
+.hero{width:300px;flex:none;padding:18px 16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;background:linear-gradient(180deg,rgba(198,155,109,.12),transparent 50%),var(--inset)}
+.hero .portrait{width:108px;height:108px;margin-bottom:10px}
+.hero .portrait .lvl{min-width:30px;height:30px;font-size:14px;border-width:2px;right:-4px;bottom:-4px;border-radius:15px}
+.hero h3{margin:0;font-weight:normal;font-size:24px}
+.idline{color:var(--soft);font-size:12.5px;margin-top:4px}
+.noguild{margin-top:14px;width:100%;border:1px dashed var(--frame);border-radius:4px;padding:10px 12px;font-size:12.5px;color:var(--soft);line-height:1.5;text-align:left}
+.noguild b{color:var(--gold);font-weight:normal;display:block;margin-bottom:2px}
+.acct{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;margin-top:auto}
+.acct div{background:rgba(0,0,0,.35);border:1px solid #2a2219;border-radius:4px;padding:7px 4px}
+.acct b{display:block;color:var(--gold);font-weight:normal;font-size:20px}
+.acct span{font-size:11px;color:var(--dim)}
+.right{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+.right .panel{padding:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.prof-sum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}
+.prow{display:flex;align-items:center;gap:8px;font-size:12px}
+.prow .who{width:110px;color:var(--dim);font-size:11.5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.prow .bar{flex:1;height:7px;background:#1d1711;border:1px solid #000;border-radius:3px;overflow:hidden;position:relative}
+.prow .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6d36,var(--gold))}
+.prow .n{width:30px;text-align:right}
+
+/* version 3 */
+.side{width:270px;flex:none;padding:16px;display:flex;flex-direction:column;gap:14px}
+.side h2{margin:0;color:var(--gold);font-weight:normal;font-size:18px}
+.side p{margin:0;color:var(--soft);font-size:12.5px;line-height:1.5}
+.chips{display:flex;flex-direction:column;gap:6px}
+.chip{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;cursor:pointer;background:rgba(0,0,0,.3)}
+.chip.on{border-color:var(--hi);background:#2a2010}
+.chip small{color:var(--dim)}
+.table{flex:1;display:flex;flex-direction:column;min-width:0}
+.thead,.trow{display:grid;grid-template-columns:44px 210px 1fr 230px 120px;gap:10px;align-items:center;padding:0 14px}
+.thead{height:30px;color:var(--gold);font-size:12.5px;border-bottom:1px solid var(--line)}
+.trow{height:46px;border-bottom:1px solid #1d1711;font-size:13px;cursor:pointer}
+.trow:hover{background:rgba(255,209,0,.06)}
+.trow.me{background:linear-gradient(90deg,rgba(255,209,0,.08),transparent 60%)}
+.trow .who{display:flex;align-items:center;gap:8px;min-width:0}
+.trow .who .portrait{width:30px;height:30px;border-width:2px}
+.trow .profs{display:flex;flex-direction:column;gap:3px}
+.trow .profs .prow .who{width:auto}
+.mini{display:flex;align-items:center;gap:6px;font-size:11.5px}
+.mini .bar{width:90px;height:6px;background:#1d1711;border:1px solid #000;border-radius:3px;overflow:hidden}
+.mini .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6d36,var(--gold))}
+
+.toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:40;background:#120f0b;border:1px solid var(--hi);color:var(--soft);border-radius:4px;padding:5px 12px;font-size:12.5px;display:none}
+.toast.show{display:block}
+@media (max-width:920px){.wbody{height:auto}.v.on{flex-direction:column}.hero,.side{width:auto}.grid{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:1fr}.thead{display:none}.trow{grid-template-columns:1fr;height:auto;padding:8px 14px}}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Guildy ohne Gilde: drei Versionen</h1>
+<p class="lead">Du bist mit <span class="WAR">Bankfred</span> eingeloggt, Stufe 6, keine Gilde. Guildy kennt fünf weitere Charaktere deines Accounts aus früheren Logins. Unten gibt es keine Reiter, oben steht nur „Guildy“. Ein Klick auf einen Charakter öffnet seine Charakterseite (im Mock nur angedeutet). Die Icons sind die des Spiels.</p>
+<div class="switch">
+  <button data-v="1" class="on">1 · Hinweis und Karten nach Gilde</button>
+  <button data-v="2">2 · Eigene Charakterseite</button>
+  <button data-v="3">3 · Account-Liste</button>
+</div>
+<p class="vdesc" id="vdesc"></p>
+<div class="wow">
+  <div class="wtitle">Guildy</div>
+  <div class="wbody">
+    <div class="v v1 on" data-v="1"></div>
+    <div class="v v2" data-v="2"></div>
+    <div class="v v3" data-v="3"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const IC = n => `https://wow.zamimg.com/images/wow/icons/large/${n}.jpg`;
+const PROF = {
+  herb:["trade_herbalism","Kräuterkunde"], alch:["trade_alchemy","Alchemie"], skin:["inv_misc_pelt_wolf_01","Kürschnerei"],
+  lw:["inv_misc_armorkit_17","Lederverarbeitung"], tail:["trade_tailoring","Schneiderei"], ench:["trade_engraving","Verzauberkunst"],
+  mine:["trade_mining","Bergbau"], bs:["trade_blacksmithing","Schmiedekunst"], eng:["trade_engineering","Ingenieurskunst"]
+};
+const CHARS = [
+  { n:"Bankfred", c:"WAR", col:"#C69B6D", cls:"classicon_warrior", race:"achievement_character_human_male", raceTxt:"Mensch · männlich · Krieger", lv:6, guild:null, last:"jetzt", me:true, profs:[["mine",12],["bs",8]] },
+  { n:"Ran Fred", c:"DRU", col:"#FF7C0A", cls:"classicon_druid", race:"achievement_character_nightelf_male", lv:33, guild:"Murloc Mafia", last:"vor 2 Std.", profs:[["herb",190],["alch",192]] },
+  { n:"Fredwild", c:"HUN", col:"#AAD372", cls:"classicon_hunter", race:"achievement_character_nightelf_female", lv:27, guild:"Murloc Mafia", last:"vor 1 Tg.", profs:[["skin",150],["lw",138]] },
+  { n:"Fred Frostfinger", c:"MAG", col:"#3FC7EB", cls:"classicon_mage", race:"achievement_character_gnome_male", lv:24, guild:"Murloc Mafia", last:"vor 3 Tg.", profs:[["tail",140],["ench",115]] },
+  { n:"Drache Offiziell", c:"WLK", col:"#8788EE", cls:"classicon_warlock", race:"achievement_character_human_male", lv:3, guild:"Katzen und Proteinpulver", last:"vor 5 Std.", profs:[] },
+  { n:"Kistenpriester", c:"PRI", col:"#FFFFFF", cls:"classicon_priest", race:"achievement_character_dwarf_female", lv:11, guild:null, last:"vor 2 Wo.", profs:[["eng",45],["mine",60]] },
+];
+const DESC = {
+  1:"<b>Hinweis oben, darunter deine Charaktere nach Gilde.</b> Ein klarer Satz, warum das Fenster leer ist, und was passiert, wenn du einer Gilde beitrittst. Darunter Karten wie auf der Charakterseite, gruppiert nach Gilde, „Ohne Gilde“ zuletzt. Der eingeloggte Charakter ist hervorgehoben. Am wenigsten neu zu bauen: Karten und Charakterseite gibt es schon.",
+  2:"<b>Das Fenster öffnet direkt deine eigene Charakterseite.</b> Links die Heldenkarte von Bankfred mit dem Hinweis „Keine Gilde“ und Zahlen über den ganzen Account. Rechts die anderen Charaktere als Karten und alle Berufe des Accounts mit Balken, so siehst du, wer was kann. Wirkt am vollsten, ist aber auch die meiste Arbeit.",
+  3:"<b>Eine Liste wie der Mitglieder-Tab, nur mit deinen Charakteren.</b> Links der Hinweis und ein Filter nach Gilde mit Anzahl. Rechts eine Zeile pro Charakter: Stufe, Name, Gilde, Berufe mit Balken, zuletzt eingeloggt. Am dichtesten und am besten bei vielen Twinks, aber am wenigsten Spielgefühl."
+};
+const tagOf = c => c.guild ? `<span class="tag">&lt;${c.guild}&gt;</span>` : `<span class="muted">Ohne Gilde</span>`;
+const portrait = (c, lvl=true) => `<div class="portrait" style="border-color:${c.col};background-image:url(${IC(c.race)})">${lvl?`<span class="lvl">${c.lv}</span>`:""}</div>`;
+const profLine = c => c.profs.length ? c.profs.map(([k,v])=>`<span><i class="ic s14" style="background-image:url(${IC(PROF[k][0])})"></i>${v}</span>`).join("") : `<span class="muted">Keine Berufsdaten</span>`;
+const card = (c, inGroup) => `<div class="card${c.me?" me":""}" data-n="${c.n}">
+  <div class="head">${portrait(c)}<div class="nm"><span class="${c.c}">${c.n}</span>${c.me?'<span class="me-badge">Du</span>':""}<small>${c.me?'<span class="muted">eingeloggt</span>':inGroup?'<span class="muted">zuletzt '+c.last+'</span>':tagOf(c)+' <span class="muted">· '+c.last+'</span>'}</small></div><i class="ic cls" style="background-image:url(${IC(c.cls)})"></i></div>
+  <div class="pl">${profLine(c)}</div></div>`;
+
+// version 1
+(function(){
+  const order = [], by = {};
+  CHARS.forEach(c=>{ const g = c.me ? "__me" : (c.guild || "__none"); if(!by[g]){by[g]=[];order.push(g)} by[g].push(c) });
+  const sorted = ["__me", ...order.filter(g=>g!=="__me"&&g!=="__none"), "__none"].filter(g=>by[g]);
+  const sec = g => {
+    const head = g==="__me" ? `<span style="color:var(--gold)">Dieser Charakter</span>` : g==="__none" ? `<span class="muted">Ohne Gilde</span>` : `<span class="tag">&lt;${g}&gt;</span>`;
+    return `<div class="group"><div class="gh">${head}<small>${by[g].length} ${by[g].length===1?"Charakter":"Charaktere"}</small></div><div class="grid">${by[g].map(c=>card(c,true)).join("")}</div></div>`;
+  };
+  document.querySelector(".v1").innerHTML = `
+  <div class="panel hint"><div class="crest">?</div><div><h2>Bankfred ist in keiner Gilde</h2>
+  <p>Guildy füllt sich von selbst, sobald du einer Gilde beitrittst: Chat, Mitglieder, Berufe und Ruhmeshalle. Bis dahin siehst du hier deine anderen Charaktere. Nur du siehst diese Übersicht, Guildy verschickt sie nicht.</p></div></div>
+  <div class="panel groups">${sorted.map(sec).join("")}</div>`;
+})();
+
+// version 2
+(function(){
+  const me = CHARS[0], others = CHARS.slice(1);
+  const levels = CHARS.reduce((a,c)=>a+c.lv,0);
+  const allProfs = [];
+  CHARS.forEach(c=>c.profs.forEach(([k,v])=>allProfs.push({k,v,c})));
+  allProfs.sort((a,b)=>b.v-a.v);
+  const profKinds = new Set(allProfs.map(p=>p.k)).size;
+  document.querySelector(".v2").innerHTML = `
+  <div class="panel hero">${portrait(me)}<h3 class="WAR">${me.n}</h3><div class="idline">${me.raceTxt}</div>
+    <div class="noguild"><b>Keine Gilde</b>Sobald du einer Gilde beitrittst, öffnet Guildy hier wieder den Chat und alle Reiter.</div>
+    <div class="acct"><div><b>${CHARS.length}</b><span>Charaktere</span></div><div><b>${levels}</b><span>Stufen zusammen</span></div><div><b>${profKinds}</b><span>Berufe</span></div></div>
+  </div>
+  <div class="right">
+    <div class="panel"><h4>Deine anderen Charaktere <small>nur du siehst sie</small></h4><div class="grid3">${others.map(c=>card(c)).join("")}</div></div>
+    <div class="panel" style="flex:1"><h4>Berufe im Account <small>höchster Stand zuerst</small></h4><div class="prof-sum">${allProfs.map(p=>`<div class="prow"><i class="ic s16" style="background-image:url(${IC(PROF[p.k][0])})"></i><span style="width:118px">${PROF[p.k][1]}</span><span class="who ${p.c.c}">${p.c.n}</span><span class="bar"><i style="width:${p.v/300*100}%"></i></span><span class="n">${p.v}</span></div>`).join("")}</div></div>
+  </div>`;
+})();
+
+// version 3
+(function(){
+  const counts = {};
+  CHARS.forEach(c=>{ const g=c.guild||"Ohne Gilde"; counts[g]=(counts[g]||0)+1 });
+  const chips = [`<div class="chip on" data-g="">Alle <small>${CHARS.length}</small></div>`]
+    .concat(Object.keys(counts).map(g=>`<div class="chip" data-g="${g}">${g==="Ohne Gilde"?'<span class="muted">Ohne Gilde</span>':'<span class="tag">&lt;'+g+'&gt;</span>'} <small>${counts[g]}</small></div>`));
+  const row = c => `<div class="trow${c.me?" me":""}" data-n="${c.n}" data-g="${c.guild||"Ohne Gilde"}"><span>${c.lv}</span>
+    <span class="who">${portrait(c,false)}<span class="${c.c}">${c.n}</span>${c.me?'<span class="me-badge">Du</span>':""}</span>
+    <span>${tagOf(c)}</span>
+    <span class="profs">${c.profs.length?c.profs.map(([k,v])=>`<span class="mini"><i class="ic s14" style="background-image:url(${IC(PROF[k][0])})"></i><span class="bar"><i style="width:${v/300*100}%"></i></span>${v}</span>`).join(""):'<span class="muted" style="font-size:12px">keine Daten</span>'}</span>
+    <span class="muted">${c.last}</span></div>`;
+  document.querySelector(".v3").innerHTML = `
+  <div class="panel side"><h2>Keine Gilde</h2><p>Bankfred ist in keiner Gilde. Tritt einer bei, dann zeigt Guildy wieder Chat, Mitglieder und alles andere.</p>
+    <p class="muted">Deine Charaktere, wie Guildy sie beim letzten Login gesehen hat. Nur auf diesem Computer.</p>
+    <div class="chips">${chips.join("")}</div></div>
+  <div class="panel table"><div class="thead"><span>St.</span><span>Name</span><span>Gilde</span><span>Berufe</span><span>Zuletzt</span></div>
+    <div id="rows">${CHARS.map(row).join("")}</div></div>`;
+  document.querySelectorAll(".v3 .chip").forEach(ch=>ch.onclick=()=>{
+    document.querySelectorAll(".v3 .chip").forEach(x=>x.classList.toggle("on",x===ch));
+    document.querySelectorAll(".v3 .trow").forEach(r=>r.style.display=(!ch.dataset.g||r.dataset.g===ch.dataset.g)?"":"none");
+  });
+})();
+
+const toast = document.getElementById("toast");
+let tt;
+document.addEventListener("click", e=>{
+  const t = e.target.closest("[data-n]");
+  if(!t) return;
+  toast.textContent = `Öffnet die Charakterseite von ${t.dataset.n}`;
+  toast.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>toast.classList.remove("show"),1600);
+});
+const vdesc = document.getElementById("vdesc");
+function show(v){
+  document.querySelectorAll(".switch button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  document.querySelectorAll(".v").forEach(x=>x.classList.toggle("on",x.dataset.v===v));
+  vdesc.innerHTML = DESC[v];
+}
+document.querySelectorAll(".switch button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+show("1");
+</script>
+</body>
+</html>

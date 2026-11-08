@@ -1,22 +1,30 @@
--- Members tab: search, filters (class, level bracket, profession, online only), sortable columns and a
--- details panel on the right with notes, rank and officer actions.
+-- Members tab: search, filters (class, level bracket, profession, group, online only, without note)
+-- and sortable columns. Twinks hang under their main (or fold into it); the group comes from notes
+-- like "Main, Murloc Raid" (any name, Core/Family.lua) and twinks inherit their main's.
+-- A click on a member opens the character page (UI/CharacterPage.lua), a right click the member menu.
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
 local ROW = 18
-local DETAIL_WIDTH = 250
 local CLASSES = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }
 local COLUMNS = {
   { key = "level", width = 34, desc = true },
-  { key = "name", width = 140 },
-  { key = "zone", width = 120 },
+  { key = "name", width = 175 },
   { key = "rank", width = 100 },
-  { key = "profs", width = 70, desc = true },
+  { key = "group", width = 130 },
+  { key = "ilvl", width = 44, desc = true },
+  { key = "zone", width = 120 },
   { key = "lastOnline", width = 70 },
   { key = "guildy", width = 46, desc = true },
-  { key = "note", width = 0 }, -- rest
+  { key = "note", width = 210 },
+  { key = "officerNote", width = 0 }, -- rest; only for those who may read officer notes
 }
+local UNSORTED = { note = true, officerNote = true }
+-- colors for the guild's groups (Family.GroupColor picks one per name)
+local GROUP_COLORS = { { 64, 166, 214 }, { 196, 107, 224 }, { 224, 80, 80 }, { 102, 204, 89 }, { 255, 153, 64 },
+  { 77, 204, 191 }, { 242, 217, 77 }, { 242, 128, 179 } }
+local DOT = "|TInterface\\AddOns\\Guildy\\Textures\\Dot:8:8:0:0:32:32:0:32:0:32:%d:%d:%d|t "
 
 local ONLINE_COLOR = { 0.3, 0.9, 0.3 }
 
@@ -34,84 +42,36 @@ local function ClassLabel(classFile)
   return male and male[classFile] or classFile
 end
 
-local function ProfSummary(m)
-  local record = ns.TradeSkill.Record(m)
-  if not record then return "", 0 end
-  local parts, count = {}, 0
-  for _, skillLine in ipairs(ns.Professions.ORDER) do
-    local prof = record.profs[skillLine]
-    if prof and ns.Professions.PRIMARY[skillLine] then
-      count = count + 1
-      if #parts < 2 then
-        parts[#parts + 1] = "|T" .. ns.Professions.ICONS[skillLine] .. ":13|t" .. (prof.rank and (" " .. prof.rank) or "")
-      end
-    end
-  end
-  return table.concat(parts, " "), count
+local function ClassIcon(classFile)
+  local coords = rawget(_G, "CLASS_ICON_TCOORDS")
+  local c = classFile and coords and coords[classFile]
+  if not c then return "" end
+  return ("|TInterface\\TargetingFrame\\UI-Classes-Circles:14:14:0:0:256:256:%d:%d:%d:%d|t "):format(
+    c[1] * 256, c[2] * 256, c[3] * 256, c[4] * 256)
+end
+
+local function GroupText(group, inherited)
+  if not group then return "|cff5e5747–|r" end
+  local color = GROUP_COLORS[ns.Family.GroupColor(group, #GROUP_COLORS)]
+  local text = DOT:format(color[1], color[2], color[3]) .. group
+  return inherited and ("|cff9a9080" .. text .. "|r") or text
+end
+
+-- average item level of a member from the statistics (tenths), nil when unknown
+local function ItemLevel(guild, m)
+  local record = guild and guild.members[m.key]
+  local values = record and type(record.stats) == "table" and record.stats.v
+  return values and values[ns.Stats.GEAR.ILVL] or nil
 end
 
 local function Build(panel)
   local L = ns.L
   local view = { filter = {}, query = "", sort = "level", desc = true }
 
-  -- details panel ------------------------------------------------------------------------------
-  local details = W.Box(panel)
-  details:SetPoint("TOPRIGHT", 0, 0)
-  details:SetPoint("BOTTOMRIGHT", 0, 0)
-  details:SetWidth(DETAIL_WIDTH)
-  view.Details = details
-  details.Empty = W.Text(details, "GameFontDisable", L.SELECT_MEMBER)
-  details.Empty:SetPoint("CENTER")
-  details.Name = W.Text(details, "GameFontNormalLarge")
-  details.Name:SetPoint("TOPLEFT", 12, -12)
-  details.Name:SetPoint("RIGHT", -12, 0)
-  details.Sub = W.Text(details, "GameFontHighlightSmall")
-  details.Sub:SetPoint("TOPLEFT", details.Name, "BOTTOMLEFT", 0, -4)
-  details.Lines = W.Text(details, "GameFontHighlightSmall")
-  details.Lines:SetPoint("TOPLEFT", details.Sub, "BOTTOMLEFT", 0, -10)
-  details.Lines:SetPoint("RIGHT", -12, 0)
-  details.Lines:SetSpacing(3)
-  details.Profs = W.Text(details, "GameFontHighlightSmall")
-  details.Profs:SetPoint("TOPLEFT", details.Lines, "BOTTOMLEFT", 0, -14)
-  details.Profs:SetPoint("RIGHT", -12, 0)
-  details.Profs:SetSpacing(3)
-  details.Whisper = W.Button(details, L.WHISPER, function() if view.selected then UI.Whisper(view.selected.fullName) end end, 108)
-  details.Invite = W.Button(details, L.GROUP_INVITE_SHORT, function() if view.selected then ns.Roster.GroupInvite(view.selected) end end, 108)
-  -- rank and removal run Blizzard's secure slash commands (UI/Commands.lua); notes only in Blizzard's window
-  details.Promote = W.Button(details, L.PROMOTE_UP, nil, 108)
-  UI.SecureAction(details.Promote, function() return UI.Action.Manage("promote", view.selected) end, L.PROMOTE_TIP)
-  details.Demote = W.Button(details, L.DEMOTE_DOWN, nil, 108)
-  UI.SecureAction(details.Demote, function() return UI.Action.Manage("demote", view.selected) end, L.DEMOTE_TIP)
-  details.Remove = W.Button(details, L.REMOVE, function()
-    local m = view.selected
-    if m then UI.Confirm(L.REMOVE_CONFIRM:format(W.ClassName(m.name, m.classFile)), UI.Action.Manage("remove", m)) end
-  end, 226)
-  details.Notes = W.Button(details, L.NOTES_IN_BLIZZARD, nil, 226)
-  UI.SecureAction(details.Notes, UI.Action.BlizzardWindow, L.NOTES_TIP)
-
-  -- the action rows stack from the bottom; rows without a permission are left out
-  function details:LayoutActions(rows)
-    local y = 10
-    for i = #rows, 1, -1 do
-      local row = rows[i]
-      if #row == 1 then
-        row[1]:ClearAllPoints()
-        row[1]:SetPoint("BOTTOM", 0, y)
-      else
-        row[1]:ClearAllPoints()
-        row[1]:SetPoint("BOTTOMLEFT", 12, y)
-        row[2]:ClearAllPoints()
-        row[2]:SetPoint("BOTTOMRIGHT", -12, y)
-      end
-      for _, button in ipairs(row) do button:Show() end
-      y = y + 26
-    end
-  end
-
   -- toolbar ------------------------------------------------------------------------------------
   local main = CreateFrame("Frame", nil, panel)
   main:SetPoint("TOPLEFT", 0, 0)
-  main:SetPoint("BOTTOMRIGHT", details, "BOTTOMLEFT", -8, 0)
+  main:SetPoint("BOTTOMRIGHT", 0, 0)
 
   local search = W.EditBox(main, 170)
   search:SetPoint("TOPLEFT", 54, -4) -- clear of the portrait
@@ -155,21 +115,45 @@ local function Build(panel)
   end, 90)
   view.ProfButton:SetPoint("LEFT", view.LevelButton, "RIGHT", 4, 0)
 
-  local onlineCheck = CreateFrame("CheckButton", nil, main, "UICheckButtonTemplate")
-  onlineCheck:SetSize(24, 24)
-  onlineCheck:SetPoint("LEFT", view.ProfButton, "RIGHT", 6, 0)
-  onlineCheck:SetScript("OnClick", function(self) view:SetFilterValue("onlineOnly", self:GetChecked() or nil) end)
-  local onlineLabel = W.Text(main, "GameFontHighlightSmall", L.ONLINE_ONLY)
-  onlineLabel:SetPoint("LEFT", onlineCheck, "RIGHT", 0, 0)
+  -- the guild's own groups, as found in the notes
+  view.GroupButton = W.MenuButton(main, L.FILTER_GROUP, function()
+    local items = { { text = L.ALL, checked = view.group == nil, onClick = function() view.group = nil; view:Refresh() end } }
+    for _, group in ipairs(view.groups or {}) do
+      items[#items + 1] = { text = GroupText(group), checked = view.group == group, onClick = function() view.group = group; view:Refresh() end }
+    end
+    return items
+  end, 90)
+  view.GroupButton:SetPoint("LEFT", view.ProfButton, "RIGHT", 4, 0)
+
+  local function Check(label, anchor, onClick)
+    local check = CreateFrame("CheckButton", nil, main, "UICheckButtonTemplate")
+    check:SetSize(24, 24)
+    check:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
+    check:SetScript("OnClick", onClick)
+    check.Label = W.Text(main, "GameFontHighlightSmall", label)
+    check.Label:SetPoint("LEFT", check, "RIGHT", 0, 0)
+    return check
+  end
+  local onlineCheck = Check(L.ONLINE_ONLY, view.GroupButton, function(self) view:SetFilterValue("onlineOnly", self:GetChecked() or nil) end)
   view.OnlineCheck = onlineCheck
+  -- members whose public note is empty: who still needs one
+  view.NoNoteCheck = Check(L.NO_NOTE, onlineCheck.Label, function(self) view.noNote = self:GetChecked() or nil; view:Refresh() end)
+  -- the same for the officer note, only for those who may read it
+  view.NoOfficerNoteCheck = Check(L.NO_OFFICER_NOTE, view.NoNoteCheck.Label, function(self)
+    view.noOfficerNote = self:GetChecked() or nil
+    view:Refresh()
+  end)
+  view.FoldCheck = Check(L.FOLD_TWINKS, view.NoOfficerNoteCheck.Label, function(self) view.fold = self:GetChecked() or nil; view:Refresh() end)
 
   view.Reset = W.Button(main, L.RESET, function()
-    view.filter = {}
+    view.filter, view.group, view.noNote, view.noOfficerNote = {}, nil, nil, nil
     search:SetText("")
     onlineCheck:SetChecked(false)
+    view.NoNoteCheck:SetChecked(false)
+    view.NoOfficerNoteCheck:SetChecked(false)
     view:Refresh()
   end, 70, { small = true })
-  view.Reset:SetPoint("LEFT", onlineLabel, "RIGHT", 8, 0)
+  view.Reset:SetPoint("LEFT", view.FoldCheck.Label, "RIGHT", 8, 0)
 
   -- header -------------------------------------------------------------------------------------
   local header = CreateFrame("Frame", nil, main)
@@ -186,7 +170,7 @@ local function Build(panel)
     button.Text = W.Text(button, "GameFontNormalSmall", L["COL_" .. column.key:upper()])
     button.Text:SetPoint("LEFT", 0, 0)
     button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-    if column.key ~= "note" then
+    if not UNSORTED[column.key] then
       button:SetScript("OnClick", function()
         if view.sort == column.key then view.desc = not view.desc else view.sort, view.desc = column.key, column.desc or false end
         view:Refresh()
@@ -210,9 +194,6 @@ local function Build(panel)
       cell:SetWordWrap(false)
       row.Cells[column.key] = cell
     end
-    row.Selected = row:CreateTexture(nil, "BACKGROUND")
-    row.Selected:SetAllPoints()
-    row.Selected:SetColorTexture(1, 0.82, 0, 0.18)
     local highlight = row:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetColorTexture(1, 0.82, 0, 0.1)
@@ -221,31 +202,42 @@ local function Build(panel)
       if button == "RightButton" then
         UI.MemberMenu(self.member, self)
       else
-        view:Select(self.member)
+        UI.MemberClick(self.member)
       end
     end)
     row:SetScript("OnEnter", function(self) if self.member then UI.MemberTooltip(self, self.member) end end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  end, function(row, m)
+  end, function(row, item)
+    local m = item.m
     row.member = m
     local dim = not m.online
     local c = row.Cells
     c.level:SetText(m.level)
-    c.name:SetText(W.ClassName(m.name, m.classFile))
+    -- twinks under their main are indented; a folded main shows how many hang on it
+    local name = ClassIcon(m.classFile) .. W.ClassName(m.name, m.classFile)
+    if item.child then name = "      " .. name .. "  |cff8f8268" .. L.TWINK .. "|r" end
+    if item.more then name = name .. "  |cff8f8268+" .. item.more .. "|r" end
+    c.name:SetText(name)
     c.zone:SetText(m.zone or "")
     c.rank:SetText(m.rank or "")
-    c.profs:SetText((ProfSummary(m)))
+    c.group:SetText(GroupText(m.group, m.groupInherited))
+    c.ilvl:SetText(m.ilvl and (string.format("%.1f", m.ilvl / 10):gsub("%.", L.DECIMAL_MARK)) or "")
     c.lastOnline:SetText(ns.Roster.LastOnlineText(m))
     c.guildy:SetText(UI.GuildyVersionText(m) or "")
-    c.note:SetText(m.note or "")
+    c.note:SetText((m.note and m.note ~= "") and m.note or ("|cffff9a5a" .. L.NO_NOTE_CELL .. "|r"))
+    c.officerNote:SetText(not view.viewOfficer and ""
+      or (m.officerNote and m.officerNote ~= "") and m.officerNote or ("|cffff9a5a" .. L.NO_NOTE_CELL .. "|r"))
     for key, cell in pairs(c) do
-      if key ~= "name" and key ~= "profs" then
+      if key ~= "name" and key ~= "group" and key ~= "note" and key ~= "officerNote" then
         if dim then cell:SetTextColor(0.6, 0.6, 0.6) else cell:SetTextColor(1, 1, 1) end
       end
     end
+    for _, cell in ipairs({ c.note, c.officerNote }) do
+      if dim then cell:SetTextColor(0.6, 0.6, 0.6) else cell:SetTextColor(1, 1, 1) end
+    end
     if m.online then c.lastOnline:SetTextColor(unpack(ONLINE_COLOR)) end
     c.name:SetAlpha(dim and 0.7 or 1)
-    row.Selected:SetShown(view.selected ~= nil and view.selected.key == m.key)
+    c.group:SetAlpha(dim and 0.7 or 1)
   end)
   view.List:SetPoint("TOPLEFT", 4, -4)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
@@ -271,82 +263,80 @@ local function Build(panel)
     button:SetText(value and (base .. ": " .. value) or base)
   end
 
-  function view:RenderDetails()
-    local m = self.selected and ns.Roster.Find(self.selected.key)
-    self.selected = m
-    local d = self.Details
-    local shown = m ~= nil
-    for _, element in ipairs({ d.Name, d.Sub, d.Lines, d.Profs, d.Whisper, d.Invite, d.Promote, d.Demote, d.Remove, d.Notes }) do
-      element:SetShown(shown)
+  function view:Refresh()
+    -- officer note column and filter only for those who may read officer notes
+    self.viewOfficer = ns.Roster.Can().viewOfficer and true or false
+    self.Headers.officerNote:SetShown(self.viewOfficer)
+    self.NoOfficerNoteCheck:SetShown(self.viewOfficer)
+    self.NoOfficerNoteCheck.Label:SetShown(self.viewOfficer)
+    if not self.viewOfficer then self.noOfficerNote = nil; self.NoOfficerNoteCheck:SetChecked(false) end
+    self.FoldCheck:ClearAllPoints()
+    self.FoldCheck:SetPoint("LEFT", self.viewOfficer and self.NoOfficerNoteCheck.Label or self.NoNoteCheck.Label, "RIGHT", 6, 0)
+    local members = ns.Roster.Members()
+    local guild, db = ns.GuildData(), ns.DB()
+    local mains = ns.Family.Mains(members, guild and guild.families, db and db.ownChars)
+    local byKey, groupSet, noNote, noOfficerNote = {}, {}, 0, 0
+    for _, m in ipairs(members) do
+      m.guildy = m.online and ns.Sync.UserVersion(m.name) or nil
+      m.ilvl = ItemLevel(guild, m)
+      m.mainKey = mains[m.key]
+      m.group = ns.Family.NoteGroup(m)
+      m.groupInherited = nil
+      byKey[m.key] = m
+      if not m.note or m.note == "" then noNote = noNote + 1 end
+      if not m.officerNote or m.officerNote == "" then noOfficerNote = noOfficerNote + 1 end
     end
-    d.Empty:SetShown(not shown)
-    if not m then return end
-    local can = ns.Roster.Can()
-    d.Name:SetText(W.ClassName(m.name, m.classFile))
-    d.Sub:SetText(L.LEVEL_CLASS:format(m.level or 0, m.className or ""))
-    local lines = {
-      "|cffffd100" .. L.RANK .. ":|r " .. (m.rank or ""),
-      "|cffffd100" .. L.ZONE .. ":|r " .. (m.zone or ""),
-      "|cffffd100" .. L.LAST_ONLINE .. ":|r " .. ns.Roster.LastOnlineText(m),
-      "|cffffd100" .. L.NOTE .. ":|r " .. ((m.note and m.note ~= "") and m.note or "-"),
-    }
-    if can.viewOfficer then
-      lines[#lines + 1] = "|cffffd100" .. L.OFFICER_NOTE .. ":|r " .. ((m.officerNote and m.officerNote ~= "") and m.officerNote or "-")
+    -- twinks take the group of their main
+    for _, m in ipairs(members) do
+      local mainMember = m.mainKey and m.mainKey ~= m.key and byKey[m.mainKey]
+      if not m.group and mainMember and mainMember.group then m.group, m.groupInherited = mainMember.group, true end
+      if m.group then groupSet[m.group] = true end
     end
-    local guildy = UI.GuildyVersionText(m)
-    if guildy then lines[#lines + 1] = "|cffffd100" .. L.COL_GUILDY .. ":|r " .. guildy end
-    d.Lines:SetText(table.concat(lines, "\n"))
+    self.groups = {}
+    for group in pairs(groupSet) do self.groups[#self.groups + 1] = group end
+    table.sort(self.groups)
+    if self.group and not groupSet[self.group] then self.group = nil end
 
-    local record = ns.TradeSkill.Record(m)
-    local profLines = { "|cffffd100" .. L.PROFESSIONS .. "|r" }
-    for _, skillLine in ipairs(ns.Professions.ORDER) do
-      local prof = record and record.profs[skillLine]
-      if prof then
-        local level = UI.ProfLevel(prof)
-        local recipes = prof.recipes and (" · " .. L.RECIPES_COUNT:format(#prof.recipes)) or ""
-        profLines[#profLines + 1] = "|T" .. ns.Professions.ICONS[skillLine] .. ":14|t " .. ns.TradeSkill.Name(skillLine)
-          .. "  " .. level .. "|cff999999" .. recipes .. (prof.src == "note" and "" or (" · " .. UI.Age(prof.ts))) .. "|r"
+    local list = ns.Search.Members(members, self.filter, self.query, ns.TradeSkill.ProfsOf)
+    local kept = {}
+    for _, m in ipairs(list) do
+      if (not self.group or m.group == self.group) and (not self.noNote or not m.note or m.note == "")
+        and (not self.noOfficerNote or not m.officerNote or m.officerNote == "") then
+        kept[#kept + 1] = m
       end
     end
-    if #profLines == 1 then profLines[2] = "|cff999999" .. L.NO_PROFESSIONS .. "|r" end
-    d.Profs:SetText(table.concat(profLines, "\n"))
-    d.Whisper:SetEnabled(m.online)
-    d.Invite:SetEnabled(m.online)
-    local rights = ns.Roster.Rights(m)
-    local rows = { { d.Whisper, d.Invite } }
-    d.Promote:Hide()
-    d.Demote:Hide()
-    d.Remove:Hide()
-    d.Notes:Hide()
-    if can.promote or can.demote then
-      rows[#rows + 1] = { d.Promote, d.Demote }
-      d.Promote:SetEnabled(rights.promote)
-      d.Demote:SetEnabled(rights.demote)
-    end
-    if can.remove then
-      rows[#rows + 1] = { d.Remove }
-      d.Remove:SetEnabled(rights.remove)
-    end
-    if can.editPublic or can.editOfficer then rows[#rows + 1] = { d.Notes } end
-    d:LayoutActions(rows)
-  end
+    ns.Search.SortMembers(kept, self.sort, self.desc)
 
-  function view:Select(m)
-    self.selected = m
-    self:Refresh()
-  end
-
-  function view:Refresh()
-    local members = ns.Roster.Members()
-    for _, m in ipairs(members) do
-      local _, count = ProfSummary(m)
-      m.profCount = count
-      m.guildy = m.online and ns.Sync.UserVersion(m.name) or nil
+    -- twinks right under their main (when the main is shown), or folded into it; flat while
+    -- looking for members without a note
+    local items = {}
+    if self.noNote or self.noOfficerNote then
+      for _, m in ipairs(kept) do items[#items + 1] = { m = m } end
+    else
+      local shown, twinksOf = {}, {}
+      for _, m in ipairs(kept) do shown[m.key] = true end
+      for _, m in ipairs(kept) do
+        if m.mainKey and m.mainKey ~= m.key and shown[m.mainKey] then
+          twinksOf[m.mainKey] = twinksOf[m.mainKey] or {}
+          table.insert(twinksOf[m.mainKey], m)
+        end
+      end
+      for _, m in ipairs(kept) do
+        local isTwinkUnderMain = m.mainKey and m.mainKey ~= m.key and shown[m.mainKey]
+        if not isTwinkUnderMain then
+          local twinks = twinksOf[m.key]
+          items[#items + 1] = { m = m, more = self.fold and twinks and #twinks or nil }
+          if twinks and not self.fold then
+            for _, twink in ipairs(twinks) do items[#items + 1] = { m = twink, child = true } end
+          end
+        end
+      end
     end
-    local list = ns.Search.Members(members, self.filter, self.query, ns.TradeSkill.ProfsOf)
-    ns.Search.SortMembers(list, self.sort, self.desc)
-    self.List:SetItems(list)
-    self.Summary:SetText(L.SHOWN_COUNT:format(#list, #members))
+    self.List:SetItems(items)
+    self.Summary:SetText(L.SHOWN_COUNT:format(#kept, #members))
+    self.NoNoteCheck.Label:SetText(L.NO_NOTE .. " |cffffd100" .. noNote .. "|r")
+    self.NoOfficerNoteCheck.Label:SetText(L.NO_OFFICER_NOTE .. " |cffffd100" .. noOfficerNote .. "|r")
+    Label(self.GroupButton, L.FILTER_GROUP, self.group)
     Label(self.ClassButton, L.FILTER_CLASS, self.filter.classFile and ClassLabel(self.filter.classFile))
     Label(self.LevelButton, L.FILTER_LEVEL, (self.filter.level and tostring(self.filter.level))
       or (self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket)))
@@ -356,10 +346,8 @@ local function Build(panel)
       if key == self.sort then text = text .. (self.desc and " v" or " ^") end
       button.Text:SetText(text)
     end
-    self:RenderDetails()
   end
 
-  view:RenderDetails()
   return view
 end
 

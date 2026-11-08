@@ -1,6 +1,7 @@
 -- The Guildy window: ButtonFrameTemplate with portrait, a narrow icon bar on the left (guild,
 -- Blizzard communities), the tab content area and bottom tabs. Resizable via a grip; size and
--- position are saved. Opening selects the tab that was open last (the chat tab the first time).
+-- position are saved. Opening selects the tab that was open last in this session; every login or
+-- reload starts on the chat tab.
 local _, ns = ...
 local W = ns.Widgets
 
@@ -11,18 +12,30 @@ local tabs = {}      -- {key, label, builder, button, panel, view}
 local byKey = {}
 local frame
 local current
+local lastTab -- session only, on purpose not in GuildyDB
+local noGuild, forcedAccount -- without a guild only the account tab (UpdateGuildState)
+
+local page    -- a page shown instead of a tab (UI.ShowPage); kept while the window is closed, so
+              -- opening it again in this session comes back to the page
 
 -- overview needs ~520 px height; the Hall of Fame's dungeon table needs ~1130 px width for all 32
 -- dungeons and raids at 26 px each (UI/TabFame.lua)
 UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 1130, 560, 1600, 1000
 
 -- Tab modules call this at load time; builder(panel) returns a view with Refresh(event) and optional
--- OnShow() / OnHide()
-function UI.RegisterTab(key, order, label, builder)
-  local tab = { key = key, order = order, label = label, builder = builder }
+-- OnShow() / OnHide(). side: no button in the bottom row (reached by a side tab, the account)
+function UI.RegisterTab(key, order, label, builder, side)
+  local tab = { key = key, order = order, label = label, builder = builder, side = side }
   tabs[#tabs + 1] = tab
   byKey[key] = tab
   table.sort(tabs, function(a, b) return a.order < b.order end)
+end
+
+-- Open / close sounds of Blizzard's guild window (SOUNDKIT 839 / 840)
+local function PlayPanelSound(name, fallback)
+  local kit = rawget(_G, "SOUNDKIT")
+  local play = rawget(_G, "PlaySound")
+  if play then pcall(play, kit and kit[name] or fallback) end
 end
 
 local function SavePosition()
@@ -156,7 +169,9 @@ end
 local function Build()
   frame = CreateFrame("Frame", "GuildyFrame", UIParent, "ButtonFrameTemplate")
   local settings = ns.Settings()
-  frame:SetSize(math.max(UI.MIN_W, settings.width or 1000), math.max(UI.MIN_H, settings.height or 600))
+  -- a saved size outside the bounds (older versions, a jumped resize) comes back inside them
+  frame:SetSize(math.min(UI.MAX_W, math.max(UI.MIN_W, settings.width or 1000)),
+    math.min(UI.MAX_H, math.max(UI.MIN_H, settings.height or 600)))
   local p = settings.point
   if type(p) == "table" and p[1] then
     frame:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
@@ -202,11 +217,16 @@ local function Build()
   -- side tab outside the right edge, exactly like Blizzard's profession window: Guildy with the guild
   -- emblem. (A communities tab was dropped: creating communities is broken on Forever; Blizzard's guild
   -- window stays reachable from the member menu, the info tab and the micro menu.)
-  frame.GuildTab = SideTab(frame, W.LOGO, ns.L.ICON_GUILD, function() UI.SelectTab("chat") end)
+  -- back from the account to the guild tab used last
+  frame.GuildTab = SideTab(frame, W.LOGO, ns.L.ICON_GUILD, function() UI.SelectTab(UI.lastGuildTab or "chat") end)
   frame.GuildTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
-  frame.GuildTab.keepChecked = true
   frame.GuildTab:SetChecked(true)
   frame.GuildTab.Emblem = TabEmblem(frame.GuildTab)
+  -- the account under it: a group of characters (UI/TabAccount.lua)
+  local accountIcon = "Interface\\Icons\\INV_Misc_GroupNeedMore"
+  if not W.TextureExists(accountIcon) then accountIcon = "Interface\\Icons\\INV_Misc_Book_09" end
+  frame.AccountTab = SideTab(frame, accountIcon, ns.L.ICON_ACCOUNT, function() UI.SelectTab("account") end)
+  frame.AccountTab:SetChecked(false)
   UpdateTitle()
 
   -- content area (the portrait overlaps its top-left corner; tabs keep their first row clear of it)
@@ -214,18 +234,18 @@ local function Build()
   frame.Content:SetPoint("TOPLEFT", 12, -30)
   frame.Content:SetPoint("BOTTOMRIGHT", -10, 12)
 
-  for i, tab in ipairs(tabs) do
+  local buttons = 0
+  for _, tab in ipairs(tabs) do
     tab.panel = CreateFrame("Frame", nil, frame.Content)
     tab.panel:SetAllPoints()
     tab.panel:Hide()
-    tab.button = W.Tab(frame, i, tab.label, function() UI.SelectTab(tab.key) end)
-    if i == 1 then
-      tab.button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 12, 2)
-    else
-      tab.button:SetPoint("LEFT", tabs[i - 1].button, "RIGHT", -14, 0)
+    if not tab.side then
+      buttons = buttons + 1
+      tab.index = buttons
+      tab.button = W.Tab(frame, buttons, tab.label, function() UI.SelectTab(tab.key) end)
     end
   end
-  if rawget(_G, "PanelTemplates_SetNumTabs") then pcall(PanelTemplates_SetNumTabs, frame, #tabs) end
+  if rawget(_G, "PanelTemplates_SetNumTabs") then pcall(PanelTemplates_SetNumTabs, frame, buttons) end
 
   W.ResizeGrip(frame, function() SavePosition() end)
   frame:SetScript("OnSizeChanged", function()
@@ -233,18 +253,44 @@ local function Build()
   end)
   frame:SetScript("OnHide", function()
     if UI.HideOverlay then UI.HideOverlay() end
-    if current and current.view and current.view.OnHide then ns.SafeCall(current.view.OnHide, current.view) end
+    -- with a page open the tab was already told it is hidden
+    if not page and current and current.view and current.view.OnHide then ns.SafeCall(current.view.OnHide, current.view) end
     if ns.Chat then ns.Chat.Focus(false) end
+    PlayPanelSound("IG_CHARACTER_INFO_CLOSE", 840)
   end)
   frame:SetScript("OnShow", function()
-    if current and current.view and current.view.OnShow then ns.SafeCall(current.view.OnShow, current.view) end
+    PlayPanelSound("IG_CHARACTER_INFO_OPEN", 839)
+    if not page and current and current.view and current.view.OnShow then ns.SafeCall(current.view.OnShow, current.view) end
   end)
   UI.frame = frame
 end
 
+-- A page shown in the content area instead of a tab (the character page). It hides the current tab
+-- and remembers it; selecting any tab hides the page again.
+function UI.ShowPage(newPage)
+  if not frame then UI.Show() end
+  if page and page ~= newPage then page:Hide() end
+  if current and current.panel:IsShown() then
+    if current.view and current.view.OnHide then ns.SafeCall(current.view.OnHide, current.view) end
+    current.panel:Hide()
+  end
+  page = newPage
+  page:Show()
+end
+
+function UI.Content()
+  if not frame then Build() end
+  return frame.Content
+end
+
 function UI.SelectTab(key)
+  if noGuild and byKey.account then key = "account" end
   local tab = byKey[key]
   if not tab or not frame then return end
+  if page then
+    page:Hide()
+    page = nil
+  end
   if current and current ~= tab then
     if current.view and current.view.OnHide then ns.SafeCall(current.view.OnHide, current.view) end
     current.panel:Hide()
@@ -258,11 +304,13 @@ function UI.SelectTab(key)
     tab.view = view or {}
   end
   current = tab
-  ns.Settings().lastTab = key -- opening the window comes back here
+  if key ~= "account" then UI.lastGuildTab = key end
+  if frame.GuildTab then frame.GuildTab:SetChecked(key ~= "account") end
+  if frame.AccountTab then frame.AccountTab:SetChecked(key == "account") end
+  lastTab = key -- opening the window again in this session comes back here; a login or reload starts on chat
   tab.panel:Show()
-  for i, t in ipairs(tabs) do
-    if t == tab and rawget(_G, "PanelTemplates_SetTab") then pcall(PanelTemplates_SetTab, frame, i) end
-  end
+  -- a side tab (account) leaves no bottom tab selected
+  if rawget(_G, "PanelTemplates_SetTab") then pcall(PanelTemplates_SetTab, frame, tab.index or 0) end
   if tab.view.OnShow then ns.SafeCall(tab.view.OnShow, tab.view) end
   if tab.view.Refresh then ns.SafeCall(tab.view.Refresh, tab.view) end
 end
@@ -277,13 +325,69 @@ function UI.TabView(key)
   return tab and tab.view
 end
 
+-- Without a guild only the account tab makes sense: the other tab buttons go away and the window
+-- shows the account. Joining a guild brings them back (and the chat, when the account tab was forced).
+local function LayoutTabs()
+  -- side tabs: guild and account; without a guild only the account, in the guild tab's place
+  frame.GuildTab:SetShown(not noGuild)
+  frame.AccountTab:ClearAllPoints()
+  if noGuild then
+    frame.AccountTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
+  else
+    frame.AccountTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -8)
+  end
+  -- bottom row: hidden without a guild
+  for i, tab in ipairs(tabs) do
+    local button = tab.button
+    if button then
+      button:SetShown(not noGuild)
+      if not button.anchored then
+        button.anchored = true
+        if tab.index == 1 then
+          button:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 12, 2)
+        else
+          local previous = tabs[i - 1].button
+          button:SetPoint("LEFT", previous, "RIGHT", -14, 0)
+        end
+      end
+    end
+  end
+end
+
+local function UpdateGuildState()
+  if not frame then return end
+  local was = noGuild
+  noGuild = not IsInGuild()
+  LayoutTabs()
+  if not frame:IsShown() then return end
+  if noGuild and UI.Current() ~= "account" then
+    forcedAccount = true
+    UI.SelectTab("account")
+  elseif was and not noGuild and forcedAccount then
+    forcedAccount = nil
+    UI.SelectTab("chat")
+  end
+end
+
 function UI.Show()
   if not frame then Build() end
   UpdateTitle()
   if ns.Roster then ns.Roster.Request() end
   frame:Show()
-  local last = ns.Settings().lastTab
-  UI.SelectTab(byKey[last] and last or "chat")
+  noGuild = not IsInGuild()
+  LayoutTabs()
+  if noGuild then
+    forcedAccount = UI.Current() ~= "account" or forcedAccount
+    UI.SelectTab("account")
+    return
+  end
+  -- back to where the window was left in this session: the open page (character page) or the tab
+  if page then
+    page:Show()
+    if page.Render then ns.SafeCall(page.Render, page) end
+    return
+  end
+  UI.SelectTab(byKey[lastTab] and lastTab or "chat")
 end
 
 function UI.Hide()
@@ -303,17 +407,15 @@ local function Refresh(event, ...)
   if not UI.IsShown() or not current or not current.view or not current.view.Refresh then return end
   ns.SafeCall(current.view.Refresh, current.view, event, ...)
 end
-for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", "USERS" }) do
+for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", "USERS", "FAMILY", "GUILD" }) do
   ns.On(event, function(...) Refresh(event, ...) end)
 end
 ns.On("ROSTER", function() if frame then UpdateTitle() end end)
-
--- Shows the members tab with member m selected (from the ranks tab)
-function UI.ShowMember(m)
-  UI.SelectTab("members")
-  local tab = byKey.members
-  if tab and tab.view and tab.view.Select then tab.view:Select(m) end
-end
+ns.On("GUILD", function()
+  if not frame then return end
+  UpdateTitle()
+  UpdateGuildState()
+end)
 
 -- Shows the members tab with a filter (from overview bars)
 function UI.FilterMembers(filter)

@@ -251,6 +251,18 @@ function Action.Manage(kind, m)
   end }
 end
 
+-- Set a rank directly: the steps of /gpromote or /gdemote in one macro (Manage.RankChange). Whether
+-- the server takes several steps from one click is not verified; the roster refresh shows the outcome.
+function Action.SetRank(m, newRank)
+  local kind, steps = ns.Roster.RankChange(m, newRank)
+  local macro = kind and ns.Manage.Commands(kind, m.fullName or m.name, steps)
+  if not macro then return nil end
+  return { macro = macro, after = function()
+    C_Timer.After(1, function() ns.Roster.Request(true) end)
+    C_Timer.After(3, function() ns.Roster.Request(true) end)
+  end }
+end
+
 -- Message of the day and guild info: Blizzard's text editor (CommunitiesGuildTextEditFrame). Its edit
 -- buttons set it up for "motd" or "info" and its accept button saves what is in its edit box.
 -- SetMOTD/SetInfoText are fully protected: text an addon put into the box taints the save
@@ -392,12 +404,13 @@ end
 
 local confirm
 
-function UI.Confirm(text, action)
+-- okText: label of the OK button (default "Yes"); danger: red OK label, for removal
+function UI.Confirm(text, action, okText, danger)
   local L = ns.L
   if not confirm then
     confirm = W.Box(UIParent, 0.06, 0.9)
     confirm:SetFrameStrata("DIALOG")
-    confirm:SetSize(320, 96)
+    confirm:SetSize(340, 112)
     confirm:SetPoint("CENTER", 0, 120)
     confirm:EnableMouse(true)
     confirm.Text = W.Text(confirm, "GameFontHighlight")
@@ -424,6 +437,19 @@ function UI.Confirm(text, action)
     _G.GuildyConfirm = confirm
   end
   confirm.Text:SetText(text)
+  confirm.Ok:SetText(okText or L.YES)
+  local label = confirm.Ok:GetFontString()
+  if label then
+    if danger then label:SetTextColor(1, 0.3, 0.25) else label:SetTextColor(1, 0.82, 0) end
+  end
   confirm.action = action
   confirm:Show()
+end
+
+-- Removing a member: red button, name and rank in the question
+function UI.ConfirmRemove(m)
+  if not m then return end
+  local L = ns.L
+  local who = W.ClassName(m.name, m.classFile) .. (m.rank and ("|cffaaaaaa (" .. m.rank .. ")|r") or "")
+  UI.Confirm(L.REMOVE_CONFIRM:format(who), UI.Action.Manage("remove", m), L.REMOVE_BUTTON, true)
 end

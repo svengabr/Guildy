@@ -16,31 +16,91 @@ function UI.Whisper(name)
   if tell then pcall(tell, name) end
 end
 
--- Context menu for a roster member
+-- A 1x1 frame at the mouse, for menus opened where no frame sits (names in the chat)
+local cursorAnchor
+function UI.CursorAnchor()
+  cursorAnchor = cursorAnchor or CreateFrame("Frame", nil, UIParent)
+  cursorAnchor:SetSize(1, 1)
+  local x, y = GetCursorPosition()
+  local scale = UIParent:GetEffectiveScale() or 1
+  cursorAnchor:ClearAllPoints()
+  cursorAnchor:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (x or 0) / scale, (y or 0) / scale)
+  return cursorAnchor
+end
+
+-- WoW has no clipboard access: a small box with the text selected, Ctrl+C copies and closes it
+local copyBox
+function UI.CopyText(text)
+  local L = ns.L
+  if not copyBox then
+    copyBox = W.Box(UIParent, 0.06, 0.95)
+    copyBox:SetFrameStrata("DIALOG")
+    copyBox:SetSize(260, 74)
+    copyBox:EnableMouse(true)
+    copyBox.Title = W.Text(copyBox, "GameFontNormalSmall", L.COPY_HINT)
+    copyBox.Title:SetPoint("TOP", 0, -12)
+    copyBox.Edit = W.EditBox(copyBox, 220)
+    copyBox.Edit:SetPoint("TOP", copyBox.Title, "BOTTOM", 0, -10)
+    copyBox.Edit:SetScript("OnEscapePressed", function() copyBox:Hide() end)
+    copyBox.Edit:SetScript("OnEnterPressed", function() copyBox:Hide() end)
+    -- typing must not change the text: put it back and select it again
+    copyBox.Edit:SetScript("OnTextChanged", function(self, user)
+      if user and self:GetText() ~= copyBox.text then self:SetText(copyBox.text); self:HighlightText() end
+    end)
+    copyBox.Edit:SetScript("OnKeyDown", function(_, key)
+      if key == "C" and IsControlKeyDown() then C_Timer.After(0, function() copyBox:Hide() end) end
+    end)
+    copyBox:SetScript("OnHide", function() copyBox.Edit:ClearFocus() end)
+    tinsert(UISpecialFrames, "GuildyCopyBox")
+    _G.GuildyCopyBox = copyBox
+  end
+  copyBox.text = text
+  copyBox:ClearAllPoints()
+  copyBox:SetPoint("TOPLEFT", UI.CursorAnchor(), "TOPLEFT", -20, 20)
+  copyBox:SetClampedToScreen(true)
+  copyBox:Show()
+  copyBox.Edit:SetText(text)
+  copyBox.Edit:SetFocus()
+  copyBox.Edit:HighlightText()
+end
+
+-- Left click on a member anywhere: the character page; shift-click whispers
+function UI.MemberClick(m)
+  if not m then return end
+  if IsShiftKeyDown() then UI.Whisper(m.fullName) else UI.ShowMember(m) end
+end
+
+-- Context menu for a roster member (right click anywhere). Officers get the ranks right in the menu:
+-- a click sets that rank directly (UI.Action.SetRank). anchor defaults to the mouse position.
 function UI.MemberMenu(m, anchor)
   local L, R = ns.L, ns.Roster
   local can = R.Can()
   local items = {
     { text = W.ClassName(m.name, m.classFile), isTitle = true },
+    { text = L.MEMBER_OPEN_PAGE, onClick = function() UI.ShowMember(m) end },
     { text = L.WHISPER, onClick = function() UI.Whisper(m.fullName) end, disabled = not m.online },
     { text = L.GROUP_INVITE, onClick = function() R.GroupInvite(m) end, disabled = not m.online },
+    { text = L.COPY_NAME, onClick = function() UI.CopyText(m.name) end },
   }
   local rights = R.Rights(m)
-  if can.promote then
-    items[#items + 1] = { text = L.PROMOTE, disabled = not rights.promote, action = function() return UI.Action.Manage("promote", m) end }
-  end
-  if can.demote then
-    items[#items + 1] = { text = L.DEMOTE, disabled = not rights.demote, action = function() return UI.Action.Manage("demote", m) end }
-  end
-  if can.remove then
-    items[#items + 1] = { text = L.REMOVE, disabled = not rights.remove, onClick = function()
-      UI.Confirm(L.REMOVE_CONFIRM:format(W.ClassName(m.name, m.classFile)), UI.Action.Manage("remove", m))
-    end }
+  if can.promote or can.demote then
+    items[#items + 1] = { text = L.MEMBER_SET_RANK, isTitle = true }
+    for i, name in ipairs(R.Ranks()) do
+      local index = i - 1
+      local allowed = R.RankChange(m, index) ~= nil
+      items[#items + 1] = { text = name, checked = index == m.rankIndex, disabled = not allowed,
+        action = allowed and function() return UI.Action.SetRank(m, index) end or nil }
+    end
   end
   if can.editPublic or can.editOfficer then
     items[#items + 1] = { text = L.NOTES_IN_BLIZZARD, action = UI.Action.BlizzardWindow }
   end
-  W.OpenMenu(anchor, items, 200)
+  -- removal last and red, always behind a confirmation
+  if can.remove then
+    items[#items + 1] = { text = L.REMOVE, disabled = not rights.remove, color = { 1, 0.25, 0.2 },
+      onClick = function() UI.ConfirmRemove(m) end }
+  end
+  W.OpenMenu(anchor or UI.CursorAnchor(), items, 210)
 end
 
 -- Tooltip for a roster member (owner frame given); hint replaces the default click hint

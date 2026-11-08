@@ -20,10 +20,28 @@ local function OnGuildChat(kind, text, sender, ...)
   ns.TradeSkill.OnChatMessage(text, sender, guid)
 end
 
+-- Remembers class, level, race and guild of the logged-in character (for the own character page: the
+-- account's characters in other guilds). Stays on this computer, never sent.
+local function RememberSelf()
+  local db = ns.DB()
+  local me = ns.PlayerName()
+  if not db or not me then return end
+  local className, classFile = UnitClass("player")
+  local raceName, raceFile = UnitRace("player")
+  local guild = IsInGuild() and GetGuildInfo("player") or nil
+  db.ownChars = db.ownChars or {}
+  local key = ns.Names.Key(me)
+  db.ownChars[key] = ns.Family.OwnRecord(db.ownChars[key], { name = me, classFile = classFile, className = className,
+    level = UnitLevel("player"), raceFile = raceFile, raceName = raceName, female = UnitSex("player") == 3,
+    guild = guild, guildKey = guild and ns.GuildKey() or nil }, ns.Now())
+end
+ns.RememberSelf = RememberSelf
+
 local HANDLERS = {
   ADDON_LOADED = function(name)
     if name == ns.ADDON then
       GuildyDB = ns.Store.Init(rawget(_G, "GuildyDB"))
+      ns.Chat.InitSeen(GuildyDB.settings, ns.Now())
     end
   end,
   UPDATE_BINDINGS = function() ns.Redirect.Apply() end,
@@ -37,17 +55,30 @@ local HANDLERS = {
     ns.Harvest.RestoreSound() -- a run cut off by /reload or a crash left the sound effects off
     ns.Sync.Register()
     ns.Roster.Request(true)
+    ns.SafeCall(RememberSelf)
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
     ns.Sync.Start()
     ns.GameStats.Start()
   end,
-  PLAYER_LOGOUT = function() ns.GameStats.UpdateOwn() end,
+  PLAYER_LOGOUT = function()
+    ns.Chat.OnLogout(ns.Settings(), ns.Now())
+    ns.GameStats.UpdateOwn()
+  end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
   PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
   UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
   INSPECT_ACHIEVEMENT_READY = function(guid) ns.GameStats.OnComparisonReady(guid) end,
   INSPECT_READY = function(guid) ns.GameStats.OnInspectReady(guid) end,
-  PLAYER_GUILD_UPDATE = function() ns.Roster.Request(true) end,
+  PLAYER_GUILD_UPDATE = function()
+    ns.Roster.Request(true)
+    ns.Fire("GUILD")
+    -- the guild name can arrive a moment later
+    C_Timer.After(2, function()
+      ns.SafeCall(RememberSelf)
+      ns.Fire("GUILD")
+    end)
+  end,
+  PLAYER_LEVEL_UP = function() C_Timer.After(1, function() ns.SafeCall(RememberSelf) end) end,
   GUILD_ROSTER_UPDATE = function() ns.Roster.ScheduleScan() end,
   GUILD_EVENT_LOG_UPDATE = function()
     ns.Roster.ScheduleScan()
@@ -68,7 +99,10 @@ local HANDLERS = {
   CHAT_MSG_PARTY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_ADDON = function(...) ns.Sync.OnAddonMessage(...) end,
   CLUB_MESSAGE_ADDED = function() ns.Fire("CHAT") end,
-  CLUB_MESSAGE_HISTORY_RECEIVED = function() ns.Fire("CHAT") end,
+  CLUB_MESSAGE_HISTORY_RECEIVED = function()
+    ns.Chat.OnHistoryReceived()
+    ns.Fire("CHAT")
+  end,
   TRADE_SKILL_SHOW = ScheduleTradeScan,
   TRADE_SKILL_LIST_UPDATE = ScheduleTradeScan,
   CRAFT_SHOW = ScheduleTradeScan,
@@ -102,6 +136,16 @@ SlashCmdList.GUILDY = function(msg)
     ns.TradeSkill.Probe(raw:sub(6))
   elseif msg:match("^rights") then
     ns.Roster.DebugRights(raw:sub(8))
+  elseif msg == "chatdebug" then
+    for _, line in ipairs(ns.Chat.Debug("guild")) do ns.Print(line) end
+    local view = ns.UI.TabView("chat")
+    if view and view.Messages then
+      local m = view.Messages
+      ns.Print("frame lines " .. tostring(m.GetNumMessages and m:GetNumMessages()) .. " offset "
+        .. tostring(m.GetScrollOffset and m:GetScrollOffset()) .. " max " .. tostring(m.GetMaxScrollRange and m:GetMaxScrollRange()))
+      local ok, err = pcall(view.RenderChat, view)
+      ns.Print("render ok " .. tostring(ok) .. " " .. tostring(err))
+    end
   elseif msg == "statdebug" then
     ns.GameStats.debug = not ns.GameStats.debug
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))

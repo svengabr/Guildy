@@ -227,6 +227,39 @@
         ],
         "createdAt": "2026-11-07T22:16:13.015Z",
         "reason": "Claude: mock reproduces the shipped WoW addon frame (media/gallery screenshots): in-game font sizes, button padding, gold frame border and Blizzard class colors"
+      },
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-11-08T10:43:38.871Z",
+        "reason": "Claude: WoW chat renders in Arial Narrow (ChatFontNormal); mockup mirrors the in-game font"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "docs/mockups/chat-scroll.html"
+        ],
+        "createdAt": "2026-11-08T10:43:38.995Z",
+        "reason": "Claude: mockup reproduces WoW frame + inset panel nesting of the real addon window"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "docs/mockups/chat-tab-v4.html"
+        ],
+        "createdAt": "2026-11-08T11:06:10.708Z",
+        "reason": "Claude: mockup reproduces the WoW frame + inset panel nesting of the real addon window"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/mockups/chat-tab-v4.html"
+        ],
+        "createdAt": "2026-11-08T11:06:10.825Z",
+        "reason": "Claude: mockup mirrors WoW's dense in-game list rows and 22px buttons of the real addon"
       }
     ]
   }

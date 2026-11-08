@@ -26,6 +26,7 @@ Core\Search.lua
 Core\Protocol.lua
 Core\Manage.lua
 Core\Stats.lua
+Core\Family.lua
 Core\Runtime.lua
 Game\Roster.lua
 Game\Chat.lua
@@ -37,7 +38,9 @@ Game\Redirect.lua
 UI\Widgets.lua
 UI\Main.lua
 UI\Popups.lua
+UI\CharacterPage.lua
 UI\Commands.lua
+UI\ChatTimeline.lua
 UI\TabChat.lua
 UI\TabMembers.lua
 UI\TabOverview.lua
@@ -45,4 +48,5 @@ UI\TabFame.lua
 UI\TabProfessions.lua
 UI\TabInfo.lua
 UI\TabRanks.lua
+UI\TabAccount.lua
 Core\Init.lua

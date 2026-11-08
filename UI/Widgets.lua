@@ -106,11 +106,12 @@ function W.FitWidth(font, texts, min, pad)
 end
 
 -- opts: {small = true (small font, for buttons in list rows), fit = {texts}: the button is as wide as
--- the longest of them from the start, so it keeps its width when its text changes between them}
+-- the longest of them from the start, so it keeps its width when its text changes between them,
+-- pad = room in px around the text (default 24, small 20)}
 function W.Button(parent, text, onClick, width, opts)
   opts = opts or {}
   local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-  local pad = opts.small and 20 or 24
+  local pad = opts.pad or (opts.small and 20 or 24)
   if opts.small then
     for setter, font in pairs({
       SetNormalFontObject = "GameFontNormalSmall", SetHighlightFontObject = "GameFontHighlightSmall",
@@ -232,7 +233,19 @@ function W.ScrollList(parent, rowHeight, createRow, updateRow)
   content:SetSize(1, 1)
   scroll.rows = {}
   scroll.rowHeight = rowHeight
-  scroll:SetScript("OnSizeChanged", function(_, width) content:SetWidth(math.max(1, width or 1)) end)
+  -- the bar (arrows, thumb) only while there is something to scroll: empty or short lists looked broken
+  local function UpdateBar()
+    local bar = scroll.ScrollBar
+    if type(bar) ~= "table" or not bar.SetShown then return end
+    local range = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange() or 0
+    bar:SetShown((range or 0) > 0.5)
+  end
+  scroll.UpdateBar = UpdateBar
+  scroll:SetScript("OnSizeChanged", function(_, width)
+    content:SetWidth(math.max(1, width or 1))
+    UpdateBar()
+  end)
+  if scroll.HookScript then scroll:HookScript("OnScrollRangeChanged", UpdateBar) end
 
   function scroll:SetItems(items)
     local width = self:GetWidth() or 0
@@ -257,9 +270,46 @@ function W.ScrollList(parent, rowHeight, createRow, updateRow)
     end
     for i = #items + 1, #self.rows do self.rows[i]:Hide() end
     content:SetHeight(math.max(1, #items * rowHeight))
+    UpdateBar()
   end
+  UpdateBar()
 
   return scroll
+end
+
+-- Restyle a UIPanelScrollFrameTemplate's bar as a slim gold track without arrows (the chat timeline
+-- look). Gives the bar the given right inset inside the scroll frame's parent; skips what a client's
+-- template lacks.
+function W.SlimScrollBar(scroll, right)
+  local bar = scroll.ScrollBar
+  if type(bar) ~= "table" then return end
+  for _, key in ipairs({ "ScrollUpButton", "ScrollDownButton" }) do
+    local button = bar[key]
+    if type(button) == "table" then
+      button:Hide()
+      button:SetAlpha(0)
+      if button.EnableMouse then button:EnableMouse(false) end
+    end
+  end
+  for _, region in ipairs({ bar:GetRegions() }) do
+    if region.GetObjectType and region:GetObjectType() == "Texture" and region ~= (bar.GetThumbTexture and bar:GetThumbTexture()) then
+      region:SetAlpha(0) -- template track art
+    end
+  end
+  bar:ClearAllPoints()
+  bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", (right or 6), 0)
+  bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", (right or 6), 0)
+  bar:SetWidth(8)
+  local track = bar:CreateTexture(nil, "BACKGROUND")
+  track:SetPoint("TOP", 0, 0)
+  track:SetPoint("BOTTOM", 0, 0)
+  track:SetWidth(2)
+  track:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.35)
+  local thumb = bar.GetThumbTexture and bar:GetThumbTexture()
+  if thumb then
+    thumb:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
+    thumb:SetSize(6, 24)
+  end
 end
 
 -- Dropdown menu ---------------------------------------------------------------------------------------
@@ -317,10 +367,10 @@ function W.OpenMenu(anchor, items, width)
     button.Label:SetText(item.text)
     if item.isTitle then
       button.Label:SetTextColor(1, 0.82, 0)
-    elseif item.color then
-      button.Label:SetTextColor(unpack(item.color))
     elseif item.disabled then
       button.Label:SetTextColor(0.5, 0.5, 0.5)
+    elseif item.color then
+      button.Label:SetTextColor(unpack(item.color))
     else
       button.Label:SetTextColor(1, 1, 1)
     end
@@ -345,13 +395,26 @@ function W.OpenMenu(anchor, items, width)
   menu:Show()
 end
 
--- Button that opens a menu built on click
+-- Button that opens a menu built on click; a small arrow on the right marks it as a menu
+local MENU_ARROW = "Interface\\Buttons\\Arrow-Down-Up"
 function W.MenuButton(parent, text, buildItems, width)
   local button
+  local arrow = W.TextureExists(MENU_ARROW)
   button = W.Button(parent, text, function()
     if menu and menu:IsShown() then CloseMenu() return end
     W.OpenMenu(button, buildItems(), math.max(width or 120, 180))
-  end, width)
+  end, width, arrow and { pad = 38 } or nil)
+  if arrow then
+    local icon = button:CreateTexture(nil, "OVERLAY")
+    icon:SetSize(12, 12)
+    icon:SetPoint("RIGHT", -8, -2)
+    icon:SetTexture(MENU_ARROW)
+    local label = button:GetFontString()
+    if label then
+      label:ClearAllPoints()
+      label:SetPoint("CENTER", -6, 0)
+    end
+  end
   return button
 end
 
@@ -444,20 +507,55 @@ function W.ResizeGrip(frame, onDone)
   grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
   grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
   grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-  grip:SetScript("OnMouseDown", function()
-    -- a frame anchored at its center grows to both sides and runs away from the cursor up to the
-    -- maximum size: anchor it at its top left corner first (same place on screen)
-    local left, top = frame:GetLeft(), frame:GetTop()
-    if left and top then
-      frame:ClearAllPoints()
-      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+  -- sizing by hand instead of StartSizing: the client's sizing jumps (a centered anchor grows to both
+  -- sides, clamping to the screen shoves the window) and overshoots up to the maximum size. Here the
+  -- window keeps its top left corner and the bottom right corner follows the cursor exactly.
+  local function Bounds()
+    local minW, minH, maxW, maxH = 0, 0, math.huge, math.huge
+    if frame.GetResizeBounds then
+      minW, minH, maxW, maxH = frame:GetResizeBounds()
+    else
+      if frame.GetMinResize then minW, minH = frame:GetMinResize() end
+      if frame.GetMaxResize then maxW, maxH = frame:GetMaxResize() end
     end
-    frame:StartSizing("BOTTOMRIGHT")
+    if not maxW or maxW <= 0 then maxW = math.huge end
+    if not maxH or maxH <= 0 then maxH = math.huge end
+    local parent = frame:GetParent() or UIParent
+    -- never larger than the screen (the side tabs need some room on the right)
+    local screenW, screenH = parent:GetWidth(), parent:GetHeight()
+    if screenW and screenW > 0 then maxW = math.min(maxW or math.huge, screenW - 80) end
+    if screenH and screenH > 0 then maxH = math.min(maxH or math.huge, screenH - 20) end
+    return minW or 0, minH or 0, math.max(minW or 0, maxW), math.max(minH or 0, maxH)
+  end
+  local function Stop()
+    grip:SetScript("OnUpdate", nil)
+    if grip.sizing then
+      grip.sizing = nil
+      if onDone then onDone(frame:GetWidth(), frame:GetHeight()) end
+    end
+  end
+  grip:SetScript("OnMouseDown", function(_, button)
+    if button ~= "LeftButton" then return end
+    local left, top = frame:GetLeft(), frame:GetTop()
+    if not (left and top) then return end
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    local scale = frame:GetEffectiveScale()
+    local cx, cy = GetCursorPosition()
+    grip.sizing = { x = cx / scale, y = cy / scale, w = frame:GetWidth(), h = frame:GetHeight() }
+    grip:SetScript("OnUpdate", function()
+      local start = grip.sizing
+      if not start then return end
+      if not IsMouseButtonDown("LeftButton") then return Stop() end
+      local x, y = GetCursorPosition()
+      local minW, minH, maxW, maxH = Bounds()
+      local w = math.min(maxW, math.max(minW, start.w + x / scale - start.x))
+      local h = math.min(maxH, math.max(minH, start.h + start.y - y / scale))
+      if math.abs(w - frame:GetWidth()) >= 0.5 or math.abs(h - frame:GetHeight()) >= 0.5 then frame:SetSize(w, h) end
+    end)
   end)
-  grip:SetScript("OnMouseUp", function()
-    frame:StopMovingOrSizing()
-    if onDone then onDone(frame:GetWidth(), frame:GetHeight()) end
-  end)
+  grip:SetScript("OnMouseUp", Stop)
+  grip:SetScript("OnHide", Stop)
   return grip
 end
 
@@ -497,4 +595,54 @@ function W.InputArea(parent)
   scroll:SetScript("OnMouseDown", function() box:SetFocus() end)
   scroll.EditBox = box
   return scroll
+end
+
+-- Skill bar on the whole 0-300 scale (the professions tab and the character page): thin ticks at the
+-- trainer caps (75, 150, 225), the current cap shaded, the fill bright gold when the member is at the
+-- cap of their rank. bar:SetBarWidth(w) resizes it.
+W.SKILL_SCALE = 300
+function W.SkillBar(parent, width)
+  local bar = CreateFrame("Frame", nil, parent)
+  bar:SetSize(width, 6)
+  bar.Track = bar:CreateTexture(nil, "BACKGROUND")
+  bar.Track:SetAllPoints()
+  bar.Track:SetColorTexture(0, 0, 0, 0.75)
+  bar.Cap = bar:CreateTexture(nil, "BORDER")
+  bar.Cap:SetPoint("TOPLEFT")
+  bar.Cap:SetPoint("BOTTOMLEFT")
+  bar.Cap:SetColorTexture(1, 1, 1, 0.07)
+  bar.Fill = bar:CreateTexture(nil, "ARTWORK")
+  bar.Fill:SetPoint("TOPLEFT")
+  bar.Fill:SetPoint("BOTTOMLEFT")
+  bar.Ticks = {}
+  for i = 1, 3 do
+    local tick = bar:CreateTexture(nil, "OVERLAY")
+    tick:SetSize(1, 10)
+    tick:SetColorTexture(1, 1, 1, 0.14)
+    bar.Ticks[i] = tick
+  end
+  function bar:SetBarWidth(w)
+    self.width = math.max(1, w)
+    self:SetWidth(self.width)
+    for i, tick in ipairs(self.Ticks) do
+      tick:ClearAllPoints()
+      tick:SetPoint("LEFT", self.width * i / 4, 0)
+    end
+    if self.rank then self:SetSkill(self.rank, self.max) end
+  end
+  function bar:SetSkill(rank, max)
+    self.rank, self.max = rank, max
+    local w = self.width
+    local scale = math.max(W.SKILL_SCALE, max or 0)
+    self.Cap:SetShown(max ~= nil)
+    if max then self.Cap:SetWidth(math.max(1, w * math.min(max, scale) / scale)) end
+    self.Fill:SetWidth(math.max(1, w * math.min(rank, scale) / scale))
+    if max and rank >= max then
+      self.Fill:SetColorTexture(1, 0.85, 0.3, 1)
+    else
+      self.Fill:SetColorTexture(0.75, 0.56, 0.15, 1)
+    end
+  end
+  bar:SetBarWidth(width)
+  return bar
 end

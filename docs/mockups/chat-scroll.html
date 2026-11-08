@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat-Verlauf Varianten</title>
+<style>
+:root{
+  --frame:#6b5631; --frame-hi:#c9a24a; --bg:#16120e; --inset:#0d0b09; --line:#4a3d29;
+  --gold:#ffd100; --text:#e6dcc4; --dim:#8f8268; --stamp:#7d7462; --grn:#40e040;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#211a12;color:var(--text);font-family:"Palatino Linotype",Georgia,serif;padding:28px 16px 60px}
+::selection{background:#6b5631;color:#fff}
+.page{max-width:1040px;margin:0 auto}
+h1{color:var(--gold);font-weight:normal;font-size:24px;margin:0 0 6px}
+.lead{color:#c8b98f;max-width:70ch;margin:0 0 30px;line-height:1.5}
+section{margin-bottom:46px}
+h2{color:var(--gold);font-weight:normal;font-size:19px;margin:0 0 4px}
+h2 b{display:inline-block;width:26px;height:26px;line-height:24px;text-align:center;border:1px solid var(--frame-hi);border-radius:4px;margin-right:8px;font-weight:normal;background:#2a2010}
+.desc{color:#c8b98f;max-width:72ch;line-height:1.5;margin:0 0 6px}
+.how{color:var(--dim);font-size:13px;max-width:72ch;line-height:1.45;margin:0 0 12px}
+
+/* WoW panel */
+.wow{position:relative;background:var(--bg);border:3px solid var(--frame);outline:1px solid #000;box-shadow:inset 0 0 0 1px #2e2519,0 6px 22px rgba(0,0,0,.55);border-radius:7px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.bar{display:flex;align-items:center;gap:8px;height:24px}
+.rbtn{background:linear-gradient(#a0170e,#560a05);border:1px solid var(--frame-hi);color:var(--gold);border-radius:3px;padding:3px 16px;font-size:13px;cursor:pointer;font-family:inherit}
+.dd{background:#1d1711;border:1px solid var(--frame);border-radius:3px;padding:3px 24px 3px 9px;color:var(--gold);font-size:12px;position:relative;cursor:pointer;font-family:inherit}
+.dd svg{position:absolute;right:6px;top:7px}
+.inset{position:relative;background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8);height:340px;overflow:hidden}
+.input{background:#0d0b09;border:1px solid var(--line);border-radius:4px;height:24px;padding:3px 8px;color:var(--dim);font-family:Arial,sans-serif;font-size:13px}
+
+/* chat lines */
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none;padding:6px 8px;font-family:Arial,sans-serif;font-size:14px;line-height:1.5}
+.scroll::-webkit-scrollbar{display:none}
+.ln{padding-left:46px;text-indent:-46px;color:var(--grn)}
+.ts{color:var(--stamp);display:inline-block;width:42px;text-indent:0;margin-right:4px}
+.sys{color:#a0a0a0;font-size:13px}
+.day{color:var(--gold);text-align:center;font-family:"Palatino Linotype",Georgia,serif;font-size:12.5px;margin:8px 0 4px;display:flex;align-items:center;gap:10px}
+.day:before,.day:after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,#6b5631 30%,#6b5631 70%,transparent)}
+.loadmore{color:var(--dim);font-size:12px;text-align:center;padding:4px 0 8px;font-family:"Palatino Linotype",Georgia,serif}
+.loadmore .spin{display:inline-block;width:10px;height:10px;border:2px solid #6b5631;border-top-color:var(--gold);border-radius:50%;vertical-align:-1px;margin-right:6px;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.WAR{color:#C69B6D}.PAL{color:#F48CBA}.HUN{color:#AAD372}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.MAG{color:#3FC7EB}.WLK{color:#8788EE}.DRU{color:#FF7C0A}
+
+/* A: classic Blizzard scrollbar */
+.va .scroll{right:20px}
+.sbA{position:absolute;top:2px;bottom:2px;right:2px;width:16px;display:flex;flex-direction:column;gap:2px}
+.sbA .arr{height:16px;background:linear-gradient(#3a2e1d,#1d1711);border:1px solid var(--frame);border-radius:3px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sbA .arr:hover{border-color:var(--frame-hi)}
+.sbA .track{flex:1;position:relative;background:#080706;border:1px solid #2a2219;border-radius:3px}
+.sbA .thumb{position:absolute;left:1px;right:1px;min-height:22px;background:linear-gradient(90deg,#8a6d36,#c9a24a 50%,#8a6d36);border:1px solid #3a2e1d;border-radius:3px;cursor:grab}
+.jump{position:absolute;right:30px;bottom:10px;background:linear-gradient(#a0170e,#560a05);border:1px solid var(--frame-hi);color:var(--gold);border-radius:3px;padding:3px 10px;font-size:12px;cursor:pointer;display:none;align-items:center;gap:6px;box-shadow:0 3px 8px rgba(0,0,0,.6);font-family:"Palatino Linotype",Georgia,serif}
+.jump.show{display:flex}
+
+/* B: timeline rail */
+.vb .scroll{right:46px;padding-top:0}
+.vb .day{position:sticky;top:0;z-index:2;background:linear-gradient(var(--inset) 70%,rgba(13,11,9,0));margin:0;padding:6px 0 6px}
+.rail{position:absolute;top:6px;bottom:6px;right:4px;width:38px}
+.rail .line{position:absolute;right:7px;top:0;bottom:0;width:2px;background:#2a2219;border-radius:1px}
+.rail .thumb{position:absolute;right:4px;width:8px;min-height:18px;background:var(--frame-hi);border-radius:4px;box-shadow:0 0 0 1px #000;cursor:grab}
+.rail .mark{position:absolute;right:0;display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--dim);font-size:10.5px;transform:translateY(-50%)}
+.rail .mark i{display:block;width:6px;height:1px;background:#8f8268}
+.rail .mark:hover{color:var(--gold)}
+.rail .mark.cur{color:var(--gold)}
+.rail .mark span{width:24px;text-align:right}
+.rail .mark i{margin-right:12px}
+
+/* C: quiet overlay */
+.vc .scroll{padding-right:16px}
+.vc .ts{opacity:.45;transition:opacity .15s}
+.vc .ln:hover .ts{opacity:1}
+.vc .ln:hover{background:rgba(201,162,74,.06)}
+.sbC{position:absolute;top:4px;bottom:4px;right:3px;width:6px;opacity:0;transition:opacity .25s}
+.vc .inset:hover .sbC,.sbC.live{opacity:1}
+.sbC .thumb{position:absolute;left:0;right:0;min-height:24px;background:rgba(201,162,74,.75);border-radius:3px;cursor:grab}
+.sbC:hover{width:9px}
+.banner{position:absolute;left:0;right:0;top:0;z-index:3;padding:5px 10px;font-size:12px;color:#c8b98f;background:linear-gradient(rgba(29,23,17,.97),rgba(29,23,17,.88));border-bottom:1px solid var(--line);display:flex;justify-content:space-between;font-family:"Palatino Linotype",Georgia,serif;transform:translateY(-100%);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.banner.show{transform:none}
+.pill{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#1d1711;border:1px solid var(--frame-hi);color:var(--gold);border-radius:12px;padding:3px 12px;font-size:12px;cursor:pointer;display:none;gap:6px;align-items:center;box-shadow:0 3px 10px rgba(0,0,0,.7);font-family:"Palatino Linotype",Georgia,serif}
+.pill.show{display:flex}
+.menu{position:absolute;top:30px;left:150px;z-index:5;background:#1d1711;border:1px solid var(--frame-hi);border-radius:3px;padding:4px 0;min-width:170px;display:none;box-shadow:0 4px 12px rgba(0,0,0,.7)}
+.menu.show{display:block}
+.menu div{padding:3px 12px;font-size:12.5px;color:var(--text);cursor:pointer;display:flex;justify-content:space-between}
+.menu div:hover{background:#3a2e1d;color:var(--gold)}
+.menu div em{color:var(--dim);font-style:normal;font-size:11px}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Chat-Verlauf: drei Varianten</h1>
+<p class="lead">Alle drei sind echt scrollbar, scroll ruhig rein. Ganz oben siehst du, wie das Nachladen älterer Nachrichten wirkt. Jede Variante lässt sich mit FrameXML-Mitteln bauen (Slider, Textur-Thumb, ScrollingMessageFrame-Offset).</p>
+
+<section>
+<h2><b>A</b>Klassischer Blizzard-Scrollbalken</h2>
+<p class="desc">Der vertraute Balken mit Pfeilen oben und unten, Thumb in Gold, wie in jedem Blizzard-Fenster. Scrollst du hoch, erscheint unten rechts „Zu neuen Nachrichten“. Oben im Verlauf zeigt eine Zeile, dass ältere Nachrichten geladen werden.</p>
+<p class="how">Am wenigsten Überraschung, am wenigsten Arbeit. Kostet 20 px Breite.</p>
+<div class="wow va">
+  <div class="bar"><button class="rbtn">Gilde</button></div>
+  <div class="inset">
+    <div class="scroll" data-v="a"></div>
+    <div class="sbA">
+      <div class="arr" data-step="-1"><svg width="8" height="6" viewBox="0 0 8 6"><path d="M4 0 8 6H0z" fill="#ffd100"/></svg></div>
+      <div class="track"><div class="thumb"></div></div>
+      <div class="arr" data-step="1"><svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg></div>
+    </div>
+    <button class="jump"><svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg>Zu neuen Nachrichten</button>
+  </div>
+  <div class="input">Nachricht an Gilde …</div>
+</div>
+</section>
+
+<section>
+<h2><b>B</b>Zeitleiste mit Tagesmarken</h2>
+<p class="desc">Statt eines normalen Balkens eine schmale Leiste mit Marken für jeden Tag („Mi“, „Do“, „Heute“). Ein Klick springt zum Tag. Der Tagestrenner bleibt oben kleben, so weißt du beim Scrollen immer, wo du bist.</p>
+<p class="how">Am besten für lange Verläufe über mehrere Tage. Etwas mehr Bauaufwand: die Marken müssen aus den Zeilenpositionen berechnet werden.</p>
+<div class="wow vb">
+  <div class="bar"><button class="rbtn">Gilde</button></div>
+  <div class="inset">
+    <div class="scroll" data-v="b"></div>
+    <div class="rail"><div class="line"></div><div class="thumb"></div></div>
+  </div>
+  <div class="input">Nachricht an Gilde …</div>
+</div>
+</section>
+
+<section>
+<h2><b>C</b>Ruhig: Balken nur bei Bedarf, Sprung-Menü</h2>
+<p class="desc">Ein dünner goldener Balken, der nur erscheint, wenn die Maus über dem Chat ist. Uhrzeiten sind gedämpft und werden beim Überfahren einer Zeile hell. Über der Liste ein Menü „Springe zu …“ mit den Tagen. Scrollst du hoch, zeigt eine Leiste oben, wie weit der Verlauf reicht; unten eine Pille mit der Zahl neuer Nachrichten.</p>
+<p class="how">Der meiste Platz für Text, sieht am modernsten aus. Weniger „Blizzard“, und der Balken ist ohne Maus unsichtbar.</p>
+<div class="wow vc">
+  <div class="bar"><button class="rbtn">Gilde</button><button class="dd" data-menu>Springe zu …<svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg></button></div>
+  <div class="menu"></div>
+  <div class="inset">
+    <div class="banner"><span>Verlauf geladen bis <span class="gold" style="color:var(--gold)" data-oldest></span></span><span>weiter hoch scrollen lädt mehr</span></div>
+    <div class="scroll" data-v="c"></div>
+    <div class="sbC"><div class="thumb"></div></div>
+    <button class="pill"><svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg><span>3 neue Nachrichten</span></button>
+  </div>
+  <div class="input">Nachricht an Gilde …</div>
+</div>
+</section>
+</div>
+
+<script>
+const DAYS = [
+  { key:"mi", label:"Mittwoch, 04.11.2026", short:"Mi", lines:[
+    ["20:14","SHA","Syd Syd","hätte bock, aber würd nur lv 13 schaffen denke ich"],
+    ["20:15","PAL","Makira Farron","^16 wäre gut damit du alle quests nehmen kannst"],
+    ["20:15","SHA","Syd Syd","true, hatte irgendwie den dungeon in if im kopf xD"],
+    ["20:31","WAR","Naughty One","und es gibt murloc motors"],
+    ["21:02","DRU","Ran Fred","krasser slacker syd"],
+    ["21:40","MAG","Nyxi Indivaron","macht spaß durch dustwallow mit level 14 zu laufen :)"],
+  ]},
+  { key:"do", label:"Donnerstag, 05.11.2026", short:"Do", lines:[
+    ["08:02","MAG","Nyxi Indivaron","Good Morning Murlocs"],
+    ["08:03","MAG","Optimus Drain","moin"],
+    ["08:03","SHA","Varadir Earthcaller","moin"],
+    ["08:05","DRU","Druilicious Liebtnatur","moin"],
+    [null,null,null,"Xii Lightspark ist der Gilde beigetreten."],
+    ["08:06","PAL","Makira Farron","Willkommen :D"],
+    ["08:06","PRI","Xii Lightspark","Hallo, danke für den Inv"],
+    ["12:44","PAL","Xulkar Tempest","aber mal ernsthaft wo kann ich die legacy erfolge einsehen"],
+    ["12:45","DRU","Aguma Oida","erst ab 25"],
+  ]},
+  { key:"gestern", label:"Gestern", short:"Gest.", lines:[
+    ["17:20","DRU","Ran Fred","Krass wir haben nur 3 Leute mit Ingenieurskunst"],
+    ["17:21","SHA","Tralin Stormhammer","ist für den ersten char auch suboptimal"],
+    ["17:24","PAL","Xulkar Tempest","[Silberrute] ein vzler der hier benötigt ?"],
+    ["17:30","DRU","Ran Fred","hat ja nur limitiert aufladungen"],
+    ["22:10","WAR","Emgi Dude","jetzt wird gelevelt :>"],
+    ["22:11","DRU","Aguma Oida","ballleeeern"],
+  ]},
+  { key:"heute", label:"Heute", short:"Heute", lines:[
+    ["18:12","PRI","Maerith Withersong","habt ihr quest zum teilen?"],
+    ["18:12","PAL","Smite Stonebringer","sure"],
+    ["18:39","SHA","Le Filou","[[17] Rote Seidenkopftücher (214)] bekommt man die nur in der Ini?"],
+    ["18:39","PAL","Eziiria Ash","außerhalb auch"],
+    ["18:39","WAR","Au Tsch","nein die non elite miners davor droppen die auch"],
+    ["19:11","PAL","Makira Farron","nen stoffi bock auf dala?"],
+    ["19:12","WAR","Wiener Original","Dereeeee"],
+    ["19:12","DRU","Aguma Oida","ohoo servas"],
+    ["19:15","WAR","Wiener Original","mag dann wer hallen gehen?"],
+    ["19:25","SHA","Fat Toni","jemand ne gruppe für RoL?"],
+    ["19:25","WAR","Symba Hakuna","guten abend zusammen :)"],
+    ["19:30","SHA","Syd Syd","finden sich noch ein paar für den dalaran gegen 20 uhr ?"],
+    ["19:31","WAR","Naughty One","ich brauch nenn geileren layer"],
+    ["19:42","SHA","Fat Toni","Tank/Heal für ruinen"],
+    ["19:57","PRI","Eleza Blake","ist horde und alli ah noch getrennt ?"],
+    ["20:00","MAG","Optimus Drain","btw bin durch das holz jetzt bei 5g :D"],
+    ["20:00","DRU","Marliss Mirandel","Abernd"],
+  ]},
+];
+
+function render(el){
+  let html = '<div class="loadmore"><span class="spin"></span>Ältere Nachrichten werden geladen …</div>';
+  for(const d of DAYS){
+    html += `<div data-anchor="${d.key}"></div><div class="day" data-day="${d.key}">${d.label}</div>`;
+    for(const [t,c,n,m] of d.lines){
+      if(!n){ html += `<div class="ln sys"><span class="ts"></span>${m}</div>`; continue; }
+      html += `<div class="ln"><span class="ts">${t}</span><span class="${c}">[${n}]</span>: ${m}</div>`;
+    }
+  }
+  el.innerHTML = html;
+  el.scrollTop = el.scrollHeight;
+}
+
+function syncThumb(scroll, track, thumb){
+  const h = track.clientHeight, ratio = scroll.clientHeight / scroll.scrollHeight;
+  const th = Math.max(20, h * ratio);
+  const max = scroll.scrollHeight - scroll.clientHeight;
+  thumb.style.height = th + "px";
+  thumb.style.top = (max ? (scroll.scrollTop / max) * (h - th) : 0) + "px";
+}
+function dragThumb(scroll, track, thumb){
+  thumb.addEventListener("pointerdown", e => {
+    e.preventDefault(); thumb.setPointerCapture(e.pointerId);
+    const startY = e.clientY, start = scroll.scrollTop;
+    const move = ev => {
+      const h = track.clientHeight - thumb.offsetHeight;
+      scroll.scrollTop = start + (ev.clientY - startY) / h * (scroll.scrollHeight - scroll.clientHeight);
+    };
+    const up = () => { thumb.removeEventListener("pointermove", move); thumb.removeEventListener("pointerup", up); };
+    thumb.addEventListener("pointermove", move); thumb.addEventListener("pointerup", up);
+  });
+}
+const atBottom = s => s.scrollHeight - s.scrollTop - s.clientHeight < 4;
+
+// A
+(() => {
+  const root = document.querySelector(".va"), s = root.querySelector(".scroll");
+  const track = root.querySelector(".track"), thumb = root.querySelector(".thumb"), jump = root.querySelector(".jump");
+  render(s);
+  const upd = () => { syncThumb(s, track, thumb); jump.classList.toggle("show", !atBottom(s)); };
+  s.addEventListener("scroll", upd); dragThumb(s, track, thumb);
+  root.querySelectorAll(".arr").forEach(a => a.onclick = () => s.scrollBy({ top: a.dataset.step * 42 }));
+  jump.onclick = () => s.scrollTo({ top: s.scrollHeight, behavior: "smooth" });
+  requestAnimationFrame(upd);
+})();
+
+// B
+(() => {
+  const root = document.querySelector(".vb"), s = root.querySelector(".scroll");
+  const rail = root.querySelector(".rail"), thumb = rail.querySelector(".thumb");
+  render(s);
+  const marks = DAYS.map(d => {
+    const m = document.createElement("div"); m.className = "mark";
+    m.innerHTML = `<span>${d.short}</span><i></i>`;
+    const target = s.querySelector(`[data-anchor="${d.key}"]`); // sticky headers report their stuck position
+    m.onclick = () => s.scrollTo({ top: target.offsetTop, behavior: "smooth" });
+    rail.appendChild(m); return { m, target };
+  });
+  const upd = () => {
+    syncThumb(s, rail, thumb);
+    const max = s.scrollHeight - s.clientHeight, h = rail.clientHeight;
+    let cur = 0, prev = -99;
+    marks.forEach(({ m, target }, i) => {
+      const y = Math.min(h - 6, Math.max(6, prev + 15, target.offsetTop / s.scrollHeight * h));
+      m.style.top = y + "px"; prev = y;
+      if (target.offsetTop <= s.scrollTop + 4) cur = i;
+    });
+    marks.forEach(({ m }, i) => m.classList.toggle("cur", i === cur));
+  };
+  s.addEventListener("scroll", upd); dragThumb(s, rail, thumb);
+  requestAnimationFrame(upd);
+})();
+
+// C
+(() => {
+  const root = document.querySelector(".vc"), s = root.querySelector(".scroll");
+  const sb = root.querySelector(".sbC"), thumb = sb.querySelector(".thumb");
+  const banner = root.querySelector(".banner"), pill = root.querySelector(".pill");
+  const menu = root.querySelector(".menu"), dd = root.querySelector("[data-menu]");
+  render(s);
+  root.querySelector("[data-oldest]").textContent = "Mi, 04.11.";
+  menu.innerHTML = [...DAYS].reverse().map(d => `<div data-k="${d.key}">${d.label}<em>${d.lines.length} Zeilen</em></div>`).join("");
+  menu.querySelectorAll("div").forEach(item => item.onclick = () => {
+    s.scrollTo({ top: s.querySelector(`[data-day="${item.dataset.k}"]`).offsetTop - 30, behavior: "smooth" });
+    menu.classList.remove("show");
+  });
+  dd.onclick = e => { e.stopPropagation(); menu.classList.toggle("show"); };
+  document.addEventListener("click", () => menu.classList.remove("show"));
+  let t;
+  const upd = () => {
+    syncThumb(s, sb, thumb);
+    const bottom = atBottom(s);
+    pill.classList.toggle("show", !bottom);
+    banner.classList.toggle("show", s.scrollTop < 120);
+    sb.classList.add("live"); clearTimeout(t); t = setTimeout(() => sb.classList.remove("live"), 900);
+  };
+  s.addEventListener("scroll", upd); dragThumb(s, sb, thumb);
+  pill.onclick = () => s.scrollTo({ top: s.scrollHeight, behavior: "smooth" });
+  requestAnimationFrame(() => { syncThumb(s, sb, thumb); });
+})();
+</script>
+</body>
+</html>

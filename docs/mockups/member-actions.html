@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mitglieder anklicken</title>
+<style>
+:root{--frame:#6b5631;--hi:#c9a24a;--bg:#16120e;--inset:#0d0b09;--line:#4a3d29;--gold:#ffd100;--text:#e6dcc4;--dim:#8f8268;--soft:#c8b98f;--stamp:#8d836e;--grn:#40e040;--red:#e0503a}
+*{box-sizing:border-box}
+body{margin:0;background:#211a12;color:var(--text);font-family:"Palatino Linotype",Georgia,serif;padding:28px 16px 60px}
+::selection{background:#6b5631;color:#fff}
+.page{max-width:1100px;margin:0 auto}
+h1{color:var(--gold);font-weight:normal;font-size:24px;margin:0 0 6px}
+.lead{color:var(--soft);max-width:74ch;line-height:1.5;margin:0 0 12px}
+.rule{color:var(--soft);max-width:74ch;line-height:1.5;margin:0 0 30px;font-size:14px;border-top:1px solid var(--line);padding-top:12px}
+.rule b{color:var(--gold);font-weight:normal}
+section{margin-bottom:54px}
+h2{color:var(--gold);font-weight:normal;font-size:19px;margin:0 0 4px}
+h2 i{font-style:normal;display:inline-block;width:26px;height:26px;line-height:24px;text-align:center;border:1px solid var(--hi);border-radius:4px;margin-right:8px;background:#2a2010}
+.desc{color:var(--soft);max-width:74ch;line-height:1.5;margin:0 0 6px}
+.how{color:var(--dim);font-size:13px;max-width:74ch;line-height:1.45;margin:0 0 12px}
+.try{color:var(--gold);font-size:13px;margin:0 0 10px}
+
+.wow{position:relative;background:var(--bg);border:3px solid var(--frame);outline:1px solid #000;box-shadow:inset 0 0 0 1px #2e2519,0 6px 22px rgba(0,0,0,.55);border-radius:7px}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:var(--gold);text-align:center;padding:6px 0;font-size:14px;border-bottom:2px solid var(--frame)}
+.wbody{position:relative;display:flex;gap:8px;padding:10px;height:430px}
+.chat{flex:1;min-width:0;background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8);padding:8px 10px;font-family:Arial,sans-serif;font-size:14px;line-height:1.55;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.ln{color:var(--grn)}.ts{color:var(--stamp);margin-right:5px;font-size:12.5px}
+.who{cursor:pointer;border-radius:2px}
+.who:hover{background:rgba(255,209,0,.14);text-decoration:underline;text-underline-offset:2px}
+.side{width:270px;flex:none;display:flex;flex-direction:column;gap:6px;position:relative}
+.cnt{color:var(--gold);font-size:13px;height:20px}
+.list{flex:1;background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8);overflow:hidden;padding:3px 0}
+.row{display:flex;gap:6px;align-items:center;height:22px;padding:0 8px;font-size:12.5px;cursor:pointer}
+.row:nth-child(even){background:rgba(255,255,255,.03)}
+.row:hover{background:rgba(255,209,0,.1)}
+.row.sel{background:rgba(255,209,0,.2)}
+.row .lv{width:18px;text-align:right;color:var(--dim);font-size:11.5px}
+.row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .zn{width:96px;text-align:right;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.WAR{color:#C69B6D}.PAL{color:#F48CBA}.HUN{color:#AAD372}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.MAG{color:#3FC7EB}.WLK{color:#8788EE}.DRU{color:#FF7C0A}
+
+/* context menu (shared) */
+.menu{position:absolute;z-index:30;min-width:210px;background:#120f0b;border:1px solid var(--hi);border-radius:4px;box-shadow:0 6px 16px rgba(0,0,0,.75);padding:4px 0;font-size:13px}
+.menu .t{padding:4px 12px 5px;font-size:14px;border-bottom:1px solid var(--line);margin-bottom:3px}
+.menu .it{padding:3px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;position:relative}
+.menu .it:hover{background:#3a2e1d;color:var(--gold)}
+.menu .it.off{color:#6b6252;cursor:default}.menu .it.off:hover{background:none}
+.menu .it.danger{color:#ff7a62}
+.menu .sec{margin:5px 0 2px;padding:3px 12px 2px;color:var(--gold);font-size:11.5px;letter-spacing:.04em;border-top:1px solid var(--line);display:flex;align-items:center;gap:6px}
+.menu .sub{position:absolute;left:100%;top:-5px;display:none}
+.menu .it:hover>.sub{display:block}
+.radio{display:flex;align-items:center;gap:8px}
+.radio b{width:9px;height:9px;border-radius:50%;border:1px solid var(--hi);display:inline-block}
+.radio.on b{background:var(--gold);box-shadow:0 0 0 2px #120f0b inset}
+.steps{color:var(--dim);font-size:11px}
+.stepper{display:flex;align-items:center;gap:6px;padding:4px 12px 6px}
+.stepper button{width:22px;height:20px;background:#1d1711;border:1px solid var(--frame);border-radius:3px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.stepper button:hover:not(:disabled){border-color:var(--hi)}
+.stepper button:disabled{opacity:.35;cursor:default}
+.stepper span{flex:1;text-align:center;color:var(--gold)}
+.apply{margin:2px 12px 6px;padding:3px 0;width:calc(100% - 24px);background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;font:inherit;font-size:12.5px;cursor:pointer}
+.apply:disabled{filter:grayscale(1);opacity:.5;cursor:default}
+
+/* A: card */
+.card{position:absolute;z-index:20;width:300px;background:var(--bg);border:1px solid var(--hi);outline:1px solid #000;border-radius:5px;box-shadow:0 8px 24px rgba(0,0,0,.8);padding:12px 14px 12px;font-size:13px}
+.card .x{position:absolute;right:6px;top:6px;width:18px;height:18px;background:linear-gradient(#b3200f,#5c0b05);border:1px solid #d4a94a;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.card h3{margin:0;font-weight:normal;font-size:19px}
+.sub2{color:var(--soft);font-size:12.5px;margin:2px 0 10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12.5px;margin-bottom:10px}
+.kv dt{color:var(--gold)}.kv dd{margin:0}
+.profs{display:flex;flex-direction:column;gap:3px;font-size:12.5px;margin-bottom:10px}
+.profs div{display:flex;gap:6px;align-items:center}
+.profs b{width:13px;height:13px;border-radius:2px;border:1px solid #000;display:inline-block}
+.profs span{color:var(--dim)}
+.btns{display:flex;gap:6px}
+.rb{flex:1;background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 0;font:inherit;font-size:12.5px;cursor:pointer}
+.offsec{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.offsec h4{margin:0 0 6px;color:var(--gold);font-weight:normal;font-size:12px;letter-spacing:.04em}
+
+/* B: page */
+.pageview{position:absolute;inset:10px;z-index:15;background:var(--bg);display:none;gap:10px;flex-direction:column}
+.pageview.show{display:flex}
+.back{align-self:flex-start;background:#1d1711;border:1px solid var(--frame);color:var(--gold);border-radius:3px;padding:3px 10px 3px 8px;font:inherit;font-size:12.5px;cursor:pointer;display:flex;gap:6px;align-items:center}
+.back:hover{border-color:var(--hi)}
+.phead{display:flex;align-items:baseline;gap:14px}
+.phead h3{margin:0;font-weight:normal;font-size:24px}
+.pcols{flex:1;display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:10px;min-height:0}
+.pcol{background:var(--inset);border:1px solid var(--line);border-radius:4px;padding:10px 12px;overflow:hidden;font-size:12.5px}
+.pcol h4{margin:0 0 8px;color:var(--gold);font-weight:normal;font-size:13px}
+.pcol .ln{font-size:13px;line-height:1.5}
+.ladder{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.lad{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;border:1px solid transparent;border-radius:3px;cursor:pointer}
+.lad:hover:not(.off){border-color:var(--frame);background:#1d1711}
+.lad.cur{border-color:var(--hi);background:#2a2010;color:var(--gold)}
+.lad.target{border-color:#ff8c40;background:#2a1a10}
+.lad.off{color:#5e5747;cursor:default}
+.lad small{color:var(--dim);font-size:11px}
+.offpanel{border-color:#7a4a20}
+
+/* C: drawer */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:270px;z-index:12;background:var(--bg);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:8px;padding:0 0 0 0;transform:translateX(105%);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.drawer.show{transform:none}
+.dhead{display:flex;justify-content:space-between;align-items:flex-start}
+.dhead h3{margin:0;font-weight:normal;font-size:19px}
+.dbody{flex:1;background:var(--inset);border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:12.5px;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--hi) transparent}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px}
+.chip{border:1px solid var(--frame);border-radius:10px;padding:1px 9px;font-size:11.5px;cursor:pointer;background:#1d1711}
+.chip:hover:not(.off){border-color:var(--hi)}
+.chip.cur{border-color:var(--hi);color:var(--gold);background:#2a2010}
+.chip.target{border-color:#ff8c40;color:#ffb070}
+.chip.off{opacity:.4;cursor:default}
+.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:40;background:#120f0b;border:1px solid var(--hi);color:var(--soft);border-radius:4px;padding:5px 12px;font-size:12.5px;display:none;box-shadow:0 4px 12px rgba(0,0,0,.7)}
+.toast.show{display:block}
+@media (max-width:860px){.wbody{flex-direction:column;height:auto}.chat{height:260px}.side{width:auto;height:260px}.pcols{grid-template-columns:1fr}.pageview{position:static}}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Mitglieder anklicken: drei Wege</h1>
+<p class="lead">Überall gleich: <b style="color:var(--gold);font-weight:normal">Linksklick</b> auf einen Namen öffnet den Charakter, <b style="color:var(--gold);font-weight:normal">Rechtsklick</b> die Aktionen. Das gilt für Namen im Chat, die Online-Liste rechts und den Mitglieder-Tab. Flüstern bleibt per Shift-Klick und im Menü.</p>
+<p class="rule"><b>Grenze in Forever:</b> Ein Rang ändert sich nur über Blizzards <code>/gpromote</code> und <code>/gdemote</code>, je eine Stufe, per Klick auf einen sicheren Knopf. „Direkt auf Rang X“ heißt technisch: mehrere dieser Befehle in einem Klick. Ob der Server zwei Stufen am Stück annimmt, muss ich im Spiel prüfen; geht es nicht, braucht jede Stufe einen eigenen Klick. Ränge über deinem eigenen sind ausgegraut.</p>
+
+<section data-v="a">
+<h2><i>A</i>Steckbrief-Karte neben dem Klick</h2>
+<p class="desc">Linksklick öffnet eine kleine Karte direkt neben dem Namen: Rang, Zone, zuletzt online, Notizen, Berufe, Flüstern und Gruppe. Unten ein Offiziersteil mit Pfeilen zum Zielrang und „Übernehmen“. Rechtsklick: das bekannte Menü, „Rang setzen“ öffnet ein Untermenü mit allen Rängen.</p>
+<p class="how">Am wenigsten Umbau, man bleibt im Tab. Die Karte ersetzt im Mitglieder-Tab die feste Detailspalte nicht, sie ist für Chat und Online-Liste.</p>
+<p class="try">Probier: Linksklick auf einen Namen, Rechtsklick auf einen Namen, im Menü über „Rang setzen“ fahren.</p>
+</section>
+
+<section data-v="b">
+<h2><i>B</i>Eigene Charakterseite</h2>
+<p class="desc">Linksklick öffnet eine ganze Seite zum Charakter, mit „Zurück“ oben links. Drei Spalten: Steckbrief und Notizen, Berufe und Ruhmeshalle, die letzten Chatzeilen dieses Mitglieds. Rechts unten ein abgesetzter Offiziersbereich mit der Rangleiter: alle Ränge untereinander, Klick auf den Zielrang. Rechtsklick: Menü mit einem Offiziersabschnitt, in dem die Ränge direkt als Auswahl stehen.</p>
+<p class="how">Am meisten Information, die Seite kann später wachsen (Erfolge, Twinks, Verlauf). Kostet am meisten Bau, und man verlässt kurz den Tab.</p>
+<p class="try">Probier: Linksklick öffnet die Seite, in der Rangleiter einen Rang wählen, Rechtsklick zeigt die Ränge direkt im Menü.</p>
+</section>
+
+<section data-v="c">
+<h2><i>C</i>Seitenleiste, die überall einfährt</h2>
+<p class="desc">Linksklick lässt rechts im Fenster eine Seitenleiste einfahren, im Chat legt sie sich über die Online-Liste. Im Mitglieder-Tab ist es dieselbe Leiste wie heute die Detailspalte, nur einheitlich. Ränge als Reihe von Schaltflächen, der Zielrang wird orange markiert. Rechtsklick: kurzes Menü mit einem Rang-Umschalter (Pfeile links und rechts) und „Übernehmen“.</p>
+<p class="how">Ein Muster für alle Tabs, die Online-Liste bleibt mit einem Klick erreichbar. Mittlerer Aufwand.</p>
+<p class="try">Probier: Linksklick auf einen Namen, eine Rang-Schaltfläche wählen, Rechtsklick für den Umschalter.</p>
+</section>
+</div>
+
+<template id="win">
+  <div class="wow">
+    <div class="wtitle">Murloc Mafia · Guildy</div>
+    <div class="wbody">
+      <div class="chat"></div>
+      <div class="side"><div class="cnt">37 / 94 online</div><div class="list"></div></div>
+    </div>
+    <div class="toast"></div>
+  </div>
+</template>
+
+<script>
+const RANKS = ["Don Murloc","Consigliere","Mrgl-Commander","Haifutter","Kaulquappe"];
+const MY_RANK = 1; // you are Consigliere: you can set ranks 2..4 for members below you
+const M = {
+  "Xulkar Tempest":{c:"PAL",lv:18,zone:"Die Todesminen",rank:4,last:"online",note:"Paladin Tank",onote:"Neu seit Okt., aktiv",profs:[["Bergbau","#8a8a9a","142/150"],["Schmiedekunst","#9a6b3a","118/150"]],fame:"3 Dungeons diese Woche"},
+  "Ran Fred":{c:"DRU",lv:32,zone:"Dämmerwald",rank:3,last:"online",note:"Ingi / Bergbau",onote:"",profs:[["Ingenieurskunst","#c08030","165/225"],["Bergbau","#8a8a9a","180/225"]],fame:"Platz 2 Gold diesen Monat"},
+  "Eziiria Ash":{c:"PAL",lv:46,zone:"Ödland",rank:2,last:"online",note:"Heal",onote:"Raidlead Kandidat",profs:[["Kräuterkunde","#6a9a5a","260/300"],["Alchemie","#7aa0b0","248/300"]],fame:"Höchste Stufe der Gilde"},
+  "Nyxi Indivaron":{c:"MAG",lv:25,zone:"Dämmerwald",rank:4,last:"online",note:"",onote:"",profs:[["Schneiderei","#b07ac0","121/150"]],fame:"—"},
+  "Optimus Drain":{c:"MAG",lv:20,zone:"Rotkammgebirge",rank:4,last:"online",note:"",onote:"",profs:[["Verzauberkunst","#8788EE","96/150"]],fame:"—"},
+  "Aguma Oida":{c:"DRU",lv:37,zone:"Westfall",rank:3,last:"online",note:"Leder",onote:"",profs:[["Kürschnerei","#9a6b3a","200/225"],["Lederverarbeitung","#c08030","190/225"]],fame:"Meiste Quests"},
+  "Tralin Stormhammer":{c:"SHA",lv:35,zone:"Schlingendorntal",rank:3,last:"online",note:"",onote:"",profs:[["Angeln","#7aa0b0","150/225"]],fame:"—"},
+  "Wuzuw Goldencog":{c:"PRI",lv:40,zone:"Flusslande",rank:2,last:"online",note:"",onote:"",profs:[["Schneiderei","#b07ac0","230/300"]],fame:"—"},
+};
+const CHAT = [
+  ["10:09","Xulkar Tempest","aber mal ernsthaft wo kann ich die legacy erfolge einsehen"],
+  ["10:09","Aguma Oida","erst ab 25"],
+  ["10:25","Ran Fred","Krass wir haben nur 3 Leute mit Ingenieurskunst"],
+  ["10:25","Tralin Stormhammer","ist für den ersten char auch suboptimal"],
+  ["11:10","Nyxi Indivaron","Good Morning Murlocs"],
+  ["11:11","Optimus Drain","moin"],
+  ["11:13","Eziiria Ash","lets go!"],
+  ["11:46","Xulkar Tempest","[Muster: Filigrane glänzende Robe] braucht das wer ?"],
+  ["11:47","Wuzuw Goldencog","binds on pickup"],
+  ["11:47","Ran Fred","das kann man handeln"],
+];
+const ARROW_L = '<svg width="6" height="8" viewBox="0 0 6 8"><path d="M6 0v8L0 4z" fill="#ffd100"/></svg>';
+const ARROW_R = '<svg width="6" height="8" viewBox="0 0 6 8"><path d="M0 0v8l6-4z" fill="#ffd100"/></svg>';
+const CLOSE = '<svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 1l6 6M7 1L1 7" stroke="#ffd100" stroke-width="1.6"/></svg>';
+
+const reach = (m, r) => r > MY_RANK && m.rank > MY_RANK; // may set rank r on m
+const steps = (m, r) => { const d = r - m.rank; return d === 0 ? "" : (d < 0 ? `${-d}× befördern` : `${d}× degradieren`); };
+
+function build(section, v) {
+  const win = document.getElementById("win").content.firstElementChild.cloneNode(true);
+  section.appendChild(win);
+  const chat = win.querySelector(".chat"), list = win.querySelector(".list"), body = win.querySelector(".wbody"), toast = win.querySelector(".toast");
+  chat.innerHTML = CHAT.map(([t, n, m]) => `<div class="ln"><span class="ts">${t}</span><span class="who ${M[n].c}" data-n="${n}">[${n}]</span>: ${m}</div>`).join("");
+  list.innerHTML = Object.entries(M).sort((a, b) => b[1].lv - a[1].lv).map(([n, m]) =>
+    `<div class="row" data-n="${n}"><span class="lv">${m.lv}</span><span class="nm ${m.c}">${n}</span><span class="zn">${m.zone}</span></div>`).join("");
+  const st = { v, win, body, toast, menu: null, overlay: null };
+  win.addEventListener("click", e => {
+    const t = e.target.closest("[data-n]");
+    if (t && !e.target.closest(".menu,.card,.pageview,.drawer")) { closeMenu(st); openDetail(st, t.dataset.n, t); return; }
+    if (!e.target.closest(".menu")) closeMenu(st);
+  });
+  win.addEventListener("contextmenu", e => {
+    const t = e.target.closest("[data-n]");
+    if (!t) return;
+    e.preventDefault(); openMenu(st, t.dataset.n, e);
+  });
+  return st;
+}
+
+function say(st, text) { st.toast.textContent = text; st.toast.classList.add("show"); clearTimeout(st.tt); st.tt = setTimeout(() => st.toast.classList.remove("show"), 2600); }
+function setRank(st, n, r) {
+  const m = M[n], s = steps(m, r);
+  if (!s) return;
+  say(st, `${n}: ${RANKS[m.rank]} → ${RANKS[r]} (${s}, ein Klick)`);
+  m.rank = r;
+}
+function closeMenu(st) { if (st.menu) { st.menu.remove(); st.menu = null; } }
+function place(st, el, x, y) {
+  st.win.appendChild(el);
+  const fit = () => { // keep it inside the window (measured after layout)
+    const box = st.win.getBoundingClientRect();
+    const left = Math.min(x - box.left, box.width - el.offsetWidth - 6);
+    const top = Math.min(y - box.top, box.height - el.offsetHeight - 6);
+    el.style.left = Math.max(6, left) + "px"; el.style.top = Math.max(6, top) + "px";
+  };
+  fit(); requestAnimationFrame(fit);
+}
+
+// context menus ---------------------------------------------------------------------------------
+function openMenu(st, n, e) {
+  closeMenu(st);
+  const m = M[n], menu = document.createElement("div");
+  menu.className = "menu";
+  let h = `<div class="t ${m.c}">${n}</div>
+    <div class="it" data-a="detail">${st.v === "b" ? "Charakterseite öffnen" : st.v === "c" ? "Details anzeigen" : "Steckbrief öffnen"}</div>
+    <div class="it" data-a="whisper">Flüstern</div><div class="it" data-a="group">In Gruppe einladen</div>
+    <div class="sec">Offiziere</div>`;
+  if (st.v === "a") {
+    h += `<div class="it">Rang setzen ${ARROW_R}<div class="menu sub">${RANKS.map((r, i) => {
+      const on = i === m.rank, ok = reach(m, i);
+      return `<div class="it ${ok ? "" : "off"}" data-r="${i}"><span class="radio ${on ? "on" : ""}"><b></b>${r}</span><span class="steps">${on ? "jetzt" : ok ? steps(m, i) : ""}</span></div>`;
+    }).join("")}</div></div>`;
+  } else if (st.v === "b") {
+    h += RANKS.map((r, i) => {
+      const on = i === m.rank, ok = reach(m, i);
+      return `<div class="it ${ok ? "" : "off"}" data-r="${i}"><span class="radio ${on ? "on" : ""}"><b></b>${r}</span><span class="steps">${on ? "jetzt" : ok ? steps(m, i) : ""}</span></div>`;
+    }).join("");
+  } else {
+    h += `<div class="stepper"><button data-s="-1">${ARROW_L}</button><span data-target="${m.rank}">${RANKS[m.rank]}</span><button data-s="1">${ARROW_R}</button></div>
+      <button class="apply" disabled>Übernehmen</button>`;
+  }
+  h += `<div class="it">Notizen bearbeiten</div><div class="it danger">Aus der Gilde entfernen …</div>`;
+  menu.innerHTML = h;
+  st.menu = menu;
+  place(st, menu, e.clientX, e.clientY);
+  menu.addEventListener("click", ev => {
+    ev.stopPropagation();
+    const a = ev.target.closest("[data-a]"), r = ev.target.closest("[data-r]"), s = ev.target.closest("[data-s]"), ap = ev.target.closest(".apply");
+    if (a && a.dataset.a === "detail") { closeMenu(st); openDetail(st, n, null); return; }
+    if (a) { closeMenu(st); say(st, a.dataset.a === "whisper" ? `/w ${n}` : `${n} in die Gruppe eingeladen`); return; }
+    if (r && !r.classList.contains("off")) { setRank(st, n, +r.dataset.r); closeMenu(st); return; }
+    if (s) {
+      const span = menu.querySelector("[data-target]");
+      let t = +span.dataset.target + +s.dataset.s;
+      if (t < 0 || t >= RANKS.length || !reach(m, t)) return;
+      span.dataset.target = t; span.textContent = RANKS[t];
+      const btn = menu.querySelector(".apply");
+      btn.disabled = t === m.rank;
+      btn.textContent = t === m.rank ? "Übernehmen" : `Übernehmen (${steps(m, t)})`;
+      return;
+    }
+    if (ap && !ap.disabled) { setRank(st, n, +menu.querySelector("[data-target]").dataset.target); closeMenu(st); }
+  });
+}
+
+// detail views ----------------------------------------------------------------------------------
+function kv(m) {
+  return `<dl class="kv"><dt>Rang</dt><dd>${RANKS[m.rank]}</dd><dt>Zone</dt><dd>${m.zone}</dd><dt>Zuletzt</dt><dd style="color:#4ce64c">${m.last}</dd>
+    <dt>Notiz</dt><dd>${m.note || "–"}</dd><dt>Offiziersnotiz</dt><dd>${m.onote || "–"}</dd></dl>`;
+}
+function profs(m) { return `<div class="profs">${m.profs.map(([p, col, lv]) => `<div><b style="background:${col}"></b>${p} <span>${lv}</span></div>`).join("")}</div>`; }
+
+function openDetail(st, n, anchor) {
+  ({ a: card, b: page, c: drawer })[st.v](st, n, anchor);
+  st.win.querySelectorAll(".row").forEach(r => r.classList.toggle("sel", r.dataset.n === n));
+}
+
+function card(st, n, anchor) {
+  if (st.overlay) st.overlay.remove();
+  const m = M[n], el = document.createElement("div");
+  el.className = "card";
+  const render = () => {
+    el.innerHTML = `<button class="x" title="Schließen">${CLOSE}</button>
+      <h3 class="${m.c}">${n}</h3><div class="sub2">Stufe ${m.lv} · ${RANKS[m.rank]}</div>${kv(m)}${profs(m)}
+      <div class="btns"><button class="rb" data-a="w">Flüstern</button><button class="rb" data-a="g">In Gruppe</button></div>
+      <div class="offsec"><h4>Offiziere · Rang</h4>
+        <div class="stepper" style="padding:0 0 6px"><button data-s="-1">${ARROW_L}</button><span data-target="${m.rank}">${RANKS[m.rank]}</span><button data-s="1">${ARROW_R}</button></div>
+        <button class="apply" style="margin:0;width:100%" disabled>Übernehmen</button></div>`;
+  };
+  render();
+  st.overlay = el;
+  const r = anchor ? anchor.getBoundingClientRect() : st.win.getBoundingClientRect();
+  place(st, el, anchor ? r.right + 8 : r.left + 200, anchor ? r.top - 20 : r.top + 60);
+  el.addEventListener("click", ev => {
+    ev.stopPropagation();
+    if (ev.target.closest(".x")) { el.remove(); st.overlay = null; return; }
+    const a = ev.target.closest("[data-a]"), s = ev.target.closest("[data-s]");
+    if (a) { say(st, a.dataset.a === "w" ? `/w ${n}` : `${n} in die Gruppe eingeladen`); return; }
+    if (s) {
+      const span = el.querySelector("[data-target]"); let t = +span.dataset.target + +s.dataset.s;
+      if (t < 0 || t >= RANKS.length || !reach(m, t)) return;
+      span.dataset.target = t; span.textContent = RANKS[t];
+      const b = el.querySelector(".apply"); b.disabled = t === m.rank; b.textContent = t === m.rank ? "Übernehmen" : `Übernehmen (${steps(m, t)})`;
+      return;
+    }
+    if (ev.target.closest(".apply:not(:disabled)")) { setRank(st, n, +el.querySelector("[data-target]").dataset.target); render(); }
+  });
+}
+
+function page(st, n) {
+  let pv = st.body.querySelector(".pageview");
+  if (!pv) { pv = document.createElement("div"); pv.className = "pageview"; st.body.appendChild(pv); }
+  const m = M[n];
+  let target = m.rank;
+  const render = () => {
+    const lines = CHAT.filter(c => c[1] === n).map(([t, , txt]) => `<div class="ln"><span class="ts">${t}</span>${txt}</div>`).join("") || '<div style="color:var(--dim)">Heute noch nichts geschrieben.</div>';
+    pv.innerHTML = `<button class="back">${ARROW_L} Zurück zum Chat</button>
+      <div class="phead"><h3 class="${m.c}">${n}</h3><span style="color:var(--soft)">Stufe ${m.lv} · ${RANKS[m.rank]} · ${m.zone}</span>
+        <span style="margin-left:auto;display:flex;gap:6px"><button class="rb" style="flex:none;padding:3px 14px" data-a="w">Flüstern</button><button class="rb" style="flex:none;padding:3px 14px" data-a="g">In Gruppe</button></span></div>
+      <div class="pcols">
+        <div class="pcol"><h4>Steckbrief</h4>${kv(m)}</div>
+        <div class="pcol"><h4>Berufe</h4>${profs(m)}<h4 style="margin-top:12px">Ruhmeshalle</h4><div>${m.fame}</div><h4 style="margin-top:12px">Im Chat heute</h4>${lines}</div>
+        <div class="pcol offpanel"><h4>Offiziersbereich · Rang setzen</h4>
+          <div class="ladder">${RANKS.map((r, i) => {
+            const cls = i === m.rank ? "cur" : i === target ? "target" : reach(m, i) ? "" : "off";
+            return `<div class="lad ${cls}" data-r="${i}"><span>${r}</span><small>${i === m.rank ? "jetzt" : reach(m, i) ? steps(m, i) : "nicht erlaubt"}</small></div>`;
+          }).join("")}</div>
+          <button class="apply" style="margin:0 0 8px;width:100%" ${target === m.rank ? "disabled" : ""}>${target === m.rank ? "Zielrang wählen" : `Auf ${RANKS[target]} setzen (${steps(m, target)})`}</button>
+          <div class="btns"><button class="rb" style="filter:saturate(.6)">Notizen</button><button class="rb" style="color:#ffb4a4">Entfernen …</button></div>
+        </div>
+      </div>`;
+  };
+  render();
+  pv.classList.add("show");
+  pv.onclick = ev => {
+    ev.stopPropagation();
+    if (ev.target.closest(".back")) { pv.classList.remove("show"); return; }
+    const a = ev.target.closest("[data-a]"), r = ev.target.closest(".lad:not(.off)");
+    if (a) { say(st, a.dataset.a === "w" ? `/w ${n}` : `${n} in die Gruppe eingeladen`); return; }
+    if (r) { target = +r.dataset.r; render(); return; }
+    if (ev.target.closest(".apply:not(:disabled)")) { setRank(st, n, target); render(); }
+  };
+}
+
+function drawer(st, n) {
+  const side = st.win.querySelector(".side");
+  let d = side.querySelector(".drawer");
+  if (!d) { d = document.createElement("div"); d.className = "drawer"; side.appendChild(d); }
+  const m = M[n];
+  let target = m.rank;
+  const render = () => {
+    d.innerHTML = `<div class="dhead"><button class="back">${ARROW_L} Online-Liste</button></div>
+      <div class="dbody"><h3 class="${m.c}" style="margin:0;font-weight:normal;font-size:19px">${n}</h3><div class="sub2">Stufe ${m.lv} · ${RANKS[m.rank]}</div>
+        ${kv(m)}${profs(m)}
+        <div class="btns" style="margin-bottom:10px"><button class="rb" data-a="w">Flüstern</button><button class="rb" data-a="g">In Gruppe</button></div>
+        <div class="offsec"><h4>Offiziere · Rang</h4>
+          <div class="chips">${RANKS.map((r, i) => `<span class="chip ${i === m.rank ? "cur" : i === target ? "target" : reach(m, i) ? "" : "off"}" data-r="${i}">${r}</span>`).join("")}</div>
+          <button class="apply" style="margin:0;width:100%" ${target === m.rank ? "disabled" : ""}>${target === m.rank ? "Zielrang wählen" : `Übernehmen (${steps(m, target)})`}</button>
+        </div></div>`;
+  };
+  render();
+  requestAnimationFrame(() => d.classList.add("show"));
+  d.onclick = ev => {
+    ev.stopPropagation();
+    if (ev.target.closest(".back")) { d.classList.remove("show"); st.win.querySelectorAll(".row").forEach(r => r.classList.remove("sel")); return; }
+    const a = ev.target.closest("[data-a]"), r = ev.target.closest(".chip:not(.off):not(.cur)");
+    if (a) { say(st, a.dataset.a === "w" ? `/w ${n}` : `${n} in die Gruppe eingeladen`); return; }
+    if (r) { target = +r.dataset.r; render(); return; }
+    if (ev.target.closest(".apply:not(:disabled)")) { setRank(st, n, target); target = m.rank; render(); }
+  };
+}
+
+document.querySelectorAll("section[data-v]").forEach(s => build(s, s.dataset.v));
+</script>
+</body>
+</html>

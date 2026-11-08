@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="de">
+<head>
+<!-- Guildy mock: character page, option set built on variant A (main druid with one twink per class) -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heldenkarte Optionen</title>
+<style>
+:root{--frame:#6b5631;--hi:#c9a24a;--bg:#16120e;--inset:#0d0b09;--line:#4a3d29;--gold:#ffd100;--text:#e6dcc4;--dim:#8f8268;--soft:#c8b98f;--new:#ff8c40;--off:#c06a2a}
+*{box-sizing:border-box}
+body{margin:0;background:#211a12;color:var(--text);font-family:"Palatino Linotype",Georgia,serif;padding:28px 16px 60px}
+::selection{background:#6b5631;color:#fff}
+.page{max-width:1180px;margin:0 auto}
+h1{color:var(--gold);font-weight:normal;font-size:24px;margin:0 0 6px}
+.lead{color:var(--soft);max-width:78ch;line-height:1.5;margin:0 0 14px}
+.switch{display:flex;gap:6px;flex-wrap:wrap}
+.switch button{background:#1d1711;border:1px solid var(--frame);color:var(--soft);border-radius:3px;padding:5px 14px;font:inherit;font-size:14px;cursor:pointer}
+.switch button.on{border-color:var(--hi);color:var(--gold);background:#2a2010}
+.vdesc{color:var(--soft);max-width:82ch;line-height:1.5;margin:8px 0 12px;min-height:4.5em}
+.vdesc b{color:var(--gold);font-weight:normal}
+
+.wow{position:relative;background:var(--bg);border:3px solid var(--frame);outline:1px solid #000;box-shadow:0 6px 22px rgba(0,0,0,.55);border-radius:7px;overflow:hidden}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:var(--gold);text-align:center;padding:6px 0;font-size:14px;border-bottom:2px solid var(--frame)}
+.wbody{padding:10px;height:690px;position:relative}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.v{display:none;gap:10px;height:calc(100% - 34px)}.v.on{display:flex}
+.btn{background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 14px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:disabled{filter:grayscale(1);opacity:.45;cursor:default}
+.ghost{background:#1d1711;border:1px solid var(--frame);color:var(--gold);border-radius:3px;padding:3px 10px;font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.ghost:hover{border-color:var(--hi)}
+.panel{background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8)}
+h4{margin:0 0 8px;color:var(--gold);font-weight:normal;font-size:13.5px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h4 small{color:var(--dim);font-size:12px}
+.muted{color:var(--dim)}
+.DRU{color:#FF7C0A}.MAG{color:#3FC7EB}.WAR{color:#C69B6D}.HUN{color:#AAD372}.PAL{color:#F48CBA}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.WLK{color:#8788EE}
+/* compact character card for many twinks */
+.mcard{min-width:0;padding:8px 10px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:4px;background:var(--inset);cursor:pointer}
+.mcard:hover{border-color:var(--hi)}
+.mcard.main{border-color:var(--hi);background:linear-gradient(180deg,rgba(255,209,0,.06),transparent),var(--inset)}
+.mcard .head{display:flex;gap:9px;align-items:center;min-width:0}
+.mcard .portrait{width:40px;height:40px;border-width:2px}
+.mcard .portrait .lvl{min-width:20px;height:20px;font-size:10.5px;right:-6px;bottom:-6px;border-width:1px}
+.mcard .nm{min-width:0;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard .nm small{display:block;color:var(--dim);font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.mcard .pl{display:flex;gap:10px;font-size:11.5px;color:var(--soft);flex-wrap:wrap}
+.mcard .pl span{display:flex;gap:4px;align-items:center}
+.mcard .ex{display:flex;justify-content:space-between;font-size:11.5px;color:var(--dim);border-top:1px solid #2a2219;padding-top:5px}
+.strip{display:flex;gap:3px;flex-wrap:wrap}
+.strip .portrait{width:30px;height:30px;border-width:2px;cursor:pointer}
+.strip .portrait .lvl{min-width:16px;height:16px;font-size:9.5px;right:-6px;bottom:-6px;border-width:1px;padding:0 2px}
+
+/* real game icons */
+.ic{display:inline-block;border-radius:4px;border:1px solid #000;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);background:#2a2219 center/cover no-repeat;flex:none;vertical-align:middle}
+.ic.s14{width:14px;height:14px;border-radius:2px}.ic.s18{width:18px;height:18px;border-radius:3px}.ic.s22{width:22px;height:22px}.ic.s28{width:28px;height:28px}.ic.s36{width:36px;height:36px}
+.portrait{position:relative;border-radius:50%;border:3px solid;box-shadow:0 0 0 2px #000,0 4px 10px rgba(0,0,0,.6);background:#2a2219 center/cover no-repeat;flex:none}
+.lvl{position:absolute;right:-5px;bottom:-5px;min-width:30px;height:30px;padding:0 4px;border-radius:15px;background:#120f0b;border:2px solid var(--hi);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:14px}
+.idline{color:var(--soft);font-size:12.5px;display:flex;align-items:center;gap:6px;justify-content:center;flex-wrap:wrap}
+.title{color:var(--gold);font-style:italic;font-size:13.5px;margin:2px 0 8px}
+
+/* hero card */
+.hero{width:300px;flex:none;padding:16px 16px 12px;display:flex;flex-direction:column;align-items:center;text-align:center;background:linear-gradient(180deg,rgba(255,124,10,.10),transparent 50%),var(--inset)}
+.hero .portrait{width:112px;height:112px;margin-bottom:10px}
+.hero h3{margin:0;font-weight:normal;font-size:24px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0 4px}
+.badge{position:relative;border-radius:50%;padding:2px;border:2px solid}
+.badge .ic{border-radius:50%;width:34px;height:34px;display:block}
+.badge.g{border-color:#ffd100}.badge.s{border-color:#c0c8d0}.badge.b{border-color:#c07a40}
+.badge small{position:absolute;bottom:-5px;right:-6px;background:#120f0b;border:1px solid var(--hi);border-radius:8px;font-size:10px;padding:0 4px;color:var(--gold)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12.5px;text-align:left;width:100%;margin-top:10px}
+.facts dt{color:var(--gold)}.facts dd{margin:0}
+.hero .acts{display:flex;gap:6px;margin-top:auto;padding-top:12px}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tile{padding:10px 12px}
+.tile .k{color:var(--dim);font-size:12px;display:flex;align-items:center;gap:6px}
+.tile .vv{font-size:24px;margin:2px 0}
+.tile .rk{font-size:12px;color:var(--gold)}
+.dgrid{display:grid;grid-template-columns:repeat(16,1fr);gap:4px}
+.dg{aspect-ratio:1;border-radius:3px;border:1px solid #000;background:#1d1711 center/cover;filter:grayscale(1) brightness(.35)}
+.dg.on{filter:none;box-shadow:0 0 0 1px var(--hi)}
+.qbar{display:flex;height:12px;border-radius:6px;overflow:hidden;border:1px solid #000;margin-top:8px}
+.qbar i{display:block;height:100%}
+.qleg{display:flex;gap:12px;font-size:11.5px;margin-top:6px;flex-wrap:wrap}
+.qleg span{display:flex;align-items:center;gap:4px}.qleg b{width:9px;height:9px;border-radius:2px;display:block}
+
+/* twinks */
+.twcard{flex:1;min-width:0;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;border:1px solid var(--line);border-radius:4px;background:var(--inset)}
+.twcard:hover{border-color:var(--hi)}
+.twcard .head{display:flex;gap:10px;align-items:center}
+.twcard .portrait{width:48px;height:48px}
+.twcard .portrait .lvl{min-width:22px;height:22px;font-size:11px;right:-6px;bottom:-6px}
+.twcard .nm{font-size:15px}.twcard .nm small{display:block;color:var(--dim);font-size:11.5px}
+.prow{display:flex;align-items:center;gap:6px;font-size:12px}
+.prow .pb{flex:1;height:6px;background:#1d1711;border:1px solid #000;border-radius:3px;overflow:hidden}.prow .pb i{display:block;height:100%;background:linear-gradient(90deg,#8a6d36,var(--gold))}
+.prow span.l{width:52px;text-align:right;color:var(--dim)}
+.famsum{display:flex;gap:18px;font-size:12.5px;color:var(--soft);flex-wrap:wrap}
+.famsum b{color:var(--gold);font-weight:normal;font-size:16px;display:block}
+
+/* officer */
+.offbar{width:100%;border-top:1px solid var(--line);margin-top:10px;padding-top:10px;text-align:left}
+.offbar .lab{color:var(--off);font-size:11.5px;letter-spacing:.05em;margin-bottom:6px}
+.pop{position:absolute;z-index:30;width:250px;background:#120f0b;border:1px solid var(--hi);border-radius:4px;box-shadow:0 6px 16px rgba(0,0,0,.8);padding:8px}
+.lad{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;border:1px solid transparent;border-radius:3px;cursor:pointer;font-size:12.5px}
+.lad:hover:not(.off):not(.cur){border-color:var(--frame);background:#1d1711}
+.lad.cur{border-color:var(--hi);background:#2a2010;color:var(--gold);cursor:default}
+.lad.target{border-color:var(--new);background:#2a1a10;color:#ffb070}
+.lad.off{color:#5e5747;cursor:default}
+.lad small{color:var(--dim);font-size:11px}
+.offpanel{border-color:#6a3d1a;background:linear-gradient(180deg,rgba(192,106,42,.08),transparent 40%),var(--inset)}
+.tabsrow{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabsrow button{background:#1d1711;border:1px solid var(--line);border-bottom:none;border-radius:4px 4px 0 0;color:var(--soft);font:inherit;font-size:13px;padding:4px 14px;cursor:pointer}
+.tabsrow button.on{color:var(--gold);border-color:var(--hi);background:#2a2010}
+.tabsrow button.officer{margin-left:auto;color:#ffb070}
+.tabsrow button.officer.on{border-color:var(--off);background:#2a1a10}
+.famtabs{display:flex;gap:8px;align-items:flex-end}
+.ftab{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border:1px solid var(--line);border-bottom:none;border-radius:6px 6px 0 0;background:#120f0b;cursor:pointer;opacity:.75}
+.ftab.on{opacity:1;border-color:var(--hi);background:var(--inset);padding-bottom:9px}
+.ftab .portrait{width:36px;height:36px;border-width:2px}
+.ftab .portrait .lvl{min-width:20px;height:20px;font-size:10.5px;right:-6px;bottom:-6px}
+.ftab small{display:block;color:var(--dim);font-size:11px}
+.ftab.main small:after{content:" · Main";color:var(--gold)}
+.tip{position:fixed;z-index:60;max-width:260px;background:#0a0806;border:1px solid var(--hi);border-radius:4px;padding:6px 9px;font-size:12.5px;pointer-events:none;display:none;box-shadow:0 4px 12px rgba(0,0,0,.8)}
+.tip b{color:var(--gold);font-weight:normal;display:block}
+.toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:40;background:#120f0b;border:1px solid var(--hi);color:var(--soft);border-radius:4px;padding:5px 12px;font-size:12.5px;display:none}
+.toast.show{display:block}
+@media (max-width:920px){.wbody{height:auto}.v.on{flex-direction:column}.hero{width:auto}.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Heldenkarte: drei Ausbaustufen</h1>
+<p class="lead">Aufbauend auf Variante A. Ausrüstung schrumpft auf das, was Guildy wirklich weiß (Ø-Itemlevel und wie viele Teile welcher Qualität), die Twinks rücken nach vorn. Jede Option zeigt einen anderen Ort für die Offiziersaktionen. Du bist in diesem Mock Mrgl-Commander, Ran Fred ist Haifutter (also unter dir). Die Icons sind die des Spiels.</p>
+<div class="switch">
+  <button data-v="1" class="on">1 · Twinks als Karten</button>
+  <button data-v="2">2 · Familie als Reiter</button>
+  <button data-v="3">3 · Reiter mit Offiziersbereich</button>
+</div>
+<p class="vdesc" id="vdesc"></p>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia · Guildy</div>
+  <div class="wbody">
+    <div class="top"><button class="ghost" id="back"><svg width="6" height="8" viewBox="0 0 6 8"><path d="M6 0v8L0 4z" fill="#ffd100"/></svg>Zurück</button></div>
+    <div class="v" id="v1"></div><div class="v" id="v2"></div><div class="v" id="v3"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+const IC = n => `https://wow.zamimg.com/images/wow/icons/large/${n}.jpg`;
+const ic = (n, s, tip) => `<span class="ic s${s}" style="background-image:url(${IC(n)})"${tip ? ` data-tip="${tip}"` : ""}></span>`;
+const RANKS = ["Don Murloc", "Mrgl-Commander", "Finsterflosse", "Kaulquappe", "Twink", "Haifutter"];
+const MY = 1;
+const PROF = {
+  alch:["trade_alchemy","Alchemie",225], herb:["spell_nature_naturetouchgrow","Kräuterkunde",225], cook:["inv_misc_food_15","Kochkunst",225],
+  first:["spell_holy_sealofsacrifice","Erste Hilfe",225], tail:["trade_tailoring","Schneiderei",150], ench:["trade_engraving","Verzauberkunst",150],
+  mine:["trade_mining","Bergbau",75], skin:["inv_misc_pelt_wolf_01","Kürschnerei",75], fish:["trade_fishing","Angeln",75],
+  smith:["trade_blacksmithing","Schmiedekunst",150], leather:["inv_misc_armorkit_17","Lederverarbeitung",225], eng:["trade_engineering","Ingenieurskunst",150],
+};
+const CHARS = [
+  { n:"Ran Fred", c:"DRU", col:"#FF7C0A", cls:"classicon_druid", race:"achievement_character_nightelf_male", raceTxt:"Nachtelf · männlich", spec:["spell_nature_healingtouch","Wiederherstellung"], lv:32, rank:5, zone:"Dämmerwald", last:"online", main:true,
+    profs:[["alch",190],["herb",192],["cook",169],["first",159]], kills:8942, quests:1214, deaths:57, hogger:3, ilvl:31.4, q:{epic:1,rare:5,unc:10,com:1}, dungeons:11, title:"Questkönig der Murloc Mafia" },
+  { n:"Fred Frostfinger", c:"MAG", col:"#3FC7EB", cls:"classicon_mage", race:"achievement_character_gnome_male", raceTxt:"Gnom · männlich", spec:["spell_frost_frostbolt02","Frost"], lv:24, rank:4, zone:"Rotkammgebirge", last:"vor 2 Tg.",
+    profs:[["tail",121],["ench",96]], kills:3120, quests:402, deaths:21, hogger:1, ilvl:22.8, q:{epic:0,rare:2,unc:11,com:3}, dungeons:4 },
+  { n:"Fredwild", c:"HUN", col:"#AAD372", cls:"classicon_hunter", race:"achievement_character_nightelf_female", raceTxt:"Nachtelfe · weiblich", spec:["ability_hunter_beasttaming","Tierherrschaft"], lv:27, rank:4, zone:"Sumpfland", last:"vor 1 Tg.",
+    profs:[["skin",141],["leather",128]], kills:4410, quests:520, deaths:33, hogger:2, ilvl:25.1, q:{epic:0,rare:3,unc:10,com:2}, dungeons:6 },
+  { n:"Fredelinde", c:"PRI", col:"#FFFFFF", cls:"classicon_priest", race:"achievement_character_human_female", raceTxt:"Mensch · weiblich", spec:["spell_holy_wordfortitude","Disziplin"], lv:21, rank:4, zone:"Westfall", last:"vor 3 Tg.",
+    profs:[["tail",104],["first",110]], kills:2050, quests:311, deaths:12, hogger:0, ilvl:19.4, q:{epic:0,rare:1,unc:9,com:5}, dungeons:3 },
+  { n:"Sir Fredrick", c:"PAL", col:"#F48CBA", cls:"classicon_paladin", race:"achievement_character_human_male", raceTxt:"Mensch · männlich", spec:["spell_holy_holybolt","Heilig"], lv:19, rank:4, zone:"Seenhain", last:"vor 4 Tg.",
+    profs:[["smith",112],["mine",118]], kills:1880, quests:240, deaths:9, hogger:0, ilvl:17.9, q:{epic:0,rare:1,unc:8,com:6}, dungeons:2 },
+  { n:"Frieda Dolch", c:"ROG", col:"#FFF468", cls:"classicon_rogue", race:"achievement_character_gnome_female", raceTxt:"Gnom · weiblich", spec:["ability_rogue_eviscerate","Meucheln"], lv:16, rank:4, zone:"Dämmerwald", last:"vor 6 Tg.",
+    profs:[["eng",72],["mine",70]], kills:1340, quests:188, deaths:14, hogger:1, ilvl:14.6, q:{epic:0,rare:0,unc:7,com:8}, dungeons:2 },
+  { n:"Donnerfreda", c:"SHA", col:"#0070DD", cls:"classicon_shaman", race:"achievement_character_dwarf_female", raceTxt:"Zwergin · weiblich", spec:["spell_nature_lightning","Elementar"], lv:14, rank:4, zone:"Loch Modan", last:"vor 1 Wo.",
+    profs:[["fish",88],["cook",95]], kills:990, quests:142, deaths:6, hogger:0, ilvl:12.3, q:{epic:0,rare:0,unc:5,com:9}, dungeons:1 },
+  { n:"Ranfredo", c:"WAR", col:"#C69B6D", cls:"classicon_warrior", race:"achievement_character_dwarf_male", raceTxt:"Zwerg · männlich", spec:["ability_warrior_defensivestance","Schutz"], lv:12, rank:4, zone:"Loch Modan", last:"vor 5 Tg.",
+    profs:[["mine",64],["skin",58]], kills:780, quests:96, deaths:4, hogger:0, ilvl:10.2, q:{epic:0,rare:0,unc:6,com:9}, dungeons:1 },
+  { n:"Fredemon", c:"WLK", col:"#8788EE", cls:"classicon_warlock", race:"achievement_character_human_male", raceTxt:"Mensch · männlich", spec:["spell_shadow_deathcoil","Gebrechen"], lv:8, rank:4, zone:"Wald von Elwynn", last:"vor 2 Wo.",
+    profs:[["tail",34]], kills:260, quests:41, deaths:2, hogger:1, ilvl:6.1, q:{epic:0,rare:0,unc:2,com:11}, dungeons:0 },
+];
+const TWINKS = CHARS.slice(1);
+const LEVELS = CHARS.reduce((s, t) => s + t.lv, 0);
+const PROF_COUNT = new Set(CHARS.flatMap(t => t.profs.map(p => p[0]))).size;
+const DUN = ["spell_fire_selfdestruct","inv_misc_bandana_03","spell_nature_ravenform","inv_misc_head_undead_02","inv_misc_key_11","spell_shadow_summonfelhunter","inv_gizmo_02","inv_misc_bone_humanskull_01","spell_holy_resurrection","inv_misc_book_09","inv_shield_06","spell_holy_holysmite","ability_hunter_pet_boar","inv_misc_platnumdisks","inv_misc_idol_03","spell_nature_stoneclawtotem","inv_misc_head_troll_01","inv_hammer_19","inv_misc_head_orc_01","inv_misc_bone_elfskull_01","spell_shadow_raisedead","inv_misc_bone_skull_02","inv_misc_head_dragon_black","spell_arcane_portaldalaran","inv_misc_rune_01","inv_misc_horn_01","spell_fire_lavaspawn","inv_misc_head_dragon_01","inv_misc_head_dragon_black","inv_misc_idol_02","inv_misc_qirajicrystal_05","inv_trinket_naxxramas04"];
+const DUN_NAMES = ["Flammenschlund","Todesminen","Höhlen des Wehklagens","Burg Schattenfang","Verlies","Tiefschwarze Grotte","Gnomeregan","Kral der Klingenhauer","Kloster: Friedhof","Kloster: Bibliothek","Kloster: Waffenkammer","Kloster: Kathedrale","Hügel der Klingenhauer","Uldaman","Zul'Farrak","Maraudon","Tempel von Atal'Hakkar","Schwarzfelstiefen","Untere Schwarzfelsspitze","Düsterbruch","Scholomance","Stratholme","Obere Schwarzfelsspitze","Dalaran","Kroldok","Hallen der Thane","Geschmolzener Kern","Onyxias Hort","Pechschwingenhort","Zul'Gurub","Ruinen von Ahn'Qiraj","Naxxramas"];
+const CLASS_NAME = { DRU:"Druide", MAG:"Magier", WAR:"Krieger", HUN:"Jäger", PRI:"Priester", PAL:"Paladin", ROG:"Schurke", SHA:"Schamane", WLK:"Hexenmeister" };
+const DUNGEONS_ALL = Math.max(...CHARS.map(t => t.dungeons));
+const SUMMARY = `${CHARS.length} Charaktere · zusammen Stufe ${LEVELS} · ${PROF_COUNT} Berufe`;
+const famsum = () => `<span><b>${CHARS.length}</b>Charaktere</span><span><b>${LEVELS}</b>Stufen zusammen</span><span><b>${PROF_COUNT}</b>Berufe</span><span><b>${DUNGEONS_ALL}</b>Dungeons</span>`;
+// compact card: portrait, name, spec and last seen, class icon, professions with skill; extra = dungeons and item level
+const mcard = (t, extra) => `<div class="mcard ${t.main ? "main" : ""}" data-tip="${t.n}|${CLASS_NAME[t.c]} ${t.lv} · ${t.spec[1]} · zuletzt ${t.last}">
+  <div class="head">${portrait(t, 40)}<div class="nm ${t.c}">${t.n}<small>${t.main ? "Main · " : ""}${t.spec[1]} · ${t.last}</small></div><span style="margin-left:auto">${ic(t.cls, 22)}</span></div>
+  <div class="pl">${t.profs.map(([k, v]) => `<span>${ic(PROF[k][0], 14)}${v}</span>`).join("")}</div>
+  ${extra ? `<div class="ex"><span>Dungeons ${t.dungeons}/32</span><span>Ø Itemlevel ${String(t.ilvl).replace(".", ",")}</span></div>` : ""}</div>`;
+const portrait = (ch, size) => `<span class="portrait" style="width:${size}px;height:${size}px;border-color:${ch.col};background-image:url(${IC(ch.race)})" data-tip="${ch.raceTxt}|${ch.n}"><span class="lvl">${ch.lv}</span></span>`;
+const idline = ch => `<div class="idline">${ic(ch.cls, 18, "Klasse|" + CLASS_NAME[ch.c])}${ic(ch.spec[0], 18, "Spezialisierung|" + ch.spec[1] + " (nur von Guildy-Nutzern)")}<span>${ch.raceTxt} · ${ch.spec[1]}</span></div>`;
+const badges = `<div class="badges">
+  <span class="badge g" data-tip="Platz 1: Quests|1 214 abgeschlossen">${ic("inv_scroll_03", 36)}<small>1</small></span>
+  <span class="badge s" data-tip="Platz 2: Gold diesen Monat|312 g verdient">${ic("inv_misc_coin_02", 36)}<small>2</small></span>
+  <span class="badge b" data-tip="Platz 3: Dungeons|11 verschiedene Endbosse">${ic("inv_misc_key_03", 36)}<small>3</small></span>
+  <span class="badge b" data-tip="Platz 3: Umarmungen|418 Mal /umarmen">${ic("spell_holy_heal", 36)}<small>3</small></span></div>`;
+const profRows = ch => ch.profs.map(([k, v]) => `<div class="prow">${ic(PROF[k][0], 18)}<span style="width:96px">${PROF[k][1]}</span><span class="pb"><i style="width:${v / PROF[k][2] * 100}%"></i></span><span class="l">${v}/${PROF[k][2]}</span></div>`).join("");
+const stats = ch => `<div class="stats">
+  <div class="panel tile"><div class="k">${ic("ability_warrior_savageblow", 18)}Kills</div><div class="vv">${ch.kills.toLocaleString("de")}</div><div class="rk">Platz 6 von 42</div></div>
+  <div class="panel tile"><div class="k">${ic("inv_scroll_03", 18)}Quests</div><div class="vv">${ch.quests.toLocaleString("de")}</div><div class="rk">Platz 1 von 42</div></div>
+  <div class="panel tile"><div class="k">${ic("ability_rogue_feigndeath", 18)}Tode</div><div class="vv">${ch.deaths}</div><div class="rk">davon ${ch.hogger}× Hogger</div></div>
+  <div class="panel tile"><div class="k">${ic("inv_chest_plate06", 18)}Ø Itemlevel</div><div class="vv">${String(ch.ilvl).replace(".", ",")}</div>
+    <div class="qbar" data-tip="Ausrüstung nach Qualität|Mehr weiß Guildy nicht: keine einzelnen Items">${[["epic","#a335ee"],["rare","#0070dd"],["unc","#1eff00"],["com","#ffffff"]].map(([k, c]) => `<i style="width:${ch.q[k] / 17 * 100}%;background:${c}"></i>`).join("")}</div></div>
+</div>`;
+const dungeons = ch => `<div class="panel tile" style="height:100%"><h4>Dungeon-Sammlung<small>${ch.dungeons} von 32 Endbossen</small></h4>
+  <div class="dgrid">${DUN.map((d, i) => `<span class="dg ${i < ch.dungeons ? "on" : ""}" style="background-image:url(${IC(d)})" data-tip="${DUN_NAMES[i]}|${i < ch.dungeons ? "Endboss besiegt" : "noch offen"}"></span>`).join("")}</div></div>`;
+const ladder = (ch, target) => RANKS.map((r, i) => {
+  const allowed = i > MY && ch.rank > MY;
+  const d = i - ch.rank;
+  const cls = i === ch.rank ? "cur" : i === target ? "target" : allowed ? "" : "off";
+  return `<div class="lad ${cls}" data-r="${i}"><span>${r}</span><small>${i === ch.rank ? "jetzt" : allowed ? (d < 0 ? `${-d}× befördern` : `${d}× degradieren`) : "nicht erlaubt"}</small></div>`;
+}).join("");
+
+let toastT;
+function say(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 2400); }
+
+// ---------- 1: twinks as cards, officer bar on the hero card ----------
+function render1() {
+  const ch = CHARS[0];
+  document.getElementById("v1").innerHTML = `
+    <div class="panel hero">${portrait(ch, 112)}<h3 class="DRU">${ch.n}</h3><div class="title">„${ch.title}“</div>${idline(ch)}
+      <div class="idline muted" style="margin-top:4px">${RANKS[ch.rank]} · ${ch.zone} · <span style="color:#4ce64c">online</span></div>${badges}
+      <div class="acts"><button class="btn">Flüstern</button><button class="btn">In Gruppe</button></div>
+      <div class="offbar"><div class="lab">OFFIZIERE</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="rankbtn">Rang: ${RANKS[ch.rank]}<svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffd100"/></svg></button><button class="ghost">Notizen</button><button class="ghost" style="color:#ff9a84">Entfernen …</button></div></div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+      <div class="panel tile" style="padding:12px"><h4>Familie<small>${SUMMARY}</small></h4>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">${TWINKS.map(t => mcard(t)).join("")}</div></div>
+      ${stats(ch)}
+      <div style="display:flex;gap:8px;flex:1;min-height:0"><div style="flex:1.5">${dungeons(ch)}</div>
+        <div class="panel tile" style="flex:1"><h4>Berufe</h4>${profRows(ch)}</div></div>
+    </div>`;
+  document.getElementById("rankbtn").onclick = e => {
+    e.stopPropagation();
+    const old = document.querySelector(".pop"); if (old) { old.remove(); return; }
+    const pop = document.createElement("div"); pop.className = "pop";
+    pop.innerHTML = `<h4 style="margin-bottom:6px">Rang setzen</h4>${ladder(ch)}`;
+    const b = e.currentTarget.getBoundingClientRect(), w = document.querySelector(".wbody").getBoundingClientRect();
+    pop.style.left = (b.left - w.left) + "px"; pop.style.top = (b.bottom - w.top - 270) + "px";
+    document.querySelector(".wbody").appendChild(pop);
+    pop.onclick = ev => { ev.stopPropagation(); const r = ev.target.closest(".lad:not(.off):not(.cur)"); if (r) { say(`Ran Fred: ${RANKS[ch.rank]} → ${RANKS[+r.dataset.r]} (ein Klick)`); pop.remove(); } };
+  };
+}
+
+// ---------- 2: family as tabs on top, officer popover button ----------
+let sel2 = 0;
+function render2() {
+  const ch = CHARS[sel2];
+  document.getElementById("v2").innerHTML = `<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between">
+      <div class="famtabs">${CHARS.map((t, i) => `<div class="ftab ${i === sel2 ? "on" : ""} ${t.main ? "main" : ""}" data-i="${i}" ${i === sel2 ? "" : `data-tip="${t.n}|${CLASS_NAME[t.c]} ${t.lv} · ${t.spec[1]}" style="padding-right:6px"`}>${portrait(t, 36)}${i === sel2 ? `<div><span class="${t.c}">${t.n}</span><small>${CLASS_NAME[t.c]} · ${t.spec[1]}</small></div>` : ""}</div>`).join("")}</div>
+      <div class="famsum" style="padding-bottom:8px">${famsum()}</div>
+    </div>
+    <div class="panel" style="flex:1;display:flex;gap:10px;padding:10px;border-top-left-radius:0">
+      <div class="hero" style="background:linear-gradient(180deg,${ch.col}1a,transparent 50%);border:1px solid var(--line);border-radius:4px">${portrait(ch, 104)}<h3 class="${ch.c}">${ch.n}</h3>${ch.title ? `<div class="title">„${ch.title}“</div>` : `<div class="title muted">Twink von Ran Fred</div>`}${idline(ch)}
+        <dl class="facts"><dt>Rang</dt><dd>${RANKS[ch.rank]}</dd><dt>Zone</dt><dd>${ch.zone}</dd><dt>Zuletzt</dt><dd>${ch.last}</dd></dl>
+        ${sel2 === 0 ? badges : ""}
+        <div class="acts"><button class="btn">Flüstern</button><button class="btn">In Gruppe</button><button class="ghost" id="offbtn" style="color:#ffb070;border-color:var(--off)" data-tip="Offiziere|Rang, Notizen, Entfernen">Offiziere<svg width="8" height="6" viewBox="0 0 8 6"><path d="M0 0h8L4 6z" fill="#ffb070"/></svg></button></div>
+      </div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">${stats(ch)}
+        <div style="display:flex;gap:8px;flex:1;min-height:0"><div style="flex:1.5">${dungeons(ch)}</div><div class="panel tile" style="flex:1"><h4>Berufe</h4>${profRows(ch)}</div></div></div>
+    </div></div>`;
+  document.querySelectorAll("#v2 .ftab").forEach(t => t.onclick = () => { sel2 = +t.dataset.i; render2(); });
+  document.getElementById("offbtn").onclick = e => {
+    e.stopPropagation();
+    const old = document.querySelector(".pop"); if (old) { old.remove(); return; }
+    const pop = document.createElement("div"); pop.className = "pop";
+    pop.innerHTML = `<h4 style="margin-bottom:6px;color:#ffb070">Offiziere · ${ch.n}</h4>${ladder(ch)}<div style="display:flex;gap:6px;margin-top:8px"><button class="ghost" style="flex:1;justify-content:center">Notizen</button><button class="ghost" style="flex:1;justify-content:center;color:#ff9a84">Entfernen …</button></div>`;
+    const b = e.currentTarget.getBoundingClientRect(), w = document.querySelector(".wbody").getBoundingClientRect();
+    pop.style.left = Math.min(b.left - w.left, w.width - 262) + "px"; pop.style.top = (b.top - w.top - 300) + "px";
+    document.querySelector(".wbody").appendChild(pop);
+    pop.onclick = ev => { ev.stopPropagation(); const r = ev.target.closest(".lad:not(.off):not(.cur)"); if (r) { say(`${ch.n}: ${RANKS[ch.rank]} → ${RANKS[+r.dataset.r]} (ein Klick)`); pop.remove(); } };
+  };
+}
+
+// ---------- 3: hero card + tabs, own officer tab ----------
+let tab3 = "overview", target3 = null;
+function render3() {
+  const ch = CHARS[0];
+  const panes = {
+    overview: `${stats(ch)}<div style="display:flex;gap:8px;flex:1;min-height:0;margin-top:8px"><div style="flex:1.5">${dungeons(ch)}</div><div class="panel tile" style="flex:1"><h4>Berufe</h4>${profRows(ch)}</div></div>`,
+    family: `<div class="famsum" style="margin:2px 0 10px">${famsum()}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${CHARS.map(t => mcard(t, true)).join("")}</div>`,
+    officer: `<div style="display:flex;gap:12px;height:100%"><div class="panel offpanel tile" style="flex:1"><h4 style="color:#ffb070">Rang setzen<small>du bist ${RANKS[MY]}</small></h4>${ladder(ch, target3)}
+        <button class="btn" style="width:100%;margin-top:10px" id="apply3" ${target3 === null ? "disabled" : ""}>${target3 === null ? "Zielrang wählen" : `Auf ${RANKS[target3]} setzen (${target3 < ch.rank ? ch.rank - target3 + "× befördern" : target3 - ch.rank + "× degradieren"})`}</button></div>
+      <div class="panel offpanel tile" style="flex:1"><h4 style="color:#ffb070">Notizen</h4><dl class="facts" style="margin:0 0 12px"><dt>Notiz</dt><dd>Der supergeile Ranfred</dd><dt>Offiziersnotiz</dt><dd>–</dd></dl>
+        <button class="ghost">Im Blizzard-Fenster bearbeiten</button>
+        <h4 style="color:#ffb070;margin-top:20px">Mitgliedschaft</h4><div class="muted" style="font-size:12.5px;margin-bottom:8px">Zuerst gesehen von Guildy: 3. November</div><button class="ghost" style="color:#ff9a84">Aus der Gilde entfernen …</button></div></div>`,
+  };
+  document.getElementById("v3").innerHTML = `
+    <div class="panel hero">${portrait(ch, 112)}<h3 class="DRU">${ch.n}</h3><div class="title">„${ch.title}“</div>${idline(ch)}
+      <div class="idline muted" style="margin-top:4px">${RANKS[ch.rank]} · ${ch.zone} · <span style="color:#4ce64c">online</span></div>${badges}
+      <dl class="facts"><dt>Notiz</dt><dd>Der supergeile Ranfred</dd></dl><div style="width:100%;text-align:left;margin-top:10px"><div style="color:var(--gold);font-size:12.5px;margin-bottom:6px">${TWINKS.length} Twinks</div><div class="strip" id="strip3">${TWINKS.map(t => portrait(t, 30)).join("")}</div></div>
+      <div class="acts"><button class="btn">Flüstern</button><button class="btn">In Gruppe</button></div></div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div class="tabsrow"><button data-t="overview" class="${tab3 === "overview" ? "on" : ""}">Übersicht</button><button data-t="family" class="${tab3 === "family" ? "on" : ""}">Familie (${CHARS.length})</button><button data-t="officer" class="officer ${tab3 === "officer" ? "on" : ""}">Offiziere</button></div>
+      <div class="panel" style="flex:1;padding:10px;border-top-left-radius:0;display:flex;flex-direction:column;min-height:0">${panes[tab3]}</div></div>`;
+  document.querySelectorAll("#v3 .tabsrow button").forEach(b => b.onclick = () => { tab3 = b.dataset.t; render3(); });
+  document.querySelectorAll("#strip3 .portrait").forEach(p => p.onclick = () => { tab3 = "family"; render3(); });
+  document.querySelectorAll("#v3 .lad").forEach(r => r.onclick = () => { if (r.classList.contains("off") || r.classList.contains("cur")) return; target3 = +r.dataset.r; render3(); });
+  const ap = document.getElementById("apply3");
+  if (ap) ap.onclick = () => { if (target3 !== null) { say(`Ran Fred: ${RANKS[ch.rank]} → ${RANKS[target3]} (ein Klick)`); target3 = null; render3(); } };
+}
+
+const DESC = {
+  1: "<b>Twinks als Karten:</b> oben rechts ein Bereich „Familie“ mit einer kompakten Karte pro Twink (4 pro Reihe): Rasse als Porträt, Stufe, Klasse, Spezialisierung, zuletzt online und Berufe mit Skill. Klick öffnet die Seite des Twinks. <b>Offiziere</b> sitzen unten auf der Heldenkarte als schmale Leiste: „Rang: Haifutter“ öffnet die Rangleiter, daneben Notizen und Entfernen. Auch per Rechtsklick wie bisher.",
+  2: "<b>Familie als Reiter:</b> Main und Twinks sind Reiter über der Seite, ein Klick wechselt den Charakter an Ort und Stelle; daneben Familienwerte (Stufen zusammen, Berufe, Dungeons). Die Twinks sind damit am prominentesten. <b>Offiziere:</b> ein Knopf „Offiziere“ auf der Karte öffnet ein kleines Fenster mit Rangleiter, Notizen und Entfernen. Klick auf „Fred Frostfinger“ zeigt dessen Seite.",
+  3: "<b>Reiter mit Offiziersbereich:</b> Heldenkarte links bleibt immer stehen, rechts Reiter „Übersicht“, „Familie“ (alle Charaktere nebeneinander mit Berufen, Dungeons, Itemlevel) und, nur für Offiziere sichtbar, „Offiziere“ mit Rangleiter, Notizen und Entfernen. Offiziersaktionen sind so weg vom Alltag, aber ohne Rechtsklick erreichbar.",
+};
+const renders = { 1: render1, 2: render2, 3: render3 };
+function pick(v) {
+  document.querySelectorAll(".switch button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  document.querySelectorAll(".v").forEach(el => el.classList.toggle("on", el.id === "v" + v));
+  document.getElementById("vdesc").innerHTML = DESC[v];
+  document.querySelector(".pop")?.remove();
+  renders[v]();
+}
+document.querySelectorAll(".switch button").forEach(b => b.onclick = () => pick(b.dataset.v));
+document.addEventListener("click", e => { if (!e.target.closest(".pop")) document.querySelector(".pop")?.remove(); });
+pick("1");
+const tip = document.getElementById("tip");
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest("[data-tip]");
+  if (!t) { tip.style.display = "none"; return; }
+  const [a, b] = t.dataset.tip.split("|");
+  tip.innerHTML = `<b>${a}</b>${b || ""}`; tip.style.display = "block";
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px";
+  tip.style.top = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8) + "px";
+});
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@ local UI = ns.UI
 local RAIL_W, BOOK_W = 240, 300
 local RAIL_ROW, MEMBER_ROW, RECIPE_ROW = 44, 20, 20
 local BAR_W = 110
-local SKILL_SCALE = 300 -- the bar's full width: highest trainer cap of the game
+local SKILL_SCALE = W.SKILL_SCALE -- the bar's full width: highest trainer cap of the game (UI/Widgets.lua)
 local BOOK_ICON = "Interface\\Icons\\INV_Misc_Book_09"
 local UNKNOWN_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local DOT_ON, DOT_OFF = "Interface\\COMMON\\Indicator-Green", "Interface\\COMMON\\Indicator-Gray"
@@ -123,39 +123,8 @@ local function Groups()
   return groups
 end
 
--- Skill bar on the whole 0-300 scale: thin ticks at the trainer caps, the current cap shaded, the fill
--- bright gold when the member is at the cap of their rank
 local function SkillBar(parent)
-  local bar = CreateFrame("Frame", nil, parent)
-  bar:SetSize(BAR_W, 6)
-  bar.Track = bar:CreateTexture(nil, "BACKGROUND")
-  bar.Track:SetAllPoints()
-  bar.Track:SetColorTexture(0, 0, 0, 0.75)
-  bar.Cap = bar:CreateTexture(nil, "BORDER")
-  bar.Cap:SetPoint("TOPLEFT")
-  bar.Cap:SetPoint("BOTTOMLEFT")
-  bar.Cap:SetColorTexture(1, 1, 1, 0.07)
-  bar.Fill = bar:CreateTexture(nil, "ARTWORK")
-  bar.Fill:SetPoint("TOPLEFT")
-  bar.Fill:SetPoint("BOTTOMLEFT")
-  for i = 1, 3 do
-    local tick = bar:CreateTexture(nil, "OVERLAY")
-    tick:SetSize(1, 10)
-    tick:SetPoint("LEFT", BAR_W * i / 4, 0)
-    tick:SetColorTexture(1, 1, 1, 0.14)
-  end
-  function bar:SetSkill(rank, max)
-    local scale = math.max(SKILL_SCALE, max or 0)
-    self.Cap:SetShown(max ~= nil)
-    if max then self.Cap:SetWidth(math.max(1, BAR_W * math.min(max, scale) / scale)) end
-    self.Fill:SetWidth(math.max(1, BAR_W * math.min(rank, scale) / scale))
-    if max and rank >= max then
-      self.Fill:SetColorTexture(1, 0.85, 0.3, 1)
-    else
-      self.Fill:SetColorTexture(0.75, 0.56, 0.15, 1)
-    end
-  end
-  return bar
+  return W.SkillBar(parent, BAR_W)
 end
 
 local dotTextures

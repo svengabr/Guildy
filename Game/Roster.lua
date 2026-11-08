@@ -164,6 +164,13 @@ function Roster.Rights(m)
   return ns.Manage.Rights(m and m.rankIndex, MyRankIndex(), NumRanks(), Roster.Can(), isSelf)
 end
 
+-- Setting member m to rank newRank (GetGuildRosterInfo index): kind and steps, or nil (Manage.RankChange)
+function Roster.RankChange(m, newRank)
+  local myGuid = ns.Try(rawget(_G, "UnitGUID"), "player")
+  local isSelf = m ~= nil and ((myGuid and m.guid == myGuid) or m == Roster.Me())
+  return ns.Manage.RankChange(m and m.rankIndex, newRank, MyRankIndex(), NumRanks(), Roster.Can(), isSelf)
+end
+
 -- Debug: why rank actions are off for a member (/guildy rights Name)
 function Roster.DebugRights(name)
   local m = name and Roster.Find(name)

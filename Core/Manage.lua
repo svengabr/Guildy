@@ -33,3 +33,33 @@ function Manage.Command(kind, name)
   if not command or full == "" then return nil end
   return command .. " " .. full
 end
+
+-- Setting a rank directly: Forever only has /gpromote and /gdemote, one rank per command, so rank
+-- newRank from targetRank is that many commands in one secure click. Returns kind ("promote" or
+-- "demote") and the number of steps, or nil when the player may not set that rank: never onto or
+-- above the player's own rank, never for members at or above it, never below the lowest rank.
+function Manage.RankChange(targetRank, newRank, myRank, numRanks, can, isSelf)
+  if isSelf or type(targetRank) ~= "number" or type(newRank) ~= "number" or type(myRank) ~= "number"
+    or type(numRanks) ~= "number" then
+    return nil
+  end
+  can = can or {}
+  if newRank == targetRank or targetRank <= myRank or newRank <= myRank or newRank > numRanks - 1 then return nil end
+  if newRank < targetRank then
+    if not can.promote then return nil end
+    return "promote", targetRank - newRank
+  end
+  if not can.demote then return nil end
+  return "demote", newRank - targetRank
+end
+
+-- Macro text for steps commands of one kind, one per line; nil when it would not fit a macro (255)
+function Manage.Commands(kind, name, steps)
+  local command = Manage.Command(kind, name)
+  if not command or type(steps) ~= "number" or steps < 1 then return nil end
+  local lines = {}
+  for i = 1, steps do lines[i] = command end
+  local text = table.concat(lines, "\n")
+  if #text > 255 then return nil end
+  return text
+end

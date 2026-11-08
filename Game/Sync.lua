@@ -3,6 +3,8 @@
 --   PROF {m = name, p = {["171"] = ProfRec}}   records of one member
 --   SUM also carries s = {nameKey = statsTs}, STAT {m = name, s = StatRec} (Core/Stats.lua): statistics
 --   of one member, own or read nearby; older Guildy versions ignore both.
+--   SUM also carries f = {ownerKey = ts}, FAM {m = owner, f = FamilyRec} (Core/Family.lua): the characters
+--   a Guildy user has in the guild (main and twinks); sent only with settings.share, relayed like the rest.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
 --   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
@@ -22,6 +24,7 @@ local assembler = Proto.NewAssembler()
 local limiter = Proto.NewLimiter(30, 10)
 local seen = {}          -- nameKey -> newest ts seen on the channel (to skip duplicate offers)
 local seenStats = {}     -- same for statistics
+local seenFamilies = {}  -- same for families
 local warnedNewer = false
 local ownTimer
 local MAX_OFFERS = 25
@@ -64,7 +67,7 @@ end
 
 local function IsOwnKey(key)
   local db = ns.DB()
-  return db and db.ownChars and db.ownChars[key] or false
+  return (db and db.ownChars and db.ownChars[key]) and true or false
 end
 
 local function SendMember(key)
@@ -88,7 +91,33 @@ end
 
 function Sync.SendSummary()
   local guild = ns.GuildData()
-  if guild then Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild) }) end
+  if guild then Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild) }) end
+end
+
+-- The account's characters in this guild as the own family record (kept while they stay the same)
+local function UpdateOwnFamily()
+  local guild, db = ns.GuildData(), ns.DB()
+  if not guild or not db then return nil end
+  local keys, names = {}, {}
+  for _, m in ipairs(ns.Roster.Members()) do
+    keys[m.key] = true
+    names[m.key] = m.name
+  end
+  local me = ns.Names.Key(ns.PlayerName())
+  guild.families = type(guild.families) == "table" and guild.families or {}
+  local own = ns.Family.Own(db.ownChars, keys, names, guild.families[me], ns.Now())
+  if own then guild.families[me] = own end
+  return own
+end
+
+local function SendFamily(ownerKey)
+  local guild = ns.GuildData()
+  local rec = guild and type(guild.families) == "table" and guild.families[ownerKey]
+  if type(rec) ~= "table" or not rec.ts then return end
+  if IsOwnKey(ownerKey) and not ns.Settings().share then return end
+  local owner = guild.members[ownerKey] and guild.members[ownerKey].name or ownerKey
+  Send("FAM", { m = owner, f = ns.Family.Wire(rec) })
+  seenFamilies[ownerKey] = math.max(seenFamilies[ownerKey] or 0, rec.ts)
 end
 
 local function SendStats(key)
@@ -134,6 +163,19 @@ local function OnSummary(data, sender)
       SendMember(key)
     end)
   end
+  -- families the same way (older Guildy versions send no f)
+  if type(data.f) == "table" then
+    local myFamilies = ns.Family.Digest(guild)
+    local famOffers = P.Outdated(myFamilies, data.f)
+    for i = 1, math.min(#famOffers, MAX_OFFERS) do
+      local key = famOffers[i]
+      local myTs = myFamilies[key]
+      C_Timer.After(4 + math.random() * 6 + i * 0.3, function()
+        if (seenFamilies[key] or 0) >= myTs then return end
+        SendFamily(key)
+      end)
+    end
+  end
   -- statistics the same way (an older Guildy sends no s: then offer nothing, it can't use them)
   if type(data.s) ~= "table" then return end
   local myStats = ns.Stats.Digest(guild)
@@ -162,6 +204,17 @@ local function OnStats(data, sender)
   local key = ns.Names.Key(data.m)
   seenStats[key] = math.max(seenStats[key] or 0, record.ts)
   if ns.Stats.Merge(ns.Store.Member(guild, data.m), record) then ns.Fire("STATS") end
+end
+
+local function OnFamily(data)
+  local guild = ns.GuildData()
+  if not guild or type(data.m) ~= "string" then return end
+  if not ns.Roster.IsMember(data.m) and #ns.Roster.Members() > 0 then return end
+  local rec = ns.Family.Validate(data.f)
+  if not rec then return end
+  local key = ns.Names.Key(data.m)
+  seenFamilies[key] = math.max(seenFamilies[key] or 0, rec.ts)
+  if ns.Family.Merge(guild, data.m, rec) then ns.Fire("FAMILY") end
 end
 
 local function OnProfessions(data, sender)
@@ -221,7 +274,7 @@ local function OnHello(data)
   end)
 end
 
-local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, HI = OnHello }
+local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, HI = OnHello }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)
@@ -250,7 +303,11 @@ function Sync.Start()
   MarkUser(ns.PlayerName(), ns.Version())
   C_Timer.After(3 + math.random() * 3, function() ns.SafeCall(SendHello, true) end)
   C_Timer.After(10 + math.random() * 10, function()
+    ns.SafeCall(UpdateOwnFamily)
     ns.SafeCall(Sync.SendSummary)
-    if ns.Settings().share then SendMember(ns.Names.Key(ns.PlayerName())) end
+    if ns.Settings().share then
+      SendMember(ns.Names.Key(ns.PlayerName()))
+      SendFamily(ns.Names.Key(ns.PlayerName()))
+    end
   end)
 end

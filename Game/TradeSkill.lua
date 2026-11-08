@@ -87,7 +87,8 @@ local function OwnMember()
   local db = ns.DB()
   local me = ns.PlayerName()
   db.ownChars = db.ownChars or {}
-  db.ownChars[ns.Names.Key(me)] = true
+  local key = ns.Names.Key(me)
+  db.ownChars[key] = db.ownChars[key] or true
   return ns.Store.Member(guild, me)
 end
 

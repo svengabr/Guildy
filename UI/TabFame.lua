@@ -173,6 +173,10 @@ local function Icon(name)
   return W.TextureExists(path) and path or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
+-- shared with the character page (UI/CharacterPage.lua)
+UI.Fame = { DungeonIcon = DungeonIcon, DungeonTitle = DungeonTitle, DungeonKills = DungeonKills,
+  StatName = StatName, Format = Format, Icon = Icon }
+
 local function ShortDate(ts)
   local date = rawget(_G, "date") or os.date
   return date("%d.%m.", ts)
@@ -187,7 +191,7 @@ end
 
 local function Build(panel)
   local L = ns.L
-  local view = { period = ns.Settings().famePeriod or "all", page = Page(ns.Settings().famePage).key, mode = "home" }
+  local view = { period = ns.Settings().famePeriod or "all", page = S.PAGES[1].key, mode = "home" }
 
   -- top bar -------------------------------------------------------------------------------------
   local title = W.Text(panel, "GameFontNormalLarge", L.TAB_FAME)
@@ -207,7 +211,6 @@ local function Build(panel)
   for i, page in ipairs(S.PAGES) do pageOptions[i] = { value = page.key, text = L["FAME_PAGE_" .. page.key:upper()] } end
   view.Pages = W.Segmented(panel, pageOptions, function(value)
     view.page = value
-    ns.Settings().famePage = value
     view.mode = "home"
     view:Refresh()
   end)

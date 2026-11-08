@@ -19,8 +19,8 @@ read_globals = {
   "C_Timer", "C_TradeSkillUI", "Enum",
   "ACCEPT", "CANCEL", "YES", "NO",
   "BackdropTemplateMixin", "ClearOverrideBindings", "SetOverrideBindingClick", "ButtonFrameTemplate_HideButtonBar", "ChatFrameUtil", "ChatTypeInfo", "ClearCursor",
-  "CreateFrame", "DEFAULT_CHAT_FRAME", "GameTooltip", "GetCursorInfo", "GetGuildInfo", "GetGuildRosterInfo",
+  "CreateFrame", "DEFAULT_CHAT_FRAME", "GameTooltip", "GetCursorInfo", "GetCursorPosition", "IsMouseButtonDown", "GetGuildInfo", "GetGuildRosterInfo",
   "GetGuildRosterLastOnline", "GetLocale", "GetTime", "GetUnitName", "InCombatLockdown", "IsInGuild",
-  "IsShiftKeyDown", "PanelTemplates_SetNumTabs", "PanelTemplates_SetTab", "PanelTemplates_TabResize", "QuestTitleFont", "StaticPopup_Show", "UIParent", "UISpecialFrames",
-  "UnitExists", "UnitIsPlayer", "UnitIsUnit", "UnitName", "hooksecurefunc", "tinsert",
+  "IsShiftKeyDown", "IsControlKeyDown", "PanelTemplates_SetNumTabs", "PanelTemplates_SetTab", "PanelTemplates_TabResize", "QuestTitleFont", "StaticPopup_Show", "UIParent", "UISpecialFrames",
+  "UnitClass", "UnitExists", "UnitIsPlayer", "UnitIsUnit", "UnitLevel", "UnitName", "UnitRace", "UnitSex", "hooksecurefunc", "tinsert",
 }

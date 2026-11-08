@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mitglieder-Tab Varianten</title>
+<style>
+:root{--frame:#6b5631;--hi:#c9a24a;--bg:#16120e;--inset:#0d0b09;--line:#4a3d29;--gold:#ffd100;--text:#e6dcc4;--dim:#8f8268;--soft:#c8b98f;--grn:#4ce64c;--new:#ff8c40;
+  --r-murloc:#3fa7d6;--r-semi:#c46be0;--r-at:#e05050;--r-none:#5e5747}
+*{box-sizing:border-box}
+body{margin:0;background:#211a12;color:var(--text);font-family:"Palatino Linotype",Georgia,serif;padding:24px 16px 60px}
+::selection{background:#6b5631;color:#fff}
+.page{max-width:1500px;margin:0 auto}
+h1{color:var(--gold);font-weight:normal;font-size:24px;margin:0 0 6px}
+.lead{color:var(--soft);max-width:90ch;line-height:1.5;margin:0 0 14px}
+.switch{display:flex;gap:6px;flex-wrap:wrap}
+.switch button{background:#1d1711;border:1px solid var(--frame);color:var(--soft);border-radius:3px;padding:5px 14px;font:inherit;font-size:14px;cursor:pointer}
+.switch button.on{border-color:var(--hi);color:var(--gold);background:#2a2010}
+.vdesc{color:var(--soft);max-width:96ch;line-height:1.5;margin:8px 0 12px;min-height:3em}
+.vdesc b{color:var(--gold);font-weight:normal}
+.wow{position:relative;background:var(--bg);border:3px solid var(--frame);outline:1px solid #000;box-shadow:0 6px 22px rgba(0,0,0,.55);border-radius:7px;overflow:hidden}
+.wtitle{background:linear-gradient(#3b3023,#1f1912);color:var(--gold);text-align:center;padding:6px 0;font-size:14px;border-bottom:2px solid var(--frame)}
+.wbody{padding:10px;height:640px;display:flex;flex-direction:column;gap:8px}
+.v{display:none;flex:1;min-height:0;gap:10px}.v.on{display:flex}
+.panel{background:var(--inset);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 8px rgba(0,0,0,.8)}
+.muted{color:var(--dim)}
+.ic{display:inline-block;border-radius:3px;border:1px solid #000;background:#2a2219 center/cover no-repeat;flex:none;vertical-align:middle}
+.i14{width:14px;height:14px;border-radius:2px}.i16{width:16px;height:16px}.i18{width:18px;height:18px}.i22{width:22px;height:22px}
+.pt{display:inline-block;border-radius:50%;border:2px solid;background:#2a2219 center/cover no-repeat;flex:none;vertical-align:middle}
+.WAR{color:#C69B6D}.PAL{color:#F48CBA}.HUN{color:#AAD372}.ROG{color:#FFF468}.PRI{color:#FFFFFF}.SHA{color:#0070DD}.MAG{color:#3FC7EB}.WLK{color:#8788EE}.DRU{color:#FF7C0A}
+
+/* toolbar */
+.tb{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.search{background:#0d0b09;border:1px solid var(--line);border-radius:3px;color:var(--dim);padding:4px 10px;font:inherit;font-size:13px;width:220px}
+.dd{background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 26px 3px 12px;font:inherit;font-size:13px;position:relative;cursor:pointer}
+.dd:after{content:"";position:absolute;right:9px;top:10px;border:4px solid transparent;border-top-color:var(--gold)}
+.chip{background:#1d1711;border:1px solid var(--frame);color:var(--soft);border-radius:12px;padding:2px 11px;font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{border-color:var(--hi)}
+.chip.on{border-color:var(--hi);color:var(--gold);background:#2a2010}
+.chip.warn.on{border-color:var(--new);color:#ffb070;background:#2a1a10}
+.chip b{font-weight:normal;color:var(--gold)}
+.count{margin-left:auto;color:var(--dim);font-size:12.5px}
+
+/* table */
+.tbl{flex:1;min-width:0;display:flex;flex-direction:column}
+.thead,.tr{display:grid;align-items:center;gap:8px;padding:0 10px}
+.thead{height:26px;color:var(--gold);font-size:12.5px;border-bottom:1px solid var(--line)}
+.thead span{cursor:pointer}.thead span.sorted:after{content:" ▾"}
+.tbody{flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--hi) transparent}
+.tr{height:24px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.tr>*{overflow:hidden;text-overflow:ellipsis}
+.tr:nth-child(even){background:rgba(255,255,255,.025)}
+.tr:hover{background:rgba(255,209,0,.09)}
+.tr.sel{background:rgba(255,209,0,.17)}
+.tr.off{color:#9a9080}.tr.off .nm{opacity:.75}
+.tr .lv{text-align:right;color:var(--dim)}
+.nm{display:flex;align-items:center;gap:6px}
+.nm small{color:var(--dim);font-size:11px}
+.tw-in .nm{padding-left:18px;position:relative}
+.tw-in .nm:before{content:"";position:absolute;left:6px;top:-12px;bottom:11px;width:8px;border-left:1px solid #6b5631;border-bottom:1px solid #6b5631}
+.raid{display:inline-flex;align-items:center;gap:5px;font-size:12px}
+.raid i{width:8px;height:8px;border-radius:50%;display:block}
+.profs{display:flex;gap:8px;align-items:center}
+.profs span{display:flex;gap:3px;align-items:center}
+.online{color:var(--grn)}
+.gv{color:var(--grn)}
+.nonote{color:#ffb070;font-style:italic}
+.fam{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--dim)}
+
+/* preview */
+.prev{width:340px;flex:none;padding:16px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+.prev h3{margin:0;font-weight:normal;font-size:21px}
+.prev .facts{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12.5px;text-align:left;width:100%;margin-top:6px}
+.prev .facts dt{color:var(--gold)}.prev .facts dd{margin:0}
+.pb{display:flex;align-items:center;gap:6px;font-size:12px;width:100%}
+.pb .bar{flex:1;height:6px;background:#000;border-radius:3px;position:relative;overflow:hidden}
+.pb .bar i{position:absolute;left:0;top:0;bottom:0;background:#bf8f26}
+.pb .bar b{position:absolute;top:-2px;bottom:-2px;width:1px;background:rgba(255,255,255,.15)}
+.btn{background:linear-gradient(#a0170e,#560a05);border:1px solid var(--hi);color:var(--gold);border-radius:3px;padding:3px 14px;font:inherit;font-size:13px;cursor:pointer}
+.ghost{background:#1d1711;border:1px solid var(--frame);color:var(--gold);border-radius:3px;padding:3px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+.glance{width:100%;text-align:left;display:flex;flex-direction:column;gap:12px}
+.glance h4{margin:0 0 6px;color:var(--gold);font-weight:normal;font-size:13.5px}
+.stack{display:flex;height:12px;border-radius:6px;overflow:hidden;border:1px solid #000}
+.stack i{display:block;height:100%}
+.leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;margin-top:6px}
+.leg span{display:flex;align-items:center;gap:4px}.leg b{width:8px;height:8px;border-radius:2px;display:block}
+
+/* groups */
+.side{width:230px;flex:none;padding:12px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+.side h4{margin:0 0 6px;color:var(--gold);font-weight:normal;font-size:13px}
+.clsgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.clsgrid .ic{width:100%;height:auto;aspect-ratio:1;cursor:pointer;opacity:.4}
+.clsgrid .ic.on{opacity:1;box-shadow:0 0 0 1px var(--hi)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.groups{flex:1;min-width:0;overflow:auto;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--hi) transparent;display:flex;flex-direction:column;gap:10px}
+.grp{padding:10px 12px}
+.ghead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.ghead h3{margin:0;font-weight:normal;font-size:16px}
+.ghead .stack{flex:1;max-width:260px;height:8px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:5px}
+.mc{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid #2a2219;border-radius:4px;background:#120f0b;cursor:pointer;min-width:0}
+.mc:hover{border-color:var(--hi)}
+.mc.off{opacity:.6}
+.mc .nmw{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc .nmw small{display:block;color:var(--dim);font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.mc .dot{width:7px;height:7px;border-radius:50%;background:var(--grn);flex:none}
+.tip{position:fixed;z-index:60;max-width:280px;background:#0a0806;border:1px solid var(--hi);border-radius:4px;padding:6px 9px;font-size:12.5px;pointer-events:none;display:none;box-shadow:0 4px 12px rgba(0,0,0,.8)}
+.tip b{color:var(--gold);font-weight:normal;display:block}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Mitglieder-Tab: drei Versionen</h1>
+<p class="lead">Ohne die feste Detailspalte hat die Tabelle die volle Breite. Alle drei werten das neue Notiz-Format aus („Main, Murloc Raid“, „Alt, Ran Fred“): Raidgruppe als farbiges Abzeichen, Twinks hängen an ihrem Main. Der Filter „Ohne Notiz“ zeigt sofort, wen du noch anschreiben musst. Klick auf eine Zeile öffnet weiterhin die Charakterseite, Rechtsklick das Menü.</p>
+<div class="switch">
+  <button data-v="1" class="on">1 · Tabelle mit Familien</button>
+  <button data-v="2">2 · Tabelle mit Vorschau</button>
+  <button data-v="3">3 · Gruppen mit Filterleiste</button>
+</div>
+<p class="vdesc" id="vdesc"></p>
+<div class="wow">
+  <div class="wtitle">Murloc Mafia · Guildy</div>
+  <div class="wbody"><div class="v" id="v1"></div><div class="v" id="v2"></div><div class="v" id="v3"></div></div>
+</div>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+const IC = n => `https://wow.zamimg.com/images/wow/icons/large/${n}.jpg`;
+const ic = (n, s, tip) => `<span class="ic i${s}" style="background-image:url(${IC(n)})"${tip ? ` data-tip="${tip}"` : ""}></span>`;
+const CLS = { WAR:["classicon_warrior","Krieger","#C69B6D"], PAL:["classicon_paladin","Paladin","#F48CBA"], HUN:["classicon_hunter","Jäger","#AAD372"], ROG:["classicon_rogue","Schurke","#FFF468"], PRI:["classicon_priest","Priester","#FFFFFF"], SHA:["classicon_shaman","Schamane","#0070DD"], MAG:["classicon_mage","Magier","#3FC7EB"], WLK:["classicon_warlock","Hexenmeister","#8788EE"], DRU:["classicon_druid","Druide","#FF7C0A"] };
+const RACE = { NE_M:"nightelf_male", NE_F:"nightelf_female", HU_M:"human_male", HU_F:"human_female", DW_M:"dwarf_male", DW_F:"dwarf_female", GN_M:"gnome_male", GN_F:"gnome_female" };
+const PROF = { alch:["trade_alchemy","Alchemie"], herb:["spell_nature_naturetouchgrow","Kräuterkunde"], mine:["trade_mining","Bergbau"], smith:["trade_blacksmithing","Schmiedekunst"], skin:["inv_misc_pelt_wolf_01","Kürschnerei"], leather:["inv_misc_armorkit_17","Lederverarbeitung"], tail:["trade_tailoring","Schneiderei"], ench:["trade_engraving","Verzauberkunst"], eng:["trade_engineering","Ingenieurskunst"] };
+const RAIDS = { murloc:["Murloc","var(--r-murloc)"], semi:["Semi Progress","var(--r-semi)"], at:["Österreich","var(--r-at)"] };
+// [level, name, class, race, zone, rank, profs, online/last, guildy, note, officer note, ilvl]
+const RAW = [
+  [46,"Eziiria Ash","PAL","HU_F","Flusslande","Kaulquappe",[["mine",140],["smith",215]],"online","","Main, Semi Progress Raid","",41.2],
+  [40,"Eoy Goldcog","PRI","GN_M","Flusslande","Kaulquappe",[["tail",54],["ench",79]],"online","","Main, Österreich Raid","",36.0],
+  [40,"Wuzuw Goldencog","PRI","GN_M","Flusslande","Kaulquappe",[["tail",138],["ench",92]],"online","","Alt, Eoy Goldcog","",35.1],
+  [39,"Harad Flutbinder","SHA","DW_M","Tirisfal","Kaulquappe",[["skin",127],["leather",225]],"online","","","",34.0],
+  [39,"Swar Den","DRU","NE_M","Flusslande","Kaulquappe",[["herb",179],["alch",210]],"vor 6 Std.","","","",33.2],
+  [38,"Au Tsch","ROG","HU_M","Wald von Elwynn","Kaulquappe",[["skin",75],["leather",52]],"vor 1 Std.","","Main, Österreich Raid","",32.5],
+  [38,"Primal Tekk","DRU","NE_F","Desolace","Kaulquappe",[["herb",225],["alch",231]],"online","","Main, Murloc Raid","Herb/Alch Lieferant",33.0],
+  [38,"Seshi Sturmbringer","SHA","DW_F","Darnassus","Mrgl-Commander",[["skin",190],["leather",187]],"online","","Main, Murloc Raid","Raidlead Murloc",34.8],
+  [37,"Aguma Oida","DRU","NE_M","Schlingendorntal","Kaulquappe",[["skin",168],["leather",225]],"online","","","",31.9],
+  [37,"Carenio Inopinatus","PAL","HU_M","Schlingendorntal","Kaulquappe",[["mine",100],["smith",114]],"online","","Main, Österreich Raid","",31.0],
+  [37,"Nefiana Moonwhisper","HUN","NE_F","Schlingendorntal","Kaulquappe",[["mine",94],["smith",118]],"online","","Main, Semi Progress Raid","Tank Schmied/BB",32.2],
+  [36,"Eleza Blake","WLK","HU_F","Marschen von Dustwallow","Kaulquappe",[["tail",156],["ench",232]],"vor 9 Std.","","","",30.4],
+  [36,"Espe Shiverleaf","DRU","NE_F","Schlingendorntal","Kaulquappe",[["skin",110],["leather",210]],"online","","Main, Murloc Raid","",30.8],
+  [35,"Binia Zhyse","MAG","GN_F","Schlingendorntal","Kaulquappe",[["eng",200],["mine",157]],"online","0.3.5","Main, Semi Progress Raid","",31.7],
+  [35,"Makira Farron","PAL","HU_F","Sturmwind","Mrgl-Commander",[["mine",100],["smith",115]],"vor 7 Std.","","Main, Murloc Raid","Gildenbank",30.1],
+  [35,"Syd Syd","SHA","DW_M","Schlingendorntal","Don Murloc",[["alch",209],["herb",180]],"online","0.3.5","Main, Murloc Raid","",32.9],
+  [33,"Ran Fred","DRU","NE_M","Dämmerwald","Mrgl-Commander",[["alch",190],["herb",192]],"online","dev","Main, Murloc Raid","",30.3],
+  [32,"Stone Totem","SHA","DW_M","Schlingendorntal","Haifutter",[["alch",186],["herb",211]],"vor 8 Std.","","Alt, Syd Syd","",28.0],
+  [31,"Naughty One","WAR","HU_M","Sturmwind","Mrgl-Commander",[["mine",28]],"vor 9 Std.","","","",27.4],
+  [29,"Ariane Lalatoya","MAG","GN_F","Das Verlies","Haifutter",[["tail",85],["ench",122]],"online","","","",24.9],
+  [29,"Raven Blackk","WLK","HU_F","Rotkammgebirge","Haifutter",[["tail",84],["ench",121]],"online","","","",24.1],
+  [27,"Fredwild","HUN","NE_F","Sumpfland","Twink",[["skin",141],["leather",128]],"vor 1 Tg.","","Alt, Ran Fred","",25.1],
+  [24,"Fred Frostfinger","MAG","GN_M","Rotkammgebirge","Twink",[["tail",121],["ench",96]],"vor 2 Tg.","","Alt, Ran Fred","",22.8],
+  [24,"Lucky Striker","ROG","HU_M","Ausgrabungsstätte","Haifutter",[["eng",151],["mine",126]],"online","","","",22.0],
+  [12,"Ranfredo","WAR","DW_M","Loch Modan","Twink",[["mine",64],["skin",58]],"vor 5 Tg.","","Alt, Ran Fred","",10.2],
+];
+const MEMBERS = RAW.map(([lv, n, c, race, zone, rank, profs, last, gv, note, onote, ilvl]) => {
+  const t = note.toLowerCase();
+  const raid = t.includes("murloc") ? "murloc" : t.includes("semi") ? "semi" : t.includes("österreich") ? "at" : null;
+  const altOf = t.startsWith("alt,") ? note.slice(4).trim() : null;
+  return { lv, n, c, race, zone, rank, profs, last, on: last === "online", gv, note, onote, ilvl, raid, altOf, main: t.startsWith("main") };
+});
+const byName = Object.fromEntries(MEMBERS.map(m => [m.n, m]));
+MEMBERS.forEach(m => { if (m.altOf && byName[m.altOf]) { m.raidEff = byName[m.altOf].raid; (byName[m.altOf].alts ||= []).push(m); } });
+const NOTELESS = MEMBERS.filter(m => !m.note).length;
+const portrait = (m, s) => `<span class="pt" style="width:${s}px;height:${s}px;border-color:${CLS[m.c][2]};background-image:url(${IC("achievement_character_" + RACE[m.race])})"></span>`;
+const raidBadge = (r, dim) => r ? `<span class="raid"${dim ? ' style="opacity:.6"' : ""}><i style="background:${RAIDS[r][1]}"></i>${RAIDS[r][0]}</span>` : `<span class="muted">–</span>`;
+const profsHtml = m => `<span class="profs">${m.profs.map(([k, v]) => `<span>${ic(PROF[k][0], 14, PROF[k][1] + "|" + v)}${v}</span>`).join("")}</span>`;
+const noteHtml = m => m.note ? m.note : `<span class="nonote">keine Notiz</span>`;
+const state = { noNote:false, online:false, fold:false, sel:"Ran Fred", hover:null, group:"raid", cls:new Set(Object.keys(CLS)), raidF:null };
+const visible = () => MEMBERS.filter(m => (!state.noNote || !m.note) && (!state.online || m.on) && state.cls.has(m.c) && (!state.raidF || (m.raid || m.raidEff) === state.raidF));
+const toolbar = extra => `<div class="tb"><input class="search" placeholder="Name, Zone, Notiz suchen …"><button class="dd">Klasse</button><button class="dd">Stufe</button><button class="dd">Beruf</button><button class="dd">Raid</button>
+  <button class="chip ${state.online ? "on" : ""}" data-t="online">Nur online</button><button class="chip warn ${state.noNote ? "on" : ""}" data-t="noNote">Ohne Notiz <b>${NOTELESS}</b></button>${extra || ""}
+  <span class="count">${visible().length} von 95 angezeigt</span></div>`;
+
+// ---------- 1 ----------
+function render1() {
+  const cols = "28px minmax(170px,1.3fr) 110px 120px 150px 54px 150px 90px 46px minmax(150px,1.2fr) minmax(130px,1fr)";
+  let rows = visible();
+  if (!state.noNote) {
+    const order = [];
+    rows.filter(m => !m.altOf || !byName[m.altOf]).forEach(m => { order.push(m); if (!state.fold) (m.alts || []).forEach(a => { if (rows.includes(a)) order.push({ ...a, child: true }); }); });
+    rows = order;
+  }
+  document.getElementById("v1").innerHTML = `<div class="tbl" style="gap:8px">${toolbar(`<button class="chip ${state.fold ? "on" : ""}" data-t="fold">Twinks einklappen</button>`)}
+    <div class="panel tbl"><div class="thead" style="grid-template-columns:${cols}"><span class="sorted">St.</span><span>Name</span><span>Rang</span><span>Raid</span><span>Berufe</span><span>iLvl</span><span>Zone</span><span>Zuletzt</span><span>Guildy</span><span>Notiz</span><span>Offiziersnotiz</span></div>
+    <div class="tbody">${rows.map(m => `<div class="tr ${m.on ? "" : "off"} ${m.child ? "tw-in" : ""}" style="grid-template-columns:${cols}" data-tip="${m.n}|Klick: Charakterseite · Rechtsklick: Menü">
+      <span class="lv">${m.lv}</span>
+      <span class="nm">${ic(CLS[m.c][0], 16)}<span class="${m.c}">${m.n}</span>${!m.child && m.alts && state.fold ? `<span class="fam">+${m.alts.length} ${m.alts.map(a => portrait(a, 14)).join("")}</span>` : ""}${m.child ? "<small>Twink</small>" : ""}</span>
+      <span>${m.rank}</span><span>${raidBadge(m.raid || m.raidEff, !m.raid)}</span><span>${profsHtml(m)}</span><span class="muted">${String(m.ilvl).replace(".", ",")}</span>
+      <span>${m.zone}</span><span class="${m.on ? "online" : ""}">${m.last}</span><span class="gv">${m.gv}</span><span>${noteHtml(m)}</span><span class="muted">${m.onote}</span></div>`).join("")}</div></div></div>`;
+}
+
+// ---------- 2 ----------
+function render2() {
+  const cols = "28px minmax(170px,1.4fr) 110px 120px 150px 100px minmax(120px,1fr)";
+  const rows = visible();
+  const p = byName[state.hover || state.sel];
+  const fam = p ? (p.altOf ? [byName[p.altOf], ...(byName[p.altOf].alts || [])].filter(x => x && x !== p) : (p.alts || [])) : [];
+  const caps = [75, 150, 225];
+  const prev = p ? `${portrait(p, 92)}<h3 class="${p.c}">${p.n}</h3><div class="muted" style="font-size:12.5px">${ic(CLS[p.c][0], 16)} Stufe ${p.lv} ${CLS[p.c][1]} · ${p.rank}</div>
+      <div>${raidBadge(p.raid || p.raidEff)}</div>
+      <dl class="facts"><dt>Zone</dt><dd>${p.zone}</dd><dt>Zuletzt</dt><dd class="${p.on ? "online" : ""}">${p.last}</dd><dt>Notiz</dt><dd>${noteHtml(p)}</dd><dt>Offiziersnotiz</dt><dd>${p.onote || "–"}</dd><dt>Ø Itemlevel</dt><dd>${String(p.ilvl).replace(".", ",")}</dd></dl>
+      <div style="width:100%;text-align:left;margin-top:6px">${p.profs.map(([k, v]) => `<div class="pb" style="margin-bottom:5px">${ic(PROF[k][0], 16)}<span style="width:104px">${PROF[k][1]}</span><span class="bar"><i style="width:${v / 300 * 100}%"></i>${caps.map(c => `<b style="left:${c / 3}%"></b>`).join("")}</span><span class="muted" style="width:30px;text-align:right">${v}</span></div>`).join("")}</div>
+      ${fam.length ? `<div style="width:100%;text-align:left;margin-top:4px"><div style="color:var(--gold);font-size:12.5px;margin-bottom:4px">Familie</div><div style="display:flex;gap:4px">${fam.map(f => `<span data-tip="${f.n}|${CLS[f.c][1]} ${f.lv}">${portrait(f, 28)}</span>`).join("")}</div></div>` : ""}
+      <div style="display:flex;gap:6px;margin-top:auto"><button class="btn">Charakterseite</button><button class="ghost">Flüstern</button><button class="ghost">Gruppe</button></div>` : "";
+  document.getElementById("v2").innerHTML = `<div class="tbl" style="gap:8px">${toolbar()}
+      <div class="panel tbl"><div class="thead" style="grid-template-columns:${cols}"><span class="sorted">St.</span><span>Name</span><span>Rang</span><span>Raid</span><span>Berufe</span><span>Zuletzt</span><span>Notiz</span></div>
+      <div class="tbody">${rows.map(m => `<div class="tr ${m.on ? "" : "off"} ${m.n === state.sel ? "sel" : ""}" style="grid-template-columns:${cols}" data-n="${m.n}">
+        <span class="lv">${m.lv}</span><span class="nm">${ic(CLS[m.c][0], 16)}<span class="${m.c}">${m.n}</span>${m.altOf ? `<small>Twink von ${m.altOf}</small>` : ""}</span>
+        <span>${m.rank}</span><span>${raidBadge(m.raid || m.raidEff, !m.raid)}</span><span>${profsHtml(m)}</span><span class="${m.on ? "online" : ""}">${m.last}</span><span>${noteHtml(m)}</span></div>`).join("")}</div></div></div>
+    <div class="panel prev">${prev}</div>`;
+  document.querySelectorAll("#v2 .tr").forEach(r => {
+    r.onmouseenter = () => { state.hover = r.dataset.n; renderPrev(); };
+    r.onclick = () => { state.sel = r.dataset.n; state.hover = null; render2(); };
+  });
+  document.querySelector("#v2 .tbody").onmouseleave = () => { state.hover = null; renderPrev(); };
+  function renderPrev() { const scroll = document.querySelector("#v2 .tbody").scrollTop; render2(); document.querySelector("#v2 .tbody").scrollTop = scroll; }
+}
+
+// ---------- 3 ----------
+function stackOf(list) {
+  const counts = {}; list.forEach(m => counts[m.c] = (counts[m.c] || 0) + 1);
+  return `<div class="stack">${Object.entries(counts).map(([c, n]) => `<i style="width:${n / list.length * 100}%;background:${CLS[c][2]}" data-tip="${CLS[c][1]}|${n}"></i>`).join("")}</div>`;
+}
+function render3() {
+  const rows = visible();
+  const keyOf = { raid: m => m.raid || m.raidEff || "none", rank: m => m.rank, family: m => m.altOf || (m.alts ? m.n : "solo"), zone: m => m.zone };
+  const label = { raid: k => k === "none" ? "Ohne Raidgruppe" : RAIDS[k][0] + " Raid", rank: k => k, family: k => k === "solo" ? "Ohne Familie" : "Familie " + k, zone: k => k };
+  const groups = {};
+  rows.forEach(m => (groups[keyOf[state.group](m)] ||= []).push(m));
+  const order = Object.keys(groups).sort((a, b) => (a === "none" || a === "solo") - (b === "none" || b === "solo") || groups[b].length - groups[a].length);
+  document.getElementById("v3").innerHTML = `
+    <div class="panel side">
+      <input class="search" style="width:100%" placeholder="Suchen …">
+      <div><h4>Status</h4><div class="chips"><button class="chip ${state.online ? "on" : ""}" data-t="online">Nur online</button><button class="chip warn ${state.noNote ? "on" : ""}" data-t="noNote">Ohne Notiz <b>${NOTELESS}</b></button><button class="chip">Guildy-Nutzer</button></div></div>
+      <div><h4>Klassen</h4><div class="clsgrid">${Object.keys(CLS).map(c => `<span class="ic ${state.cls.has(c) ? "on" : ""}" data-c="${c}" style="background-image:url(${IC(CLS[c][0])})" data-tip="${CLS[c][1]}|${MEMBERS.filter(m => m.c === c).length} Mitglieder"></span>`).join("")}</div></div>
+      <div><h4>Raidgruppe</h4><div class="chips">${Object.entries(RAIDS).map(([k, [n, col]]) => `<button class="chip ${state.raidF === k ? "on" : ""}" data-r="${k}"><i style="width:8px;height:8px;border-radius:50%;background:${col};display:block"></i>${n}</button>`).join("")}</div></div>
+      <div><h4>Stufe</h4><div class="chips"><button class="chip">1–19</button><button class="chip">20–29</button><button class="chip">30–39</button><button class="chip">40–49</button><button class="chip">50–60</button></div></div>
+      <div><h4>Beruf</h4><div class="chips">${Object.values(PROF).map(([i, n]) => `<button class="chip" style="padding:2px 6px" data-tip="${n}|">${ic(i, 16)}</button>`).join("")}</div></div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+      <div class="tb"><span class="muted" style="font-size:12.5px">Gruppieren nach</span>${[["raid","Raid"],["rank","Rang"],["family","Familie"],["zone","Zone"]].map(([k, n]) => `<button class="chip ${state.group === k ? "on" : ""}" data-g="${k}">${n}</button>`).join("")}<span class="count">${rows.length} von 95 angezeigt</span></div>
+      <div class="groups">${order.map(k => {
+        const list = groups[k], on = list.filter(m => m.on).length;
+        return `<div class="panel grp"><div class="ghead"><h3 style="color:${state.group === "raid" && k !== "none" ? RAIDS[k][1] : "var(--gold)"}">${label[state.group](k)}</h3><span class="muted" style="font-size:12.5px">${list.length} · <span class="online">${on} online</span></span>${stackOf(list)}</div>
+          <div class="cards">${list.map(m => `<div class="mc ${m.on ? "" : "off"}" data-tip="${m.n}|${m.note || "keine Notiz"}">${portrait(m, 30)}<div class="nmw"><span class="${m.c}">${m.n}</span><small>${m.lv} ${CLS[m.c][1]} · ${m.altOf ? "Twink von " + m.altOf : m.zone}</small></div>${profsHtml(m)}${m.on ? '<span class="dot"></span>' : ""}</div>`).join("")}</div></div>`;
+      }).join("")}</div>
+    </div>`;
+  document.querySelectorAll("#v3 [data-g]").forEach(b => b.onclick = () => { state.group = b.dataset.g; render3(); });
+  document.querySelectorAll("#v3 .clsgrid .ic").forEach(b => b.onclick = () => { state.cls.has(b.dataset.c) ? state.cls.delete(b.dataset.c) : state.cls.add(b.dataset.c); render3(); });
+  document.querySelectorAll("#v3 [data-r]").forEach(b => b.onclick = () => { state.raidF = state.raidF === b.dataset.r ? null : b.dataset.r; render3(); });
+}
+
+const DESC = {
+  1: "<b>Tabelle mit Familien:</b> die gewohnte Tabelle, aber mit allen Infos in einer Zeile: Klassen-Icon, Raidgruppe als Abzeichen, Berufe mit Skill, Ø Itemlevel, Notiz und Offiziersnotiz. Twinks hängen eingerückt unter ihrem Main (oder eingeklappt als „+3“ mit Mini-Porträts). Twinks erben das Raid-Abzeichen ihres Mains (blasser). Fehlende Notizen stehen orange als „keine Notiz“.",
+  2: "<b>Tabelle mit Vorschau:</b> weniger Spalten, dafür rechts eine Vorschau, die beim Überfahren einer Zeile mitläuft: Porträt, Raid, Notizen, Berufe mit Balken, Familie. Ein Klick hält die Vorschau fest, „Charakterseite“ öffnet die ganze Seite. Schnelles Durchblättern ohne Seitenwechsel. Fahr mit der Maus über die Zeilen.",
+  3: "<b>Gruppen mit Filterleiste:</b> links alle Filter als Schalter (Status, Klassen als Icons, Raidgruppe, Stufe, Beruf), rechts die Mitglieder als kleine Karten in Gruppen: nach Raid, Rang, Familie oder Zone, jede Gruppe mit Online-Zahl und Klassenverteilung. Gut für „wer ist im Murloc-Raid und was fehlt“. Probier „Gruppieren nach“ und die Klassen-Icons.",
+};
+const renders = { 1: render1, 2: render2, 3: render3 };
+let cur = "1";
+function pick(v) { cur = v; document.querySelectorAll(".switch button").forEach(b => b.classList.toggle("on", b.dataset.v === v)); document.querySelectorAll(".v").forEach(el => el.classList.toggle("on", el.id === "v" + v)); document.getElementById("vdesc").innerHTML = DESC[v]; renders[v](); }
+document.querySelectorAll(".switch button").forEach(b => b.onclick = () => pick(b.dataset.v));
+document.addEventListener("click", e => { const t = e.target.closest("[data-t]"); if (!t) return; state[t.dataset.t] = !state[t.dataset.t]; renders[cur](); });
+pick("1");
+const tip = document.getElementById("tip");
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest("[data-tip]");
+  if (!t) { tip.style.display = "none"; return; }
+  const [a, b] = t.dataset.tip.split("|"); tip.innerHTML = `<b>${a}</b>${b || ""}`; tip.style.display = "block";
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8) + "px";
+});
+</script>
+</body>
+</html>

@@ -96,6 +96,8 @@ env.C_Timer = {
   NewTicker = function() return { Cancel = function() end } end,
 }
 env.tinsert = table.insert
+env.GetCursorPosition = function() return 100, 100 end
+env.IsMouseButtonDown = function() return false end
 local SECRET = setmetatable({}, { __index = function() error("secret value inspected") end })
 env.issecretvalue = function(v) return v == SECRET end
 env.SetOverrideBindingClick = function(_, _, key, button) boundKeys[key] = button end
@@ -109,8 +111,13 @@ env.GetGuildInfo = function() return "Murloc Mafia", "Haifutter", 1 end
 env.GetNormalizedRealmName = function() return "Forever" end
 env.UnitName = function() return "Ran", "Fred" end
 env.UnitExists = function() return false end
+env.UnitClass = function() return "Magier", "MAGE" end
+env.UnitLevel = function() return 33 end
+env.UnitRace = function() return "Gnom", "Gnome" end
+env.UnitSex = function() return 3 end
 env.InCombatLockdown = function() return false end
 env.IsShiftKeyDown = function() return false end
+env.IsControlKeyDown = function() return false end
 env.hooksecurefunc = function() end
 env.geterrorhandler = function() return function(err) errors[#errors + 1] = tostring(err) end end
 env.StaticPopup_Show = function() end
@@ -286,6 +293,26 @@ T.describe("Smoke", function()
     T.eq(ns.Sync.UserVersion("Au Tsch"), "0.1.0")
     for _, part in ipairs(P.Chunk("h2", P.Encode("HI", {}))) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Xii-Lightspark") end
     T.eq(ns.Sync.UserVersion("Xii Lightspark"), "")
+    -- families: a Guildy user shares their characters in the guild
+    local fam = P.Encode("FAM", { m = "Makira Farron", f = { ts = 1800000000, c = { "Makira Farron", "Au Tsch" } } })
+    for _, part in ipairs(P.Chunk("f1", fam)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end
+    T.eq(ns.GuildData().families["makira farron"].chars, { "Makira Farron", "Au Tsch" })
+    local makira = ns.Roster.Find("Makira Farron")
+    T.truthy(makira, "Makira in the roster")
+    T.eq(#ns.Family.Of(makira.key, ns.Roster.Members(), ns.GuildData().families, {}), 1)
+    ns.UI.ShowMember(makira) -- the character page with a family card
+    ns.UI.Hide()
+    ns.UI.Show() -- comes back to the page within the session
+    ns.UI.SelectTab("chat")
+    -- members tab: twinks under their main, folded, without note, by group and item level
+    ns.UI.SelectTab("members")
+    local mv = ns.UI.TabView("members")
+    for _, setup in ipairs({ { noNote = true }, { noOfficerNote = true }, { fold = true, sort = "group" }, { sort = "ilvl" }, { sort = "level" } }) do
+      mv.noNote, mv.noOfficerNote, mv.fold = setup.noNote, setup.noOfficerNote, setup.fold
+      mv.sort = setup.sort or "level"
+      mv:Refresh()
+    end
+    ns.UI.SelectTab("chat")
     ns.UI.Show()
     ns.UI.SelectTab("members")
     local members = ns.UI.TabView("members")
@@ -309,6 +336,8 @@ T.describe("Smoke", function()
     ns.UI.Hide()
     ns.UI.Show()
     T.eq(ns.UI.Current(), "professions") -- opening comes back to the last tab
+    T.eq(ns.Settings().lastTab, nil) -- only within the session: a login or reload starts on chat
+    T.eq(ns.Store.Init({ settings = { lastTab = "fame", famePage = "pvp" } }).settings.lastTab, nil)
     local A = ns.UI.Action
     env.GuildMicroButton = env.CreateFrame("Button", "GuildMicroButton")
     T.eq(A.BlizzardWindow().click, env.GuildMicroButton)
@@ -321,6 +350,94 @@ T.describe("Smoke", function()
     T.eq(ns.UI.InviteAction().click, invite)
     ns.UI.ShowOverlay(env.UIParent, A.BlizzardWindow())
     RunTimers()
+    T.eq(errors, {})
+  end)
+
+  T.it("reads the whole club history and asks for older messages at the top", function()
+    local saved, requested = env.C_Club, nil
+    local function Id(n) return { epoch = (1800000000 + n) * 1000000, position = n } end
+    local messages = {}
+    for n = 1, 400 do
+      messages[n] = { messageId = Id(n), content = "line " .. n, author = { name = "Au-Tsch", classID = 2 } }
+    end
+    env.C_Club = {
+      GetGuildClubId = function() return 7 end,
+      GetStreams = function() return { { streamId = 1, streamType = 1 } } end,
+      -- newest range first, an old cached piece after it (the order seen in a real guild)
+      GetMessageRanges = function()
+        return { { oldestMessageId = Id(1), newestMessageId = Id(400) }, { oldestMessageId = Id(-50), newestMessageId = Id(-40) } }
+      end,
+      GetMessagesInRange = function(_, _, oldest) return oldest.position == 1 and messages or {} end,
+      IsBeginningOfStream = function() return false end,
+      RequestMoreMessagesBefore = function(_, _, before, count) requested = { before = before, count = count } end,
+    }
+    local lines = ns.Chat.History("guild")
+    T.truthy(#lines >= 400, "all messages of the range")
+    T.eq(lines[#lines].ts, 1800000400)
+    T.truthy(ns.Chat.LoadOlder("guild"))
+    T.eq(requested.before.position, 1)
+    requested = nil
+    ns.Chat.LoadOlder("guild")
+    T.eq(requested, nil) -- one request at a time
+    ns.Chat.OnHistoryReceived()
+    env.C_Club.IsBeginningOfStream = function() return true end
+    T.eq(ns.Chat.LoadOlder("guild"), false)
+    -- "new since your last login": a reload keeps the mark of the session before
+    local Chat = ns.Chat
+    T.eq(Chat.InitSeen({}, 5000), nil)
+    T.eq(Chat.InitSeen({ lastLogout = 1000, seenMark = 400 }, 5000), 1000)
+    T.eq(Chat.InitSeen({ lastLogout = 4900, seenMark = 1000 }, 5000), 1000)
+    local settings = {}
+    Chat.OnLogout(settings, 1800000300)
+    T.eq(Chat.InitSeen(settings, 1800009000), 1800000300)
+    ns.UI.Show()
+    ns.UI.SelectTab("chat")
+    ns.UI.TabView("chat"):RenderChat() -- line 300 of 400 is the last seen one
+    T.eq(Chat.HistoryState("guild"), "start")
+    -- character page, member menu with ranks, back to the tab
+    local member = ns.Roster.Members()[1]
+    T.truthy(member, "a roster member")
+    ns.UI.ShowMember(member)
+    T.truthy(ns.UI.MemberPage(), "page built")
+    ns.UI.MemberPage():Render()
+    -- the account's characters in other guilds (account tab) and the page of one of them
+    local db = ns.DB()
+    db.ownChars = db.ownChars or {}
+    db.ownChars[member.key] = db.ownChars[member.key] or true
+    db.ownChars["drache"] = { name = "Drache", classFile = "WARLOCK", level = 3, raceFile = "Human", guild = "Katzen",
+      guildKey = "Katzen@Forever", seen = 0 }
+    db.guilds["Katzen@Forever"] = { members = { drache = { stats = {}, profs = {} } } }
+    ns.UI.MemberPage():Render()
+    -- and the page of that character, from its own guild's data
+    local elsewhere = ns.Family.OwnElsewhere(db.ownChars, { [member.key] = true }, 3600)
+    T.eq(elsewhere[1] and elsewhere[1].name, "Drache")
+    ns.UI.ShowMember(elsewhere[1], true)
+    T.eq(ns.UI.MemberPage().member.name, "Drache")
+    ns.UI.ShowMember(member, true) -- an own character in this guild, seen from the account
+    ns.UI.ShowMember(member)
+    ns.UI.MemberMenu(member)
+    ns.UI.CopyText(member.name)
+    ns.UI.ConfirmRemove(member)
+    ns.UI.Action.SetRank(member, 0)
+    ns.UI.SelectTab("members")
+    ns.UI.SelectTab("chat")
+    -- account tab in the guild, then without a guild: only the account tab, back to chat on joining
+    ns.UI.SelectTab("account")
+    T.eq(ns.UI.Current(), "account")
+    ns.UI.SelectTab("chat")
+    env.IsInGuild = function() return false end
+    ns.Fire("GUILD")
+    T.eq(ns.UI.Current(), "account")
+    ns.UI.SelectTab("members")
+    T.eq(ns.UI.Current(), "account")
+    ns.UI.Hide()
+    ns.UI.Show()
+    T.eq(ns.UI.Current(), "account")
+    env.IsInGuild = function() return true end
+    ns.Fire("GUILD")
+    T.eq(ns.UI.Current(), "chat")
+    Chat.InitSeen({}, 0)
+    env.C_Club = saved
     T.eq(errors, {})
   end)
 end)
