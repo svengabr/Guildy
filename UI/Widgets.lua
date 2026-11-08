@@ -132,13 +132,13 @@ function W.Button(parent, text, onClick, width, opts)
     if opts.maxWidth then label:SetWidth(0) end -- measure the full text
     local textWidth = label:GetStringWidth()
     if not textWidth then return end
-    local width = math.max(base, math.ceil(textWidth) + pad)
-    if opts.maxWidth and width > opts.maxWidth then
-      width = opts.maxWidth
+    local fitted = math.max(base, math.ceil(textWidth) + pad)
+    if opts.maxWidth and fitted > opts.maxWidth then
+      fitted = opts.maxWidth
       label:SetWordWrap(false)
-      label:SetWidth(width - pad)
+      label:SetWidth(fitted - pad)
     end
-    button:SetWidth(width)
+    button:SetWidth(fitted)
   end
   if hooksecurefunc then hooksecurefunc(button, "SetText", Fit) end
   button:SetText(text)
