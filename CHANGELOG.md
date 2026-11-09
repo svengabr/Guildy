@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.1
+## 0.6.2
 
 Hotfix for the members tab at the smallest window size.
 
