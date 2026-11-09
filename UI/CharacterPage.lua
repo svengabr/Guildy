@@ -375,12 +375,10 @@ local function Build()
   hero.Whisper = W.Button(hero, L.WHISPER, function() if page.member then UI.Whisper(page.member.fullName) end end, 110)
   hero.Invite = W.Button(hero, L.GROUP_INVITE_SHORT, function() if page.member then ns.Roster.GroupInvite(page.member) end end, 110)
 
-  -- officer bar: the rank button opens the rank ladder (UI/RankLadder.lua), notes, removal
+  -- officer bar: removal (rank and notes are in Blizzard's own member panel beside the page,
+  -- UI/Notes.lua)
   hero.OfficerLabel = W.Text(hero, "GameFontNormalSmall", L.OFFICERS)
   hero.OfficerLabel:SetTextColor(0.85, 0.5, 0.25)
-  hero.Rank = W.DropButton(hero, "", function(self) UI.RankLadder.Toggle(self, page.member) end, 166, HERO_WIDTH - 24)
-  hero.NotesButton = W.Button(hero, L.NOTES_SHORT, nil, 80, { small = true })
-  UI.SecureAction(hero.NotesButton, UI.Action.BlizzardWindow, L.NOTES_TIP)
   hero.Remove = W.Button(hero, L.REMOVE_SHORT, function()
     local m = page.member
     UI.ConfirmRemove(m)
@@ -521,24 +519,17 @@ local function Build()
     end
 
     -- the account's characters in other guilds: no rank, no notes, nothing to do from here
-    local officer = not m.elsewhere and (can.promote or can.demote or can.remove or can.editPublic or can.editOfficer)
+    local officer = not m.elsewhere and can.remove
     hero.OfficerLabel:SetShown(officer)
-    hero.Rank:SetShown(officer and (can.promote or can.demote))
-    hero.Rank:SetText(L.RANK_BUTTON:format(m.rank or "?"))
-    hero.NotesButton:SetShown(officer and (can.editPublic or can.editOfficer))
     hero.Remove:SetShown(officer and can.remove)
     hero.Remove:SetEnabled(not m.elsewhere and ns.Roster.Rights(m).remove or false)
     local y = 10
     if officer then
-      hero.Rank:ClearAllPoints()
-      hero.Rank:SetPoint("BOTTOMLEFT", 12, y + 26)
-      hero.NotesButton:ClearAllPoints()
-      hero.NotesButton:SetPoint("BOTTOMLEFT", 12, y)
       hero.Remove:ClearAllPoints()
-      hero.Remove:SetPoint("LEFT", hero.NotesButton, "RIGHT", 6, 0)
+      hero.Remove:SetPoint("BOTTOMLEFT", 12, y)
       hero.OfficerLabel:ClearAllPoints()
-      hero.OfficerLabel:SetPoint("BOTTOMLEFT", 14, y + 54)
-      y = y + 76
+      hero.OfficerLabel:SetPoint("BOTTOMLEFT", 14, y + 28)
+      y = y + 50
     end
     hero.Whisper:ClearAllPoints()
     hero.Whisper:SetPoint("BOTTOMRIGHT", hero, "BOTTOM", -3, y)
@@ -548,6 +539,7 @@ local function Build()
     hero.Invite:SetShown(not m.elsewhere)
     hero.Whisper:SetEnabled(m.online or false)
     hero.Invite:SetEnabled(m.online or false)
+    UI.Notes.Show(m)
   end
 
   function page:RenderFamily(m)
@@ -726,9 +718,10 @@ local function Build()
     local rec = self:RenderStats(m, entries)
     self:RenderDungeons(rec)
     self:RenderProfs(m)
-    UI.RankLadder.Sync(m)
   end
-  page:SetScript("OnHide", function() UI.RankLadder.Hide() end)
+  page:SetScript("OnHide", function()
+    UI.Notes.Hide()
+  end)
   page:SetScript("OnSizeChanged", function(self) if self.member and self:IsShown() then self:Render() end end)
 
   for _, event in ipairs({ "ROSTER", "PROFS", "STATS", "FAMILY" }) do

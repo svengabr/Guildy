@@ -1,17 +1,32 @@
--- The Guildy window: ButtonFrameTemplate with portrait, a narrow icon bar on the left (guild,
--- Blizzard communities), the tab content area and bottom tabs. Resizable via a grip; size and
--- position are saved. Opening selects the tab that was open last in this session; every login or
--- reload starts on the chat tab.
+-- The Guildy window: ButtonFrameTemplate with portrait, side tabs, the tab content area and bottom
+-- tabs. Resizable via a grip; size and position are saved. Opening selects the tab that was open last
+-- in this session; every login or reload starts on the chat tab.
+--
+-- Guildy lives inside Blizzard's guild window (CommunitiesFrame): J, the guild micro button and
+-- Escape open and close Blizzard's window as always, and Guildy's window is a child of it, drawn on
+-- top while Blizzard's own drawing is at alpha 0. Blizzard's window lies under Guildy's (same top left
+-- corner, covered by it) at a lower frame level. So Blizzard's own frames (note boxes, invite button, text
+-- editor) are part of the same window and can be laid over Guildy's controls: on Forever the parts of
+-- a window are drawn and hit at the strata of the window itself, so a Blizzard frame could never lie
+-- over a separate Guildy window (found in game 2026-11-09). Blizzard's window is only ever opened and
+-- closed by Blizzard's own code (key binding, micro button, its close button), so it stays untainted.
 local _, ns = ...
 local W = ns.Widgets
 
 local UI = {}
 ns.UI = UI
 
+-- Guildy's frame level above Blizzard's window: above all of its parts (its chat edit box sits at 1200,
+-- the member panel at 1000), so none of them catches a click meant for Guildy
+local LEVEL_ABOVE_HOST = 1300
+
 local tabs = {}      -- {key, label, builder, button, panel, view}
 local byKey = {}
 local frame
 local current
+local blizzardMode -- the player asked for Blizzard's own window (UI.ShowBlizzard) until it closes
+local placingHost  -- Guildy itself is moving Blizzard's window (its hooks ignore that)
+local hostGeometry -- Blizzard's window's anchors and size before Guildy moved it
 local lastTab -- session only, on purpose not in GuildyDB
 local noGuild, forcedAccount -- without a guild only the account tab (UpdateGuildState)
 
@@ -31,12 +46,27 @@ function UI.RegisterTab(key, order, label, builder, side)
   table.sort(tabs, function(a, b) return a.order < b.order end)
 end
 
--- Open / close sounds of Blizzard's guild window (SOUNDKIT 839 / 840)
-local function PlayPanelSound(name, fallback)
-  local kit = rawget(_G, "SOUNDKIT")
-  local play = rawget(_G, "PlaySound")
-  if play then pcall(play, kit and kit[name] or fallback) end
+-- Blizzard's guild window, Guildy's host (load on demand: nil until the player opened it once)
+local function Host()
+  return rawget(_G, "CommunitiesFrame")
 end
+UI.Host = Host
+
+-- Blizzard's window under Guildy's top left corner. Its size stays Blizzard's (814 x 426, always
+-- smaller than Guildy's minimum): it is one of Blizzard's managed panels, which lay out by width. By
+-- coordinates, never anchored to Guildy's frame (Guildy is its child).
+local function PlaceHost()
+  local host = Host()
+  if not (host and frame) or blizzardMode then return end
+  local left, top = frame:GetLeft(), frame:GetTop()
+  if not (left and top) then return end
+  placingHost = true
+  host:ClearAllPoints()
+  host:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+  placingHost = false
+  if UI.Notes and UI.Notes.Follow then UI.Notes.Follow() end -- Blizzard's member panel beside Guildy
+end
+UI.PlaceHost = PlaceHost
 
 local function SavePosition()
   local settings = ns.Settings()
@@ -167,7 +197,8 @@ local function UpdateTitle()
 end
 
 local function Build()
-  frame = CreateFrame("Frame", "GuildyFrame", UIParent, "ButtonFrameTemplate")
+  frame = CreateFrame("Frame", "GuildyFrame", Host() or UIParent, "ButtonFrameTemplate")
+  frame:Hide()
   local settings = ns.Settings()
   -- a saved size outside the bounds (older versions, a jumped resize) comes back inside them
   frame:SetSize(math.min(UI.MAX_W, math.max(UI.MIN_W, settings.width or 1000)),
@@ -178,8 +209,8 @@ local function Build()
   else
     frame:SetPoint("CENTER", 0, 40)
   end
-  frame:SetFrameStrata("HIGH")
-  frame:SetToplevel(true)
+  -- strata and frame level come from Blizzard's window (UI.Embed); no SetToplevel: a click must never
+  -- raise Guildy above the Blizzard frames it lays over its own controls
   frame:SetClampedToScreen(true)
   frame:SetClampRectInsets(0, 60, 0, 0) -- keep the side tabs right of the window on screen
   frame:SetMovable(true)
@@ -187,10 +218,16 @@ local function Build()
   ApplyBounds()
   frame:EnableMouse(true)
   frame:RegisterForDrag("LeftButton")
-  frame:SetScript("OnDragStart", frame.StartMoving)
+  -- while dragging, Blizzard's window (and its member panel beside Guildy) follow every frame
+  frame:SetScript("OnDragStart", function(self)
+    self:StartMoving()
+    self:SetScript("OnUpdate", PlaceHost)
+  end)
   frame:SetScript("OnDragStop", function(self)
+    self:SetScript("OnUpdate", nil)
     self:StopMovingOrSizing()
     SavePosition()
+    PlaceHost()
   end)
   if frame.SetPortraitToAsset then
     frame:SetPortraitToAsset(W.LOGO)
@@ -199,11 +236,19 @@ local function Build()
   end
   if rawget(_G, "ButtonFrameTemplate_HideButtonBar") then ButtonFrameTemplate_HideButtonBar(frame) end
   if frame.Inset then frame.Inset:Hide() end
-  tinsert(UISpecialFrames, "GuildyFrame")
-  -- the template's close button calls HideUIPanel, which goes through Blizzard's protected panel
-  -- manager and is blocked in combat; hide directly, like Escape does
-  local close = frame.CloseButton or rawget(_G, "GuildyFrameCloseButton")
-  if type(close) == "table" and close.SetScript then close:SetScript("OnClick", function() frame:Hide() end) end
+  -- no UISpecialFrames entry: Escape closes Blizzard's window, and Guildy with it. The close button
+  -- clicks Blizzard's own close button (secure click, UI/Commands.lua), so Blizzard's code closes it.
+  frame.Close = frame.CloseButton or rawget(_G, "GuildyFrameCloseButton")
+  if type(frame.Close) == "table" and frame.Close.SetScript and UI.SecureAction then
+    UI.SecureAction(frame.Close, function()
+      local host = Host()
+      local close = host and (host.CloseButton or rawget(_G, "CommunitiesFrameCloseButton"))
+      return close and { click = close } or nil
+    end)
+    -- a click that reaches the button itself (in combat no secure button lies over it): close directly,
+    -- closing is allowed in combat
+    frame.Close:SetScript("OnClick", function() UI.Hide() end)
+  end
 
   -- guild emblem in the portrait (Blizzard's own drawing; the grey helmet when the guild has none)
   frame.Emblem = UI.GuildEmblem(frame, 60)
@@ -249,17 +294,17 @@ local function Build()
 
   W.ResizeGrip(frame, function() SavePosition() end)
   frame:SetScript("OnSizeChanged", function()
+    PlaceHost()
     if current and current.view and current.view.OnResize then ns.SafeCall(current.view.OnResize, current.view) end
   end)
+  -- (no sounds of its own: Blizzard's window plays its open and close sounds)
   frame:SetScript("OnHide", function()
     if UI.HideOverlay then UI.HideOverlay() end
     -- with a page open the tab was already told it is hidden
     if not page and current and current.view and current.view.OnHide then ns.SafeCall(current.view.OnHide, current.view) end
     if ns.Chat then ns.Chat.Focus(false) end
-    PlayPanelSound("IG_CHARACTER_INFO_CLOSE", 840)
   end)
   frame:SetScript("OnShow", function()
-    PlayPanelSound("IG_CHARACTER_INFO_OPEN", 839)
     if not page and current and current.view and current.view.OnShow then ns.SafeCall(current.view.OnShow, current.view) end
   end)
   UI.frame = frame
@@ -369,8 +414,30 @@ local function UpdateGuildState()
   end
 end
 
-function UI.Show()
+-- Guildy's window inside Blizzard's: child of it, drawn on top (Blizzard's own drawing at alpha 0),
+-- Blizzard's window placed exactly under Guildy's
+local function Embed()
+  local host = Host()
+  if not (host and frame) then return end
+  if not hostGeometry then
+    local points = {}
+    for i = 1, host:GetNumPoints() or 0 do points[i] = { host:GetPoint(i) } end
+    hostGeometry = { points = points }
+  end
+  if frame:GetParent() ~= host then frame:SetParent(host) end
+  frame:SetIgnoreParentAlpha(true)
+  frame:SetFrameStrata(host:GetFrameStrata())
+  frame:SetFrameLevel(host:GetFrameLevel() + LEVEL_ABOVE_HOST)
+  host:SetAlpha(0)
+  PlaceHost()
+end
+
+-- Fills Guildy's window when Blizzard's window shows: the tab or page of this session, the account
+-- without a guild
+local function Open()
   if not frame then Build() end
+  Embed()
+  if UI.Notes then ns.SafeCall(UI.Notes.Prepare) end
   UpdateTitle()
   if ns.Roster then ns.Roster.Request() end
   frame:Show()
@@ -390,16 +457,77 @@ function UI.Show()
   UI.SelectTab(byKey[lastTab] and lastTab or "chat")
 end
 
+-- Hooks Blizzard's window once it exists (Blizzard_Communities loads on demand)
+local hostHooked = false
+local function HookHost()
+  local host = Host()
+  if hostHooked or not host then return end
+  hostHooked = true
+  host:HookScript("OnShow", function()
+    if not blizzardMode then ns.SafeCall(Open) end
+  end)
+  host:HookScript("OnHide", function()
+    -- next time Guildy again
+    if blizzardMode then
+      blizzardMode = nil
+      if frame then frame:Show() end
+    end
+  end)
+  -- Blizzard's panel layout moves its window (other panels opening): back under Guildy's
+  hooksecurefunc(host, "SetPoint", function()
+    if not placingHost and not blizzardMode and frame and host:IsShown() then C_Timer.After(0, PlaceHost) end
+  end)
+  if host:IsShown() and not blizzardMode then ns.SafeCall(Open) end
+end
+
+local hostWatch = CreateFrame("Frame")
+hostWatch:RegisterEvent("ADDON_LOADED")
+hostWatch:RegisterEvent("PLAYER_LOGIN")
+hostWatch:SetScript("OnEvent", function(_, event, name)
+  if event == "PLAYER_LOGIN" or name == "Blizzard_Communities" then HookHost() end
+end)
+
+-- Guildy is shown with Blizzard's guild window, which only Blizzard's own code opens (J, the guild
+-- micro button): opening it from addon code would taint it. Called while it is open, this brings
+-- Guildy back; otherwise it says how to open it.
+function UI.Show()
+  local host = Host()
+  if host and host:IsShown() then
+    blizzardMode = nil
+    Open()
+  else
+    ns.Print(ns.L.OPEN_WITH_J)
+  end
+end
+
+-- Closes Blizzard's window and Guildy with it (Guildy's close button normally clicks Blizzard's own)
 function UI.Hide()
-  if frame then frame:Hide() end
+  local host = Host()
+  if host and host:IsShown() then host:Hide() elseif frame then frame:Hide() end
 end
 
 function UI.Toggle()
-  if frame and frame:IsShown() then UI.Hide() else UI.Show() end
+  if UI.IsShown() then UI.Hide() else UI.Show() end
 end
 
 function UI.IsShown()
-  return frame and frame:IsShown() or false
+  return frame and frame:IsVisible() or false
+end
+
+-- Blizzard's own guild window instead of Guildy until it closes (Info tab, member menu)
+function UI.ShowBlizzard()
+  local host = Host()
+  if not (host and host:IsShown() and frame) then return end
+  blizzardMode = true
+  frame:Hide()
+  host:SetAlpha(1)
+  if hostGeometry then
+    placingHost = true
+    host:ClearAllPoints()
+    for _, p in ipairs(hostGeometry.points) do host:SetPoint(unpack(p)) end
+    placingHost = false
+  end
+  ns.Print(ns.L.BLIZZARD_OPENED)
 end
 
 -- Data changes refresh the visible tab

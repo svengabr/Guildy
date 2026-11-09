@@ -8,8 +8,9 @@
 -- So Guildy's action buttons get such a secure button laid over them while the mouse is on them (out
 -- of combat). Rank and removal run the slash commands; the invite clicks Blizzard's "Invite member"
 -- button (Guildy then fills in the name); MOTD and guild info click Blizzard's edit and accept buttons
--- of its (hidden) text editor, the player types into Blizzard's own edit box shown inside Guildy. Notes have no such path: Blizzard saves a note only for the member picked in its own
--- member list, so they still open Blizzard's window.
+-- of its (hidden) text editor, the player types into Blizzard's own edit box shown inside Guildy. Notes go
+-- through Blizzard's member list and note boxes (UI/Notes.lua). Guildy lives inside Blizzard's guild
+-- window (UI/Main.lua), so all of those Blizzard frames exist whenever Guildy is shown.
 -- The overlay is parented to UIParent and placed by absolute coordinates, never anchored to Guildy's
 -- frames, so the Guildy window stays unprotected and can close in combat.
 local _, ns = ...
@@ -25,7 +26,7 @@ local INVITE_POPUPS = { "ADD_GUILDMEMBER", "ADD_GUILDMEMBER_WITH_FINDER_LINK" }
 local function BlizzardInviteButton()
   local frame = rawget(_G, "CommunitiesFrame")
   local button = frame and frame.InviteButton
-  if not button or not button.IsEnabled or not button:IsEnabled() then return nil end
+  if type(button) ~= "table" or not button.IsEnabled or not button:IsEnabled() then return nil end
   local guildClub = C_Club and ns.Try(C_Club.GetGuildClubId)
   local selected = frame.GetSelectedClubId and ns.Try(frame.GetSelectedClubId, frame)
   if not guildClub or selected ~= guildClub then return nil end
@@ -37,15 +38,6 @@ function Action.InviteReady()
   return BlizzardInviteButton() ~= nil
 end
 
--- Blizzard's guild window (everything Guildy can't do itself)
-function Action.BlizzardWindow()
-  local micro = rawget(_G, "GuildMicroButton")
-  if not micro then return nil end
-  return { click = micro, after = function()
-    ns.UI.Hide()
-    ns.Print(ns.L.BLIZZARD_OPENED)
-  end }
-end
 
 -- The overlay --------------------------------------------------------------------------------------
 
@@ -137,8 +129,9 @@ end
 
 -- Makes a Guildy button run a Blizzard action. getAction(button) returns the action (or nil); tooltip
 -- is a text or a function(button) returning one. A direct click on the button itself only happens when
--- the overlay could not be laid (combat).
-function UI.SecureAction(button, getAction, tooltip)
+-- the overlay could not be laid: in combat, or getAction gave nothing; onPlainClick(button) handles the
+-- latter (out of combat), else the click says "not in combat".
+function UI.SecureAction(button, getAction, tooltip, onPlainClick)
   local function Lay(self)
     if self.IsEnabled and not self:IsEnabled() then return end
     UI.ShowOverlay(self, getAction(self), type(tooltip) == "function" and tooltip(self) or tooltip)
@@ -146,7 +139,13 @@ function UI.SecureAction(button, getAction, tooltip)
   button.relayOverlay = Lay
   button:HookScript("OnEnter", Lay)
   if button.HasScript and button:HasScript("OnClick") then
-    button:SetScript("OnClick", function() ns.Print(ns.L.NOT_IN_COMBAT) end)
+    button:SetScript("OnClick", function(self)
+      if onPlainClick and not InCombatLockdown() then
+        onPlainClick(self)
+      else
+        ns.Print(ns.L.NOT_IN_COMBAT)
+      end
+    end)
   end
 end
 
@@ -234,16 +233,7 @@ end
 -- target: name to fill in (or nil); suggestions = { {label, value} }
 function Action.InviteWith(target, suggestions)
   local button = BlizzardInviteButton()
-  if not button then
-    local window = Action.BlizzardWindow()
-    if window then
-      window.after = function()
-        ns.UI.Hide()
-        ns.Print(ns.L.INVITE_FIRST_TIME)
-      end
-    end
-    return window
-  end
+  if not button then return nil end
   return { click = button, after = function()
     local popup = InvitePopup()
     if not popup then return end
@@ -367,8 +357,9 @@ local function RankEditorButton()
   return control and control.GuildControlButton
 end
 
+-- (its click loads Blizzard_GuildControlUI the first time)
 function Action.RankEditorReady()
-  return RankEditorButton() ~= nil and rawget(_G, "GuildControlUI") ~= nil
+  return RankEditorButton() ~= nil
 end
 
 -- Opens (or closes, it's Blizzard's toggle) the rank editor; place(editor) positions it when shown
@@ -385,25 +376,6 @@ end
 function Action.CloseRankEditor()
   local editor = rawget(_G, "GuildControlUI")
   if editor and editor:IsShown() then editor:Hide() end
-end
-
--- Blizzard's guild window was never opened this session: open it once through the micro button,
--- close it right away and come back to Guildy; then Blizzard's buttons are there.
-function Action.LoadBlizzard(message)
-  local window = Action.BlizzardWindow()
-  if not window then return nil end
-  window.after = function()
-    C_Timer.After(0, function()
-      local frame = rawget(_G, "CommunitiesFrame")
-      if frame and frame:IsShown() then
-        local hide = rawget(_G, "HideUIPanel")
-        if hide then pcall(hide, frame) else frame:Hide() end
-      end
-      ns.UI.Show()
-      if message then ns.Print(message) end
-    end)
-  end
-  return window
 end
 
 -- Confirmation dialog in Guildy's look whose OK button runs a secure action (removal)

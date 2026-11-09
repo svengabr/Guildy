@@ -92,6 +92,52 @@ local function InsertRecipeLink(spellID)
   if link and insert then pcall(insert, link) end
 end
 
+-- Search results: names in a recipe's tooltip before "+N more"
+local RESULT_TIP_NAMES = 12
+
+-- Opens a crafter's recipe book (online, same shard) or whispers them
+local function ReachMember(m, skillLine)
+  if not m then return end
+  if ns.TradeSkill.CanOpenBook(m) then
+    ns.TradeSkill.OpenBook(m, skillLine)
+  else
+    UI.Whisper(m.fullName)
+  end
+end
+
+-- A click on a recipe in the search results: the first crafter whose book opens, else the first one
+-- online (whisper), else the first one
+local function ReachCrafter(group)
+  local first, online
+  for _, e in ipairs(group.entries) do
+    local m = ns.Roster.Find(e.memberKey)
+    if m then
+      if ns.TradeSkill.CanOpenBook(m) then
+        ns.TradeSkill.OpenBook(m, group.skillLine)
+        return
+      end
+      first = first or m
+      if m.online and not online then online = m end
+    end
+  end
+  ReachMember(online or first, group.skillLine)
+end
+
+-- Right click on a recipe in the search results: every crafter, a click reaches them
+local function CraftersMenu(anchor, group)
+  local items = { { text = group.recipeName, isTitle = true } }
+  for _, e in ipairs(group.entries) do
+    local m = ns.Roster.Find(e.memberKey)
+    if m then
+      items[#items + 1] = {
+        text = W.ClassName(m.name, m.classFile) .. (m.online and ("  |cff4ce64c" .. ns.L.ONLINE .. "|r") or ""),
+        onClick = function() ReachMember(m, group.skillLine) end,
+      }
+    end
+  end
+  W.OpenMenu(anchor, items, 220)
+end
+
 -- One entry per profession somebody has: its members (online first, skill desc, name) and the numbers
 -- for the rail
 local function Groups()
@@ -413,10 +459,20 @@ local function Build(panel)
   columns:SetPoint("TOPLEFT", 4, -54)
   columns:SetPoint("RIGHT", -26, 0)
   columns:SetHeight(16)
+  local labels = {}
   for _, col in ipairs({ { L.COL_MEMBER, NAME_X }, { L.COL_SKILL, SKILL_X }, { L.COL_RECIPES, RECIPES_X }, { L.COL_DATA, DATA_X } }) do
     local label = W.Text(columns, "GameFontDisableSmall", col[1])
     label:SetPoint("LEFT", col[2], 0)
+    labels[#labels + 1] = { label = label, x = col[2] }
   end
+  -- a heading that doesn't fit the list any more goes (the narrow list beside the read status): the
+  -- rows drop that column the same way
+  columns:SetScript("OnSizeChanged", function(self, width)
+    width = width or self:GetWidth() or 0
+    for _, entry in ipairs(labels) do
+      entry.label:SetShown(entry.x + (entry.label:GetStringWidth() or 0) <= width)
+    end
+  end)
   local line = columns:CreateTexture(nil, "ARTWORK")
   line:SetPoint("BOTTOMLEFT", 0, -2)
   line:SetPoint("BOTTOMRIGHT", 0, -2)
@@ -541,38 +597,51 @@ local function Build(panel)
     row.Prof:SetPoint("LEFT", 556, 0)
     row.Prof:SetPoint("RIGHT", -6, 0)
     row.Prof:SetWordWrap(false)
+    -- one row per recipe (Search.GroupRecipes): the first crafter (online first) and "+N" for the rest;
+    -- the tooltip lists them all, a right click picks one
     row:SetScript("OnEnter", function(self)
-      local e = self.entry
-      if not e then return end
+      local group = self.group
+      if not group then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      if not pcall(GameTooltip.SetSpellByID, GameTooltip, e.spellID) then GameTooltip:SetText(e.recipeName or "?") end
+      if not pcall(GameTooltip.SetSpellByID, GameTooltip, group.spellID) then GameTooltip:SetText(group.recipeName or "?") end
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.RESULT_CRAFTERS, 1, 0.82, 0)
+      for i, e in ipairs(group.entries) do
+        if i > RESULT_TIP_NAMES then
+          GameTooltip:AddLine(L.FAMILY_MORE:format(#group.entries - RESULT_TIP_NAMES), 0.6, 0.6, 0.6)
+          break
+        end
+        local m = ns.Roster.Find(e.memberKey)
+        local name = m and W.ClassName(m.name, m.classFile) or e.memberName
+        GameTooltip:AddLine(name .. (m and m.online and ("  |cff4ce64c" .. L.ONLINE .. "|r") or ""))
+      end
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(L.RESULT_CLICK_HINT, 0.6, 0.6, 0.6, true)
       GameTooltip:Show()
     end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row:SetScript("OnMouseUp", function(self, button)
-      local e = self.entry
-      local m = e and ns.Roster.Find(e.memberKey)
-      if not m then return end
+      local group = self.group
+      if not group then return end
       if IsShiftKeyDown() then
-        InsertRecipeLink(e.spellID)
+        InsertRecipeLink(group.spellID)
       elseif button == "RightButton" then
-        ProfessionMenu(self, m, e.skillLine)
-      elseif ns.TradeSkill.CanOpenBook(m) then
-        ns.TradeSkill.OpenBook(m, e.skillLine)
+        CraftersMenu(self, group)
       else
-        UI.Whisper(m.fullName)
+        ReachCrafter(group)
       end
     end)
-  end, function(row, e)
-    row.entry = e
-    local m = ns.Roster.Find(e.memberKey)
-    row.Icon:SetTexture(SpellIcon(e.spellID, e.skillLine))
-    row.Recipe:SetText(e.recipeName)
-    row.Dot:SetOnline(m and m.online)
-    row.Member:SetText(m and W.ClassName(m.name, m.classFile) or e.memberName)
-    row.Prof:SetText(ns.TradeSkill.Name(e.skillLine))
+  end, function(row, group)
+    row.group = group
+    local first = group.entries[1]
+    local m = first and ns.Roster.Find(first.memberKey)
+    row.Icon:SetTexture(SpellIcon(group.spellID, group.skillLine))
+    row.Recipe:SetText(group.recipeName)
+    row.Dot:SetOnline(group.online > 0)
+    local name = m and W.ClassName(m.name, m.classFile) or (first and first.memberName) or ""
+    local more = #group.entries - 1
+    row.Member:SetText(more > 0 and (name .. MUTED .. "  +" .. more .. "|r") or name)
+    row.Prof:SetText(ns.TradeSkill.Name(group.skillLine))
   end)
   view.Results:SetPoint("TOPLEFT", 4, -8)
   view.Results:SetPoint("BOTTOMRIGHT", -26, 4)
@@ -852,7 +921,7 @@ local function Build(panel)
     self.Members:Hide()
     self.Members:SetItems({})
     self.Results:Show()
-    local results = ns.Search.Recipes(ns.TradeSkill.RecipeEntries(), self.query)
+    local results = ns.Search.GroupRecipes(ns.Search.Recipes(ns.TradeSkill.RecipeEntries(), self.query))
     self.Results:SetItems(results)
     self.Empty:SetText(L.NO_RESULTS)
     self.Empty:SetShown(#results == 0)

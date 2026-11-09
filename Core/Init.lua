@@ -44,14 +44,11 @@ local HANDLERS = {
       ns.Chat.InitSeen(GuildyDB.settings, ns.Now())
     end
   end,
-  UPDATE_BINDINGS = function() ns.Redirect.Apply() end,
-  PLAYER_REGEN_ENABLED = function() ns.Redirect.AfterCombat() end,
   TRADE_SKILL_CLOSE = function() ns.TradeSkill.OnClose() end,
   PLAYER_LOGIN = function()
     if rawget(_G, "SetItemRef") then
       hooksecurefunc("SetItemRef", function(link) ns.SafeCall(ns.TradeSkill.OnLinkClicked, link) end)
     end
-    ns.Redirect.Apply()
     ns.Harvest.RestoreSound() -- a run cut off by /reload or a crash left the sound effects off
     ns.Sync.Register()
     ns.Roster.Request(true)
@@ -146,6 +143,8 @@ SlashCmdList.GUILDY = function(msg)
       local ok, err = pcall(view.RenderChat, view)
       ns.Print("render ok " .. tostring(ok) .. " " .. tostring(err))
     end
+  elseif msg == "notedebug" then
+    for _, line in ipairs(ns.UI.Notes.Debug()) do ns.Print(line) end
   elseif msg == "statdebug" then
     ns.GameStats.debug = not ns.GameStats.debug
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))

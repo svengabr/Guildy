@@ -141,10 +141,8 @@ local function Build(panel)
     editor:ClearAllPoints()
     editor:SetPoint("TOPRIGHT", perms, "TOPRIGHT", 0, 0)
   end
-  UI.SecureAction(view.Edit, function()
-    if UI.Action.RankEditorReady() then return UI.Action.RankEditor(Place) end
-    return UI.Action.LoadBlizzard(L.RANKS_FIRST_TIME)
-  end, L.RANKS_EDIT_TIP)
+  UI.SecureAction(view.Edit, function() return UI.Action.RankEditor(Place) end, L.RANKS_EDIT_TIP,
+    function() ns.Print(L.BLIZZARD_PART_MISSING) end)
   view.Hint = W.Text(perms, "GameFontDisableSmall", L.RANKS_READONLY)
   view.Hint:SetPoint("BOTTOMLEFT", 10, 10)
   view.Hint:SetPoint("RIGHT", -10, 0)

@@ -155,7 +155,8 @@ local function Build(panel)
   W.SlimScrollBar(view.List, 4) -- same slim gold track as the chat timeline
 
   view.InviteButton = W.Button(right, L.INVITE_MEMBER, nil, 150)
-  UI.SecureAction(view.InviteButton, function() return UI.InviteAction() end)
+  UI.SecureAction(view.InviteButton, function() return UI.InviteAction() end, nil,
+    function() ns.Print(ns.L.INVITE_UNAVAILABLE) end)
   view.InviteButton:SetPoint("BOTTOMRIGHT", 0, 2)
 
   -- left: chat ---------------------------------------------------------------------------------

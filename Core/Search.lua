@@ -49,6 +49,23 @@ function Search.Recipes(entries, query)
   return out
 end
 
+-- Search.Recipes results -> one group per recipe, in the order of their first entry:
+-- { spellID, recipeName, skillLine, entries = {...} (as given: online first), online = count }
+function Search.GroupRecipes(results)
+  local groups, bySpell = {}, {}
+  for _, e in ipairs(results) do
+    local group = bySpell[e.spellID]
+    if not group then
+      group = { spellID = e.spellID, recipeName = e.recipeName, skillLine = e.skillLine, entries = {}, online = 0 }
+      bySpell[e.spellID] = group
+      groups[#groups + 1] = group
+    end
+    group.entries[#group.entries + 1] = e
+    if e.online then group.online = group.online + 1 end
+  end
+  return groups
+end
+
 -- members: Roster.Members() entries. filter = {classFile, bracket, skillLine, onlineOnly, hideOffline,
 -- activeDays}; profsOf(member) -> set or nil
 function Search.Members(members, filter, query, profsOf)

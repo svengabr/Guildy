@@ -41,6 +41,23 @@ T.describe("Search.Recipes", function()
   end)
 end)
 
+T.describe("Search.GroupRecipes", function()
+  T.it("lists each recipe once with its crafters in the given order", function()
+    local groups = Search.GroupRecipes(Search.Recipes(entries, "elixir"))
+    T.eq(#groups, 2)
+    T.eq(groups[1].recipeName, "Elixir of Lion's Strength")
+    T.eq(groups[1].spellID, 1)
+    T.eq(groups[1].skillLine, 171)
+    T.eq(names(groups[1].entries), { "Amy", "Zed" })
+    T.eq(groups[1].online, 1)
+    T.eq(names(groups[2].entries), { "Cat" })
+    T.eq(groups[2].online, 0)
+  end)
+  T.it("gives nothing for nothing", function()
+    T.eq(Search.GroupRecipes({}), {})
+  end)
+end)
+
 local members = {
   { name = "Ran Fred", level = 16, classFile = "DRUID", zone = "Stormwind", online = true, rankIndex = 1 },
   { name = "Makira Farron", level = 16, classFile = "PALADIN", zone = "Ironforge", online = false, daysOffline = 1, rankIndex = 1 },

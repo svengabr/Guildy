@@ -59,9 +59,9 @@ local function Build(panel)
   -- without a guild: why the window is so empty
   hero.NoGuild = W.Box(hero, 0.05, 0.5)
   hero.NoGuild:SetPoint("TOP", hero.Where, "BOTTOM", 0, -14)
-  hero.NoGuild:SetSize(HERO_WIDTH - 28, 74)
+  hero.NoGuild:SetSize(HERO_WIDTH - 28, 60)
   hero.NoGuild.Title = W.Text(hero.NoGuild, "GameFontNormal", L.ACCOUNT_NO_GUILD)
-  hero.NoGuild.Title:SetPoint("TOPLEFT", 10, -9)
+  hero.NoGuild.Title:SetPoint("TOPLEFT", 10, -8)
   hero.NoGuild.Text = W.Text(hero.NoGuild, "GameFontHighlightSmall", L.ACCOUNT_NO_GUILD_TEXT)
   hero.NoGuild.Text:SetPoint("TOPLEFT", hero.NoGuild.Title, "BOTTOMLEFT", 0, -4)
   hero.NoGuild.Text:SetPoint("RIGHT", -10, 0)
@@ -182,7 +182,7 @@ local function Build(panel)
     if IsInGuild() then
       hero.Totals:SetPoint("TOP", hero.Where, "BOTTOM", 0, -18)
     else
-      hero.Totals:SetPoint("TOP", hero.NoGuild, "BOTTOM", 0, -14)
+      hero.Totals:SetPoint("TOP", hero.NoGuild, "BOTTOM", 0, -10)
     end
 
     -- kills, quests, deaths summed over the characters with known statistics; dungeons any of them
@@ -231,6 +231,18 @@ local function Build(panel)
     local rows = {}
     for _, name in ipairs(order) do rows[#rows + 1] = { "|cff40ff40<" .. name .. ">|r", byGuild[name] } end
     if none > 0 then rows[#rows + 1] = { "|cff8f8268" .. L.FAMILY_NO_GUILD .. "|r", none } end
+    -- as many rows as fit above the number boxes; the rest as "+N more"
+    local top, floor = hero.Guilds:GetTop(), hero.Numbers[1]:GetTop()
+    if top and floor then
+      local fit = math.max(1, math.floor((top - floor - 8 - 22) / 17))
+      if #rows > fit then
+        -- the last row that fits sums up the rest: "+N more" guilds, with their characters
+        local hiddenGuilds, hiddenChars = #rows - fit + 1, 0
+        for i = fit, #rows do hiddenChars = hiddenChars + (tonumber(rows[i][2]) or 0) end
+        for i = #rows, fit, -1 do rows[i] = nil end
+        rows[fit] = { "|cff8f8268" .. L.FAMILY_MORE:format(hiddenGuilds) .. "|r", hiddenChars }
+      end
+    end
     hero.Guilds:Fill(rows)
 
     local levels, kinds, count = m.level or 0, {}, 0

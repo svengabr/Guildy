@@ -536,9 +536,9 @@ function W.ResizeGrip(frame, onDone)
     end
     if not maxW or maxW <= 0 then maxW = math.huge end
     if not maxH or maxH <= 0 then maxH = math.huge end
-    local parent = frame:GetParent() or UIParent
-    -- never larger than the screen (the side tabs need some room on the right)
-    local screenW, screenH = parent:GetWidth(), parent:GetHeight()
+    -- never larger than the screen (the side tabs need some room on the right). The screen, not the
+    -- parent: Guildy's window is a child of Blizzard's much smaller guild window (UI/Main.lua)
+    local screenW, screenH = UIParent:GetWidth(), UIParent:GetHeight()
     if screenW and screenW > 0 then maxW = math.min(maxW or math.huge, screenW - 80) end
     if screenH and screenH > 0 then maxH = math.min(maxH or math.huge, screenH - 20) end
     return minW or 0, minH or 0, math.max(minW or 0, maxW), math.max(minH or 0, maxH)

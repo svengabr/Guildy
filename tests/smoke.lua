@@ -6,7 +6,6 @@ local T = ...
 local errors = {}
 local registered = {}   -- event -> {frames}
 local timers = {}
-local boundKeys = {}
 
 local function Stub(name)
   local stub = { _name = name, _scripts = {}, _shown = false, _text = "", _w = 100, _h = 100, _checked = false }
@@ -22,7 +21,11 @@ local function Stub(name)
   function methods:GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
   function methods:GetFrameLevel() return 1 end
   function methods:IsShown() return self._shown end
-  function methods:IsVisible() return self._shown end
+  function methods:IsVisible()
+    local parent = rawget(self, "_parent")
+    return self._shown and (parent == nil or type(parent) ~= "table" or not parent.IsVisible or parent:IsVisible())
+  end
+  function methods:SetParent(parent) self._parent = parent end
   function methods:Show()
     local was = self._shown
     self._shown = true
@@ -100,9 +103,8 @@ env.GetCursorPosition = function() return 100, 100 end
 env.IsMouseButtonDown = function() return false end
 local SECRET = setmetatable({}, { __index = function() error("secret value inspected") end })
 env.issecretvalue = function(v) return v == SECRET end
-env.SetOverrideBindingClick = function(_, _, key, button) boundKeys[key] = button end
-env.GetBindingKey = function(action) if action == "TOGGLEGUILDTAB" then return "J" end end
-env.ClearOverrideBindings = function() end
+-- Blizzard's guild window, Guildy's host (UI/Main.lua): J shows it, Guildy follows
+env.CommunitiesFrame = Stub("CommunitiesFrame")
 env.GetTime = function() return 1000 end
 env.GetServerTime = function() return 1700000000 end
 env.GetLocale = function() return "deDE" end
@@ -259,9 +261,8 @@ T.describe("Smoke", function()
   end)
 
   T.it("opens the window on the chat tab and every tab", function()
-    env.GuildyToggleButton._scripts.PostClick(env.GuildyToggleButton, "LeftButton", false)
-    T.truthy(ns.UI.IsShown(), "J opens Guildy")
-    T.eq(boundKeys.J, "GuildyToggleButton")
+    env.CommunitiesFrame:Show() -- J opens Blizzard's guild window
+    T.truthy(ns.UI.IsShown(), "Guildy shows inside Blizzard's guild window")
     T.eq(ns.UI.Current(), "chat")
     for _, key in ipairs({ "members", "overview", "fame", "professions", "info", "ranks", "chat" }) do
       ns.UI.SelectTab(key)
@@ -302,7 +303,8 @@ T.describe("Smoke", function()
     T.eq(#ns.Family.Of(makira.key, ns.Roster.Members(), ns.GuildData().families, {}), 1)
     ns.UI.ShowMember(makira) -- the character page with a family card
     ns.UI.Hide()
-    ns.UI.Show() -- comes back to the page within the session
+    T.eq(ns.UI.IsShown(), false) -- closing closes Blizzard's window
+    env.CommunitiesFrame:Show() -- comes back to the page within the session
     ns.UI.SelectTab("chat")
     -- members tab: twinks under their main, folded, without note, by group and item level
     ns.UI.SelectTab("members")
@@ -334,21 +336,26 @@ T.describe("Smoke", function()
     profs.query = ""
     profs:Refresh()
     ns.UI.Hide()
-    ns.UI.Show()
+    T.eq(ns.UI.IsShown(), false) -- closing closes Blizzard's window
+    env.CommunitiesFrame:Show()
     T.eq(ns.UI.Current(), "professions") -- opening comes back to the last tab
     T.eq(ns.Settings().lastTab, nil) -- only within the session: a login or reload starts on chat
     T.eq(ns.Store.Init({ settings = { lastTab = "fame", famePage = "pvp" } }).settings.lastTab, nil)
     local A = ns.UI.Action
-    env.GuildMicroButton = env.CreateFrame("Button", "GuildMicroButton")
-    T.eq(A.BlizzardWindow().click, env.GuildMicroButton)
-    T.eq(A.Invite("Xii Lightspark").click, env.GuildMicroButton) -- Blizzard window not loaded yet
+    T.eq(A.Invite("Xii Lightspark"), nil) -- no invite button in Blizzard's window
     local invite = env.CreateFrame("Button")
     invite.IsEnabled = function() return true end
     env.C_Club = { GetGuildClubId = function() return 7 end }
-    env.CommunitiesFrame = { InviteButton = invite, GetSelectedClubId = function() return 7 end }
+    rawset(env.CommunitiesFrame, "InviteButton", invite)
+    rawset(env.CommunitiesFrame, "GetSelectedClubId", function() return 7 end)
     T.eq(A.Invite("Xii Lightspark").click, invite)
     T.eq(ns.UI.InviteAction().click, invite)
-    ns.UI.ShowOverlay(env.UIParent, A.BlizzardWindow())
+    ns.UI.ShowOverlay(env.UIParent, A.Invite("Xii Lightspark"))
+    ns.UI.ShowBlizzard()
+    T.eq(ns.UI.IsShown(), false) -- Blizzard's own window instead of Guildy
+    env.CommunitiesFrame:Hide()
+    env.CommunitiesFrame:Show()
+    T.truthy(ns.UI.IsShown(), "Guildy again next time")
     RunTimers()
     T.eq(errors, {})
   end)
@@ -427,13 +434,6 @@ T.describe("Smoke", function()
     T.eq(ns.Roster.NextRank(low, "promote"), "Offizier")
     T.eq(ns.Roster.NextRank({ name = "Neu", rankIndex = 1 }, "demote"), "Haifutter")
     env.GetGuildInfo = myInfo
-    -- rank ladder: opens beside the button, follows the page, closes for another member
-    local anchor = env.CreateFrame("Button")
-    ns.UI.RankLadder.Toggle(anchor, member)
-    T.truthy(env.GuildyRankLadder, "ladder built")
-    ns.UI.RankLadder.Sync(member)
-    ns.UI.RankLadder.Toggle(anchor, member) -- second click closes
-    ns.UI.RankLadder.Hide()
     ns.UI.SelectTab("members")
     ns.UI.SelectTab("chat")
     -- account tab in the guild, then without a guild: only the account tab, back to chat on joining
@@ -446,7 +446,8 @@ T.describe("Smoke", function()
     ns.UI.SelectTab("members")
     T.eq(ns.UI.Current(), "account")
     ns.UI.Hide()
-    ns.UI.Show()
+    T.eq(ns.UI.IsShown(), false) -- closing closes Blizzard's window
+    env.CommunitiesFrame:Show()
     T.eq(ns.UI.Current(), "account")
     env.IsInGuild = function() return true end
     ns.Fire("GUILD")

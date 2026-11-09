@@ -41,11 +41,8 @@ local function Editor(view, box, kind, label)
   editor.Edit = W.Button(box, L.EDIT, nil, 70, { small = true })
   editor.Edit:SetPoint("TOPRIGHT", -8, -6)
   UI.SecureAction(editor.Edit, function()
-    if UI.Action.TextEditReady(kind) then
-      return UI.Action.TextEdit(kind, function() editor:Begin() end)
-    end
-    return UI.Action.LoadBlizzard(ns.L.EDIT_FIRST_TIME)
-  end)
+    return UI.Action.TextEdit(kind, function() editor:Begin() end)
+  end, nil, function() ns.Print(ns.L.BLIZZARD_PART_MISSING) end)
 
   editor.Cancel = W.Button(box, L.CANCEL, function() editor:Finish() end, 70, { small = true })
   editor.Cancel:SetPoint("TOPRIGHT", -8, -6)
@@ -239,8 +236,7 @@ local function Build(panel)
 
   local control = W.Button(settings, L.GUILD_CONTROL, function() UI.SelectTab("ranks") end, 150, { small = true })
   control:SetPoint("BOTTOMLEFT", 10, 8)
-  local blizzard = W.Button(settings, L.OPEN_BLIZZARD, nil, 150, { small = true })
-  UI.SecureAction(blizzard, UI.Action.BlizzardWindow)
+  local blizzard = W.Button(settings, L.OPEN_BLIZZARD, function() UI.ShowBlizzard() end, 150, { small = true })
   blizzard:SetPoint("LEFT", control, "RIGHT", 6, 0)
 
   -- event log

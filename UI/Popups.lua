@@ -84,17 +84,10 @@ function UI.MemberMenu(m, anchor)
     { text = L.COPY_NAME, onClick = function() UI.CopyText(m.name) end },
   }
   local rights = R.Rights(m)
-  for _, kind in ipairs({ "promote", "demote" }) do
-    if can[kind] then
-      local target = R.NextRank(m, kind)
-      local label = kind == "promote" and L.PROMOTE or L.DEMOTE
-      local labelTo = kind == "promote" and L.PROMOTE_TO or L.DEMOTE_TO
-      items[#items + 1] = { text = target and labelTo:format(target) or label, disabled = target == nil,
-        action = target and function() return UI.Action.Manage(kind, m) end or nil }
-    end
-  end
+  -- rank and notes: Blizzard's own member panel beside the character page (UI/Notes.lua)
   if can.editPublic or can.editOfficer then
-    items[#items + 1] = { text = L.NOTES_IN_BLIZZARD, action = UI.Action.BlizzardWindow }
+    -- notes are edited on the character page (UI/Notes.lua)
+    items[#items + 1] = { text = L.NOTES_IN_BLIZZARD, onClick = function() UI.ShowMember(m) end }
   end
   -- removal last and red, always behind a confirmation
   if can.remove then
@@ -107,6 +100,8 @@ end
 -- Tooltip for a roster member (owner frame given); hint replaces the default click hint
 function UI.MemberTooltip(owner, m, hint)
   local L = ns.L
+  -- the click on this member also picks them in Blizzard's list, for their notes (UI/Notes.lua)
+  if UI.Notes then UI.Notes.HoverMember(owner, m, hint) end
   GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
   GameTooltip:SetText(W.ClassName(m.name, m.classFile))
   GameTooltip:AddLine(L.LEVEL_CLASS:format(m.level or 0, m.className or ""), 1, 1, 1)
