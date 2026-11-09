@@ -14,7 +14,7 @@ Store.DEFAULTS = {
   width = 1000,
   height = 600,
   listSort = "level",  -- online list sort on the chat tab
-  statMouseover = false, -- read statistics of guild members under the mouse (/guildy statmouse)
+  statMouseover = true, -- read statistics of guild members under the mouse (/guildy statmouse)
 }
 
 function Store.Init(db)
@@ -25,6 +25,12 @@ function Store.Init(db)
   db.settings.lastTab, db.settings.famePage = nil, nil
   for key, value in pairs(Store.DEFAULTS) do
     if db.settings[key] == nil then db.settings[key] = value end
+  end
+  -- 1.0.1: mouseover reading became the default. Saves from before carry the old default (off), so it
+  -- is switched on once; whoever switches it off afterwards keeps it off.
+  if not db.settings.mouseoverDefaultOn then
+    db.settings.statMouseover = true
+    db.settings.mouseoverDefaultOn = true
   end
   if type(db.guilds) ~= "table" then db.guilds = {} end
   return db

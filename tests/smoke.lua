@@ -746,6 +746,8 @@ T.describe("Hall of Fame", function()
     env.UnitName = function(unit) if unit == "mouseover" then return "Makira", "Farron" end return "Au", "Tsch" end
     env.UnitGUID = function() return "Player-1-04" end
     env.GetTime = (function(t) return function() t = t + 20 return t end end)(10000)
+    T.eq(env.GuildyDB.settings.statMouseover, true) -- on by default since 1.0.1
+    ns.GameStats.ToggleMouseover()
     Fire("UPDATE_MOUSEOVER_UNIT")
     T.eq(set, nil)
     ns.GameStats.ToggleMouseover()
