@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 - Communities in Guildy: a side tab under the account tab shows your communities on the left (with the
   number of lines you have not seen yet), the chat of the selected one in the middle (channel switch,
