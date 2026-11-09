@@ -125,16 +125,18 @@ def stamp(img, spr, x, y):
 
 def cutout_rect(im, rect):
     """For screenshots where the world behind the window is neither sky nor night: cut along the measured
-    outer frame `rect` (x0, y0, x1, y1), plus the portrait ring and the tabs below (dark shapes)."""
+    outer frame `rect` (x0, y0, x1, y1[, tab_h]), plus the portrait ring and the tabs below (dark shapes in
+    the tab_h px under the frame; less where dark ground lies right under the tabs)."""
     a = np.asarray(im).astype(int)
     h, w = a.shape[:2]
-    x0, y0, x1, y1 = rect
+    x0, y0, x1, y1, *rest = rect
+    tab_h = rest[0] if rest else 52
     fg = np.zeros((h, w), bool)
     fg[y0:y1 + 1, x0:x1 + 1] = True
     yy, xx = np.mgrid[0:h, 0:w]
     fg |= (xx - (x0 + 39)) ** 2 + (yy - (y0 + 37)) ** 2 <= 45 ** 2
     tz = np.zeros((h, w), bool)
-    tz[y1 + 1:min(h, y1 + 52), x0 + 20:x0 + 790] = True
+    tz[y1 + 1:min(h, y1 + tab_h), x0 + 20:x0 + 790] = True
     dark = Image.fromarray(((a.sum(2) < 200) & tz).astype(np.uint8) * 255)
     dark = dark.filter(ImageFilter.MaxFilter(11)).filter(ImageFilter.MinFilter(11))
     fg |= (np.asarray(dark) > 0) & tz

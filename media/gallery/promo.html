@@ -20,21 +20,21 @@ body {
 }
 
 /* left: what it is */
-.intro { position: absolute; left: 78px; top: 86px; width: 640px; }
+.intro { position: absolute; left: 70px; top: 70px; width: 570px; }
 .brand { display: flex; align-items: center; gap: 26px; }
-.brand img { width: 128px; height: 128px; filter: drop-shadow(0 10px 22px rgba(0,0,0,.65)); }
-h1 { font-size: 92px; color: var(--gold); font-weight: normal; letter-spacing: 1px; text-shadow: 0 3px 0 #000, 0 0 30px rgba(255,209,0,.15); }
-.for { font-size: 22px; color: var(--muted); margin-top: 2px; letter-spacing: .3px; white-space: nowrap; }
-.claim { font-size: 44px; line-height: 1.18; margin: 46px 0 34px; color: #fff; text-shadow: 0 2px 0 #000; }
+.brand img { width: 112px; height: 112px; filter: drop-shadow(0 10px 22px rgba(0,0,0,.65)); }
+h1 { font-size: 82px; color: var(--gold); font-weight: normal; letter-spacing: 1px; text-shadow: 0 3px 0 #000, 0 0 30px rgba(255,209,0,.15); }
+.for { font-size: 20px; color: var(--muted); margin-top: 2px; letter-spacing: .3px; white-space: nowrap; }
+.claim { font-size: 40px; line-height: 1.18; margin: 40px 0 30px; color: #fff; text-shadow: 0 2px 0 #000; }
 .claim em { color: var(--gold); font-style: normal; }
 ul { list-style: none; }
-li { font-size: 25px; line-height: 1.3; color: var(--text); margin-bottom: 19px; padding-left: 40px; position: relative; text-shadow: 0 1px 0 #000; }
+li { font-size: 23px; line-height: 1.3; color: var(--text); margin-bottom: 17px; padding-left: 40px; position: relative; text-shadow: 0 1px 0 #000; }
 li::before {
   content: ""; position: absolute; left: 4px; top: 8px; width: 15px; height: 15px; transform: rotate(45deg);
   background: linear-gradient(135deg, #ffe680, #b8860b); border: 1px solid #4a3500; box-shadow: 0 2px 6px rgba(0,0,0,.6);
 }
 li b { color: var(--gold); font-weight: normal; }
-.foot { position: absolute; left: 78px; bottom: 60px; width: 640px; font-size: 22px; color: var(--muted); line-height: 1.5; }
+.foot { position: absolute; left: 70px; bottom: 56px; width: 600px; font-size: 20px; color: var(--muted); line-height: 1.5; }
 .foot b { color: var(--text); font-weight: normal; }
 
 /* right: the window itself */
@@ -49,6 +49,7 @@ li b { color: var(--gold); font-weight: normal; }
   background: rgba(16, 14, 10, .88); border: 1px solid var(--edge); box-shadow: inset 0 0 0 1px var(--edge2), 0 6px 14px rgba(0,0,0,.6);
   padding: 7px 16px 8px; border-radius: 5px; white-space: nowrap;
 }
+.label.small { font-size: 18px; padding: 5px 12px 6px; }
 </style>
 </head>
 <body>
@@ -62,32 +63,37 @@ li b { color: var(--gold); font-weight: normal; }
     </div>
     <div class="claim">Make the guild window<br><em>worth opening again.</em></div>
     <ul>
-      <li><b>Chat first</b>: guild chat with full history, who's online, where and what they craft</li>
-      <li><b>Census</b>: who's still active, classes and levels at a glance</li>
+      <li><b>Chat first</b>: the whole guild chat history with times, who's online, where and what they craft</li>
+      <li><b>Census</b>: who's still active, classes, levels and professions at a glance</li>
       <li><b>Professions</b>: search a recipe, see who in the guild can make it</li>
       <li><b>Hall of Fame</b>: guild records and titles from character statistics</li>
       <li><b>Character pages</b> with twinks, dungeons and gear, notes and ranks right beside them</li>
     </ul>
   </div>
   <div class="foot">
-    Lives inside Blizzard's own guild window: <b>J</b> opens it as always.<br>
+    Lives in Blizzard's own guild window, <b>J</b> opens it as always.<br>
     Free · open source · <b>CurseForge</b> and <b>GitHub</b>
   </div>
 
-  <!-- each screenshot cut to Guildy's window: x0, y0, width, height of the window in the 1920x1080 image -->
-  <div class="shot" style="left: 770px; top: 60px; width: 1080px; height: 654px;">
-    <img src="01-chat.jpg" alt="" style="width: 1225.5px; margin: -19.1px 0 0 -51.1px;">
+  <!-- each screenshot cut to Guildy's window (the small ones without the tab row) -->
+  <div class="shot" style="left: 680px; top: 70px; width: 1200px; height: 608px;">
+    <img src="01-chat.jpg" alt="" style="width: 1440px; margin: -84px 0 0 -120px;">
   </div>
-  <div class="label" style="left: 1640px; top: 38px;">Chat &amp; online list</div>
+  <div class="label" style="left: 1660px; top: 48px;">Chat &amp; online list</div>
 
-  <div class="shot" style="left: 770px; top: 762px; width: 530px; height: 290px;">
-    <img src="04-hall-of-fame.jpg" alt="" style="width: 612.3px; margin: -19.8px 0 0 -30px;">
+  <div class="shot" style="left: 680px; top: 772px; width: 386px; height: 190px;">
+    <img src="03-overview.jpg" alt="" style="width: 439.9px; margin: -7.8px 0 0 -19.2px;">
   </div>
-  <div class="label" style="left: 786px; top: 740px;">Hall of Fame</div>
+  <div class="label small" style="left: 692px; top: 752px;">Census</div>
 
-  <div class="shot" style="left: 1320px; top: 762px; width: 530px; height: 290px;">
-    <img src="09-professions.jpg" alt="" style="width: 569.1px; margin: -18.4px 0 0 -20.2px;">
+  <div class="shot" style="left: 1087px; top: 772px; width: 386px; height: 190px;">
+    <img src="04-hall-of-fame.jpg" alt="" style="width: 447.8px; margin: -15.4px 0 0 -22.9px;">
   </div>
-  <div class="label" style="left: 1336px; top: 740px;">Professions &amp; recipe search</div>
+  <div class="label small" style="left: 1099px; top: 752px;">Hall of Fame</div>
+
+  <div class="shot" style="left: 1494px; top: 772px; width: 386px; height: 190px;">
+    <img src="09-professions.jpg" alt="" style="width: 416.1px; margin: -14.3px 0 0 -15.6px;">
+  </div>
+  <div class="label small" style="left: 1506px; top: 752px;">Professions &amp; recipes</div>
 </body>
 </html>
