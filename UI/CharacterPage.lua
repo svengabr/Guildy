@@ -375,20 +375,10 @@ local function Build()
   hero.Whisper = W.Button(hero, L.WHISPER, function() if page.member then UI.Whisper(page.member.fullName) end end, 110)
   hero.Invite = W.Button(hero, L.GROUP_INVITE_SHORT, function() if page.member then ns.Roster.GroupInvite(page.member) end end, 110)
 
-  -- officer bar: rank menu (each rank a secure click, UI.Action.SetRank), notes, removal
+  -- officer bar: the rank button opens the rank ladder (UI/RankLadder.lua), notes, removal
   hero.OfficerLabel = W.Text(hero, "GameFontNormalSmall", L.OFFICERS)
   hero.OfficerLabel:SetTextColor(0.85, 0.5, 0.25)
-  hero.Rank = W.MenuButton(hero, "", function()
-    local m, items = page.member, {}
-    if not m then return items end
-    for i, name in ipairs(ns.Roster.Ranks()) do
-      local index = i - 1
-      local allowed = ns.Roster.RankChange(m, index) ~= nil
-      items[#items + 1] = { text = name, checked = index == m.rankIndex, disabled = not allowed,
-        action = allowed and function() return UI.Action.SetRank(m, index) end or nil }
-    end
-    return items
-  end, 150)
+  hero.Rank = W.DropButton(hero, "", function(self) UI.RankLadder.Toggle(self, page.member) end, 166, HERO_WIDTH - 24)
   hero.NotesButton = W.Button(hero, L.NOTES_SHORT, nil, 80, { small = true })
   UI.SecureAction(hero.NotesButton, UI.Action.BlizzardWindow, L.NOTES_TIP)
   hero.Remove = W.Button(hero, L.REMOVE_SHORT, function()
@@ -534,10 +524,10 @@ local function Build()
     local officer = not m.elsewhere and (can.promote or can.demote or can.remove or can.editPublic or can.editOfficer)
     hero.OfficerLabel:SetShown(officer)
     hero.Rank:SetShown(officer and (can.promote or can.demote))
+    hero.Rank:SetText(L.RANK_BUTTON:format(m.rank or "?"))
     hero.NotesButton:SetShown(officer and (can.editPublic or can.editOfficer))
     hero.Remove:SetShown(officer and can.remove)
     hero.Remove:SetEnabled(not m.elsewhere and ns.Roster.Rights(m).remove or false)
-    hero.Rank:SetText(L.RANK_BUTTON:format(m.rank or "?"))
     local y = 10
     if officer then
       hero.Rank:ClearAllPoints()
@@ -736,7 +726,9 @@ local function Build()
     local rec = self:RenderStats(m, entries)
     self:RenderDungeons(rec)
     self:RenderProfs(m)
+    UI.RankLadder.Sync(m)
   end
+  page:SetScript("OnHide", function() UI.RankLadder.Hide() end)
   page:SetScript("OnSizeChanged", function(self) if self.member and self:IsShown() then self:Render() end end)
 
   for _, event in ipairs({ "ROSTER", "PROFS", "STATS", "FAMILY" }) do

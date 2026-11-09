@@ -135,15 +135,31 @@ function UI.HideOverlay()
   if overlay and not InCombatLockdown() then overlay:Hide() end
 end
 
--- Makes a Guildy button run a Blizzard action. getAction(button) returns the action (or nil). A direct
--- click on the button itself only happens when the overlay could not be laid (combat).
+-- Makes a Guildy button run a Blizzard action. getAction(button) returns the action (or nil); tooltip
+-- is a text or a function(button) returning one. A direct click on the button itself only happens when
+-- the overlay could not be laid (combat).
 function UI.SecureAction(button, getAction, tooltip)
-  button:HookScript("OnEnter", function(self)
+  local function Lay(self)
     if self.IsEnabled and not self:IsEnabled() then return end
-    UI.ShowOverlay(self, getAction(self), tooltip)
-  end)
+    UI.ShowOverlay(self, getAction(self), type(tooltip) == "function" and tooltip(self) or tooltip)
+  end
+  button.relayOverlay = Lay
+  button:HookScript("OnEnter", Lay)
   if button.HasScript and button:HasScript("OnClick") then
     button:SetScript("OnClick", function() ns.Print(ns.L.NOT_IN_COMBAT) end)
+  end
+end
+
+-- After a button's state changed under a resting mouse (no new OnEnter): lays the overlay again when
+-- the button is enabled and hovered, takes it away when the button was disabled. For buttons clicked
+-- again and again from the same spot (rank arrows).
+function UI.RefreshSecureAction(button)
+  if InCombatLockdown() or not button.relayOverlay then return end
+  local hovered = button:IsVisible() and button.IsMouseOver and button:IsMouseOver()
+  if hovered and button:IsEnabled() then
+    button.relayOverlay(button)
+  elseif overlay and overlay.owner == button and overlay:IsShown() then
+    overlay:Hide()
   end
 end
 
@@ -242,24 +258,14 @@ function Action.Invite(name)
 end
 
 -- Rank and removal: Blizzard's secure slash commands through the overlay. After the command Guildy
--- asks for a fresh roster so the new rank shows up.
+-- asks for a fresh roster so the new rank shows up. One rank per click: several /gpromote in one macro
+-- all count from the old rank, the member moves one rank and the guild sees the same promotion twice
+-- (verified in game), so Guildy offers single steps (promote/demote) instead of a rank list.
 function Action.Manage(kind, m)
   local macro = m and ns.Manage.Command(kind, m.fullName or m.name)
   if not macro then return nil end
   return { macro = macro, after = function()
     C_Timer.After(1, function() ns.Roster.Request(true) end)
-  end }
-end
-
--- Set a rank directly: the steps of /gpromote or /gdemote in one macro (Manage.RankChange). Whether
--- the server takes several steps from one click is not verified; the roster refresh shows the outcome.
-function Action.SetRank(m, newRank)
-  local kind, steps = ns.Roster.RankChange(m, newRank)
-  local macro = kind and ns.Manage.Commands(kind, m.fullName or m.name, steps)
-  if not macro then return nil end
-  return { macro = macro, after = function()
-    C_Timer.After(1, function() ns.Roster.Request(true) end)
-    C_Timer.After(3, function() ns.Roster.Request(true) end)
   end }
 end
 

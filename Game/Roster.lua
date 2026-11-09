@@ -147,6 +147,9 @@ local function MyRankIndex()
   return me and me.rankIndex
 end
 
+-- The player's own rank index (0 = guild master), nil outside a guild
+function Roster.MyRank() return MyRankIndex() end
+
 -- Number of guild ranks: GuildControlGetNumRanks, at least the lowest rank seen in the roster
 local function NumRanks()
   local num = ns.Try(rawget(_G, "GuildControlGetNumRanks"))
@@ -164,11 +167,12 @@ function Roster.Rights(m)
   return ns.Manage.Rights(m and m.rankIndex, MyRankIndex(), NumRanks(), Roster.Can(), isSelf)
 end
 
--- Setting member m to rank newRank (GetGuildRosterInfo index): kind and steps, or nil (Manage.RankChange)
-function Roster.RankChange(m, newRank)
-  local myGuid = ns.Try(rawget(_G, "UnitGUID"), "player")
-  local isSelf = m ~= nil and ((myGuid and m.guid == myGuid) or m == Roster.Me())
-  return ns.Manage.RankChange(m and m.rankIndex, newRank, MyRankIndex(), NumRanks(), Roster.Can(), isSelf)
+-- Name of the rank one step from member m's: kind "promote" (one up) or "demote" (one down); nil when
+-- the player may not take that step (Roster.Rights). Forever has no "set rank": one command, one step.
+function Roster.NextRank(m, kind)
+  if not (m and type(m.rankIndex) == "number" and Roster.Rights(m)[kind]) then return nil end
+  local index = kind == "promote" and m.rankIndex - 1 or m.rankIndex + 1
+  return Roster.Ranks()[index + 1]
 end
 
 -- Debug: why rank actions are off for a member (/guildy rights Name)

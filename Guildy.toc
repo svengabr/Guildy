@@ -40,6 +40,7 @@ UI\Main.lua
 UI\Popups.lua
 UI\CharacterPage.lua
 UI\Commands.lua
+UI\RankLadder.lua
 UI\ChatTimeline.lua
 UI\TabChat.lua
 UI\TabMembers.lua

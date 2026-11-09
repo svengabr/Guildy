@@ -70,8 +70,9 @@ function UI.MemberClick(m)
   if IsShiftKeyDown() then UI.Whisper(m.fullName) else UI.ShowMember(m) end
 end
 
--- Context menu for a roster member (right click anywhere). Officers get the ranks right in the menu:
--- a click sets that rank directly (UI.Action.SetRank). anchor defaults to the mouse position.
+-- Context menu for a roster member (right click anywhere). Officers get one step up and one step down,
+-- each naming the rank it leads to (one rank per click, see UI/Commands.lua). anchor defaults to the
+-- mouse position.
 function UI.MemberMenu(m, anchor)
   local L, R = ns.L, ns.Roster
   local can = R.Can()
@@ -83,13 +84,13 @@ function UI.MemberMenu(m, anchor)
     { text = L.COPY_NAME, onClick = function() UI.CopyText(m.name) end },
   }
   local rights = R.Rights(m)
-  if can.promote or can.demote then
-    items[#items + 1] = { text = L.MEMBER_SET_RANK, isTitle = true }
-    for i, name in ipairs(R.Ranks()) do
-      local index = i - 1
-      local allowed = R.RankChange(m, index) ~= nil
-      items[#items + 1] = { text = name, checked = index == m.rankIndex, disabled = not allowed,
-        action = allowed and function() return UI.Action.SetRank(m, index) end or nil }
+  for _, kind in ipairs({ "promote", "demote" }) do
+    if can[kind] then
+      local target = R.NextRank(m, kind)
+      local label = kind == "promote" and L.PROMOTE or L.DEMOTE
+      local labelTo = kind == "promote" and L.PROMOTE_TO or L.DEMOTE_TO
+      items[#items + 1] = { text = target and labelTo:format(target) or label, disabled = target == nil,
+        action = target and function() return UI.Action.Manage(kind, m) end or nil }
     end
   end
   if can.editPublic or can.editOfficer then

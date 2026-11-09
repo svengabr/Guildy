@@ -405,15 +405,11 @@ function W.OpenMenu(anchor, items, width)
   menu:Show()
 end
 
--- Button that opens a menu built on click; a small arrow on the right marks it as a menu
+-- Button with a small arrow on the right that marks it as opening something (a menu, a flyout)
 local MENU_ARROW = "Interface\\Buttons\\Arrow-Down-Up"
-function W.MenuButton(parent, text, buildItems, width, maxWidth)
-  local button
+function W.DropButton(parent, text, onClick, width, maxWidth)
   local arrow = W.TextureExists(MENU_ARROW)
-  button = W.Button(parent, text, function()
-    if menu and menu:IsShown() then CloseMenu() return end
-    W.OpenMenu(button, buildItems(), math.max(width or 120, 180))
-  end, width, { pad = arrow and 38 or nil, maxWidth = maxWidth })
+  local button = W.Button(parent, text, onClick, width, { pad = arrow and 38 or nil, maxWidth = maxWidth })
   if arrow then
     local icon = button:CreateTexture(nil, "OVERLAY")
     icon:SetSize(12, 12)
@@ -425,6 +421,16 @@ function W.MenuButton(parent, text, buildItems, width, maxWidth)
       label:SetPoint("CENTER", -6, 0)
     end
   end
+  return button
+end
+
+-- Button that opens a menu built on click
+function W.MenuButton(parent, text, buildItems, width, maxWidth)
+  local button
+  button = W.DropButton(parent, text, function()
+    if menu and menu:IsShown() then CloseMenu() return end
+    W.OpenMenu(button, buildItems(), math.max(width or 120, 180))
+  end, width, maxWidth)
   return button
 end
 

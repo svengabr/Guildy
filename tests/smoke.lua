@@ -418,7 +418,22 @@ T.describe("Smoke", function()
     ns.UI.MemberMenu(member)
     ns.UI.CopyText(member.name)
     ns.UI.ConfirmRemove(member)
-    ns.UI.Action.SetRank(member, 0)
+    -- one rank per click: the next rank up or down, never onto the player's own rank or below the lowest
+    local low = { name = "Neu", rankIndex = 2 }
+    T.eq(ns.Roster.NextRank(low, "promote"), nil)
+    T.eq(ns.Roster.NextRank(low, "demote"), nil)
+    local myInfo = env.GetGuildInfo
+    env.GetGuildInfo = function() return "Murloc Mafia", "GM", 0 end
+    T.eq(ns.Roster.NextRank(low, "promote"), "Offizier")
+    T.eq(ns.Roster.NextRank({ name = "Neu", rankIndex = 1 }, "demote"), "Haifutter")
+    env.GetGuildInfo = myInfo
+    -- rank ladder: opens beside the button, follows the page, closes for another member
+    local anchor = env.CreateFrame("Button")
+    ns.UI.RankLadder.Toggle(anchor, member)
+    T.truthy(env.GuildyRankLadder, "ladder built")
+    ns.UI.RankLadder.Sync(member)
+    ns.UI.RankLadder.Toggle(anchor, member) -- second click closes
+    ns.UI.RankLadder.Hide()
     ns.UI.SelectTab("members")
     ns.UI.SelectTab("chat")
     -- account tab in the guild, then without a guild: only the account tab, back to chat on joining
