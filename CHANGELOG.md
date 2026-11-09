@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- Communities in Guildy: a side tab under the account tab shows your communities on the left (with the
+  number of lines you have not seen yet), the chat of the selected one in the middle (channel switch,
+  history, timeline and input like the guild chat) and its members on the right, online first; a click
+  on a member whispers. Works without a guild too.
+- The list shows each community with its icon, short name and member count. "Invite members" under the member
+  list opens Blizzard's own invite dialog over Guildy: like the notes, picking a community in Guildy
+  also picks it in Blizzard's window underneath, and the guild tabs pick the guild there again. Right clicks on a community or a member open
+  Blizzard's own menus (leave the community, member options, notifications); favorites carry Blizzard's
+  star and stand first; member notes show as an icon
+  and in the member's tooltip.
+- Joining a community in Guildy (Blizzard's "Join or create a community" does not work under Guildy):
+  invitations stand first in the list and open a panel whose Accept and Decline click Blizzard's own
+  buttons underneath; or paste an invite code: Guildy writes it as a link into the chat
+  window, and a click there joins (the game allows joining only from its own links). Invite links
+  clicked in Guildy's chat go the same way. "Create a community" opens Blizzard's own
+  create dialog right from the panel.
+- An empty guild roster for a moment (after leaving and joining a community) no longer empties every
+  tab: Guildy keeps the last roster and asks the game again.
+- Blizzard's own guild window opened from Guildy keeps its chat: Guildy no longer lets go of the chat
+  stream Blizzard's window shows while it is open.
+- Blizzard's own window, opened from Guildy (Info tab, member menu, joining a community), now has a
+  Guildy tab on its right edge that brings Guildy back without closing it.
+
 ## 1.0.1
 
 - Guild members under the mouse are read for the Hall of Fame by default now (statistics and gear,

@@ -95,9 +95,26 @@ local HANDLERS = {
   CHAT_MSG_SAY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_PARTY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_ADDON = function(...) ns.Sync.OnAddonMessage(...) end,
-  CLUB_MESSAGE_ADDED = function() ns.Fire("CHAT") end,
-  CLUB_MESSAGE_HISTORY_RECEIVED = function()
-    ns.Chat.OnHistoryReceived()
+  CLUB_MESSAGE_ADDED = function(clubId, streamId)
+    if not ns.Communities.OnMessageAdded(clubId, streamId) then ns.Fire("CHAT") end
+  end,
+  CLUB_ADDED = function() ns.Communities.Changed() end,
+  CLUB_REMOVED = function() ns.Communities.Changed() end,
+  CLUB_UPDATED = function() ns.Communities.Changed() end,
+  CLUB_FAVORITES_UPDATED = function() ns.Communities.Changed() end,
+  CLUB_STREAMS_LOADED = function() ns.Communities.Changed() end,
+  CLUB_STREAM_ADDED = function() ns.Communities.Changed() end,
+  CLUB_STREAM_REMOVED = function() ns.Communities.Changed() end,
+  CLUB_STREAM_UPDATED = function() ns.Communities.Changed() end,
+  CLUB_MEMBER_ADDED = function() ns.Communities.Changed() end,
+  CLUB_MEMBER_REMOVED = function() ns.Communities.Changed() end,
+  CLUB_MEMBER_UPDATED = function() ns.Communities.Changed() end,
+  CLUB_MEMBER_PRESENCE_UPDATED = function() ns.Communities.Changed() end,
+  CLUB_INVITATIONS_RECEIVED_FOR_SELF = function() ns.Communities.Changed() end,
+  CLUB_INVITATION_ADDED_FOR_SELF = function() ns.Communities.Changed() end,
+  CLUB_INVITATION_REMOVED_FOR_SELF = function() ns.Communities.Changed() end,
+  CLUB_MESSAGE_HISTORY_RECEIVED = function(clubId, streamId)
+    ns.Chat.OnHistoryReceived(clubId, streamId)
     ns.Fire("CHAT")
   end,
   TRADE_SKILL_SHOW = ScheduleTradeScan,
@@ -145,6 +162,8 @@ SlashCmdList.GUILDY = function(msg)
     end
   elseif msg == "notedebug" then
     for _, line in ipairs(ns.UI.Notes.Debug()) do ns.Print(line) end
+  elseif msg == "communitydebug" then
+    for _, line in ipairs(ns.Communities.Debug()) do ns.Print(line) end
   elseif msg == "statdebug" then
     ns.GameStats.debug = not ns.GameStats.debug
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))

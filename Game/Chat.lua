@@ -18,7 +18,9 @@ local systemLines = {}
 local whispers = {}
 local systemPatterns
 local focused
-local pending -- time of the outstanding "older messages" request
+local pending = {} -- "club:stream" -> time of its outstanding "older messages" request
+local asked = {}   -- "club:stream" -> {mark, ts}: where its history began at the last request
+local ASKED_KEEP = 60 -- a request that brought nothing older counts as the start for this long
 local seenMark -- lines after this time are new for this session (see Chat.InitSeen)
 
 local function Push(list, line, max)
@@ -156,34 +158,80 @@ end
 -- State at the top of the loaded history: "loading" while older lines are requested, "start" at
 -- the beginning of the stream, nil otherwise (or without a club stream)
 function Chat.HistoryState(kind)
-  if pending and ns.Now() - pending < REQUEST_TIMEOUT then return "loading" end
-  local clubId, streamId = GuildStream(kind)
-  if not clubId or not C_Club.GetMessageRanges then return nil end
+  return Chat.StreamState(GuildStream(kind))
+end
+
+local function StreamKey(clubId, streamId)
+  return tostring(clubId) .. ":" .. tostring(streamId)
+end
+
+-- Where a stream's loaded history begins: "epoch:position" of its oldest message, "none" when empty
+local function OldestMark(clubId, streamId)
   local ranges = ns.Try(C_Club.GetMessageRanges, clubId, streamId)
   local newest = Chat.NewestRange(ranges)
   local oldest = newest and newest.oldestMessageId or nil
+  if type(oldest) ~= "table" then return nil, "none" end
+  return oldest, tostring(oldest.epoch) .. ":" .. tostring(oldest.position)
+end
+
+local function Pending(key)
+  return pending[key] and ns.Now() - pending[key] < REQUEST_TIMEOUT
+end
+
+-- The last request came back (or ran out) and the history still begins where it began then: nothing
+-- older exists. Without this an empty or short channel asked again on every render (the view sits at
+-- its top), and its "loading" line never went away (found in game 2026-11-09).
+local function NothingOlder(key, mark)
+  local last = asked[key]
+  return last ~= nil and last.mark == mark and not Pending(key) and ns.Now() - last.ts < ASKED_KEEP
+end
+
+-- The same for any club stream (communities)
+function Chat.StreamState(clubId, streamId)
+  if not clubId or not streamId or not C_Club or not C_Club.GetMessageRanges then return nil end
+  local key = StreamKey(clubId, streamId)
+  if Pending(key) then return "loading" end
+  local oldest, mark = OldestMark(clubId, streamId)
   if oldest and ns.Try(C_Club.IsBeginningOfStream, clubId, streamId, oldest) then return "start" end
+  if NothingOlder(key, mark) then return "start" end
   return nil
 end
 
--- History arrived from the server
-function Chat.OnHistoryReceived()
-  pending = nil
+-- History arrived from the server (for one stream, or all when the event names none)
+function Chat.OnHistoryReceived(clubId, streamId)
+  if clubId and streamId then pending[StreamKey(clubId, streamId)] = nil else pending = {} end
 end
 
 -- Ask the server for older messages of a channel (scrolled to the top). Returns false at the
 -- beginning of the stream or when there is no club stream.
 function Chat.LoadOlder(kind)
-  local clubId, streamId = GuildStream(kind)
-  if not clubId or not C_Club.RequestMoreMessagesBefore then return false end
-  local ranges = ns.Try(C_Club.GetMessageRanges, clubId, streamId)
-  local newest = Chat.NewestRange(ranges)
-  local oldest = newest and newest.oldestMessageId or nil
+  return Chat.StreamLoadOlder(GuildStream(kind))
+end
+
+-- The same for any club stream (communities)
+function Chat.StreamLoadOlder(clubId, streamId)
+  if not clubId or not streamId or not C_Club or not C_Club.RequestMoreMessagesBefore then return false end
+  local key = StreamKey(clubId, streamId)
+  local oldest, mark = OldestMark(clubId, streamId)
   if oldest and ns.Try(C_Club.IsBeginningOfStream, clubId, streamId, oldest) then return false end
-  if pending and ns.Now() - pending < REQUEST_TIMEOUT then return true end
-  pending = ns.Now()
+  if Pending(key) then return true end
+  if NothingOlder(key, mark) then return false end
+  pending[key] = ns.Now()
+  asked[key] = { mark = mark, ts = ns.Now() }
   ns.Try(C_Club.RequestMoreMessagesBefore, clubId, streamId, oldest, oldest and CLUB_MORE or CLUB_LINES)
   return true
+end
+
+-- What the history of a stream looks like to Guildy (/guildy communitydebug)
+function Chat.StreamDebug(clubId, streamId)
+  local key = StreamKey(clubId, streamId)
+  local ranges = ns.Try(C_Club.GetMessageRanges, clubId, streamId)
+  local _, mark = OldestMark(clubId, streamId)
+  local last = asked[key]
+  return ("stream %s: ranges %s oldest %s pending %s asked %s state %s lines %s"):format(key,
+    tostring(type(ranges) == "table" and #ranges or ranges), mark, tostring(Pending(key)),
+    tostring(last and (last.mark .. " " .. math.floor(ns.Now() - last.ts) .. "s ago")),
+    tostring(Chat.StreamState(clubId, streamId)), tostring(#(Chat.StreamLines(clubId, streamId, "community") or {})))
 end
 
 -- The author's name: older lines (members who left, not yet loaded) carry none in the message, but
@@ -205,9 +253,9 @@ local function AuthorName(clubId, author)
   return nil
 end
 
-local function ClubHistory(kind)
-  local clubId, streamId = GuildStream(kind)
-  if not clubId or not C_Club.GetMessageRanges then return nil end
+-- Lines of a club stream, oldest first: the guild's (kind "guild" / "officer") or a community's
+function Chat.StreamLines(clubId, streamId, kind)
+  if not clubId or not streamId or not C_Club or not C_Club.GetMessageRanges then return nil end
   local ranges = ns.Try(C_Club.GetMessageRanges, clubId, streamId)
   if not ranges or #ranges == 0 then return nil end
   -- the newest range is the contiguous history up to now; older ranges have gaps before it
@@ -239,6 +287,11 @@ local function ClubHistory(kind)
   return lines
 end
 
+local function ClubHistory(kind)
+  local clubId, streamId = GuildStream(kind)
+  return Chat.StreamLines(clubId, streamId, kind)
+end
+
 -- /guildy chatdebug: where the history goes missing (stream, ranges, messages, lines)
 function Chat.Debug(kind)
   kind = kind or "guild"
@@ -246,7 +299,7 @@ function Chat.Debug(kind)
   local function Add(text) out[#out + 1] = text end
   local clubId, streamId = GuildStream(kind)
   Add("club " .. tostring(clubId) .. " stream " .. tostring(streamId) .. " focused " .. tostring(focused ~= nil)
-    .. " pending " .. tostring(pending))
+    .. " pending " .. tostring(clubId and Pending(StreamKey(clubId, streamId)) or false))
   if clubId then
     local ok, ranges = pcall(C_Club.GetMessageRanges, clubId, streamId)
     Add("ranges ok " .. tostring(ok) .. " count " .. tostring(type(ranges) == "table" and #ranges or ranges))

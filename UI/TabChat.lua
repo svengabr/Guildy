@@ -66,6 +66,159 @@ local function DayShort(ts)
   return date("%d.%m.", ts)
 end
 
+-- The chat column shared by the chat tab and the communities view: history with day lines, the
+-- "new since your last login" mark and the timeline in chatBox. opts: status() and onTop() for the
+-- timeline. pane:Render(lines, r, g, b) shows lines (oldest first) in the channel's color.
+function UI.ChatPane(chatBox, opts)
+  local L = ns.L
+  local pane = {}
+  local messages = CreateFrame("ScrollingMessageFrame", nil, chatBox)
+  local Timeline = ns.ChatTimeline
+  messages:SetPoint("TOPLEFT", 8, -(Timeline.HEADER_HEIGHT + 6)) -- strip on top for the pinned day
+  messages:SetPoint("BOTTOMRIGHT", -(Timeline.RAIL_WIDTH + 8), 6)
+  local fontObject = rawget(_G, "ChatFontNormal")
+  if fontObject then
+    messages:SetFontObject(fontObject)
+    local font, size, flags = fontObject:GetFont()
+    if font then messages:SetFont(font, (size or 13) + 1, flags or "") end
+  end
+  messages:SetJustifyH("LEFT")
+  messages:SetFading(false)
+  messages:SetMaxLines(4000)
+  if messages.SetIndentedWordWrap then pcall(messages.SetIndentedWordWrap, messages, true) end
+  if messages.SetHyperlinksEnabled then messages:SetHyperlinksEnabled(true) end
+  messages:EnableMouseWheel(true)
+  messages:SetScript("OnMouseWheel", function(self, delta)
+    if IsShiftKeyDown() then
+      if delta > 0 then self:ScrollToTop() else self:ScrollToBottom() end
+    elseif delta > 0 then
+      self:ScrollUp(); self:ScrollUp()
+    else
+      self:ScrollDown(); self:ScrollDown()
+    end
+    pane.Timeline:Update()
+  end)
+  messages:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    -- guild members: left click opens the character page, right click Guildy's menu; shift-click
+    -- and everyone else keep Blizzard's behaviour
+    local name = type(link) == "string" and link:match("^player:([^:]+)")
+    local member = name and ns.Roster.Find(name)
+    if member and button == "RightButton" then
+      UI.MemberMenu(member)
+      return
+    elseif member and not IsShiftKeyDown() then
+      UI.ShowMember(member)
+      return
+    end
+    -- an invite link: joining is protected and would fail from Guildy's click, so it goes into
+    -- Blizzard's chat window as a link to click there (Game/Communities.lua)
+    if type(link) == "string" and link:match("^clubTicket:") and ns.Communities then
+      ns.Communities.Redeem(link)
+      return
+    end
+    local setItemRef = rawget(_G, "SetItemRef")
+    if setItemRef then pcall(setItemRef, link, text, button, DEFAULT_CHAT_FRAME) end
+  end)
+  messages:SetScript("OnHyperlinkEnter", function(self, link)
+    local kind = link:match("^(%a+):")
+    if kind == "item" or kind == "spell" or kind == "enchant" or kind == "quest" or kind == "achievement" then
+      GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+      pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+      GameTooltip:Show()
+    end
+  end)
+  messages:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+  pane.Messages = messages
+  -- at the top the timeline fetches older messages (they arrive as CLUB_MESSAGE_HISTORY_RECEIVED)
+  pane.Timeline = Timeline.Create(chatBox, messages, {
+    label = DayLabel, short = DayShort, newLabel = L.CHAT_NEW_SINCE, newShort = L.CHAT_NEW_SHORT,
+    latestText = function(count) return count == 1 and L.CHAT_NEWER_ONE or L.CHAT_NEWER_MANY:format(count) end,
+    status = opts.status,
+    statusText = { loading = L.CHAT_LOADING_OLDER, start = L.CHAT_HISTORY_START },
+    onTop = opts.onTop,
+  })
+
+  function pane:Render(lines, r, g, b)
+    -- keep the reading position when scrolled up: the offset counts from the bottom, so older lines
+    -- added on top do not move what is shown
+    local frame = self.Messages
+    local offset = self.rendered and frame.GetScrollOffset and frame:GetScrollOffset() or 0
+    frame:Clear()
+    local lastDay, days, count, newIndex = nil, {}, 0, nil
+    local seen, prevTs = ns.Chat.SeenMark(), nil
+    for _, line in ipairs(lines) do
+      local day = line.ts and line.ts > 0 and date("%Y-%m-%d", line.ts)
+      if day and day ~= lastDay then
+        frame:AddMessage("|cffd4a017—— " .. DayLabel(line.ts) .. " ——|r", 1, 1, 1)
+        count = count + 1
+        days[#days + 1] = { index = count, ts = line.ts }
+        lastDay = day
+      end
+      -- "new since your last login" between the last line before the mark and the first after it
+      if seen and not newIndex and prevTs and prevTs <= seen and (line.ts or 0) > seen then
+        frame:AddMessage("|cffff8c40—— " .. L.CHAT_NEW_SINCE .. " ——|r", 1, 1, 1)
+        count = count + 1
+        newIndex = count
+      end
+      prevTs = line.ts or prevTs
+      if line.system then
+        frame:AddMessage(FormatLine(line), 0.63, 0.63, 0.63)
+      else
+        frame:AddMessage(FormatLine(line), r, g, b)
+      end
+      count = count + 1
+    end
+    if offset > 0 and frame.SetScrollOffset then frame:SetScrollOffset(offset) else frame:ScrollToBottom() end
+    self.rendered = true
+    self.Timeline:SetDays(days, count, newIndex)
+  end
+
+  -- a different channel: start again at the bottom
+  function pane:Reset()
+    self.rendered = nil
+  end
+
+  return pane
+end
+
+-- The input line under a chat pane: the channel's name in its color left in the field, a placeholder
+-- while empty, shift-clicked links go in while it has focus. onSend(text) on Enter.
+function UI.ChatInput(parent, onSend)
+  local input = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+  input:SetPoint("BOTTOMLEFT", 6, 4)
+  input:SetPoint("BOTTOMRIGHT", 0, 4)
+  input:SetHeight(22)
+  input:SetAutoFocus(false)
+  input:SetMaxLetters(255)
+  -- the channel the line goes to, left in the field, plus a placeholder while empty
+  input.Channel = W.Text(input, "ChatFontNormal")
+  input.Channel:SetPoint("LEFT", 2, 0)
+  input.Placeholder = W.Text(input, "GameFontDisable")
+  input.Placeholder:SetPoint("LEFT", input.Channel, "RIGHT", 6, 0)
+  input.Placeholder:SetTextColor(0.55, 0.51, 0.43)
+  function input:ShowChannel(label, r, g, b, placeholder)
+    self.Channel:SetText(label .. ":")
+    self.Channel:SetTextColor(r, g, b)
+    self.Placeholder:SetText(placeholder or "")
+    self:SetTextInsets(math.ceil(self.Channel:GetStringWidth() or 40) + 8, 4, 0, 0)
+    self.Placeholder:SetShown((self:GetText() or "") == "")
+  end
+  input:SetScript("OnTextChanged", function(self) self.Placeholder:SetShown((self:GetText() or "") == "") end)
+  input:SetScript("OnEnterPressed", function(self)
+    onSend(self:GetText())
+    self:SetText("")
+    self:ClearFocus()
+  end)
+  input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  -- shift-clicked links go into our input while it has focus
+  local function InsertLink(link)
+    if input:IsVisible() and input:HasFocus() and type(link) == "string" then input:Insert(link) end
+  end
+  if rawget(_G, "ChatEdit_InsertLink") then hooksecurefunc("ChatEdit_InsertLink", InsertLink) end
+
+  return input
+end
+
 local SORTS = { level = true, name = true, zone = true }
 
 local function SortOnline(list, field)
@@ -176,144 +329,31 @@ local function Build(panel)
   local chatBox = W.Box(left)
   chatBox:SetPoint("TOPLEFT", 0, -28)
   chatBox:SetPoint("BOTTOMRIGHT", 0, 30)
-  local messages = CreateFrame("ScrollingMessageFrame", nil, chatBox)
-  local Timeline = ns.ChatTimeline
-  messages:SetPoint("TOPLEFT", 8, -(Timeline.HEADER_HEIGHT + 6)) -- strip on top for the pinned day
-  messages:SetPoint("BOTTOMRIGHT", -(Timeline.RAIL_WIDTH + 8), 6)
-  local fontObject = rawget(_G, "ChatFontNormal")
-  if fontObject then
-    messages:SetFontObject(fontObject)
-    local font, size, flags = fontObject:GetFont()
-    if font then messages:SetFont(font, (size or 13) + 1, flags or "") end
-  end
-  messages:SetJustifyH("LEFT")
-  messages:SetFading(false)
-  messages:SetMaxLines(4000)
-  if messages.SetIndentedWordWrap then pcall(messages.SetIndentedWordWrap, messages, true) end
-  if messages.SetHyperlinksEnabled then messages:SetHyperlinksEnabled(true) end
-  messages:EnableMouseWheel(true)
-  messages:SetScript("OnMouseWheel", function(self, delta)
-    if IsShiftKeyDown() then
-      if delta > 0 then self:ScrollToTop() else self:ScrollToBottom() end
-    elseif delta > 0 then
-      self:ScrollUp(); self:ScrollUp()
-    else
-      self:ScrollDown(); self:ScrollDown()
-    end
-    view.Timeline:Update()
-  end)
-  messages:SetScript("OnHyperlinkClick", function(_, link, text, button)
-    -- guild members: left click opens the character page, right click Guildy's menu; shift-click
-    -- and everyone else keep Blizzard's behaviour
-    local name = type(link) == "string" and link:match("^player:([^:]+)")
-    local member = name and ns.Roster.Find(name)
-    if member and button == "RightButton" then
-      UI.MemberMenu(member)
-      return
-    elseif member and not IsShiftKeyDown() then
-      UI.ShowMember(member)
-      return
-    end
-    local setItemRef = rawget(_G, "SetItemRef")
-    if setItemRef then pcall(setItemRef, link, text, button, DEFAULT_CHAT_FRAME) end
-  end)
-  messages:SetScript("OnHyperlinkEnter", function(self, link)
-    local kind = link:match("^(%a+):")
-    if kind == "item" or kind == "spell" or kind == "enchant" or kind == "quest" or kind == "achievement" then
-      GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-      pcall(GameTooltip.SetHyperlink, GameTooltip, link)
-      GameTooltip:Show()
-    end
-  end)
-  messages:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
-  view.Messages = messages
-  -- at the top the timeline fetches older messages (they arrive as CLUB_MESSAGE_HISTORY_RECEIVED)
-  view.Timeline = Timeline.Create(chatBox, messages, {
-    label = DayLabel, short = DayShort, newLabel = L.CHAT_NEW_SINCE, newShort = L.CHAT_NEW_SHORT,
-    latestText = function(count) return count == 1 and L.CHAT_NEWER_ONE or L.CHAT_NEWER_MANY:format(count) end,
+  view.Pane = UI.ChatPane(chatBox, {
     status = function() return ns.Chat.HistoryState(view.kind) end,
-    statusText = { loading = L.CHAT_LOADING_OLDER, start = L.CHAT_HISTORY_START },
     onTop = function() ns.Chat.LoadOlder(view.kind) end,
   })
-
-  local input = CreateFrame("EditBox", nil, left, "InputBoxTemplate")
-  input:SetPoint("BOTTOMLEFT", 6, 4)
-  input:SetPoint("BOTTOMRIGHT", 0, 4)
-  input:SetHeight(22)
-  input:SetAutoFocus(false)
-  input:SetMaxLetters(255)
-  -- the channel the line goes to, left in the field, plus a placeholder while empty
-  input.Channel = W.Text(input, "ChatFontNormal")
-  input.Channel:SetPoint("LEFT", 2, 0)
-  input.Placeholder = W.Text(input, "GameFontDisable")
-  input.Placeholder:SetPoint("LEFT", input.Channel, "RIGHT", 6, 0)
-  input.Placeholder:SetTextColor(0.55, 0.51, 0.43)
-  function input:ShowChannel(kind)
+  view.Messages = view.Pane.Messages
+  view.Timeline = view.Pane.Timeline
+  view.Input = UI.ChatInput(left, function(text) ns.Chat.Send(view.kind, text) end)
+  function view.Input:ShowKind(kind)
     local r, g, b = ChatColor(kind)
-    self.Channel:SetText((kind == "officer" and L.CHANNEL_OFFICER or L.CHANNEL_GUILD) .. ":")
-    self.Channel:SetTextColor(r, g, b)
-    self.Placeholder:SetText(kind == "officer" and L.CHAT_PLACEHOLDER_OFFICER or L.CHAT_PLACEHOLDER_GUILD)
-    self:SetTextInsets(math.ceil(self.Channel:GetStringWidth() or 40) + 8, 4, 0, 0)
-    self.Placeholder:SetShown((self:GetText() or "") == "")
+    self:ShowChannel(kind == "officer" and L.CHANNEL_OFFICER or L.CHANNEL_GUILD, r, g, b,
+      kind == "officer" and L.CHAT_PLACEHOLDER_OFFICER or L.CHAT_PLACEHOLDER_GUILD)
   end
-  input:SetScript("OnTextChanged", function(self) self.Placeholder:SetShown((self:GetText() or "") == "") end)
-  input:SetScript("OnEnterPressed", function(self)
-    ns.Chat.Send(view.kind, self:GetText())
-    self:SetText("")
-    self:ClearFocus()
-  end)
-  input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  view.Input = input
-  input:ShowChannel("guild")
-  -- shift-clicked links go into our input while it has focus
-  local function InsertLink(link)
-    if input:IsVisible() and input:HasFocus() and type(link) == "string" then input:Insert(link) end
-  end
-  if rawget(_G, "ChatEdit_InsertLink") then hooksecurefunc("ChatEdit_InsertLink", InsertLink) end
+  view.Input:ShowKind("guild")
 
   function view:SetKind(kind)
     self.kind = kind
     self.Channel:SetText(kind == "officer" and L.CHANNEL_OFFICER or L.CHANNEL_GUILD)
-    self.Input:ShowChannel(kind)
+    self.Input:ShowKind(kind)
     ns.Chat.Focus(true, kind)
-    self.rendered = nil
+    self.Pane:Reset()
     self:RenderChat()
   end
 
   function view:RenderChat()
-    -- keep the reading position when scrolled up: the offset counts from the bottom, so older lines
-    -- added on top do not move what is shown
-    local frame = self.Messages
-    local offset = self.rendered and frame.GetScrollOffset and frame:GetScrollOffset() or 0
-    frame:Clear()
-    local r, g, b = ChatColor(self.kind)
-    local lastDay, days, count, newIndex = nil, {}, 0, nil
-    local seen, prevTs = ns.Chat.SeenMark(), nil
-    for _, line in ipairs(ns.Chat.History(self.kind)) do
-      local day = line.ts and line.ts > 0 and date("%Y-%m-%d", line.ts)
-      if day and day ~= lastDay then
-        frame:AddMessage("|cffd4a017—— " .. DayLabel(line.ts) .. " ——|r", 1, 1, 1)
-        count = count + 1
-        days[#days + 1] = { index = count, ts = line.ts }
-        lastDay = day
-      end
-      -- "new since your last login" between the last line before the mark and the first after it
-      if seen and not newIndex and prevTs and prevTs <= seen and (line.ts or 0) > seen then
-        frame:AddMessage("|cffff8c40—— " .. L.CHAT_NEW_SINCE .. " ——|r", 1, 1, 1)
-        count = count + 1
-        newIndex = count
-      end
-      prevTs = line.ts or prevTs
-      if line.system then
-        frame:AddMessage(FormatLine(line), 0.63, 0.63, 0.63)
-      else
-        frame:AddMessage(FormatLine(line), r, g, b)
-      end
-      count = count + 1
-    end
-    if offset > 0 and frame.SetScrollOffset then frame:SetScrollOffset(offset) else frame:ScrollToBottom() end
-    self.rendered = true
-    self.Timeline:SetDays(days, count, newIndex)
+    self.Pane:Render(ns.Chat.History(self.kind), ChatColor(self.kind))
   end
 
   function view:RenderList()

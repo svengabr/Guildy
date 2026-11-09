@@ -33,6 +33,96 @@ local function BlizzardInviteButton()
   return button
 end
 
+-- Communities: Blizzard's own list picks the club ----------------------------------------------------
+-- Like the notes (UI/Notes.lua): Guildy never selects a club in Blizzard's window itself (that taints
+-- its invite button and its dialogs). A secure click on the club's entry in Blizzard's list lets
+-- Blizzard select it. Guildy's communities list does that for the community it shows, Guildy's guild
+-- tabs do it for the guild, so Blizzard's window always holds what Guildy shows.
+
+local function Selected()
+  local frame = rawget(_G, "CommunitiesFrame")
+  return frame and frame.GetSelectedClubId and ns.Try(frame.GetSelectedClubId, frame)
+end
+Action.SelectedClub = Selected
+
+-- The entry of clubId in Blizzard's communities list (its rows are filled by Blizzard: clean)
+local function ClubEntry(clubId)
+  local frame = rawget(_G, "CommunitiesFrame")
+  local list = frame and frame.CommunitiesList
+  local box = list and list.ScrollBox
+  if not (clubId and box and box.ForEachFrame) then return nil end
+  local found
+  ns.Try(box.ForEachFrame, box, function(row)
+    if not found and row.clubId == clubId and row.Click then found = row end
+  end)
+  return found
+end
+
+-- Lets Blizzard select clubId (nil when it already is, or its entry is not there); after() once done
+function Action.SelectClub(clubId, after)
+  if not clubId or Selected() == clubId then return nil end
+  local entry = ClubEntry(clubId)
+  return entry and { click = entry, after = after } or nil
+end
+
+-- Back to the guild in Blizzard's window (Guildy's guild tabs), when a community is selected there
+function Action.SelectGuild(after)
+  return Action.SelectClub(C_Club and ns.Try(C_Club.GetGuildClubId), after)
+end
+
+-- Blizzard's own "Invite member" for the community it shows (its dialog invites, untainted)
+function Action.CommunityInvite(clubId)
+  local frame = rawget(_G, "CommunitiesFrame")
+  local button = frame and frame.InviteButton
+  if not clubId or Selected() ~= clubId then return nil end
+  if type(button) ~= "table" or not button.IsEnabled or not button:IsEnabled() then return nil end
+  return { click = button }
+end
+
+-- Blizzard's own Accept / Decline of the invitation its window shows (its invitation frame calls
+-- C_Club.AcceptInvitation itself, untainted)
+function Action.AnswerInvitation(clubId, accept)
+  local frame = rawget(_G, "CommunitiesFrame")
+  local invitation = frame and frame.InvitationFrame
+  if not (clubId and type(invitation) == "table") or Selected() ~= clubId then return nil end
+  if rawget(invitation, "clubId") ~= clubId then return nil end
+  local button = accept and invitation.AcceptButton or invitation.DeclineButton
+  if type(button) ~= "table" then return nil end
+  return { click = button, after = function() C_Timer.After(0.5, function() ns.Fire("COMMUNITY") end) end }
+end
+
+-- The entry of clubId in Blizzard's list, clicked with whichever mouse button the player used: left
+-- picks it there, right opens Blizzard's own menu for it (leave the community, ...). after(button).
+function Action.ClubEntry(clubId, after)
+  local entry = ClubEntry(clubId)
+  return entry and { click = entry, after = after } or nil
+end
+
+-- The member's row in Blizzard's member list, while Blizzard's window shows clubId: a right click there
+-- opens Blizzard's own member menu (its rows are filled by Blizzard: clean). after(button).
+function Action.ClubMember(clubId, guid, after)
+  local frame = rawget(_G, "CommunitiesFrame")
+  local list = frame and frame.MemberList
+  local box = list and list.ScrollBox
+  if not (clubId and guid and box and box.ForEachFrame) or Selected() ~= clubId then return nil end
+  local found
+  ns.Try(box.ForEachFrame, box, function(row)
+    local info = row.memberInfo
+    if not found and info and info.guid == guid and row.Click then found = row end
+  end)
+  return found and { click = found, after = after } or nil
+end
+
+-- Lays the overlay over button whenever getAction(button) gives one, and leaves the button's own click
+-- alone otherwise (in combat or nothing to do: the button works as always). For tabs and list rows.
+function UI.OptionalAction(button, getAction, tooltip)
+  button:HookScript("OnEnter", function(self)
+    if InCombatLockdown() then return end
+    local action = getAction(self)
+    if action then UI.ShowOverlay(self, action, type(tooltip) == "function" and tooltip(self) or tooltip) end
+  end)
+end
+
 -- Whether Blizzard's invite button can be clicked right away
 function Action.InviteReady()
   return BlizzardInviteButton() ~= nil
@@ -86,13 +176,13 @@ local function Overlay()
       GameTooltip:Show()
     end
   end)
-  overlay:SetScript("PostClick", function(self, _, down)
+  overlay:SetScript("PostClick", function(self, mouseButton, down)
     if (down and true or false) ~= KeyDownMode() then return end
     local after = self.after
     if self.owner and self.owner.UnlockHighlight then self.owner:UnlockHighlight() end
     if not InCombatLockdown() then self:Hide() end
     W.CloseMenu()
-    if after then ns.SafeCall(after) end
+    if after then ns.SafeCall(after, mouseButton) end -- after(mouseButton): the clicked mouse button
   end)
   overlay:Hide()
   return overlay

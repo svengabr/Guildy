@@ -353,9 +353,18 @@ T.describe("Smoke", function()
     ns.UI.ShowOverlay(env.UIParent, A.Invite("Xii Lightspark"))
     ns.UI.ShowBlizzard()
     T.eq(ns.UI.IsShown(), false) -- Blizzard's own window instead of Guildy
+    T.truthy(ns.UI.ReturnTab():IsShown(), "Guildy tab on Blizzard's window")
     env.CommunitiesFrame:Hide()
+    T.eq(ns.UI.ReturnTab():IsShown(), false)
     env.CommunitiesFrame:Show()
     T.truthy(ns.UI.IsShown(), "Guildy again next time")
+    -- the communities side tab shows Blizzard's window; its Guildy tab comes back without closing it
+    T.truthy(ns.UI.frame.CommunitiesTab, "communities side tab")
+    ns.UI.ShowBlizzard()
+    T.eq(ns.UI.IsShown(), false)
+    ns.UI.Show()
+    T.truthy(ns.UI.IsShown(), "back to Guildy from Blizzard's window")
+    T.eq(ns.UI.ReturnTab():IsShown(), false)
     RunTimers()
     T.eq(errors, {})
   end)
@@ -459,6 +468,179 @@ T.describe("Smoke", function()
 end)
 
 T.describe("Harvest", function()
+  T.it("shows the communities in Guildy: list, channels, chat, members, unread lines", function()
+    local saved = env.C_Club
+    local sent, focusedStream
+    local function Id(n) return { epoch = (1800000000 + n) * 1000000, position = n } end
+    env.C_Club = {
+      GetGuildClubId = function() return 7 end,
+      GetSubscribedClubs = function()
+        return { { clubId = 7, name = "Murloc Mafia", clubType = 2 }, { clubId = 9, name = "Zander", clubType = 1 },
+          { clubId = 8, name = "angler", clubType = 0 } }
+      end,
+      GetStreams = function(clubId)
+        if clubId == 7 then return { { streamId = 1, streamType = 1 } } end
+        return { { streamId = 3, name = "Off-Topic", sortOrder = 2 }, { streamId = 2, name = "General", sortOrder = 1 } }
+      end,
+      GetMessageRanges = function(clubId) return clubId == 7 and {} or { { oldestMessageId = Id(1), newestMessageId = Id(2) } } end,
+      GetMessagesInRange = function()
+        return { { messageId = Id(1), content = "hi", author = { name = "Ika-Forever", classID = 8 } },
+          { messageId = Id(2), content = "yo", author = { name = "Bo" } } }
+      end,
+      IsBeginningOfStream = function() return true end,
+      RequestMoreMessagesBefore = function() end,
+      FocusStream = function(clubId, streamId) focusedStream = { clubId, streamId } return true end,
+      UnfocusStream = function() focusedStream = nil end,
+      SetClubPresenceSubscription = function() end,
+      ClearClubPresenceSubscription = function() end,
+      GetClubMembers = function() return { 1, 2, 3 } end,
+      GetMemberInfo = function(_, id)
+        return ({ { name = "Bo", presence = 3, level = 20 }, { name = "Ika-Forever", presence = 1, level = 33, classID = 8, zone = "Desolace" },
+          { name = SECRET } })[id]
+      end,
+      SendMessage = function(clubId, streamId, text) sent = { clubId, streamId, text } end,
+      GetInvitationsForSelf = function()
+        return { { club = { clubId = 11, name = "Kodo-Zähmer" }, inviter = { name = "Bo" } }, { club = {} } }
+      end,
+      AcceptInvitation = function(clubId) sent = { "accept", clubId } end,
+      DeclineInvitation = function(clubId) sent = { "decline", clubId } end,
+      RedeemTicket = function() error("RedeemTicket is protected") end,
+    }
+    local C = ns.Communities
+    local list = C.List()
+    T.eq(#list, 2) -- not the guild
+    T.eq(list[1].name, "angler")
+    T.eq(C.Streams(9)[1].name, "General")
+    local members = C.Members(9)
+    T.eq(#members, 2) -- the secret name is left out
+    T.eq(members[1].name, "Ika Forever") -- online first (names as in the guild chat)
+    T.eq(members[1].online, true)
+    T.eq(#C.History(9, 2), 2)
+    -- a line in a community that is not shown counts as unread; a guild line does not
+    T.eq(C.OnMessageAdded(9, 2), true)
+    T.eq(C.OnMessageAdded(7, 1), false)
+    T.eq(C.Unread(9), 1)
+    -- the view: the first community selected and focused on its first channel
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("communities")
+    T.eq(ns.UI.Current(), "communities")
+    T.eq(focusedStream, { 8, 2 })
+    local view = ns.UI.TabView("communities")
+    view:Select(9)
+    T.eq(focusedStream, { 9, 2 })
+    T.eq(C.Unread(9), 0) -- seen now
+    view:SelectStream(3)
+    T.eq(focusedStream, { 9, 3 })
+    view.Input:SetText("hallo")
+    view.Input:GetScript("OnEnterPressed")(view.Input)
+    T.eq(sent, { 9, 3, "hallo" })
+    -- joining in Guildy: invitations and invite links
+    local invites = C.Invitations()
+    T.eq(#invites, 1) -- one without a club id is left out
+    T.eq(invites[1].inviter, "Bo")
+    -- invitations stand first in Guildy's list and open their own panel
+    view:Render()
+    T.eq(view.Clubs.rows[1].club.invite, true)
+    view:SelectInvite(11)
+    T.truthy(view.Invite:IsShown(), "invitation panel over the chat")
+    T.eq(view.Input:IsShown(), false)
+    -- its buttons click Blizzard's own Accept / Decline once Blizzard's window shows the invitation
+    local accept, decline = {}, {}
+    rawset(env.CommunitiesFrame, "InvitationFrame", { clubId = 11, AcceptButton = accept, DeclineButton = decline })
+    rawset(env.CommunitiesFrame, "GetSelectedClubId", function() return 7 end)
+    T.eq(ns.UI.Action.AnswerInvitation(11, true), nil) -- Blizzard still shows the guild
+    rawset(env.CommunitiesFrame, "GetSelectedClubId", function() return 11 end)
+    T.eq(ns.UI.Action.AnswerInvitation(11, true).click, accept)
+    T.eq(ns.UI.Action.AnswerInvitation(11, false).click, decline)
+    rawset(env.CommunitiesFrame, "GetSelectedClubId", function() return 7 end)
+    rawset(env.CommunitiesFrame, "InvitationFrame", nil)
+    view:Select(9)
+    T.eq(view.Invite:IsShown(), false)
+    T.eq(C.ParseTicket("|cffffd100|HclubTicket:AbC123|h[Join: Zander]|h|r"), "AbC123")
+    T.eq(C.ParseTicket(" https://blizzard.com/invite/Xy9-z "), "Xy9-z")
+    T.eq(C.ParseTicket("Qw3rT7"), "Qw3rT7")
+    T.eq(C.ParseTicket("not a code"), nil)
+    -- RedeemTicket is protected: Guildy writes the invite as a link into Blizzard's chat window instead
+    local printed
+    rawset(env.DEFAULT_CHAT_FRAME, "AddMessage", function(_, text) printed = text end)
+    T.eq(C.Redeem("hallo welt"), "invalid")
+    T.eq(C.Redeem("Qw3rT7"), "linked")
+    T.truthy(printed:find("|HclubTicket:Qw3rT7|h", 1, true), "clickable invite link in the chat window")
+    view:ShowJoin(true)
+    T.truthy(view.Join:IsShown(), "join panel over the chat")
+    T.eq(view.Input:IsShown(), false)
+    view.Join.Link:SetText("|HclubTicket:Zz12|h[x]|h")
+    view.Join.Link:GetScript("OnEnterPressed")(view.Join.Link)
+    T.truthy(printed:find("|HclubTicket:Zz12|h", 1, true), "the field's link too")
+    -- an invite link clicked in Guildy's chat goes the same way
+    printed = nil
+    view.Pane.Messages:GetScript("OnHyperlinkClick")(view.Pane.Messages, "clubTicket:Ab12", "[x]", "LeftButton")
+    T.truthy(printed and printed:find("|HclubTicket:Ab12|h", 1, true), "chat link handed to Blizzard's chat")
+    rawset(env.DEFAULT_CHAT_FRAME, "AddMessage", nil)
+    view:Select(9)
+    T.eq(view.Join:IsShown(), false) -- picking a community goes back to its chat
+    T.truthy(#C.Debug() > 5, "/guildy communitydebug")
+    -- an empty roster while in a guild (after leaving / joining a community) keeps the last one
+    local before = #ns.Roster.Members()
+    T.truthy(before > 0, "a roster to keep")
+    local count = env.GetNumGuildMembers
+    env.GetNumGuildMembers = function() return 0 end
+    ns.Roster.Scan()
+    T.eq(#ns.Roster.Members(), before)
+    env.GetNumGuildMembers = count
+    -- a request that brings nothing older ends the loading: no new request on every render
+    local requests = 0
+    env.C_Club.IsBeginningOfStream = function() return false end
+    env.C_Club.RequestMoreMessagesBefore = function() requests = requests + 1 end
+    T.eq(C.LoadOlder(9, 3), true)
+    T.eq(C.HistoryState(9, 3), "loading")
+    ns.Chat.OnHistoryReceived(9, 3)
+    T.eq(C.LoadOlder(9, 3), false)
+    T.eq(requests, 1)
+    T.eq(C.HistoryState(9, 3), "start")
+    env.C_Club.IsBeginningOfStream = function() return true end
+    local created
+    env.CommunitiesCreateCommunityDialog = function() created = true end
+    view:ShowJoin(true)
+    view.Join.Create:GetScript("OnClick")(view.Join.Create)
+    T.truthy(created, "Blizzard's create dialog opened")
+    env.CommunitiesCreateCommunityDialog = nil
+    -- inviting: Blizzard's own list picks the community (secure click), its invite button invites
+    env.C_Club.GetClubPrivileges = function() return { canSendInvitation = true } end
+    view:Select(9)
+    T.truthy(view.InviteSend:IsShown(), "invite button for those allowed to invite")
+    local A, blizzardSelected = ns.UI.Action, 7
+    local entries = { { clubId = 7, Click = function() end }, { clubId = 9, Click = function() end } }
+    local inviteButton = { IsEnabled = function() return true end }
+    rawset(env.CommunitiesFrame, "GetSelectedClubId", function() return blizzardSelected end)
+    rawset(env.CommunitiesFrame, "InviteButton", inviteButton)
+    rawset(env.CommunitiesFrame, "CommunitiesList", { ScrollBox = { ForEachFrame = function(_, fn)
+      for _, entry in ipairs(entries) do fn(entry) end
+    end } })
+    T.eq(A.CommunityInvite(9), nil) -- Blizzard still shows the guild
+    T.eq(A.SelectClub(9).click, entries[2])
+    T.eq(A.SelectGuild(), nil) -- the guild is already selected there
+    blizzardSelected = 9
+    T.eq(A.CommunityInvite(9).click, inviteButton)
+    T.eq(A.SelectClub(9), nil)
+    T.eq(A.SelectGuild().click, entries[1]) -- the guild tabs pick the guild again
+    -- right clicks go to Blizzard's own rows (its menus): the entry always, the member while it shows the club
+    T.eq(A.ClubEntry(9).click, entries[2])
+    local memberRow = { memberInfo = { guid = "Player-1-AB" }, Click = function() end }
+    rawset(env.CommunitiesFrame, "MemberList", { ScrollBox = { ForEachFrame = function(_, fn) fn(memberRow) end } })
+    T.eq(A.ClubMember(9, "Player-1-AB").click, memberRow)
+    T.eq(A.ClubMember(8, "Player-1-AB"), nil)
+    rawset(env.CommunitiesFrame, "MemberList", nil)
+    rawset(env.CommunitiesFrame, "CommunitiesList", nil)
+    rawset(env.CommunitiesFrame, "InviteButton", nil)
+    blizzardSelected = 7
+    view:ShowJoin(false)
+    ns.UI.SelectTab("chat")
+    T.eq(focusedStream, { 7, 1 }) -- leaving the view unfocuses the channel, the guild chat focuses its own
+    env.C_Club = saved
+    T.eq(errors, {})
+  end)
+
   T.it("builds a queue of online, not yet read members", function()
     local now = 1700000000
     local members = {

@@ -10,6 +10,8 @@ local members, byKey, byGuid = {}, {}, {}
 local joined = {} -- nameKey -> days ago (from the event log)
 local pending = false
 local lastRequest = 0
+local emptyRetries = 0 -- requests again after an empty roster while in a guild
+local EMPTY_RETRIES = 5
 
 function Roster.Request(force)
   local now = GetTime()
@@ -38,6 +40,17 @@ end
 function Roster.Scan()
   pending = false
   local count = ns.Try(rawget(_G, "GetNumGuildMembers")) or 0
+  -- a guild never has 0 members while the player is in it: the game delivered an empty roster for a
+  -- moment (seen in game 2026-11-09 after leaving and rejoining a community, which switches the club in
+  -- Blizzard's window). Keep the last roster and ask again instead of emptying every tab.
+  if count == 0 and IsInGuild() then
+    if emptyRetries < EMPTY_RETRIES then
+      emptyRetries = emptyRetries + 1
+      C_Timer.After(2, function() Roster.Request(true) end)
+    end
+    return
+  end
+  emptyRetries = 0
   local list, keys, guids = {}, {}, {}
   for i = 1, count do
     local name, rank, rankIndex, level, className, zone, note, officerNote, online, status, classFile,

@@ -30,6 +30,7 @@ Core\Family.lua
 Core\Runtime.lua
 Game\Roster.lua
 Game\Chat.lua
+Game\Communities.lua
 Game\TradeSkill.lua
 Game\Harvest.lua
 Game\Sync.lua
@@ -49,4 +50,5 @@ UI\TabProfessions.lua
 UI\TabInfo.lua
 UI\TabRanks.lua
 UI\TabAccount.lua
+UI\TabCommunities.lua
 Core\Init.lua
