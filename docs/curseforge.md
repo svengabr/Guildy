@@ -34,18 +34,22 @@ the images point to GitHub raw URLs and show up as they are.
 
 ## Gallery (in this order)
 
-Real in-game screenshots (German client), cut out and placed on a neutral background by
-`media/gallery/build.py`. All character names are made up and the guild chat is rewritten. `12-sync.jpg` is
+`00-guildy.jpg` is the overview image (logo, claim, the main features and three screenshots), rendered from
+`media/gallery/promo.html` with headless Chrome. The rest are real in-game screenshots (German client), cut
+out and placed on a neutral background by `media/gallery/build.py`. All character names are made up and the guild chat is rewritten. `12-sync.jpg` is
 rendered from `media/gallery/sync.html` (a German version is `sync-de.jpg`, not part of the gallery).
 
 Title and description per image (CurseForge allows 255 characters per description).
 
+0. `media/gallery/00-guildy.jpg` (mark it as the featured image)
+   - Title: Guildy
+   - Description: Make the guild window worth opening again: guild chat with history and the online list, a census of active members, professions with recipe search, a Hall of Fame from character statistics and character pages. Lives inside Blizzard's own guild window.
 1. `media/gallery/01-chat.jpg`
    - Title: Chat first
    - Description: Press J and Guildy opens on the guild chat, with history, larger text and an input line. Next to it you see every online member with level, class colour, professions and zone. Invite new members with one click.
 2. `media/gallery/02-members.jpg`
    - Title: Members
-   - Description: Search names, zones and notes, filter by class, level and profession, and sort by any column. The details panel shows rank, notes, last online and professions. Whisper, invite, promote, demote or remove members from here.
+   - Description: Search names, zones and notes, filter by class, level and profession, and sort by any column. A click opens the member's character page; ranks and notes are changed in Blizzard's own member panel beside it, a right click opens Blizzard's member menu.
 3. `media/gallery/03-overview.jpg`
    - Title: Overview
    - Description: Your guild at a glance: classes, levels and professions of the members active in the last month, three months, six months or ever. Also shows last online, who joined and left in the last 30 days, and a class × level grid.

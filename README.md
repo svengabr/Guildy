@@ -2,16 +2,18 @@
 
 <img src="https://raw.githubusercontent.com/svengabr/Guildy/main/media/logo.png" alt="Guildy logo" width="128">
 
-The default guild window shows a chat and a plain list. Guildy replaces it with a window that shows your guild at a glance: who's online and where, who's still active, what classes and levels you have, and who can craft what. Press **J** and it opens on the guild chat, in Blizzard's look.
+The default guild window shows a chat and a plain list. Guildy makes it worth opening again: it shows your guild at a glance, who's online and where, who's still active, what classes and levels you have, and who can craft what. Press **J** and it opens on the guild chat, in Blizzard's look, right inside Blizzard's own guild window.
 
 Made for **WoW Forever**.
 
-![Guildy](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/01-chat.jpg)
+![Guildy](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/00-guildy.jpg)
+
+![Guildy chat](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/01-chat.jpg)
 
 ## What it does
 
 - **Chat first**: J always opens on the guild chat, with history, a bit larger text and an input line. Officer chat is one click away. Join and leave messages show up in the chat.
-- **Who's online**: next to the chat, every online member with level, class colour, professions and zone. Hover for rank, notes and skills, click to whisper, right-click for the menu.
+- **Who's online**: next to the chat, every online member with level, class colour, professions and zone. Hover for rank, notes and skills, click for the character page, shift-click to whisper, right-click for Blizzard's member menu (with "Copy character name").
 - **Members**: search name, zone or note, filter by class, level bracket and profession, sort by any column. The details panel shows notes, rank, last online and professions.
 - **Overview**: the census of your guild. Classes, levels and professions of the members who were online in the last month, three months, six months, or all of them. Click a bar to see who it is.
 - **Professions**: every profession in a list on the left, with how many members have it and how many are online. Pick one to see its members with skill, recipes and where the data comes from; filter by online or by members with recipes, and browse a member's recipes right next to it. The search finds who can craft a recipe or item ("who can make Elixir of Lion's Strength?").
@@ -41,7 +43,7 @@ Made for **WoW Forever**.
 
 "inv pls"? **Invite member** opens Blizzard's own invite dialog with your target filled in, and suggests the last people who whispered you.
 
-On Forever, guild management is reserved for Blizzard's own code. Guildy still does it from its own window: **Promote**, **Demote** and **Remove** sit in the member details and the member menu, and the message of the day and guild info are edited right in the Info tab. Behind the scenes these run through Blizzard's own secure commands, and you type into Blizzard's own edit box, shown right inside Guildy. The **Ranks** tab lists every rank with its members and permissions; the guild master edits ranks and permissions there in Blizzard's own rank editor, opened right inside the tab. Only notes still open Blizzard's guild window: Blizzard saves a note only for the member picked in its own list. The very first J of a session briefly opens and closes Blizzard's guild window in the background, so invite and editing work right away.
+On Forever, guild management is reserved for Blizzard's own code. Guildy still does it from its own window: **Remove** sits on the character page and in the member menu, and the message of the day and guild info are edited right in the Info tab. Behind the scenes these run through Blizzard's own secure commands, and you type into Blizzard's own edit box, shown right inside Guildy. The **Ranks** tab lists every rank with its members and permissions; the guild master edits ranks and permissions there in Blizzard's own rank editor, opened right inside the tab. For rank and notes, a member's character page shows Blizzard's own member panel next to Guildy, in Guildy's look: pick a rank there, or click a note and Blizzard's note dialog opens. Guildy lives inside Blizzard's guild window (it is drawn on top of it), so all of Blizzard's guild buttons are right underneath Guildy's.
 
 ## Hall of Fame
 
@@ -69,7 +71,7 @@ Forever records character statistics: creatures killed, quests, deaths (includin
 2. Press **J**.
 3. Open each of your profession windows once.
 
-That's it. J gives you the guild window back as soon as Guildy is disabled: it only adds a temporary key binding and never touches Blizzard's code.
+That's it. Guildy sits inside Blizzard's own guild window: J, the micro menu and Escape work as always, and disabling Guildy gives you Blizzard's window back as it was.
 
 ---
 
@@ -79,7 +81,7 @@ Das Standard-Gildenfenster zeigt einen Chat und eine schlichte Liste. Guildy ers
 
 **Die Reiter:**
 
-- **Chat**: Gildenchat mit Verlauf und etwas größerer Schrift, Offizierschat mit einem Klick, Beitritte als graue Zeile. Daneben alle Online-Mitglieder mit Stufe, Klassenfarbe, Berufen und Zone. Klick flüstert an, Rechtsklick öffnet das Menü.
+- **Chat**: Gildenchat mit Verlauf und etwas größerer Schrift, Offizierschat mit einem Klick, Beitritte als graue Zeile. Daneben alle Online-Mitglieder mit Stufe, Klassenfarbe, Berufen und Zone. Klick öffnet die Charakterseite, Shift-Klick flüstert an, Rechtsklick öffnet Blizzards Mitgliedermenü (mit „Charakternamen kopieren“).
 - **Mitglieder**: Suche nach Name, Zone oder Notiz, Filter für Klasse, Stufe und Beruf, sortierbare Spalten und eine Detailansicht.
 - **Übersicht**: der Census eurer Gilde. Klassen, Stufen und Berufe der Mitglieder, die im letzten Monat, in den letzten drei oder sechs Monaten oder überhaupt online waren. Ein Klick auf einen Balken zeigt, wer es ist.
 - **Berufe**: links alle Berufe mit der Zahl der Mitglieder und wie viele davon online sind. Ein Klick zeigt die Mitglieder des Berufs mit Skill, Rezepten und Datenquelle, filterbar nach online oder mit Rezepten, und daneben die Rezepte des gewählten Mitglieds. Die Suche findet, wer ein Rezept oder einen Gegenstand herstellen kann („wer kann mir das herstellen?“).
@@ -89,7 +91,7 @@ Das Standard-Gildenfenster zeigt einen Chat und eine schlichte Liste. Guildy ers
 
 **Ruhmeshalle:** Forever führt Statistiken pro Charakter: getötete Kreaturen, Quests, Tode (auch durch Hogger), Gold, Auktionen, Dungeon-Bosse und mehr. Der Tab **Ruhmeshalle** macht daraus fünf Seiten, gesamt, für diesen oder den letzten Monat: Allgemein (Gildensummen mit Reittieren und Haustieren, Titel-Karten und die Ausrüstung der Guildy-Nutzer), Wirtschaft (woher das Gold kommt und wohin es geht) Dungeons (Endbosse und Dungeon-Fortschritt) Ruf (Fraktionen je Rufstufe) und PvP (ehrenhafte Siege, gewonnene und verlorene Duelle, Schlachtfelder); ein Klick zeigt die Rangliste der Gilde. Addons lesen direkt nur die Werte des eigenen Charakters, deshalb liest Guildy deine, fragt die von Gildenmitgliedern ab, die du ins Ziel nimmst und teilt sie mit anderen Guildy-Nutzern.
 
-**Einladen und Verwalten:** „Mitglied einladen“ öffnet Blizzards Einladen-Dialog mit deinem Ziel schon eingetragen und schlägt vor, wer dich zuletzt angeflüstert hat. Befördern, Degradieren und Entfernen gehen direkt in den Mitgliederdetails und im Mitgliedermenü, Nachricht des Tages und Gildeninfo bearbeitest du im Info-Tab. Guildy nutzt dafür Blizzards eigene sichere Befehle, und du tippst in Blizzards eigenes Eingabefeld, das Guildy im Info-Tab anzeigt. Der Tab **Ränge** zeigt alle Ränge mit Mitgliedern und Rechten; der Gildenmeister bearbeitet Ränge und Rechte dort in Blizzards eigenem Rang-Editor, der direkt im Tab aufgeht. Nur Notizen öffnen noch das Blizzard-Gildenfenster: Blizzard speichert eine Notiz nur für das Mitglied, das in seiner eigenen Liste ausgewählt ist. Das erste J einer Sitzung öffnet Blizzards Gildenfenster dafür einmal kurz im Hintergrund.
+**Einladen und Verwalten:** „Mitglied einladen“ öffnet Blizzards Einladen-Dialog mit deinem Ziel schon eingetragen und schlägt vor, wer dich zuletzt angeflüstert hat. Entfernen geht auf der Charakterseite und im Mitgliedermenü, Nachricht des Tages und Gildeninfo bearbeitest du im Info-Tab. Guildy nutzt dafür Blizzards eigene sichere Befehle, und du tippst in Blizzards eigenes Eingabefeld, das Guildy im Info-Tab anzeigt. Der Tab **Ränge** zeigt alle Ränge mit Mitgliedern und Rechten; der Gildenmeister bearbeitet Ränge und Rechte dort in Blizzards eigenem Rang-Editor, der direkt im Tab aufgeht. Für Rang und Notizen zeigt die Charakterseite Blizzards eigenes Mitglieder-Fenster neben Guildy, in Guildys Optik: dort den Rang wählen oder auf eine Notiz klicken, und Blizzards Notiz-Dialog öffnet sich. Guildy lebt in Blizzards Gildenfenster (es liegt obenauf), deshalb liegen Blizzards Gilden-Knöpfe direkt unter Guildys.
 
 **Befehle:** `/guildy` öffnet und schließt das Fenster, `/guildy sync` schickt deine Berufsübersicht an die Gilde, `/guildy debug` zeigt, was Guildy über deine Berufe weiß.
 

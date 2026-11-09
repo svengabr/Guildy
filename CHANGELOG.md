@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.0.0
+
+Guildy now lives inside Blizzard's guild window, and notes, ranks and Blizzard's member menu come with it.
+
+- J, the guild button of the micro menu and Escape open and close Blizzard's guild window as always;
+  Guildy is drawn on top of it (Blizzard's window stays underneath, invisible). Guildy no longer puts
+  its own key binding on J, and nothing opens in the background any more.
+- Public and officer notes: clicking a member anywhere in Guildy also picks them in Blizzard's own
+  member list (Forever saves notes only from there), and their character page shows Blizzard's own
+  member panel next to Guildy's window: a click on its note opens Blizzard's note dialog.
+- That panel and the note dialog take Guildy's look (dark boxes with a gold edge); rank changes happen
+  in the panel's own rank menu, so Guildy's rank button on the character page and promote/demote in
+  the member menu are gone.
+- A right click on a member in Guildy's lists opens Blizzard's own guild member menu: its "Copy
+  character name" copies straight to the clipboard (only Blizzard's code may do that on Forever). In
+  combat Guildy's own menu comes as before.
+- Invite, message of the day, guild info and the rank editor work from the first click (no "loaded
+  once, click again" any more).
+- "Blizzard guild window" in the Info tab shows Blizzard's own window until it is closed.
+- Recipe search lists each recipe once: the first crafter (online first) and "+N" for the others; the
+  tooltip names them all, a click opens a recipe book that can be opened (or whispers), a right click
+  picks the crafter.
+- Professions tab: column headings that don't fit the narrow list beside the read status are hidden.
+- `/guildy` only says to press J: Blizzard's window must be opened by Blizzard's own code.
+
 ## 0.6.2
 
 Hotfix for the members tab at the smallest window size.
