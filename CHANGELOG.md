@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+- Guild members under the mouse are read for the Hall of Fame by default now (statistics and gear,
+  nearby, same limits as for the target), so it fills up faster. Also switched on once for existing
+  installs; `/guildy statmouse` switches it off. If a session ever ends during such a read, Guildy
+  switches it off again by itself.
+
 ## 1.0.0
 
 Guildy now lives inside Blizzard's guild window, and notes, ranks and Blizzard's member menu come with it.
