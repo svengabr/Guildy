@@ -231,15 +231,15 @@ local function Build(panel)
     end
   end
   function view:LayoutColumns()
-    local x, last, signature = 8, nil, ""
+    local at, last, signature = 8, nil, ""
     self.hidden = {}
     for _, column in ipairs(COLUMNS) do
       column.hidden = (column.key == "officerNote" and not self.viewOfficer) or ColumnOff(column.key)
       column.last = false
       self.hidden[column.key] = column.hidden
       if not column.hidden then
-        column.x = x
-        x = x + (column.width > 0 and column.width or REST_WIDTH) + 6
+        column.x = at
+        at = at + (column.width > 0 and column.width or REST_WIDTH) + 6
         last = column
         signature = signature .. column.key .. ","
       end

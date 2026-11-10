@@ -240,12 +240,12 @@ local function Build(panel)
 
   -- top bar -------------------------------------------------------------------------------------
   local shell = W.Page(panel) -- "page" is a statistics page in this file
-  local bar = shell.Bar
+  local toolbar = shell.Bar
   panel = shell.Body
   view.Fresh = shell.Hint -- how many members the values come from: the status line
   local pageOptions = {}
   for i, page in ipairs(S.PAGES) do pageOptions[i] = { value = page.key, text = L["FAME_PAGE_" .. page.key:upper()] } end
-  view.Pages = W.Segmented(bar, pageOptions, function(value)
+  view.Pages = W.Segmented(toolbar, pageOptions, function(value)
     view.page = value
     view.mode = "home"
     view:Refresh()
@@ -255,7 +255,7 @@ local function Build(panel)
   -- statistics (back to the pages in the detail view); both always in the same place
   local PERIODS = { { value = "all", text = L.FAME_ALL }, { value = "month", text = L.FAME_MONTH },
     { value = "last", text = L.FAME_LAST } }
-  view.Period = W.MenuButton(bar, L.FAME_ALL, function()
+  view.Period = W.MenuButton(toolbar, L.FAME_ALL, function()
     local items = { { text = L.FAME_PERIOD, isTitle = true } }
     for _, option in ipairs(PERIODS) do
       -- Forever's launch month has no month before it: shown, but greyed out
@@ -277,7 +277,7 @@ local function Build(panel)
       if option.value == value then self:SetText(L.FAME_PERIOD .. ": " .. option.text) end
     end
   end
-  view.AllButton = W.Button(bar, L.FAME_ALL_STATS, function()
+  view.AllButton = W.Button(toolbar, L.FAME_ALL_STATS, function()
     if view.mode == "detail" then view:ShowHome() else view:ShowDetail(view.detailStat or 107) end
   end, 170, { small = true })
   shell:Right(view.AllButton)

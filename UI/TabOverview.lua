@@ -45,7 +45,7 @@ local function Build(panel)
 
   local page = W.Page(panel)
   panel = page.Body -- the boxes live in the body; the toolbar holds the time window
-  local label = page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.ACTIVE_IN), 2)
+  page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.ACTIVE_IN), 2)
   view.Window = W.Segmented(page.Bar, {
     { value = 30, text = L.WINDOW_1M }, { value = 90, text = L.WINDOW_3M },
     { value = 180, text = L.WINDOW_6M }, { value = false, text = L.WINDOW_ALL },
