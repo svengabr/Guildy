@@ -73,4 +73,45 @@ T.describe("Language", function()
     T.eq(First("deDE"), "moin zusammen")
     T.truthy(First("enUS") ~= "moin zusammen", "English lines under English")
   end)
+
+  T.it("saves the chosen language and reloads when the language in force changes", function()
+    local world = World(nil)
+    world.Start()
+    local ns, calls = world.ns, world.calls
+    ns.UI.SetLanguage("enUS")
+    T.eq(ns.Settings().language, "enUS")
+    T.eq(calls.reloads, 1)
+    ns.Locale.Apply("enUS") -- what the reload does
+    ns.UI.SetLanguage(nil)
+    T.eq(ns.Settings().language, nil)
+    T.eq(calls.reloads, 2)
+    ns.Locale.Apply("deDE")
+    ns.UI.SetLanguage("deDE") -- the client's language by name: saved, nothing to reload for
+    T.eq(ns.Settings().language, "deDE")
+    T.eq(calls.reloads, 2)
+    ns.UI.SetLanguage("xxXX") -- no such language: as automatic
+    T.eq(ns.Settings().language, nil)
+    T.eq(calls.reloads, 2)
+    T.eq(world.errors, {})
+  end)
+
+  T.it("offers the languages in the general options, each in its own language", function()
+    local world = World(nil)
+    world.Start()
+    local ns = world.ns
+    world.env.CommunitiesFrame:Show() -- J: Guildy follows Blizzard's window
+    ns.UI.ShowOptions("general")
+    local button = ns.UI.Options().Panels.general.Language
+    T.truthy(button, "a language button")
+    T.eq(button:GetText(), "Automatisch (Deutsch)")
+    local items = ns.UI.LanguageItems()
+    T.eq(#items, #ns.Locale.Languages() + 1)
+    T.eq(items[1].checked, true)
+    T.eq(items[2].text, "English")
+    T.eq(items[3].text, "Deutsch")
+    items[2].onClick()
+    T.eq(ns.Settings().language, "enUS")
+    T.eq(world.calls.reloads, 1)
+    T.eq(world.errors, {})
+  end)
 end)

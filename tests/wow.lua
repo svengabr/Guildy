@@ -146,6 +146,7 @@ return function(T, opts)
   env.hooksecurefunc = function() end
   env.geterrorhandler = function() return function(err) errors[#errors + 1] = tostring(err) end end
   env.StaticPopup_Show = function() end
+  env.ReloadUI = function() calls.reloads = (calls.reloads or 0) + 1 end -- counted, nothing reloads
   env.PanelTemplates_SetNumTabs = function() end
   env.PanelTemplates_SetTab = function() end
   env.PanelTemplates_TabResize = function() end

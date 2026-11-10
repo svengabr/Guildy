@@ -31,6 +31,14 @@ function ns.PlayerName()
   return ns.Names.FromUnit(UnitName("player"))
 end
 
+-- Loads the interface anew (the language choice, /guildy shots all). False when the client has no way.
+function ns.ReloadUI()
+  local reload = rawget(_G, "ReloadUI") or (rawget(_G, "C_UI") and rawget(_G, "C_UI").Reload)
+  if not reload then return false end
+  reload()
+  return true
+end
+
 function ns.Print(text)
   local frame = rawget(_G, "DEFAULT_CHAT_FRAME")
   local line = "|cffd4a017" .. ns.CHAT_TAG .. "|r " .. tostring(text)

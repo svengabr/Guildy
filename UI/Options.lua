@@ -44,6 +44,40 @@ local function Check(parent, label, onClick)
   return check
 end
 
+-- language ---------------------------------------------------------------------------------------------
+-- The language of Guildy's own texts: nil follows the client. Most texts are set once when the window
+-- is built, so a change of the language in force loads the interface anew.
+local function ClientLanguage()
+  return ns.Locale.Resolve(nil, rawget(_G, "GetLocale") and GetLocale() or nil)
+end
+
+function UI.SetLanguage(code)
+  if code ~= nil and ns.Locale.Resolve(code, "enUS") ~= code then code = nil end -- no such language
+  ns.Settings().language = code
+  if ns.Locale.Resolve(code, ClientLanguage()) ~= ns.Locale.current then
+    ns.ReloadUI()
+  elseif options and options.Panels and options.Panels.general then
+    options.Panels.general:Refresh()
+  end
+end
+
+local function LanguageText(code)
+  if code then return ns.Locale.NAMES[code] or code end
+  return ns.L.OPTIONS_LANGUAGE_AUTO:format(ns.Locale.NAMES[ClientLanguage()])
+end
+
+-- The menu: automatic first, then every language under its own name (never translated: whoever
+-- landed in a language they cannot read finds theirs again)
+function UI.LanguageItems()
+  local chosen = ns.Settings().language
+  local items = { { text = LanguageText(nil), checked = chosen == nil, onClick = function() UI.SetLanguage(nil) end } }
+  for _, code in ipairs(ns.Locale.Languages()) do
+    items[#items + 1] = { text = LanguageText(code), checked = chosen == code,
+      onClick = function() UI.SetLanguage(code) end }
+  end
+  return items
+end
+
 -- general ----------------------------------------------------------------------------------------------
 local function BuildGeneral(panel)
   local L = ns.L
@@ -77,11 +111,19 @@ local function BuildGeneral(panel)
   end, 190, 240)
   panel.Tooltip:SetPoint("LEFT", tooltipLabel, "RIGHT", 10, 0)
 
+  -- Guildy's language, under the tooltip choice and in line with it
+  local languageLabel = W.Text(panel, "GameFontHighlightSmall", L.OPTIONS_LANGUAGE)
+  languageLabel:SetPoint("TOPLEFT", tooltipLabel, "BOTTOMLEFT", 0, -24)
+  panel.Language = W.MenuButton(panel, "", UI.LanguageItems, 190, 240)
+  panel.Language:SetPoint("LEFT", panel.Tooltip, "LEFT", 0, 0)
+  panel.Language:SetPoint("TOP", languageLabel, "TOP", 0, 6)
+  W.Tooltip(panel.Language, L.OPTIONS_LANGUAGE, L.OPTIONS_LANGUAGE_TIP)
+
   local blizzard = W.Button(panel, L.OPEN_BLIZZARD, function()
     options:Hide()
     UI.ShowBlizzard()
   end, 170, { small = true })
-  blizzard:SetPoint("TOPLEFT", tooltipLabel, "BOTTOMLEFT", -2, -30)
+  blizzard:SetPoint("TOPLEFT", languageLabel, "BOTTOMLEFT", -2, -30)
 
   -- everything this window changes back to what Guildy ships (sharing is not a look: it stays)
   local reset = W.Button(panel, L.OPTIONS_RESET_ALL, function()
@@ -98,6 +140,7 @@ local function BuildGeneral(panel)
 
   function panel:Refresh()
     self.Tooltip:SetText(L["OPTIONS_TOOLTIP_" .. UI.TooltipAnchor():upper()])
+    self.Language:SetText(LanguageText(ns.Settings().language))
   end
 end
 
