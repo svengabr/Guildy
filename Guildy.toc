@@ -6,6 +6,7 @@
 ## Notes-esES: Ventana de hermandad moderna para WoW Forever: el chat primero, censo de miembros activos, profesiones y búsqueda de recetas, sincronizado entre usuarios de Guildy.
 ## Notes-esMX: Ventana de hermandad moderna para WoW Forever: el chat primero, censo de miembros activos, profesiones y búsqueda de recetas, sincronizado entre usuarios de Guildy.
 ## Notes-ruRU: Современное окно гильдии для WoW Forever: сначала чат, перепись активных участников, профессии и поиск рецептов, синхронизация между пользователями Guildy.
+## Notes-ptBR: Janela de guilda moderna para o WoW Forever: bate-papo primeiro, censo dos membros ativos, profissões e busca de receitas, sincronizados entre usuários do Guildy.
 ## Author: Conoar
 #@debug@
 ## Version: dev
@@ -26,6 +27,7 @@ Locales\deDE.lua
 Locales\frFR.lua
 Locales\esES.lua
 Locales\ruRU.lua
+Locales\ptBR.lua
 Locales\Locales.lua
 Core\Perf.lua
 Core\Names.lua
