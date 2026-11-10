@@ -329,14 +329,22 @@ T.describe("Smoke", function()
     T.eq(ns.UI.IsShown(), false) -- closing closes Blizzard's window
     env.CommunitiesFrame:Show() -- comes back to the page within the session
     ns.UI.SelectTab("chat")
-    -- members tab: twinks under their main, folded, without note, by group and item level
+    -- members tab: twinks under their main, folded, without note, by rank and item level
     ns.UI.SelectTab("members")
     local mv = ns.UI.TabView("members")
-    for _, setup in ipairs({ { noNote = true }, { noOfficerNote = true }, { fold = true, sort = "group" }, { sort = "ilvl" }, { sort = "level" } }) do
+    for _, setup in ipairs({ { noNote = true }, { noOfficerNote = true }, { fold = true, sort = "rank" }, { sort = "ilvl" }, { sort = "level" } }) do
       mv.noNote, mv.noOfficerNote, mv.fold = setup.noNote, setup.noOfficerNote, setup.fold
       mv.sort = setup.sort or "level"
       mv:Refresh()
     end
+    -- the rank menu lists the ranks that have members; one of them leaves only its members
+    T.truthy(#mv.ranks >= 1, "ranks for the menu")
+    T.eq(mv.Headers.group, nil)
+    mv:SetFilterValue("rankIndex", mv.ranks[1].index)
+    for _, item in ipairs(mv.List.items or {}) do
+      if item.m then T.eq(item.m.rankIndex, mv.ranks[1].index) end
+    end
+    mv:SetFilterValue("rankIndex", nil)
     ns.UI.SelectTab("chat")
     ns.UI.Show()
     ns.UI.SelectTab("members")

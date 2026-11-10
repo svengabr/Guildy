@@ -241,15 +241,6 @@ function Family.ParseNote(note)
   return kind, rest ~= "" and rest or nil
 end
 
--- The group of a member from their notes (public first, then officer note), or nil
-function Family.NoteGroup(m)
-  for _, note in ipairs({ m.note or "", m.officerNote or "" }) do
-    local kind, rest = Family.ParseNote(note)
-    if kind == "main" and rest then return rest end
-  end
-  return nil
-end
-
 -- Main of every member in a family: { [key] = mainKey } (members without family are left out).
 -- The main is the one whose note says "Main", else the one an "Alt" note names, else the highest level.
 function Family.Mains(members, families, ownChars)
@@ -280,13 +271,6 @@ function Family.Mains(members, families, ownChars)
     end
   end
   return mains
-end
-
--- A color index (1..count) for a group name, the same in every session and for everyone
-function Family.GroupColor(name, count)
-  local hash = 0
-  for i = 1, #name do hash = (hash * 31 + name:lower():byte(i)) % 2147483647 end
-  return hash % count + 1
 end
 
 -- What the account remembers about one of its characters (GuildyDB.ownChars[key]; older versions

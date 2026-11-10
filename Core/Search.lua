@@ -66,7 +66,7 @@ function Search.GroupRecipes(results)
   return groups
 end
 
--- members: Roster.Members() entries. filter = {classFile, bracket, skillLine, onlineOnly, hideOffline,
+-- members: Roster.Members() entries. filter = {classFile, rankIndex, bracket, skillLine, onlineOnly, hideOffline,
 -- activeDays}; profsOf(member) -> set or nil
 function Search.Members(members, filter, query, profsOf)
   filter = filter or {}
@@ -76,6 +76,7 @@ function Search.Members(members, filter, query, profsOf)
     local keep = true
     if (filter.onlineOnly or filter.hideOffline) and not m.online then keep = false end
     if keep and filter.classFile and m.classFile ~= filter.classFile then keep = false end
+    if keep and filter.rankIndex and m.rankIndex ~= filter.rankIndex then keep = false end
     if keep and filter.bracket and ns.Census.Bracket(m.level) ~= filter.bracket then keep = false end
     if keep and filter.level and tonumber(m.level) ~= filter.level then keep = false end
     if keep and filter.activeDays and not ns.Census.IsActive(m, filter.activeDays) then keep = false end
@@ -107,8 +108,7 @@ local GETTERS = {
   lastOnline = LastOnlineValue,
   -- Guildy users first (set by the members tab: version, "" for an old Guildy), then by version text
   guildy = function(m) return m.guildy and ("1" .. m.guildy) or "0" end,
-  -- set by the members tab: the note group (members without one last) and the average item level
-  group = function(m) return m.group and ("0" .. ns.Names.Lower(m.group)) or "1" end,
+  -- set by the members tab: the average item level
   ilvl = function(m) return m.ilvl or 0 end,
 }
 

@@ -1,7 +1,6 @@
--- Members tab: search, filters (class, group, online only, without note) and sortable columns;
+-- Members tab: search, filters (class, rank, online only, without note) and sortable columns;
 -- level and profession only come as drill-downs from the overview.
--- Twinks hang under their main (or fold into it); the group comes from notes
--- like "Main, Murloc Raid" (any name, Core/Family.lua) and twinks inherit their main's.
+-- Twinks hang under their main (or fold into it, Core/Family.lua).
 -- A click on a member opens the character page (UI/CharacterPage.lua), a right click the member menu.
 local _, ns = ...
 local W = ns.Widgets
@@ -13,7 +12,6 @@ local COLUMNS = {
   { key = "level", width = 34, desc = true },
   { key = "name", width = 175 },
   { key = "rank", width = 100 },
-  { key = "group", width = 130 },
   { key = "ilvl", width = 44, desc = true },
   { key = "zone", width = 120 },
   { key = "lastOnline", width = 70 },
@@ -25,14 +23,11 @@ local UNSORTED = { note = true, officerNote = true }
 local REST_WIDTH = 200 -- a rest column's width when another column follows it
 -- The columns the player can hide (settings.memberColumns[key] = false, Guildy's options); level and
 -- name always stay
-UI.MEMBER_COLUMNS = { "rank", "group", "ilvl", "zone", "lastOnline", "guildy", "note", "officerNote" }
+UI.MEMBER_COLUMNS = { "rank", "ilvl", "zone", "lastOnline", "guildy", "note", "officerNote" }
 local function ColumnOff(key)
   local chosen = ns.Settings().memberColumns
   return type(chosen) == "table" and chosen[key] == false
 end
--- colors for the guild's groups (Family.GroupColor picks one per name)
-local GROUP_COLORS = { { 64, 166, 214 }, { 196, 107, 224 }, { 224, 80, 80 }, { 102, 204, 89 }, { 255, 153, 64 },
-  { 77, 204, 191 }, { 242, 217, 77 }, { 242, 128, 179 } }
 local DOT = "|TInterface\\AddOns\\Guildy\\Textures\\Dot:8:8:0:0:32:32:0:32:0:32:%d:%d:%d|t "
 
 local ONLINE_COLOR = { 0.3, 0.9, 0.3 }
@@ -87,13 +82,6 @@ function UI.MemberNameText(name, classFile, online, style)
   return text, online and 1 or (style == "grey" and 0.75 or 0.5)
 end
 
-local function GroupText(group, inherited)
-  if not group then return "|cff5e5747–|r" end
-  local color = GROUP_COLORS[ns.Family.GroupColor(group, #GROUP_COLORS)]
-  local text = DOT:format(color[1], color[2], color[3]) .. group
-  return inherited and ("|cff9a9080" .. text .. "|r") or text
-end
-
 -- average item level of a member from the statistics (tenths), nil when unknown
 local function ItemLevel(guild, m)
   local record = guild and guild.members[m.key]
@@ -130,17 +118,18 @@ local function Build(panel)
   end, 90, 150)
   page:Left(view.ClassButton, 8)
 
-  -- the guild's own groups, as found in the notes
-  view.GroupButton = W.MenuButton(bar, L.FILTER_GROUP, function()
-    local items = { { text = L.ALL, checked = view.group == nil, onClick = function() view.group = nil; view:Refresh() end } }
-    for _, group in ipairs(view.groups or {}) do
-      items[#items + 1] = { text = GroupText(group), checked = view.group == group, onClick = function() view.group = group; view:Refresh() end }
+  -- the guild's ranks that have members, the guild master's first
+  view.RankButton = W.MenuButton(bar, L.FILTER_RANK, function()
+    local items = { { text = L.ALL, checked = view.filter.rankIndex == nil, onClick = function() view:SetFilterValue("rankIndex", nil) end } }
+    for _, rank in ipairs(view.ranks or {}) do
+      items[#items + 1] = { text = rank.name, checked = view.filter.rankIndex == rank.index,
+        onClick = function() view:SetFilterValue("rankIndex", rank.index) end }
     end
     return items
   end, 90, 170)
-  page:Left(view.GroupButton)
+  page:Left(view.RankButton)
 
-  for _, button in ipairs({ view.ClassButton, view.GroupButton }) do
+  for _, button in ipairs({ view.ClassButton, view.RankButton }) do
     button:SetScript("OnEnter", function(self)
       if not self.tip then return end
       GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
@@ -159,7 +148,7 @@ local function Build(panel)
     check.Label:SetPoint("LEFT", check, "RIGHT", 0, 0)
     return check
   end
-  local onlineCheck = Check(L.ONLINE_ONLY, view.GroupButton, function(self) view:SetFilterValue("onlineOnly", self:GetChecked() or nil) end)
+  local onlineCheck = Check(L.ONLINE_ONLY, view.RankButton, function(self) view:SetFilterValue("onlineOnly", self:GetChecked() or nil) end)
   view.OnlineCheck = onlineCheck
   -- members whose public note is empty: who still needs one
   view.NoNoteCheck = Check(L.NO_NOTE, onlineCheck.Label, function(self) view.noNote = self:GetChecked() or nil; view:Refresh() end)
@@ -171,7 +160,7 @@ local function Build(panel)
   view.FoldCheck = Check(L.FOLD_TWINKS, view.NoOfficerNoteCheck.Label, function(self) view.fold = self:GetChecked() or nil; view:Refresh() end)
 
   view.Reset = W.Button(bar, L.RESET, function()
-    view.filter, view.group, view.noNote, view.noOfficerNote = {}, nil, nil, nil
+    view.filter, view.noNote, view.noOfficerNote = {}, nil, nil
     search:SetText("")
     onlineCheck:SetChecked(false)
     view.NoNoteCheck:SetChecked(false)
@@ -317,7 +306,6 @@ local function Build(panel)
     c.name:SetText(name)
     c.zone:SetText(m.zone or "")
     c.rank:SetText(m.rank or "")
-    c.group:SetText(GroupText(m.group, m.groupInherited))
     c.ilvl:SetText(m.ilvl and (string.format("%.1f", m.ilvl / 10):gsub("%.", L.DECIMAL_MARK)) or "")
     c.lastOnline:SetText(ns.Roster.LastOnlineText(m))
     c.guildy:SetText(UI.GuildyVersionText(m) or "")
@@ -325,7 +313,7 @@ local function Build(panel)
     c.officerNote:SetText(not view.viewOfficer and ""
       or (m.officerNote and m.officerNote ~= "") and m.officerNote or ("|cffff9a5a" .. L.NO_NOTE_CELL .. "|r"))
     for key, cell in pairs(c) do
-      if key ~= "name" and key ~= "group" and key ~= "note" and key ~= "officerNote" then
+      if key ~= "name" and key ~= "note" and key ~= "officerNote" then
         if dim then cell:SetTextColor(0.6, 0.6, 0.6) else cell:SetTextColor(1, 1, 1) end
       end
     end
@@ -334,7 +322,6 @@ local function Build(panel)
     end
     if m.online then c.lastOnline:SetTextColor(unpack(ONLINE_COLOR)) end
     c.name:SetAlpha(nameAlpha)
-    c.group:SetAlpha(dim and 0.5 or 1)
   end)
   view.List:SetPoint("TOPLEFT", 4, -28)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
@@ -378,32 +365,25 @@ local function Build(panel)
     local members = ns.Roster.Members()
     local guild, db = ns.GuildData(), ns.DB()
     local mains = ns.Family.Mains(members, guild and guild.families, db and db.ownChars)
-    local byKey, groupSet, noNote, noOfficerNote = {}, {}, 0, 0
+    local rankNames, noNote, noOfficerNote = {}, 0, 0
     for _, m in ipairs(members) do
       m.guildy = m.online and ns.Sync.UserVersion(m.name) or nil
       m.ilvl = ItemLevel(guild, m)
       m.mainKey = mains[m.key]
-      m.group = ns.Family.NoteGroup(m)
-      m.groupInherited = nil
-      byKey[m.key] = m
+      if type(m.rankIndex) == "number" and not rankNames[m.rankIndex] then rankNames[m.rankIndex] = m.rank or "" end
       if not m.note or m.note == "" then noNote = noNote + 1 end
       if not m.officerNote or m.officerNote == "" then noOfficerNote = noOfficerNote + 1 end
     end
-    -- twinks take the group of their main
-    for _, m in ipairs(members) do
-      local mainMember = m.mainKey and m.mainKey ~= m.key and byKey[m.mainKey]
-      if not m.group and mainMember and mainMember.group then m.group, m.groupInherited = mainMember.group, true end
-      if m.group then groupSet[m.group] = true end
-    end
-    self.groups = {}
-    for group in pairs(groupSet) do self.groups[#self.groups + 1] = group end
-    table.sort(self.groups)
-    if self.group and not groupSet[self.group] then self.group = nil end
+    self.ranks = {}
+    for index, name in pairs(rankNames) do self.ranks[#self.ranks + 1] = { index = index, name = name } end
+    table.sort(self.ranks, function(a, b) return a.index < b.index end)
+    -- a rank nobody holds any more is no filter
+    if self.filter.rankIndex and not rankNames[self.filter.rankIndex] then self.filter.rankIndex = nil end
 
     local list = ns.Search.Members(members, self.filter, self.query, ns.TradeSkill.ProfsOf)
     local kept = {}
     for _, m in ipairs(list) do
-      if (not self.group or m.group == self.group) and (not self.noNote or not m.note or m.note == "")
+      if (not self.noNote or not m.note or m.note == "")
         and (not self.noOfficerNote or not m.officerNote or m.officerNote == "") then
         kept[#kept + 1] = m
       end
@@ -462,7 +442,7 @@ local function Build(panel)
     self.Summary:SetText(summary)
     self.NoNoteCheck.Label:SetText(L.NO_NOTE .. " |cffffd100" .. noNote .. "|r")
     self.NoOfficerNoteCheck.Label:SetText(L.NO_OFFICER_NOTE .. " |cffffd100" .. noOfficerNote .. "|r")
-    Label(self.GroupButton, L.FILTER_GROUP, self.group)
+    Label(self.RankButton, L.FILTER_RANK, self.filter.rankIndex and rankNames[self.filter.rankIndex])
     Label(self.ClassButton, L.FILTER_CLASS, self.filter.classFile and ClassLabel(self.filter.classFile))
     for key, button in pairs(self.Headers) do
       local text = L["COL_" .. key:upper()]

@@ -69,6 +69,7 @@ local function profsOf(m) return profs[m.name] end
 T.describe("Search.Members", function()
   T.it("filters by class, bracket, profession and online", function()
     T.eq(names(Search.Members(members, { classFile = "PALADIN" })), { "Makira Farron", "Eziiria Ash" })
+    T.eq(names(Search.Members(members, { rankIndex = 1 })), { "Ran Fred", "Makira Farron" })
     T.eq(names(Search.Members(members, { bracket = 3 })), { "Eziiria Ash" })
     T.eq(names(Search.Members(members, { skillLine = 182 }, nil, profsOf)), { "Eziiria Ash" })
     T.eq(names(Search.Members(members, { onlineOnly = true })), { "Ran Fred" })
