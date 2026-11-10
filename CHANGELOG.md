@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.2
+
+- Blizzard's own guild window (Info tab, "Blizzard guild window") works again: its chat was empty and
+  its frame reached across the screen, because Guildy keeps Blizzard's member list off screen and
+  Blizzard's chat hangs on that list. The list is put back while Blizzard's window is shown. Thanks to
+  albeva for reporting it.
+- The tab on Blizzard's window that leads back to Guildy sits under Blizzard's own side tabs; on
+  Forever it was hidden behind the fourth one.
+- Communities: the side tab shows a mark while a community has something new, the same mark
+  Blizzard's window shows: lines that came in while Guildy did not show that community, and what was
+  already unread at the login.
+- Hall of Fame: a title card nobody holds yet (no exalted reputation in the guild, no gold spent on
+  talents) is shown with "nobody yet". The options counted and showed such a card, the page left it out.
+- /guildy shots shows made-up character names, ranks, guild and community names, notes and chat while
+  it runs, and sample values on the PvP page; /guildy shots anon switches that on and off by hand.
+
 ## 1.2.1
 
 - Fixed the stutter with the chat open: showing the chat fetched the next page of history, which showed
