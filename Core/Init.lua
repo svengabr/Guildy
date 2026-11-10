@@ -41,6 +41,8 @@ local HANDLERS = {
   ADDON_LOADED = function(name)
     if name == ns.ADDON then
       GuildyDB = ns.Store.Init(rawget(_G, "GuildyDB"))
+      -- the language chosen in the options, else the client's (Locales/Locales.lua)
+      ns.Locale.Apply(ns.Locale.Resolve(GuildyDB.settings.language, GetLocale()))
       ns.Chat.InitSeen(GuildyDB.settings, ns.Now())
       ns.Perf.Enable(GuildyDB.settings.perf) -- /guildy perf on: measuring from the login on
     end

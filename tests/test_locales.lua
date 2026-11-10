@@ -19,6 +19,7 @@ local function UsedKeys()
     if not file:match("^Libs/") then
       local source = T.readFile(T.addonDir .. "/" .. file)
       for key in source:gmatch("L%.([A-Z][A-Z0-9_]*)") do used[key] = file end
+      for key in source:gmatch('RegisterTab%(.-"(TAB_[A-Z]+)"') do used[key] = file end
     end
   end
   for _, key in ipairs({ "COL_LEVEL", "COL_NAME", "COL_ZONE", "COL_RANK", "COL_PROFS", "COL_LASTONLINE", "COL_NOTE",

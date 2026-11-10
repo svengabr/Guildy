@@ -1281,4 +1281,4 @@ local function Build(panel)
   return view
 end
 
-UI.RegisterTab("fame", 3.5, ns.L.TAB_FAME, Build)
+UI.RegisterTab("fame", 3.5, "TAB_FAME", Build)

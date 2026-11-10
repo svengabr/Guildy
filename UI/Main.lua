@@ -41,6 +41,7 @@ UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 1130, 560, 1600, 1000
 
 -- Tab modules call this at load time; builder(panel) returns a view with Refresh(event) and optional
 -- OnShow() / OnHide(). side: no button in the bottom row (reached by a side tab, the account)
+-- label: the key of the tab's name (the text is read when the window is built, in the language then in force)
 function UI.RegisterTab(key, order, label, builder, side)
   local tab = { key = key, order = order, label = label, builder = builder, side = side }
   tabs[#tabs + 1] = tab
@@ -386,7 +387,7 @@ local function Build()
     if not tab.side then
       buttons = buttons + 1
       tab.index = buttons
-      tab.button = W.Tab(frame, buttons, tab.label, function() UI.SelectTab(tab.key) end)
+      tab.button = W.Tab(frame, buttons, ns.L[tab.label], function() UI.SelectTab(tab.key) end)
       UI.OptionalAction(tab.button, function()
         return UI.Action.SelectGuild(function() UI.SelectTab(tab.key) end)
       end)

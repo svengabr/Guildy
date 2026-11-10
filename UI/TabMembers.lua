@@ -462,4 +462,4 @@ function UI.Age(ts)
   return ns.L.DAYS_AGO:format(days)
 end
 
-UI.RegisterTab("members", 2, ns.L.TAB_MEMBERS, Build)
+UI.RegisterTab("members", 2, "TAB_MEMBERS", Build)

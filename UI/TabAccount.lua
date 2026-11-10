@@ -393,4 +393,4 @@ local function Build(panel)
   return view
 end
 
-UI.RegisterTab("account", 7, ns.L.TAB_ACCOUNT, Build, true)
+UI.RegisterTab("account", 7, "TAB_ACCOUNT", Build, true)

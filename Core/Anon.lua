@@ -184,8 +184,7 @@ end
 -- guild chat. A copy; the lines themselves stay as they are.
 function Anon.Lines(lines)
   if not Anon.on or type(lines) ~= "table" then return lines end
-  local getLocale = rawget(_G, "GetLocale")
-  local pool = CHAT[getLocale and getLocale() or "enUS"] or CHAT.enUS
+  local pool = CHAT[ns.Locale and ns.Locale.current or "enUS"] or CHAT.enUS -- Guildy's language
   local out = {}
   for i, line in ipairs(lines) do
     local copy = {}

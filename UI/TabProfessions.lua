@@ -951,4 +951,4 @@ local function Build(panel)
   return view
 end
 
-UI.RegisterTab("professions", 4, ns.L.TAB_PROFESSIONS, Build)
+UI.RegisterTab("professions", 4, "TAB_PROFESSIONS", Build)

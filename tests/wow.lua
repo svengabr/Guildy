@@ -4,6 +4,7 @@
 --   opts.roster          guild roster rows (GetGuildRosterInfo values), default three members
 --   opts.width / height  size every stub frame reports (lists size their rows from it), default 100
 --   opts.setup(env)      changes the environment before the addon loads
+--   opts.afterFile(file, ns)  called after each file of the addon has run
 return function(T, opts)
   opts = opts or {}
   local errors = {}
@@ -196,6 +197,7 @@ return function(T, opts)
     if not chunk then error(err) end
     setfenv(chunk, env)
     chunk("Guildy", ns)
+    if opts.afterFile then opts.afterFile(file, ns) end
   end
 
   local function Fire(event, ...)

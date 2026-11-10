@@ -31,9 +31,13 @@ local function SkillByName(name)
         nameToSkill[ns.Names.Lower(display)] = skillLine
       end
     end
-    for skillLine, key in pairs(P.SKILL_LINES) do
-      local localized = ns.L["PROF_" .. key]
-      if localized then nameToSkill[ns.Names.Lower(localized)] = nameToSkill[ns.Names.Lower(localized)] or skillLine end
+    -- Guildy's own names in every language it has, not only the one it is set to: the game reports
+    -- names in the client's language, whatever Guildy's is
+    for _, texts in pairs(ns.LocaleTables) do
+      for skillLine, key in pairs(P.SKILL_LINES) do
+        local localized = texts["PROF_" .. key]
+        if localized then nameToSkill[ns.Names.Lower(localized)] = nameToSkill[ns.Names.Lower(localized)] or skillLine end
+      end
     end
   end
   return nameToSkill[ns.Names.Lower(name)]

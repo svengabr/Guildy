@@ -430,4 +430,4 @@ local function Build(panel)
   return view
 end
 
-UI.RegisterTab("chat", 1, ns.L.TAB_CHAT, Build)
+UI.RegisterTab("chat", 1, "TAB_CHAT", Build)
