@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- Hall of Fame: the general page shows the guild's epic items and need rolls instead of pets. The game
+  leaves its "pets owned" statistic empty however many pets a character has; pets come back once
+  Blizzard fixes it.
+
 ## 1.1.0
 
 - Communities in Guildy: a side tab under the account tab shows your communities on the left (with the
