@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Guildy now also speaks French, Spanish, Russian and Brazilian Portuguese. It follows the language of
+  your game; the general options have a language choice for anyone who wants another one (changing it
+  reloads the interface, the game keeps its language).
+- The four new translations were written without a native speaker reading them. If a wording is odd
+  or a term is not the one the game uses, please open an issue.
+- Profession names from the game are recognised in every language Guildy has, whatever language Guildy
+  itself is set to.
+- /guildy shots all takes every view in every language at the smallest window size, for checking that
+  the translations fit; /guildy shots stop ends it.
+
 ## 1.2.3
 
 - Members tab: a rank filter takes the place of the group filter, and the group column is gone. Groups

@@ -6,7 +6,7 @@ On WoW Forever I almost never opened the guild window. It has a chat and a plain
 
 It runs inside Blizzard's own guild window and keeps Blizzard's look. I use it every day in my own guild.
 
-Made for WoW Forever. English and German.
+Made for WoW Forever. In English, German, French, Spanish, Russian and Brazilian Portuguese: Guildy follows the language of your game, and its options let you pick another.
 
 ![Guildy chat](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/01-chat.jpg)
 

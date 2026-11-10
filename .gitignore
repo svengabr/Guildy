@@ -4,6 +4,7 @@ CLAUDE.local.md
 media/gallery/fonts/
 media/gallery/icons/
 media/gallery/src/
+media/e2e/*/
 media/gallery/screens.py
 tools/bnet-sync/sync.cmd
 tools/bnet-sync/out/
