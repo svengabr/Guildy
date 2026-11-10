@@ -11,6 +11,7 @@ local S = ns.Stats
 local SPECIAL = { bosses = "FAME_BOSSES", dungeons = "FAME_DUNGEONS_DONE", spent = "FAME_SPENT",
   [S.GEAR.ILVL] = "FAME_GEAR_ILVL", [S.GEAR.EPIC] = "FAME_GEAR_EPIC", [S.GEAR.RARE] = "FAME_GEAR_RARE",
   [S.GEAR.UNCOMMON] = "FAME_GEAR_UNCOMMON", [339] = "FAME_MOUNTS", [338] = "FAME_PETS",
+  [342] = "FAME_EPICS", [1044] = "FAME_NEED_ROLLS",
   [931] = "FAME_REP_931", [1466] = "FAME_REP_1466", [529] = "FAME_REP_529", [378] = "FAME_REP_378", [377] = "FAME_REP_377" }
 
 -- a round dot in an item quality color, one per equipped item (the font has no dot character). Own
@@ -254,7 +255,7 @@ local function Build(panel)
   view.Home = home
 
   view.Tiles = {}
-  for i = 1, 6 do
+  for i = 1, 7 do
     local tile = W.Box(home)
     tile:SetHeight(64)
     tile.Value = W.Text(tile, "GameFontNormalHuge")

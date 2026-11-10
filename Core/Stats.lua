@@ -188,12 +188,13 @@ Stats.SPENDING = { 1146, 1148, 1150, 1147 } -- travel, postage, talent resets, b
 -- boss was defeated, "spent" = all gold spending. A title with current = true always shows the current
 -- value (a state like the item level), whatever the period.
 Stats.PAGES = {
-  { key = "general", headline = { 107, 98, 60, 349, 339, 338 }, gear = true, titles = {
+  -- no pets (338) for now: Forever leaves the statistic at "--" however many pets a character has;
+  -- back in the headline and as a title card once Blizzard fixes it
+  { key = "general", headline = { 107, 98, 60, 349, 339, 342, 1044 }, gear = true, titles = {
     { stat = 107, key = "SLAYER", icon = "Ability_Warrior_SavageBlow" },
     { stat = 98, key = "QUESTER", icon = "INV_Scroll_03" },
     { stat = Stats.GEAR.ILVL, key = "GEAR", icon = "INV_Chest_Plate06", current = true }, -- a state, not growth
     { stat = 339, key = "MOUNTS", icon = "Ability_Mount_RidingHorse" },
-    { stat = 338, key = "PETS", icon = "INV_Box_PetCarrier_01" },
     { stat = 60, key = "DEATHS", icon = "Ability_Rogue_FeignDeath" },
     { stat = 347, key = "FOOD", icon = "INV_Misc_Food_14" },
     { stat = 112, key = "DROWNED", icon = "Spell_Shadow_DemonBreath" },
