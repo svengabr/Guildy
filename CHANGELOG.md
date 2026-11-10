@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.1
+
+- Fixed the stutter with the chat open: showing the chat fetched the next page of history, which showed
+  the chat again, until the whole history of the guild was loaded, and every page wrote all of it anew
+  (in a guild with a long history: seconds of stutter and tens of megabytes of memory). Thanks to
+  albeva for reporting it.
+- The chat shows the newest 100 lines, like Blizzard's guild window, and 100 more each time you scroll
+  to the top. A new line no longer makes Guildy read the whole history again.
+- Lists only build and fill the rows in view. In a guild of 500 members the member list used to create
+  7800 widgets when it opened and fill every row again on each roster update.
+- Faster roster updates: the professions in guild notes are only worked out again when a note changed,
+  twinks named in notes are found through an index of the names, and sorting no longer lowers every
+  name once per comparison.
+- The Hall of Fame reads your own statistics at most once a minute instead of on every visit.
+- /guildy perf on, then /guildy perf: measures how long Guildy's own code runs and how much memory it
+  asks for (events, each tab, roster scans, the chat). The report is the thing to attach when Guildy
+  stutters for you. /guildy perf copy shows it for copying, /guildy perf off stops measuring.
+- /guildy shots takes a screenshot of every view in front of a plain backdrop (for the gallery
+  pictures); /guildy shots backdrop shows the backdrop alone.
+
 ## 1.2.0
 
 - Customize Guildy: the cog left of the close button opens a window of its own beside Guildy's, so every
