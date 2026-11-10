@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3
+
+- Members tab: a rank filter takes the place of the group filter, and the group column is gone. Groups
+  only existed for guilds that write "Main, <group>" into their notes; ranks every guild has.
+
 ## 1.2.2
 
 - Blizzard's own guild window (Info tab, "Blizzard guild window") works again: its chat was empty and
