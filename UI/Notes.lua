@@ -65,6 +65,7 @@ local function Save(frame)
   if not frame or saved[frame] then return end
   local points = {}
   for i = 1, frame:GetNumPoints() or 0 do points[i] = { frame:GetPoint(i) } end
+  points.width, points.height = frame:GetWidth(), frame:GetHeight()
   saved[frame] = points
 end
 
@@ -74,6 +75,9 @@ local function Restore(frame)
   saved[frame] = nil
   frame:ClearAllPoints()
   for _, p in ipairs(points) do frame:SetPoint(unpack(p)) end
+  if points.width and points.height and points.width > 0 and points.height > 0 then
+    frame:SetSize(points.width, points.height)
+  end
 end
 
 local function GuildSelected()
@@ -517,6 +521,19 @@ end
 function Notes.Hide()
   shown = nil
   Undock()
+end
+
+-- Blizzard's own window is shown instead of Guildy (UI.ShowBlizzard): its member list back where and
+-- as big as it was. Blizzard's chat is anchored to that list, and with the list still parked off
+-- screen the chat's frame stretched across the whole screen and showed nothing (reported on Reddit
+-- and seen in game 2026-11-10). Opening Guildy again parks it again (Notes.Prepare).
+function Notes.Release()
+  Notes.Hide()
+  if InCombatLockdown() then return end
+  if pick then pick:Hide() end
+  placing = true
+  Restore(MemberList())
+  placing = false
 end
 
 -- After a pick (the click on a member in a Guildy list): dock once Blizzard shows them

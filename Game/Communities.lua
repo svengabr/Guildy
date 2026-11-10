@@ -13,6 +13,7 @@ local PRESENCE = { online = 1, mobile = 2, offline = 3, away = 4, busy = 5 } -- 
 
 local focused  -- { clubId, streamId } while the view shows a channel
 local unread = {} -- clubId -> lines that came in while it was not shown
+local viewed = {} -- clubId -> true once Guildy showed it in this session
 
 local function GuildType()
   local types = Enum and Enum.ClubType
@@ -57,6 +58,7 @@ function Communities.List()
         clubId = club.clubId, name = ns.Anon.Guild(club.name or "?"), clubType = club.clubType,
         shortName = not ns.Anon.on and club.shortName or nil, -- made-up names for pictures: Core/Anon.lua
         avatarId = club.avatarId, memberCount = club.memberCount, unread = unread[club.clubId] or 0,
+        hasUnread = Communities.HasUnread(club.clubId),
         favorite = IsFavorite(club),
       }
     end
@@ -203,7 +205,7 @@ function Communities.Focus(clubId, streamId)
     if focused[1] ~= clubId then ns.Try(C_Club.ClearClubPresenceSubscription) end
     focused = nil
   end
-  if clubId then unread[clubId] = nil end
+  if clubId then unread[clubId], viewed[clubId] = nil, true end
   if not clubId or not streamId or focused then return end
   -- the members' online state only arrives for the community subscribed to (as Blizzard's window does)
   ns.Try(C_Club.SetClubPresenceSubscription, clubId)
@@ -348,4 +350,23 @@ end
 
 function Communities.Unread(clubId)
   return unread[clubId] or 0
+end
+
+-- Whether a community has something new: lines that came in while Guildy did not show it, or, until
+-- Guildy showed it in this session, what Blizzard's own window marks as unread (lines from before
+-- the login).
+function Communities.HasUnread(clubId)
+  if (unread[clubId] or 0) > 0 then return true end
+  if viewed[clubId] then return false end
+  local util = rawget(_G, "CommunitiesUtil")
+  local check = type(util) == "table" and util.DoesCommunityHaveUnreadMessages
+  return check and ns.Try(check, clubId) == true or false
+end
+
+-- Whether any community (not the guild) has something new
+function Communities.AnyUnread()
+  for _, club in ipairs(Communities.List()) do
+    if club.hasUnread then return true end
+  end
+  return false
 end

@@ -116,7 +116,8 @@ local function Build(panel)
     else
       row.Selected:SetShown(not selectedInvite and club.clubId == selectedClub)
     end
-    row.Unread:SetText((club.unread or 0) > 0 and tostring(club.unread) or "")
+    -- the number of new lines, or a dot for what was already unread at the login
+    row.Unread:SetText((club.unread or 0) > 0 and tostring(club.unread) or (club.hasUnread and "•" or ""))
   end)
   -- rows to the box's edges (the slim bar lies over their right end when the list scrolls)
   view.Clubs:SetPoint("TOPLEFT", 3, -3)

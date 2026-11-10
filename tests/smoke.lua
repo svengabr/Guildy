@@ -243,6 +243,36 @@ T.describe("Smoke", function()
     T.eq(errors, {})
   end)
 
+  T.it("marks the communities tab while a community has something new", function()
+    local before, beforeUtil = env.C_Club, env.CommunitiesUtil
+    local blizzardUnread = { [41] = true }
+    env.C_Club = setmetatable({
+      GetGuildClubId = function() return 7 end,
+      GetSubscribedClubs = function() return { { clubId = 40, name = "Angler", clubType = 1 }, { clubId = 41, name = "Bastler", clubType = 1 } } end,
+      FocusStream = function() return true end,
+    }, { __index = function() return function() end end })
+    env.CommunitiesUtil = { DoesCommunityHaveUnreadMessages = function(clubId) return blizzardUnread[clubId] or false end }
+    local C = ns.Communities
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("chat")
+    local dot = ns.UI.frame.CommunitiesTab.Dot
+    -- 41 was unread at the login (Blizzard's mark), 40 gets a line now
+    T.eq({ C.HasUnread(40), C.HasUnread(41), C.AnyUnread() }, { false, true, true })
+    ns.UI.UpdateUnread()
+    T.eq(dot:IsShown(), true)
+    C.Focus(41, 1) -- shown in Guildy: read, whatever Blizzard's mark still says
+    T.eq({ C.HasUnread(41), C.AnyUnread() }, { false, false })
+    ns.UI.UpdateUnread()
+    T.eq(dot:IsShown(), false)
+    Fire("CLUB_MESSAGE_ADDED", 40, 1)
+    T.eq({ C.Unread(40), C.HasUnread(40), dot:IsShown() }, { 1, true, true })
+    C.Focus(40, 1)
+    T.eq(C.AnyUnread(), false)
+    C.Focus(nil)
+    env.C_Club, env.CommunitiesUtil = before, beforeUtil
+    T.eq(errors, {})
+  end)
+
   T.it("measures its own work with /guildy perf", function()
     local slash = env.SlashCmdList.GUILDY
     slash("perf") -- off: only says how to switch it on

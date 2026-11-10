@@ -340,6 +340,18 @@ local function Build()
   -- communities, so they get Guildy's own view (UI/TabCommunities.lua)
   frame.CommunitiesTab = SideTab(frame, UI.CommunitiesIcon(), ns.L.ICON_COMMUNITIES, function() UI.SelectTab("communities") end)
   frame.CommunitiesTab:SetChecked(false)
+  -- something new in a community: the mark Blizzard's window shows next to it, here on the side tab
+  local dot = frame.CommunitiesTab:CreateTexture(nil, "OVERLAY", nil, 7)
+  dot:SetSize(14, 14)
+  dot:SetPoint("TOPRIGHT", frame.CommunitiesTab.Icon, "TOPRIGHT", 4, 4)
+  if C_Texture and C_Texture.GetAtlasExists and C_Texture.GetAtlasExists("communities-icon-notification") then
+    dot:SetAtlas("communities-icon-notification")
+  else
+    dot:SetTexture("Interface\\AddOns\\" .. ns.ADDON .. "\\Textures\\Dot")
+    dot:SetVertexColor(0.35, 0.78, 1)
+  end
+  dot:Hide()
+  frame.CommunitiesTab.Dot = dot
   UpdateTitle()
 
   -- content area (the portrait overlaps its top-left corner; tabs keep their first row clear of it)
@@ -542,6 +554,7 @@ local function Open()
   Embed()
   if UI.Notes then ns.SafeCall(UI.Notes.Prepare) end
   UpdateTitle()
+  UI.UpdateUnread()
   if ns.Roster then ns.Roster.Request() end
   frame:Show()
   noGuild = not IsInGuild()
@@ -626,8 +639,8 @@ end
 local function ReturnTab(host)
   if returnTab then return returnTab end
   returnTab = SideTab(host, W.LOGO, ns.L.ICON_BACK_TO_GUILDY, function() UI.Show() end)
-  -- under Blizzard's own side tabs (chat, roster), which sit at the top of its right edge
-  returnTab:SetPoint("TOPLEFT", host, "TOPRIGHT", 0, -175)
+  -- under Blizzard's own side tabs: placed each time the tab shows (UI.ShowBlizzard), because how
+  -- many of them there are depends on the client and on what is picked in the window
   returnTab:SetChecked(false)
   returnTab.Emblem = TabEmblem(returnTab)
   returnTab:Hide()
@@ -641,6 +654,7 @@ function UI.ShowBlizzard(message) -- message: said instead of the general hint
   if not (host and host:IsShown() and frame) then return end
   blizzardMode = true
   frame:Hide()
+  if UI.Notes then ns.SafeCall(UI.Notes.Release) end -- Blizzard's member list, and with it its chat
   host:SetAlpha(1)
   if hostGeometry then
     placingHost = true
@@ -649,6 +663,26 @@ function UI.ShowBlizzard(message) -- message: said instead of the general hint
     placingHost = false
   end
   local back = ReturnTab(host)
+  -- Under the lowest of Blizzard's side tabs. At a fixed spot it sat behind Blizzard's fourth tab on
+  -- Forever (the guild info), which took its clicks and hid it (seen in game 2026-11-10).
+  -- Found by where they are, not by name: every shown child of Blizzard's window that starts at or
+  -- beyond its right edge (Forever has a tab the usual names do not cover).
+  local lowest
+  local right = host:GetRight()
+  for _, child in ipairs({ host:GetChildren() }) do
+    if child ~= back and child ~= frame and child.IsShown and child:IsShown() and child.GetLeft then
+      local left, bottom = child:GetLeft(), child:GetBottom()
+      if right and left and bottom and left >= right - 6 and (not lowest or bottom < lowest:GetBottom()) then
+        lowest = child
+      end
+    end
+  end
+  back:ClearAllPoints()
+  if lowest then
+    back:SetPoint("TOPLEFT", lowest, "BOTTOMLEFT", 0, -20)
+  else
+    back:SetPoint("TOPLEFT", host, "TOPRIGHT", 0, -250)
+  end
   back.Emblem:Update()
   back:Show()
   ns.Print(message or ns.L.BLIZZARD_OPENED)
@@ -667,6 +701,14 @@ end
 for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", "USERS", "FAMILY", "GUILD", "COMMUNITY" }) do
   ns.On(event, function(...) Refresh(event, ...) end)
 end
+-- The mark on the communities side tab while a community has something new
+function UI.UpdateUnread()
+  local tab = frame and frame.CommunitiesTab
+  if tab and tab.Dot then tab.Dot:SetShown(ns.Communities.AnyUnread()) end
+end
+ns.On("COMMUNITY", function() UI.UpdateUnread() end)
+ns.On("CHAT", function(kind) if kind == "community" then UI.UpdateUnread() end end)
+
 ns.On("ROSTER", function() if frame then UpdateTitle() end end)
 ns.On("VERSION", function() UI.UpdateVersion() end)
 ns.On("GUILD", function()
