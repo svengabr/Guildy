@@ -195,6 +195,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.TradeSkill.Probe(raw:sub(6))
   elseif msg == "shots backdrop" then
     ns.UI.ToggleShotBackdrop()
+  elseif msg == "shots anon" then
+    ns.UI.ToggleShotNames()
   elseif msg == "shots" then
     ns.UI.TakeShots()
   elseif msg:match("^perf") then

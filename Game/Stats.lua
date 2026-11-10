@@ -671,7 +671,9 @@ function GameStats.Entries()
   for _, m in ipairs(ns.Roster.Members()) do
     local record = guild.members[m.key]
     if record and type(record.stats) == "table" and record.stats.v then
-      list[#list + 1] = { key = m.key, name = m.name, classFile = m.classFile, rec = record.stats, member = m }
+      -- for pictures the PvP values are sample values (Core/Anon.lua)
+      list[#list + 1] = { key = m.key, name = m.name, classFile = m.classFile,
+        rec = ns.Anon.Stats(record.stats, m.key, m.level), member = m }
     end
   end
   return list

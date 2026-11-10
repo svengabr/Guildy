@@ -901,17 +901,25 @@ local function Build(panel)
     local chosen = ns.Settings().fameCards
     for _, fame in ipairs(S.Titles(page, type(chosen) == "table" and chosen[page.key] or nil)) do
       if index < #self.Cards then
+        -- A title nobody holds yet (no exalted reputation in the guild, no gold spent on talents) still
+        -- has its card: the options count and show it, and a card that was picked there but missing
+        -- here looked like a bug (reported 2026-11-10).
         local top = Ranking(entries, fame.stat, fame.current and "all" or self.period)[1]
-        if top and top.value > 0 then
-          index = index + 1
-          local card = self.Cards[index]
-          card.stat = fame.stat
-          card.Icon:SetTexture(Icon(fame.icon))
-          card.Title:SetText(L["FAME_TITLE_" .. fame.key])
+        local held = top and top.value > 0
+        index = index + 1
+        local card = self.Cards[index]
+        card.stat = fame.stat
+        card.Icon:SetTexture(Icon(fame.icon))
+        card.Icon:SetDesaturated(not held)
+        card.Title:SetText(L["FAME_TITLE_" .. fame.key])
+        if held then
           card.Name:SetText(W.ClassName(top.name, top.classFile))
           card.Value:SetText(Format(fame.stat, top.value) .. " · " .. StatName(fame.stat))
-          card:Show()
+        else
+          card.Name:SetText("|cff8d836e" .. L.FAME_TITLE_OPEN .. "|r")
+          card.Value:SetText(StatName(fame.stat))
         end
+        card:Show()
       end
     end
     for i = index + 1, #self.Cards do self.Cards[i]:Hide() end

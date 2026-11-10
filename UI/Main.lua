@@ -204,7 +204,7 @@ function UI.GuildEmblem(parent, size)
 end
 
 local function UpdateTitle()
-  local guildName = IsInGuild() and GetGuildInfo("player") or nil
+  local guildName = IsInGuild() and ns.Anon.Guild(GetGuildInfo("player")) or nil
   local title = guildName and (guildName .. " · Guildy") or "Guildy"
   if frame.SetTitle then frame:SetTitle(title) elseif frame.TitleText then frame.TitleText:SetText(title) end
   if frame.Emblem then frame.Emblem:Update() end

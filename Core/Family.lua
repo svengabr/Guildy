@@ -310,9 +310,11 @@ function Family.OwnElsewhere(ownChars, shown, now)
   local list = {}
   for key, record in pairs(type(ownChars) == "table" and ownChars or {}) do
     if type(record) == "table" and record.name and not shown[key] then
-      list[#list + 1] = { key = key, name = record.name, classFile = record.classFile, className = record.className,
+      local name, guildName = record.name, record.guild
+      if ns.Anon and ns.Anon.on then name, guildName = ns.Anon.Name(name), ns.Anon.Guild(guildName) end
+      list[#list + 1] = { key = key, name = name, classFile = record.classFile, className = record.className,
         level = record.level, raceFile = record.raceFile, raceName = record.raceName, female = record.female,
-        guildName = record.guild, guildKey = record.guildKey, seen = record.seen, elsewhere = true,
+        guildName = guildName, guildKey = record.guildKey, seen = record.seen, elsewhere = true,
         daysOffline = (now and record.seen) and math.max(0, now - record.seen) / 86400 or nil }
     end
   end

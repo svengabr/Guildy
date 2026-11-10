@@ -52,7 +52,8 @@ function Store.Member(guild, name)
   local member = guild.members[key]
   if not member then
     member = { name = ns.Names.Normalize(name), profs = {} }
-    guild.members[key] = member
+    -- while names are made up for pictures (Core/Anon.lua) nothing new is kept: the name may be one
+    if not (ns.Anon and ns.Anon.on) then guild.members[key] = member end
   end
   if type(member.profs) ~= "table" then member.profs = {} end
   return member

@@ -488,7 +488,10 @@ local function Build(panel)
 
   function view:OnShow()
     self.shown = true
-    self.drawAvatars = true -- opened by a click: the avatars can be drawn in the render that follows
+    -- opened by a click: the avatars can be drawn in the render that follows. Not when the screenshot
+    -- run shows the tab from a timer (UI/Shots.lua): the protected call is blocked there and the
+    -- game reports Guildy for it (ADDON_ACTION_BLOCKED, seen in game 2026-11-10)
+    self.drawAvatars = not UI.fromTimer
   end
 
   function view:OnHide()

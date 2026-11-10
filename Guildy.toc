@@ -28,6 +28,7 @@ Core\Protocol.lua
 Core\Manage.lua
 Core\Stats.lua
 Core\Family.lua
+Core\Anon.lua
 Core\Runtime.lua
 Game\Roster.lua
 Game\Chat.lua

@@ -11,6 +11,16 @@ return function(T, opts)
   local registered = {}   -- event -> {frames}
   local timers = {}
 
+  -- any other widget method: does nothing, but while calls.texts is a list every text handed to a
+  -- widget is noted there (AddMessage, AddLine, SetTitle ...)
+  local function Other(_, ...)
+    if not calls.texts then return end
+    for i = 1, select("#", ...) do
+      local value = select(i, ...)
+      if type(value) == "string" then calls.texts[#calls.texts + 1] = value end
+    end
+  end
+
   local function Stub(name)
     calls.objects = calls.objects + 1
     local stub = { _name = name, _scripts = {}, _shown = false, _text = "", _w = opts.width or 100, _h = opts.height or 100, _checked = false }
@@ -44,7 +54,10 @@ return function(T, opts)
     function methods:SetShown(v) if v then self:Show() else self:Hide() end end
     function methods:HasFocus() return false end
     function methods:GetText() return self._text end
-    function methods:SetText(t) self._text = t or "" end
+    function methods:SetText(t)
+      self._text = t or ""
+      if calls.texts and type(t) == "string" then calls.texts[#calls.texts + 1] = t end
+    end
     function methods:GetChecked() return self._checked end
     function methods:SetChecked(v) self._checked = v end
     function methods:IsTruncated() return false end
@@ -76,7 +89,7 @@ return function(T, opts)
       end
       if type(key) == "string" and key:match("^%l") then return nil end -- fields, not methods
       calls.n = calls.n + 1
-      return function() end
+      return Other
     end })
   end
 

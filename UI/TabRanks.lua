@@ -18,7 +18,7 @@ local function Ranks()
     if type(m.rankIndex) == "number" then counts[m.rankIndex + 1] = (counts[m.rankIndex + 1] or 0) + 1 end
   end
   for i = 1, num do
-    list[i] = { index = i, name = ns.Try(rawget(_G, "GuildControlGetRankName"), i) or tostring(i), count = counts[i] or 0 }
+    list[i] = { index = i, name = ns.Anon.Rank(ns.Try(rawget(_G, "GuildControlGetRankName"), i) or tostring(i), i - 1), count = counts[i] or 0 }
   end
   return list
 end

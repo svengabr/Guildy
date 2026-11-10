@@ -74,8 +74,12 @@ function Roster.Scan()
     if name then
       local y, mo, d, h = GetGuildRosterLastOnline(i)
       local key = ns.Names.Key(name)
+      -- for pictures: a made-up name and notes (Core/Anon.lua); key and fullName stay the real ones,
+      -- so stored data, whispers and invites still find the member
+      local shown = ns.Anon.Name(ns.Names.Normalize(name))
+      note, officerNote = ns.Anon.Note(note, name), ns.Anon.Note(officerNote, name .. "+")
       local m = {
-        index = i, fullName = name, name = ns.Names.Normalize(name), key = key, rank = rank,
+        index = i, fullName = name, name = shown, key = key, rank = ns.Anon.Rank(rank, rankIndex),
         rankIndex = rankIndex, level = level or 1, className = className, classFile = classFile, zone = zone,
         note = note, officerNote = officerNote, online = (online and not isMobile) and true or false,
         isMobile = isMobile and true or false, status = status, guid = guid,
@@ -91,7 +95,7 @@ function Roster.Scan()
   ReadEventLog()
   for _, m in ipairs(members) do m.joinedDaysAgo = joined[m.key] end
   -- forget stored profession data of members who left (only with a complete roster)
-  local guild = ns.GuildData()
+  local guild = not ns.Anon.on and ns.GuildData() or nil -- made-up notes must not reach the saved data
   if guild and #members > 0 then
     local keep = {}
     for key in pairs(byKey) do keep[key] = true end
@@ -238,7 +242,9 @@ end
 function Roster.Ranks()
   local ranks = {}
   local num = ns.Try(rawget(_G, "GuildControlGetNumRanks")) or 0
-  for i = 1, num do ranks[i] = ns.Try(rawget(_G, "GuildControlGetRankName"), i) or tostring(i) end
+  for i = 1, num do
+    ranks[i] = ns.Anon.Rank(ns.Try(rawget(_G, "GuildControlGetRankName"), i) or tostring(i), i - 1)
+  end
   return ranks
 end
 

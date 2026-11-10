@@ -22,8 +22,8 @@ local function GuildEvents()
   for i = 1, count do
     local kind, player1, player2, _, years, months, days, hours = ns.Try(getInfo, i)
     if kind then
-      list[#list + 1] = { kind = kind, player1 = ns.Names.Normalize(player1 or "?"),
-        player2 = ns.Names.Normalize(player2 or "?"), daysAgo = ns.Census.DaysOffline(years, months, days, hours) }
+      list[#list + 1] = { kind = kind, player1 = ns.Anon.Name(ns.Names.Normalize(player1 or "?")),
+        player2 = ns.Anon.Name(ns.Names.Normalize(player2 or "?")), daysAgo = ns.Census.DaysOffline(years, months, days, hours) }
     end
   end
   return list

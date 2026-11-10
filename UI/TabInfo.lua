@@ -20,10 +20,11 @@ local function EventLines()
       local fmt = rawget(_G, EVENT_FORMATS[kind] or "") or ns.L["EVENT_" .. kind:upper()]
       local text
       if type(fmt) == "string" then
-        local ok, result = pcall(string.format, fmt, ns.Names.Normalize(player1 or "?"), ns.Names.Normalize(player2 or "?"), rank or "")
-        text = ok and result or (kind .. " " .. tostring(player1))
+        local ok, result = pcall(string.format, fmt, ns.Anon.Name(ns.Names.Normalize(player1 or "?")),
+          ns.Anon.Name(ns.Names.Normalize(player2 or "?")), ns.Anon.Rank(rank or ""))
+        text = ok and result or (kind .. " " .. tostring(ns.Anon.Name(player1)))
       else
-        text = kind .. " " .. tostring(player1)
+        text = kind .. " " .. tostring(ns.Anon.Name(player1))
       end
       local ago = ns.Census.DaysOffline(years, months, days, hours)
       local m = { online = false, daysOffline = ago }
@@ -267,11 +268,11 @@ local function Build(panel)
     -- C_GuildInfo.GetMOTD is protected on Forever (ADDON_ACTION_BLOCKED even inside pcall):
     -- only used when the old roster function is missing
     local getMotd = rawget(_G, "GetGuildRosterMOTD") or (C_GuildInfo and C_GuildInfo.GetMOTD)
-    local motdText = ns.Try(getMotd) or ""
+    local motdText = ns.Anon.Motd(ns.Try(getMotd) or "")
     self.Motd:SetText(motdText ~= "" and motdText or ("|cff999999" .. L.EMPTY .. "|r"))
     self.MotdEditor:Update(motdText, can.editMotd)
     local get = (C_GuildInfo and C_GuildInfo.GetInfoText) or rawget(_G, "GetGuildInfoText")
-    local infoText = ns.Try(get) or ""
+    local infoText = ns.Anon.Info(ns.Try(get) or "")
     self.Info:SetText(infoText ~= "" and infoText or ("|cff999999" .. L.EMPTY .. "|r"))
     self.InfoEditor:Update(infoText, can.editInfo)
     self:RefreshPlay()

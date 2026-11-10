@@ -214,12 +214,31 @@ T.describe("Smoke", function()
     env.SlashCmdList.GUILDY("shots")
     RunTimers(1)
     T.eq(taken, #ns.UI.SHOTS)
+    T.eq(ns.UI.fromTimer, nil)
     T.truthy(taken >= 19, "every tab, page and options tab")
     T.eq(ns.UI.Current(), "overview") -- back where it started
     T.eq(ns.UI.Options():IsShown(), false)
     env.Screenshot = nil
     env.SlashCmdList.GUILDY("shots backdrop") -- the plain sheet alone, on and off again
     env.SlashCmdList.GUILDY("shots backdrop")
+    ns.UI.SelectTab("chat")
+    T.eq(errors, {})
+  end)
+
+  T.it("shows every chosen title card, also one nobody holds yet", function()
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("fame")
+    local view = ns.UI.TabView("fame")
+    for _, page in ipairs(ns.Stats.PAGES) do
+      view.page, view.mode = page.key, "home"
+      view:Refresh()
+      local chosen = ns.Settings().fameCards
+      local titles = ns.Stats.Titles(page, type(chosen) == "table" and chosen[page.key] or nil)
+      local shown = 0
+      for _, card in ipairs(view.Cards) do if card:IsShown() then shown = shown + 1 end end
+      T.eq(shown, math.min(#titles, #view.Cards), page.key)
+    end
+    view.page = ns.Stats.PAGES[1].key
     ns.UI.SelectTab("chat")
     T.eq(errors, {})
   end)
@@ -1108,6 +1127,82 @@ T.describe("Hall of Fame", function()
     ns.UI.SelectTab("fame")
     ns.UI.ToggleOptions()
     T.eq(options:IsShown(), false)
+    T.eq(errors, {})
+  end)
+end)
+
+T.describe("Made-up names for pictures", function()
+  local REAL = { "Makira", "Farron", "Au Tsch", "Au-Tsch", "Ran Fred", "Ran-Fred", "Lightspark", "Murloc Mafia",
+    "Mrglmrgl", "Discord", "hallo", "Haifutter" }
+
+  -- every view the screenshot run shows, every member's page and tooltip
+  local function ShowEverything()
+    for _, shot in ipairs(ns.UI.SHOTS) do shot[2]() end
+    for _, m in ipairs(ns.Roster.Members()) do
+      ns.UI.ShowMember(m)
+      ns.UI.MemberTooltip(env.UIParent, m)
+    end
+    ns.UI.SelectTab("chat")
+    ns.UI.HideOptions()
+  end
+
+  local function Leaks(texts)
+    local found = {}
+    for _, text in ipairs(texts) do
+      -- the target of a chat link is not drawn (and has to stay real: a click whispers that player)
+      text = text:gsub("|H[^|]*|h", "")
+      for _, real in ipairs(REAL) do
+        if text:find(real, 1, true) then found[#found + 1] = real .. " in: " .. text end
+      end
+    end
+    return found
+  end
+
+  T.it("shows no real name, note, guild name or chat line anywhere", function()
+    env.CommunitiesFrame:Show()
+    Fire("CHAT_MSG_GUILD", "hallo zusammen", "Au-Tsch", "", "", "", "", 0, 0, "", 0, 1, "Player-1-03")
+    -- the test itself is able to find them: with real names the same walk does show them
+    world.calls.texts = {}
+    ShowEverything()
+    T.truthy(#Leaks(world.calls.texts) > 5, "real names found while they are shown")
+    env.SlashCmdList.GUILDY("shots anon")
+    T.eq(ns.Anon.on, true)
+    world.calls.texts = {}
+    ShowEverything()
+    local shown = world.calls.texts
+    world.calls.texts = nil
+    T.truthy(#shown > 200, "the views were drawn")
+    T.eq(table.concat(Leaks(shown), " ;; "), "")
+    -- the PvP page gets sample values, on a copy: the stored statistics stay as they are
+    local stored = { ts = 5, src = "self", v = { [107] = 12 }, months = {} }
+    local sample
+    for i = 1, 20 do
+      sample = ns.Anon.Stats(stored, "member " .. i, 40)
+      if sample ~= stored then break end
+    end
+    T.truthy(sample ~= stored and sample.v[588] > 0 and sample.v[107] == 12, "sample PvP values beside the real ones")
+    T.eq(stored.v, { [107] = 12 })
+    -- the same member has the same stand-in everywhere, and stays findable under the real name
+    local makira = ns.Roster.Find("Makira Farron")
+    T.truthy(makira and makira.name ~= "Makira Farron", "a made-up name")
+    T.eq(makira.name, ns.Anon.Name("Makira-Farron"))
+    T.eq(makira.fullName, "Makira-Farron")
+    T.eq(errors, {})
+  end)
+
+  T.it("keeps nothing under a made-up name and gives the real names back", function()
+    local guild = ns.GuildData()
+    local before = 0
+    for _ in pairs(guild.members) do before = before + 1 end
+    local makira = ns.Roster.Find("Makira Farron")
+    ns.Store.Member(guild, makira.name).profs[171] = { ts = 5, src = "relay" }
+    local after = 0
+    for _ in pairs(guild.members) do after = after + 1 end
+    T.eq(after, before)
+    env.SlashCmdList.GUILDY("shots anon")
+    T.eq(ns.Anon.on, false)
+    T.eq(ns.Roster.Find("Makira Farron").name, "Makira Farron")
+    T.eq(ns.Anon.Name("Makira Farron"), "Makira Farron")
     T.eq(errors, {})
   end)
 end)

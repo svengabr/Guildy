@@ -198,9 +198,9 @@ local function Build(panel)
 
   -- render -----------------------------------------------------------------------------------------------
   function view:RenderHero(me, list)
-    local m = me or { name = ns.PlayerName() or "?", level = UnitLevel("player") }
+    local m = me or { name = ns.Anon.Name(ns.PlayerName() or "?"), level = UnitLevel("player") }
     hero.Ident:SetText(L.ACCOUNT_LOGGED_IN:format(W.ClassName(m.name, m.classFile)))
-    local guild = IsInGuild() and GetGuildInfo("player") or nil
+    local guild = IsInGuild() and ns.Anon.Guild(GetGuildInfo("player")) or nil
     hero.Where:SetText(guild and ("|cff40ff40<" .. guild .. ">|r") or L.FAMILY_NO_GUILD)
     hero.NoGuild:SetShown(not IsInGuild())
     hero.Totals:ClearAllPoints()

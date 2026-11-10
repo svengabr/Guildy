@@ -389,6 +389,7 @@ function Chat.History(kind, limit)
     lines, more = {}, false
     for i, line in ipairs(buffers[kind] or {}) do lines[i] = line end
   end
+  if ns.Anon.on then return ns.Anon.Lines(lines), more end -- for pictures (Core/Anon.lua)
   if kind ~= "guild" or #systemLines == 0 then return lines, more end
   -- join and leave lines go in by their time (both lists are in time order already); those from
   -- before the first line shown wait for the player to scroll up

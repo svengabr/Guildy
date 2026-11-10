@@ -54,7 +54,8 @@ function Communities.List()
   for _, club in ipairs(ns.Try(C_Club.GetSubscribedClubs) or {}) do
     if type(club) == "table" and club.clubId and club.clubType ~= GuildType() then
       list[#list + 1] = {
-        clubId = club.clubId, name = club.name or "?", clubType = club.clubType, shortName = club.shortName,
+        clubId = club.clubId, name = ns.Anon.Guild(club.name or "?"), clubType = club.clubType,
+        shortName = not ns.Anon.on and club.shortName or nil, -- made-up names for pictures: Core/Anon.lua
         avatarId = club.avatarId, memberCount = club.memberCount, unread = unread[club.clubId] or 0,
         favorite = IsFavorite(club),
       }
@@ -160,7 +161,7 @@ function Communities.Members(clubId)
     local info = ns.Try(C_Club.GetMemberInfo, clubId, memberId)
     if type(info) == "table" and type(info.name) == "string" and not ns.IsSecret(info.name) and info.name ~= "" then
       list[#list + 1] = {
-        name = ns.Names.Normalize(info.name), full = info.name, level = info.level,
+        name = ns.Anon.Name(ns.Names.Normalize(info.name)), full = info.name, level = info.level,
         classFile = ClassFile(info.classID), zone = info.zone, presence = info.presence,
         online = Communities.IsOnline(info.presence), isSelf = info.isSelf or nil,
         memberId = info.memberId or memberId, guid = not ns.IsSecret(info.guid) and info.guid or nil,
@@ -178,7 +179,7 @@ end
 
 -- Chat lines of a channel, oldest first (same shape as the guild chat's)
 function Communities.History(clubId, streamId)
-  return ns.Chat.StreamLines(clubId, streamId, "community") or {}
+  return ns.Anon.Lines(ns.Chat.StreamLines(clubId, streamId, "community") or {})
 end
 
 function Communities.HistoryState(clubId, streamId)
@@ -236,8 +237,9 @@ function Communities.Invitations()
     if type(club) == "table" and club.clubId then
       local inviter = type(invitation.inviter) == "table" and invitation.inviter.name or nil
       if ns.IsSecret(inviter) then inviter = nil end
-      list[#list + 1] = { clubId = club.clubId, name = club.name or "?", inviter = inviter, memberCount = club.memberCount,
-        clubType = club.clubType, avatarId = club.avatarId, shortName = club.shortName }
+      list[#list + 1] = { clubId = club.clubId, name = ns.Anon.Guild(club.name or "?"), inviter = ns.Anon.Name(inviter),
+        memberCount = club.memberCount, clubType = club.clubType, avatarId = club.avatarId,
+        shortName = not ns.Anon.on and club.shortName or nil }
     end
   end
   return list

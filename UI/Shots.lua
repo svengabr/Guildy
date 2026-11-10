@@ -1,4 +1,5 @@
--- /guildy shots: walks through every view of Guildy and takes a screenshot of each, for the reference
+-- /guildy shots: walks through every view of Guildy and takes a screenshot of each, with made-up
+-- names, notes and chat (Core/Anon.lua) in front of a plain backdrop, for the reference
 -- screenshots the gallery images are made from (media/gallery/collect.py picks them up from the
 -- game's Screenshots folder and names them after the list below). Guildy has to be open (J).
 -- The game names a screenshot after the second it was taken in, so the views are two seconds apart.
@@ -24,9 +25,10 @@ local function Fame(page)
   end
 end
 
-local function Options(key)
+-- An options tab next to the tab it is about, so the picture shows what the options change
+local function Options(key, tab)
   return function()
-    UI.SelectTab("chat")
+    UI.SelectTab(tab)
     UI.ShowOptions(key)
   end
 end
@@ -51,11 +53,14 @@ UI.SHOTS = {
     UI.SelectTab("members")
     UI.ShowMember(ns.Roster.Me())
   end },
-  { "15-options-general", Options("general") },
-  { "16-options-chat", Options("chat") },
-  { "17-options-members", Options("members") },
-  { "18-options-fame", Options("fame") },
-  { "19-options-professions", Options("professions") },
+  { "15-options-general", Options("general", "members") }, -- where a member's tooltip stands
+  { "16-options-chat", Options("chat", "chat") },
+  { "17-options-members", Options("members", "members") },
+  { "18-options-fame", function()
+    Fame("general")() -- the page the options open on
+    UI.ShowOptions("fame")
+  end },
+  { "19-options-professions", Options("professions", "professions") },
 }
 
 -- A plain dark sheet over the whole screen, right behind Guildy: the pictures show the window alone,
@@ -92,6 +97,22 @@ function UI.ToggleShotBackdrop()
   Backdrop(not (backdrop and backdrop:IsShown()))
 end
 
+-- Made-up names, notes and chat on or off: the roster is read again and every view drawn anew
+local function Anonymous(on)
+  if ns.Anon.on == (on and true or false) then return end
+  ns.Anon.Enable(on)
+  ns.Roster.Scan()
+  ns.Fire("GUILD") -- the guild name in the title
+  ns.Fire("CHAT")
+  ns.Fire("COMMUNITY")
+end
+
+-- /guildy shots anon: the same for pictures taken by hand
+function UI.ToggleShotNames()
+  Anonymous(not ns.Anon.on)
+  ns.Print("shots: made-up names " .. (ns.Anon.on and "on" or "off"))
+end
+
 local STEP = 2 -- seconds per view: shown, one second to settle, the picture, one second to the next
 local running
 
@@ -112,11 +133,15 @@ function UI.TakeShots()
   if status and status.UnregisterEvent then status:UnregisterEvent("SCREENSHOT_SUCCEEDED") end
   local back = UI.Current()
   local hadBackdrop = backdrop and backdrop:IsShown()
+  local wasAnonymous = ns.Anon.on
   Backdrop(true)
+  Anonymous(true)
   ns.Print(("shots: %d pictures, about %d seconds. Leave mouse and keyboard alone."):format(#UI.SHOTS, #UI.SHOTS * STEP))
   for i, shot in ipairs(UI.SHOTS) do
     C_Timer.After((i - 1) * STEP, function()
+      UI.fromTimer = true -- no click behind this: nothing protected (community avatars)
       ns.SafeCall(shot[2])
+      UI.fromTimer = nil
       local tip = rawget(_G, "GameTooltip")
       if tip then tip:Hide() end
     end)
@@ -131,6 +156,7 @@ function UI.TakeShots()
     if status and status.RegisterEvent then status:RegisterEvent("SCREENSHOT_SUCCEEDED") end
     UI.HideOptions()
     if not hadBackdrop then Backdrop(false) end
+    if not wasAnonymous then Anonymous(false) end
     if back then UI.SelectTab(back) end
     ns.Print("shots: done. Collect them with: python media/gallery/collect.py")
   end)
