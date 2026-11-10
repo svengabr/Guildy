@@ -353,7 +353,7 @@ local function Build(panel)
       local count = r.professions[row.skillLine] or 0
       row:SetData(name, count, maxProf, 0.85, 0.7, 0.35)
       local best = r.maxRank[row.skillLine]
-      row.Count:SetText(count .. (best and ("|cff999999 · " .. best .. "|r") or ""))
+      row.Count:SetText(count .. (best and ("|cff999999" .. ns.L.SEP .. best .. "|r") or ""))
     end
 
     local maxActivity = 1

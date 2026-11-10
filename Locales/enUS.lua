@@ -414,6 +414,8 @@ ns.LocaleTables.enUS = {
   COL_RECIPES = "Recipes",
   COL_DATA = "Data",
   ONLINE_N = "%d online",
+  -- between two parts of one line; the game's Cyrillic font has no middle dot
+  SEP = " · ",
   SECTION_ONLINE = "Online · %d",
   OFFLINE_N = "Offline · %d",
   BOOKS_KNOWN = "%d recipe books known",

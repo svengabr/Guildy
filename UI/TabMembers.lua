@@ -437,9 +437,16 @@ local function Build(panel)
     local summary = L.SHOWN_COUNT:format(#kept, #members)
     local level = (self.filter.level and tostring(self.filter.level))
       or (self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket))
-    if level then summary = L.FILTER_LEVEL .. " " .. level .. " · " .. summary end
-    if self.filter.skillLine then summary = ns.TradeSkill.Name(self.filter.skillLine) .. " · " .. summary end
+    if level then summary = L.FILTER_LEVEL .. " " .. level .. ns.L.SEP .. summary end
+    if self.filter.skillLine then summary = ns.TradeSkill.Name(self.filter.skillLine) .. ns.L.SEP .. summary end
     self.Summary:SetText(summary)
+    -- at a narrow window a long language fills the row with the filters: then only the numbers
+    local last = (self.FoldCheck.Label:IsShown() and self.FoldCheck.Label)
+      or (self.viewOfficer and self.NoOfficerNoteCheck.Label) or self.NoNoteCheck.Label
+    local right, filters = self.Summary:GetRight(), last:GetRight()
+    if right and filters and right - (self.Summary:GetStringWidth() or 0) < filters + 8 then
+      self.Summary:SetText(#kept .. " / " .. #members)
+    end
     self.NoNoteCheck.Label:SetText(L.NO_NOTE .. " |cffffd100" .. noNote .. "|r")
     self.NoOfficerNoteCheck.Label:SetText(L.NO_OFFICER_NOTE .. " |cffffd100" .. noOfficerNote .. "|r")
     Label(self.RankButton, L.FILTER_RANK, self.filter.rankIndex and rankNames[self.filter.rankIndex])

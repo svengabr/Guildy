@@ -367,7 +367,7 @@ local function Build()
       if not self.info then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetText(L.MEDAL_TIP:format(self.info.place, L["FAME_TITLE_" .. self.info.title.key]))
-      GameTooltip:AddLine(UI.Fame.Format(self.info.title.stat, self.info.value) .. " · " .. UI.Fame.StatName(self.info.title.stat), 1, 1, 1)
+      GameTooltip:AddLine(UI.Fame.Format(self.info.title.stat, self.info.value) .. ns.L.SEP .. UI.Fame.StatName(self.info.title.stat), 1, 1, 1)
       GameTooltip:Show()
     end)
     medal:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -479,12 +479,12 @@ local function Build()
     if info and info.race then ident[#ident + 1] = info.race end
     if info then ident[#ident + 1] = info.female and L.FEMALE or L.MALE end
     ident[#ident + 1] = m.className or ""
-    hero.Ident:SetText(ClassIconString(m.classFile) .. table.concat(ident, " · "))
+    hero.Ident:SetText(ClassIconString(m.classFile) .. table.concat(ident, ns.L.SEP))
     if m.elsewhere then
-      hero.Where:SetText((m.guildName and ("|cff40ff40<" .. m.guildName .. ">|r") or L.FAMILY_NO_GUILD) .. " · " ..
+      hero.Where:SetText((m.guildName and ("|cff40ff40<" .. m.guildName .. ">|r") or L.FAMILY_NO_GUILD) .. ns.L.SEP ..
         L.LAST_LOGIN:format(ns.Roster.LastOnlineText(m)))
     else
-      hero.Where:SetText((m.rank or "") .. (m.zone and m.zone ~= "" and (" · " .. m.zone) or "") .. " · " ..
+      hero.Where:SetText((m.rank or "") .. (m.zone and m.zone ~= "" and (ns.L.SEP .. m.zone) or "") .. ns.L.SEP ..
         (m.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(m)))
     end
 

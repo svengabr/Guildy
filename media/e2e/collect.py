@@ -60,7 +60,7 @@ def main():
     names, codes = shot_names(), languages()
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith((".jpg", ".png", ".tga"))]
     files.sort(key=os.path.getmtime)
-    groups = newest_run(files)
+    groups = newest_run(files)[-len(codes):]  # an earlier, cut-off run may lie right before it
     if [len(group) for group in groups] != [len(names)] * len(codes):
         sys.exit("The newest run has groups of %s pictures; /guildy shots all takes %d groups of %d. Nothing written.\n"
                  "Run /guildy shots all again and take no other screenshot during it."

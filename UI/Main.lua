@@ -206,7 +206,7 @@ end
 
 local function UpdateTitle()
   local guildName = IsInGuild() and ns.Anon.Guild(GetGuildInfo("player")) or nil
-  local title = guildName and (guildName .. " · Guildy") or "Guildy"
+  local title = guildName and (guildName .. ns.L.SEP .. "Guildy") or "Guildy"
   if frame.SetTitle then frame:SetTitle(title) elseif frame.TitleText then frame.TitleText:SetText(title) end
   if frame.Emblem then frame.Emblem:Update() end
   if frame.GuildTab and frame.GuildTab.Emblem then frame.GuildTab.Emblem:Update() end
@@ -227,7 +227,7 @@ function UI.UpdateVersion()
   local newer = ns.Sync and ns.Sync.NewerVersion()
   if frame and frame.Version then
     local text = L.VERSION_SHOWN:format(ns.Version())
-    if newer then text = text .. "  ·  |cffff9933" .. L.UPDATE_AVAILABLE:format(newer) .. "|r" end
+    if newer then text = text .. " " .. L.SEP .. " |cffff9933" .. L.UPDATE_AVAILABLE:format(newer) .. "|r" end
     frame.Version.Text:SetText(text)
     -- only as wide as its text: the rest of the title bar stays free for dragging the window
     frame.Version:SetWidth(math.max(40, (frame.Version.Text:GetStringWidth() or 0) + 4))

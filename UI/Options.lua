@@ -217,14 +217,15 @@ local function BuildStyle(panel)
       levelText:SetWidth(18)
       levelText:SetTextColor(grey, grey, grey)
       local text, alpha = UI.MemberNameText(ns.Anon.Name(who), classFile, online, style)
-      local nameText = W.Text(row, "GameFontHighlightSmall", text)
-      nameText:SetPoint("LEFT", 22, 0)
-      nameText:SetWidth(84)
-      nameText:SetWordWrap(false)
-      nameText:SetAlpha(alpha)
       local when = W.Text(row, "GameFontHighlightSmall", ns.Roster.LastOnlineText({ online = online, daysOffline = days }))
       when:SetPoint("RIGHT", -2, 0)
       when:SetJustifyH("RIGHT")
+      local nameText = W.Text(row, "GameFontHighlightSmall", text)
+      nameText:SetPoint("LEFT", 22, 0)
+      nameText:SetPoint("RIGHT", when, "LEFT", -4, 0) -- the time is as long as its language makes it
+      nameText:SetJustifyH("LEFT")
+      nameText:SetWordWrap(false)
+      nameText:SetAlpha(alpha)
       if online then when:SetTextColor(0.3, 0.9, 0.3) else when:SetTextColor(0.6, 0.6, 0.6) end
     end
 

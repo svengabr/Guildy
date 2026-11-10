@@ -30,7 +30,7 @@ local function DataText(prof)
   if days <= 0 then return SourceText(prof.src) end
   local age = ns.L.DAYS_AGO:format(days)
   if days > 7 then age = "|cffff9f2e" .. age .. "|r" end
-  return age .. " · " .. SourceText(prof.src)
+  return age .. ns.L.SEP .. SourceText(prof.src)
 end
 
 -- Icon of a recipe: the made item's icon from a recipe book read earlier. Without one, the recipe spell's
@@ -198,7 +198,7 @@ local function Build(panel)
   local function ProfessionMenu(anchor, m, skillLine)
     local canOpen = ns.TradeSkill.CanOpenBook(m)
     W.OpenMenu(anchor, {
-      { text = W.ClassName(m.name, m.classFile) .. " · " .. ns.TradeSkill.Name(skillLine), isTitle = true },
+      { text = W.ClassName(m.name, m.classFile) .. ns.L.SEP .. ns.TradeSkill.Name(skillLine), isTitle = true },
       { text = canOpen and L.OPEN_BOOK or L.OPEN_BOOK_OFFLINE,
         disabled = not canOpen, onClick = function() ns.TradeSkill.OpenBook(m, skillLine) end },
       { text = L.WHISPER, disabled = not m.online, onClick = function() UI.Whisper(m.fullName) end },
@@ -759,7 +759,7 @@ local function Build(panel)
       local done, total, found, look, looks, left = ns.Harvest.Progress()
       self.Status.Bar:SetValue(looks > 0 and look / looks or 0)
       local eta = left >= 60 and L.HARVEST_ETA:format(math.floor(left / 60 + 0.5)) or L.HARVEST_ETA_SHORT
-      self.Status.Bar.Text:SetText(L.HARVEST_BAR:format(look, looks) .. " · " .. eta)
+      self.Status.Bar.Text:SetText(L.HARVEST_BAR:format(look, looks) .. ns.L.SEP .. eta)
       self.Status.Current:ClearAllPoints()
       self.Status.Current:SetPoint("TOPLEFT", self.Status.Bar, "BOTTOMLEFT", 0, -6)
       self.Status.Current:SetPoint("RIGHT", -10, 0)
@@ -821,11 +821,11 @@ local function Build(panel)
     end
     local m, prof = entry.member, entry.prof
     box.Dot:SetOnline(m.online)
-    box.Who:SetText(W.ClassName(m.name, m.classFile) .. MUTED .. " · " .. ns.TradeSkill.Name(group.skillLine) .. "|r")
+    box.Who:SetText(W.ClassName(m.name, m.classFile) .. MUTED .. ns.L.SEP .. ns.TradeSkill.Name(group.skillLine) .. "|r")
     local meta = { UI.ProfLevel(prof) }
     if prof.recipes then meta[#meta + 1] = L.RECIPES_COUNT:format(#prof.recipes) end
     meta[#meta + 1] = prof.src == "note" and SourceText(prof.src) or (SourceText(prof.src) .. ", " .. UI.Age(prof.ts))
-    box.Meta:SetText(table.concat(meta, " · "))
+    box.Meta:SetText(table.concat(meta, ns.L.SEP))
     box.Open:SetEnabled(ns.TradeSkill.CanOpenBook(m))
     box.Whisper:SetEnabled(m.online)
     box.Invite:SetEnabled(m.online)

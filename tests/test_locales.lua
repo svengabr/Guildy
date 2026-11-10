@@ -48,6 +48,11 @@ T.describe("Locales", function()
       for key in pairs(texts) do T.truthy(EN[key], code .. " has unknown " .. key) end
     end
   end)
+  T.it("has no middle dot in Russian: the game's Cyrillic font draws a box for it", function()
+    for key, text in pairs(ns.LocaleTables.ruRU) do
+      T.truthy(not text:find("9483", 1, true), "ruRU " .. key .. " has a middle dot")
+    end
+  end)
   T.it("keeps the placeholders and their order in every language", function()
     for _, code in ipairs(ns.Locale.Languages()) do
       for key, text in pairs(EN) do

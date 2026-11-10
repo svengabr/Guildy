@@ -109,7 +109,7 @@ local function Build(panel)
       local count = tonumber(club.memberCount)
       local members = count and (count == 1 and L.COMMUNITIES_ONE_MEMBER or L.COMMUNITIES_MEMBERS:format(count)) or ""
       local short = club.shortName and club.shortName ~= "" and club.shortName or nil
-      row.Info:SetText(short and members ~= "" and (short .. " · " .. members) or short or members)
+      row.Info:SetText(short and members ~= "" and (short .. ns.L.SEP .. members) or short or members)
     end
     if club.invite then
       row.Selected:SetShown(club.clubId == selectedInvite)
