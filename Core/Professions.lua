@@ -95,7 +95,56 @@ function Professions.Merge(member, skillLine, incoming, ctx)
     if merged.rank == nil then merged.rank, merged.max = existing.rank, existing.max end
   end
   member.profs[skillLine] = merged
+  if Professions.PRIMARY[skillLine] then
+    Professions.CapPrimary(member)
+    if member.profs[skillLine] ~= merged then return existing ~= nil end -- older than both others
+  end
   return true
+end
+
+-- A character can have at most this many primary professions
+Professions.MAX_PRIMARY = 2
+
+-- Keeps the MAX_PRIMARY newest primary professions of a member and drops the older ones: when someone
+-- unlearns a profession and learns another, the newer data replaces the old one. Guild note entries
+-- don't count; they go once real data shows MAX_PRIMARY primary professions (ApplyNotes follows the same
+-- rule, so the two never undo each other). Returns true when something was dropped.
+function Professions.CapPrimary(member)
+  local profs = member.profs or {}
+  local real, notes = {}, {}
+  for skillLine, rec in pairs(profs) do
+    if Professions.PRIMARY[skillLine] then
+      if rec.src == "note" then notes[#notes + 1] = skillLine else real[#real + 1] = skillLine end
+    end
+  end
+  if #real < Professions.MAX_PRIMARY then return false end
+  local changed = false
+  table.sort(real, function(x, y)
+    if profs[x].ts ~= profs[y].ts then return profs[x].ts > profs[y].ts end
+    return x < y
+  end)
+  for i = Professions.MAX_PRIMARY + 1, #real do
+    profs[real[i]] = nil
+    changed = true
+  end
+  for _, skillLine in ipairs(notes) do
+    profs[skillLine] = nil
+    changed = true
+  end
+  return changed
+end
+
+-- The player's own character: drops every profession (except guild note entries) that isn't in
+-- present = { [skillLine] = true }, the character's current skill list. Returns true when something changed.
+function Professions.Prune(member, present)
+  local changed = false
+  for skillLine, rec in pairs(member.profs or {}) do
+    if rec.src ~= "note" and not present[skillLine] then
+      member.profs[skillLine] = nil
+      changed = true
+    end
+  end
+  return changed
 end
 
 -- { [skillLineID] = true } of a member record (nil when none)
@@ -189,14 +238,21 @@ end
 function Professions.ApplyNotes(member, mentioned)
   member.profs = member.profs or {}
   local changed = false
+  local realPrimary = 0
   for skillLine, rec in pairs(member.profs) do
-    if rec.src == "note" and not mentioned[skillLine] then
+    if Professions.PRIMARY[skillLine] and rec.src ~= "note" then realPrimary = realPrimary + 1 end
+  end
+  for skillLine, rec in pairs(member.profs) do
+    local full = Professions.PRIMARY[skillLine] and realPrimary >= Professions.MAX_PRIMARY
+    if rec.src == "note" and (not mentioned[skillLine] or full) then
       member.profs[skillLine] = nil
       changed = true
     end
   end
   for skillLine in pairs(mentioned) do
-    if not member.profs[skillLine] then
+    -- a note doesn't add a primary profession when real data already shows two
+    local full = Professions.PRIMARY[skillLine] and realPrimary >= Professions.MAX_PRIMARY
+    if not member.profs[skillLine] and not full then
       member.profs[skillLine] = { ts = Professions.NOTE_TS, src = "note" }
       changed = true
     end

@@ -138,3 +138,70 @@ T.describe("Professions.PlaceholderIcons", function()
     T.eq(P.PlaceholderIcons(icons), {}) -- not a quarter of the book
   end)
 end)
+
+T.describe("Professions.Prune", function()
+  T.it("drops professions the character no longer has, keeps guild note entries", function()
+    local m = { profs = {
+      [182] = { ts = 10, src = "scan", rank = 3, max = 75 },
+      [333] = { ts = 10, src = "scan", rank = 2, max = 75 },
+      [171] = { ts = 10, src = "relay", rank = 50, max = 75 },
+      [164] = { ts = 1, src = "note" },
+    } }
+    T.eq(P.Prune(m, { [333] = true }), true)
+    T.eq(m.profs[182], nil)
+    T.eq(m.profs[171], nil)
+    T.eq(m.profs[333].rank, 2)
+    T.eq(m.profs[164].src, "note")
+  end)
+  T.it("reports no change when everything is still there", function()
+    local m = { profs = { [333] = { ts = 10, src = "scan" } } }
+    T.eq(P.Prune(m, { [333] = true }), false)
+    T.eq(P.Prune({}, {}), false)
+  end)
+end)
+
+T.describe("Professions primary cap", function()
+  local function rec(ts, src) return { ts = ts, src = src or "relay", rank = 10, max = 75 } end
+
+  T.it("a third primary profession pushes out the oldest one", function()
+    local m = {}
+    P.Merge(m, 182, rec(10)) -- herbalism
+    P.Merge(m, 197, rec(20)) -- tailoring
+    T.eq(P.Merge(m, 333, rec(30)), true) -- enchanting
+    T.eq(m.profs[182], nil)
+    T.eq(m.profs[197].ts, 20)
+    T.eq(m.profs[333].ts, 30)
+  end)
+  T.it("an old record of a third primary profession is not kept", function()
+    local m = {}
+    P.Merge(m, 197, rec(20))
+    P.Merge(m, 333, rec(30))
+    T.eq(P.Merge(m, 182, rec(10)), false)
+    T.eq(m.profs[182], nil)
+  end)
+  T.it("secondary professions don't count", function()
+    local m = {}
+    P.Merge(m, 197, rec(20))
+    P.Merge(m, 333, rec(30))
+    P.Merge(m, 185, rec(5)) -- cooking
+    P.Merge(m, 129, rec(6)) -- first aid
+    T.eq(m.profs[185].ts, 5)
+    T.eq(m.profs[129].ts, 6)
+  end)
+  T.it("real data beats a guild note, and the note doesn't come back", function()
+    local m = {}
+    P.ApplyNotes(m, { [182] = true })
+    P.Merge(m, 197, rec(20))
+    P.Merge(m, 333, rec(30))
+    T.eq(m.profs[182], nil)
+    T.eq(P.ApplyNotes(m, { [182] = true }), false)
+    T.eq(m.profs[182], nil)
+  end)
+  T.it("cleans up a stored record with three primary professions", function()
+    local m = { profs = { [182] = rec(10), [197] = rec(20), [333] = rec(30), [185] = rec(1) } }
+    T.eq(P.CapPrimary(m), true)
+    T.eq(m.profs[182], nil)
+    T.eq(m.profs[185].ts, 1)
+    T.eq(P.CapPrimary(m), false)
+  end)
+end)

@@ -168,10 +168,20 @@ local function ResolveTarget()
   return true
 end
 
--- Skill levels of all professions of the current character (no recipes)
+-- Professions the current character no longer has (unlearned) leave its record
+local function PruneOwn(present)
+  local member = OwnMember()
+  if member and P.Prune(member, present) then
+    ns.Fire("PROFS")
+    if ns.Sync then ns.Sync.OwnChanged() end
+  end
+end
+
+-- Skill levels of all professions of the current character (no recipes). Professions it no longer has
+-- are removed, but only when the client really handed out the skill list (it can be empty right after login).
 function TradeSkill.ScanSkills()
   local getProfessions, getInfo = rawget(_G, "GetProfessions"), rawget(_G, "GetProfessionInfo")
-  local seen = false
+  local present, seen = {}, false
   if getProfessions and getInfo then
     for _, index in ipairs({ ns.Try(getProfessions) }) do
       if index then
@@ -179,21 +189,34 @@ function TradeSkill.ScanSkills()
         skillLine = (skillLine and P.SKILL_LINES[skillLine]) and skillLine or SkillByName(name)
         if skillLine then
           seen = true
+          present[skillLine] = true
           StoreOwn(skillLine, rank, max, nil)
         end
       end
     end
   end
-  if seen then return end
+  if seen then
+    if not scanTarget then PruneOwn(present) end
+    return
+  end
   local count = ns.Try(rawget(_G, "GetNumSkillLines")) or 0
   local getLine = rawget(_G, "GetSkillLineInfo")
+  local lines, collapsed = 0, false
   for i = 1, count do
-    local name, isHeader, _, rank, _, _, max = ns.Try(getLine, i)
+    local name, isHeader, isExpanded, rank, _, _, max = ns.Try(getLine, i)
+    if name then lines = lines + 1 end
+    if isHeader and not isExpanded then collapsed = true end
     if not isHeader then
       local skillLine = SkillByName(name)
-      if skillLine then StoreOwn(skillLine, rank, max, nil) end
+      if skillLine then
+        present[skillLine] = true
+        StoreOwn(skillLine, rank, max, nil)
+      end
     end
   end
+  -- the skill list always has headers and languages: with no lines it isn't loaded yet; a collapsed
+  -- header (the player folded it in the skill window) hides its professions
+  if lines > 0 and not collapsed and not scanTarget then PruneOwn(present) end
 end
 
 local function IdFromLink(link)

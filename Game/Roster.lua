@@ -89,6 +89,8 @@ function Roster.Scan()
       local record = guild.members[m.key]
       if next(mentioned) or record then
         record = record or ns.Store.Member(guild, m.name)
+        -- also cleans up records saved before the two-primary rule existed
+        if ns.Professions.CapPrimary(record) then notesChanged = true end
         if ns.Professions.ApplyNotes(record, mentioned) then notesChanged = true end
       end
     end
