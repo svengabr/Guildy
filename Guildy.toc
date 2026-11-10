@@ -17,6 +17,8 @@
 
 Libs\LibDeflate\LibDeflate.lua
 Libs\json\json.lua
+Locales\enUS.lua
+Locales\deDE.lua
 Locales\Locales.lua
 Core\Perf.lua
 Core\Names.lua
