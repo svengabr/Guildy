@@ -18,6 +18,7 @@
 Libs\LibDeflate\LibDeflate.lua
 Libs\json\json.lua
 Locales\Locales.lua
+Core\Perf.lua
 Core\Names.lua
 Core\Store.lua
 Core\Census.lua
@@ -52,4 +53,5 @@ UI\TabRanks.lua
 UI\TabAccount.lua
 UI\TabCommunities.lua
 UI\Options.lua
+UI\Shots.lua
 Core\Init.lua

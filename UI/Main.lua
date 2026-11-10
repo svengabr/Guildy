@@ -433,7 +433,7 @@ function UI.SelectTab(key)
     current.panel:Hide()
   end
   if not tab.view then
-    local ok, view = pcall(tab.builder, tab.panel)
+    local ok, view = ns.Perf.Call("build", key, pcall, tab.builder, tab.panel)
     if not ok then
       ns.SafeCall(error, view)
       view = {}
@@ -449,8 +449,8 @@ function UI.SelectTab(key)
   tab.panel:Show()
   -- a side tab (account) leaves no bottom tab selected
   if rawget(_G, "PanelTemplates_SetTab") then pcall(PanelTemplates_SetTab, frame, tab.index or 0) end
-  if tab.view.OnShow then ns.SafeCall(tab.view.OnShow, tab.view) end
-  if tab.view.Refresh then ns.SafeCall(tab.view.Refresh, tab.view) end
+  if tab.view.OnShow then ns.Perf.Call("show", key, ns.SafeCall, tab.view.OnShow, tab.view) end
+  if tab.view.Refresh then ns.Perf.Call("refresh", key, ns.SafeCall, tab.view.Refresh, tab.view) end
 end
 
 function UI.Current()
@@ -569,7 +569,7 @@ local function HookHost()
   if hostHooked or not host then return end
   hostHooked = true
   host:HookScript("OnShow", function()
-    if not blizzardMode then ns.SafeCall(Open) end
+    if not blizzardMode then ns.Perf.Call("open", "window", ns.SafeCall, Open) end
   end)
   host:HookScript("OnHide", function()
     -- next time Guildy again
@@ -662,7 +662,7 @@ end
 -- Data changes refresh the visible tab
 local function Refresh(event, ...)
   if not UI.IsShown() or not current or not current.view or not current.view.Refresh then return end
-  ns.SafeCall(current.view.Refresh, current.view, event, ...)
+  ns.Perf.Call("refresh", current.key, ns.SafeCall, current.view.Refresh, current.view, event, ...)
 end
 for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", "USERS", "FAMILY", "GUILD", "COMMUNITY" }) do
   ns.On(event, function(...) Refresh(event, ...) end)

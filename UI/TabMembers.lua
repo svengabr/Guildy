@@ -260,7 +260,7 @@ local function Build(panel)
         end
       end
     end
-    for _, row in ipairs(self.List.rows) do PlaceCells(row) end
+    for _, row in pairs(self.List.rows) do PlaceCells(row) end
   end
 
   view.List = W.ScrollList(listBox, ROW, function(row)

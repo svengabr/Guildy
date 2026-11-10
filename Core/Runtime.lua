@@ -78,8 +78,12 @@ function ns.On(event, fn)
   table.insert(listeners[event], fn)
 end
 
-function ns.Fire(event, ...)
+local function FireAll(event, ...)
   for _, fn in ipairs(listeners[event] or {}) do ns.SafeCall(fn, ...) end
+end
+
+function ns.Fire(event, ...)
+  ns.Perf.Call("fire", event, FireAll, event, ...)
 end
 
 -- Current guild key: guild name + realm, nil when not in a guild

@@ -129,7 +129,16 @@ local function AllIds()
   return set
 end
 
+-- The same, unless the statistics were read less than `seconds` ago: opening the Hall of Fame read
+-- them on every visit, 15 to 23 ms each time (measured in game 2026-11-10)
+local lastOwnRead
+function GameStats.UpdateOwnIfOlder(seconds)
+  if lastOwnRead and GetTime() - lastOwnRead < seconds then return end
+  GameStats.UpdateOwn()
+end
+
 function GameStats.UpdateOwn()
+  lastOwnRead = GetTime()
   local guild = ns.GuildData()
   local values = GameStats.ReadOwn()
   if not guild or not values then return end

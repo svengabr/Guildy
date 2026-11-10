@@ -115,13 +115,19 @@ local GETTERS = {
 -- Sorts in place by field; desc reverses. Ties by name. Default directions: level high first.
 function Search.SortMembers(list, field, desc)
   local get = GETTERS[field] or GETTERS.name
+  -- the sort values once per member, not once per comparison: lowering a name is slow
+  local value, name = {}, {}
+  for _, m in ipairs(list) do
+    value[m] = get(m)
+    name[m] = ns.Names.Lower(m.name or "")
+  end
   table.sort(list, function(a, b)
-    local x, y = get(a), get(b)
+    local x, y = value[a], value[b]
     if x ~= y then
       if desc then return x > y end
       return x < y
     end
-    return ns.Names.Lower(a.name or "") < ns.Names.Lower(b.name or "")
+    return name[a] < name[b]
   end)
   return list
 end

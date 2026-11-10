@@ -142,6 +142,7 @@ function UI.ChatPane(chatBox, opts)
     -- added on top do not move what is shown
     local frame = self.Messages
     local offset = self.rendered and frame.GetScrollOffset and frame:GetScrollOffset() or 0
+    self.Timeline.frozen = true -- emptying and filling the frame is not the player scrolling
     frame:Clear()
     local lastDay, days, count, newIndex = nil, {}, 0, nil
     local seen, prevTs = ns.Chat.SeenMark(), nil
@@ -167,8 +168,16 @@ function UI.ChatPane(chatBox, opts)
       end
       count = count + 1
     end
+    -- Fewer lines than before (the chat opened again with its newest lines after the player had
+    -- scrolled up through more): the old offset would lie above the first line, and the frame showed
+    -- that line alone at its bottom edge, the rest empty (seen in game 2026-11-10). Never further up
+    -- than a full view of the oldest lines.
+    local visible = frame.GetNumVisibleLines and frame:GetNumVisibleLines() or 1
+    if type(visible) ~= "number" or visible < 1 then visible = 1 end
+    offset = math.min(offset, math.max(0, count - visible))
     if offset > 0 and frame.SetScrollOffset then frame:SetScrollOffset(offset) else frame:ScrollToBottom() end
     self.rendered = true
+    self.Timeline.frozen = nil
     self.Timeline:SetDays(days, count, newIndex)
   end
 
@@ -336,9 +345,23 @@ local function Build(panel)
   local chatBox = W.Box(left)
   chatBox:SetPoint("TOPLEFT", 0, 0)
   chatBox:SetPoint("BOTTOMRIGHT", 0, 28)
+  -- The chat shows the newest lines (view.limit of them, Game/Chat.lua). At the top: first the
+  -- older lines the client already has, a block at a time; then the server is asked for more, and
+  -- what arrives is shown with the next render (view.grow).
+  view.limit = ns.Chat.WINDOW
   view.Pane = UI.ChatPane(chatBox, {
-    status = function() return ns.Chat.HistoryState(view.kind) end,
-    onTop = function() ns.Chat.LoadOlder(view.kind) end,
+    status = function()
+      if view.more then return nil end
+      return ns.Chat.HistoryState(view.kind)
+    end,
+    onTop = function()
+      if view.more then
+        view.limit = view.limit + ns.Chat.MORE
+        view:RenderChat()
+      elseif ns.Chat.LoadOlder(view.kind) then
+        view.grow = true
+      end
+    end,
   })
   view.Messages = view.Pane.Messages
   view.Timeline = view.Pane.Timeline
@@ -356,11 +379,19 @@ local function Build(panel)
     self.Input:ShowKind(kind)
     ns.Chat.Focus(true, kind)
     self.Pane:Reset()
+    self.limit, self.grow = ns.Chat.WINDOW, nil
     self:RenderChat()
   end
 
   function view:RenderChat()
-    self.Pane:Render(ns.Chat.History(self.kind), ChatColor(self.kind))
+    local lines, more = ns.Chat.History(self.kind, self.limit)
+    if self.grow and more then
+      -- the older lines asked for at the top arrived
+      self.limit, self.grow = self.limit + ns.Chat.MORE, nil
+      lines, more = ns.Chat.History(self.kind, self.limit)
+    end
+    self.more = more
+    self.Pane:Render(lines, ChatColor(self.kind))
   end
 
   function view:RenderList()
@@ -387,6 +418,8 @@ local function Build(panel)
   end
 
   function view:OnShow()
+    self.limit, self.grow = ns.Chat.WINDOW, nil -- opened again: the newest lines, at the bottom
+    self.Pane:Reset()
     ns.Chat.Focus(true, self.kind)
   end
 

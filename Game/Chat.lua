@@ -131,7 +131,7 @@ function Chat.Focus(on, kind)
   if not clubId then return end
   focused = ns.Try(C_Club.FocusStream, clubId, streamId) and { clubId, streamId, kind = kind } or nil
   -- only a few lines cached (e.g. just what came in since login): fetch a first page right away
-  if #Chat.History(kind or "guild") < CLUB_LINES then Chat.LoadOlder(kind or "guild") end
+  if #Chat.History(kind or "guild", Chat.WINDOW) < Chat.WINDOW then Chat.LoadOlder(kind or "guild") end
 end
 
 -- "New since your last login": the time the player left last. A reload or quick relog keeps the
@@ -253,22 +253,79 @@ local function AuthorName(clubId, author)
   return nil
 end
 
--- Lines of a club stream, oldest first: the guild's (kind "guild" / "officer") or a community's
-function Chat.StreamLines(clubId, streamId, kind)
+-- The chat shows the newest lines only, like Blizzard's guild window, and more when the player
+-- scrolls up (Chat.WINDOW lines, then Chat.MORE at a time). Reading and writing the whole history
+-- for every new line cost 25 ms on average and up to 106 ms in a guild with a long history (measured
+-- in game 2026-11-10). Per stream Guildy remembers the oldest message of the window, so the next
+-- read asks the client for the messages from there on only.
+Chat.WINDOW = 100
+Chat.MORE = 100
+local SLACK = 50 -- new lines the window may grow by before it is cut back to its size
+local windows = {} -- "club:stream:kind" -> { id = oldest message shown, limit }
+
+local function SameId(a, b)
+  return type(a) == "table" and type(b) == "table" and a.epoch == b.epoch and a.position == b.position
+end
+
+local AddLines
+
+-- Lines of a club stream, oldest first: the guild's (kind "guild" / "officer") or a community's.
+-- limit: only the newest lines (see above); without it everything loaded, up to CLUB_MAX.
+-- Second result: true when older messages are loaded than the lines returned.
+function Chat.StreamLines(clubId, streamId, kind, limit)
   if not clubId or not streamId or not C_Club or not C_Club.GetMessageRanges then return nil end
   local ranges = ns.Try(C_Club.GetMessageRanges, clubId, streamId)
   if not ranges or #ranges == 0 then return nil end
   -- the newest range is the contiguous history up to now; older ranges have gaps before it
   local range = Chat.NewestRange(ranges)
   if not range then return nil end
-  local messages = range.oldestMessageId and range.newestMessageId
-    and ns.Try(C_Club.GetMessagesInRange, clubId, streamId, range.oldestMessageId, range.newestMessageId)
-  if not messages or #messages == 0 then
-    messages = range.newestMessageId and ns.Try(C_Club.GetMessagesBefore, clubId, streamId, range.newestMessageId, CLUB_MAX)
+  local key = StreamKey(clubId, streamId) .. ":" .. tostring(kind)
+  local window = limit and windows[key]
+  local messages
+  if window and window.limit == limit and range.newestMessageId then
+    -- from the window's oldest message on; anything unexpected (the message is gone, the client
+    -- answers something else) falls back to reading everything
+    messages = ns.Try(C_Club.GetMessagesInRange, clubId, streamId, window.id, range.newestMessageId)
+    if type(messages) ~= "table" or #messages == 0 or not SameId(messages[1].messageId, window.id)
+      or #messages > limit + SLACK then
+      messages = nil
+    end
   end
-  if not messages or #messages == 0 then return nil end
-  local lines = {}
-  for i = math.max(1, #messages - CLUB_MAX + 1), #messages do
+  local from = 1
+  if not messages and limit and range.newestMessageId then
+    -- the newest `limit` messages only: asking for the whole range made the client hand over every
+    -- loaded message, 8 MB and more per read in a guild with a long history (measured in game
+    -- 2026-11-10). Used when the answer is what was asked for: in time order, ending with the newest
+    -- message; else everything is read as before.
+    local newest = ns.Try(C_Club.GetMessagesBefore, clubId, streamId, range.newestMessageId, limit)
+    local count = type(newest) == "table" and #newest or 0
+    if count > 0 and count <= limit and SameId(newest[count].messageId, range.newestMessageId)
+      and type(newest[1].messageId) == "table" and (count == 1 or not SameId(newest[1].messageId, range.newestMessageId))
+      and (newest[1].messageId.epoch or 0) <= (newest[count].messageId.epoch or 0)
+      -- fewer than asked for must be all there is
+      and (count == limit or SameId(newest[1].messageId, range.oldestMessageId)) then
+      messages = newest
+      windows[key] = { id = messages[1].messageId, limit = limit }
+    end
+  end
+  if not messages then
+    messages = range.oldestMessageId and range.newestMessageId
+      and ns.Try(C_Club.GetMessagesInRange, clubId, streamId, range.oldestMessageId, range.newestMessageId)
+    if not messages or #messages == 0 then
+      messages = range.newestMessageId and ns.Try(C_Club.GetMessagesBefore, clubId, streamId, range.newestMessageId, CLUB_MAX)
+    end
+    if not messages or #messages == 0 then return nil end
+    from = math.max(1, #messages - (limit or CLUB_MAX) + 1)
+    if limit then windows[key] = { id = messages[from].messageId, limit = limit } end
+  end
+  local first = messages[from] and messages[from].messageId
+  local more = limit ~= nil and not SameId(first, range.oldestMessageId)
+  return AddLines({}, clubId, kind, messages, from), more
+end
+
+-- Adds messages[from ...] of a stream to lines
+AddLines = function(lines, clubId, kind, messages, from)
+  for i = from, #messages do
     local msg = messages[i]
     -- a secret author or text is left out as before; one line that fails does not empty the chat
     local usable = not msg.destroyed and msg.author and not ns.AnySecret(msg.content, msg.author.name)
@@ -287,9 +344,9 @@ function Chat.StreamLines(clubId, streamId, kind)
   return lines
 end
 
-local function ClubHistory(kind)
+local function ClubHistory(kind, limit)
   local clubId, streamId = GuildStream(kind)
-  return Chat.StreamLines(clubId, streamId, kind)
+  return Chat.StreamLines(clubId, streamId, kind, limit)
 end
 
 -- /guildy chatdebug: where the history goes missing (stream, ranges, messages, lines)
@@ -324,18 +381,29 @@ function Chat.Debug(kind)
   return out
 end
 
--- Lines to show for a channel ("guild" or "officer"), oldest first
-function Chat.History(kind)
-  local lines = ClubHistory(kind)
+-- Lines to show for a channel ("guild" or "officer"), oldest first. limit: only the newest lines.
+-- Second result: true when older lines are loaded than the ones returned (scrolling up shows them).
+function Chat.History(kind, limit)
+  local lines, more = ClubHistory(kind, limit)
   if not lines or #lines == 0 then
-    lines = {}
+    lines, more = {}, false
     for i, line in ipairs(buffers[kind] or {}) do lines[i] = line end
   end
-  if kind == "guild" then
-    for _, line in ipairs(systemLines) do lines[#lines + 1] = line end
-    table.sort(lines, function(a, b) return (a.ts or 0) < (b.ts or 0) end)
+  if kind ~= "guild" or #systemLines == 0 then return lines, more end
+  -- join and leave lines go in by their time (both lists are in time order already); those from
+  -- before the first line shown wait for the player to scroll up
+  local merged, s = {}, 1
+  local firstTs = more and lines[1] and lines[1].ts or nil
+  while firstTs and systemLines[s] and (systemLines[s].ts or 0) < firstTs do s = s + 1 end
+  for _, line in ipairs(lines) do
+    while systemLines[s] and (systemLines[s].ts or 0) < (line.ts or 0) do
+      merged[#merged + 1] = systemLines[s]
+      s = s + 1
+    end
+    merged[#merged + 1] = line
   end
-  return lines
+  for i = s, #systemLines do merged[#merged + 1] = systemLines[i] end
+  return merged, more
 end
 
 function Chat.Send(kind, text)

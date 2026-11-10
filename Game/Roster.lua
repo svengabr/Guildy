@@ -37,6 +37,21 @@ local function ReadEventLog()
   end
 end
 
+-- The professions a member's two notes mention. Notes rarely change, and parsing them was two thirds
+-- of a roster scan (measured in game 2026-11-10: 6.7 of 10.3 ms with 98 members), so the result is
+-- kept per pair of note texts from one scan to the next. The set is shared: read it, never change it.
+local noteSets = {}
+local function Mentioned(note, officerNote, kept)
+  local key = (note or "") .. "\1" .. (officerNote or "")
+  local set = noteSets[key]
+  if not set then
+    set = ns.Professions.ParseNote(note)
+    for skillLine in pairs(ns.Professions.ParseNote(officerNote)) do set[skillLine] = true end
+  end
+  kept[key] = set
+  return set
+end
+
 function Roster.Scan()
   pending = false
   local count = ns.Try(rawget(_G, "GetNumGuildMembers")) or 0
@@ -51,6 +66,7 @@ function Roster.Scan()
     return
   end
   emptyRetries = 0
+  local lap = ns.Perf.Lap() -- which part of the scan costs (/guildy perf)
   local list, keys, guids = {}, {}, {}
   for i = 1, count do
     local name, rank, rankIndex, level, className, zone, note, officerNote, online, status, classFile,
@@ -71,6 +87,7 @@ function Roster.Scan()
     end
   end
   members, byKey, byGuid = list, keys, guids
+  lap("scan roster:", "read members")
   ReadEventLog()
   for _, m in ipairs(members) do m.joinedDaysAgo = joined[m.key] end
   -- forget stored profession data of members who left (only with a complete roster)
@@ -80,12 +97,13 @@ function Roster.Scan()
     for key in pairs(byKey) do keep[key] = true end
     ns.Store.Prune(guild, keep)
   end
+  lap("scan roster:", "event log and prune")
   -- professions mentioned in public and officer notes ("Herb/ Alch")
   local notesChanged = false
   if guild then
+    local kept = {} -- only the notes still in the roster stay remembered
     for _, m in ipairs(members) do
-      local mentioned = ns.Professions.ParseNote(m.note)
-      for skillLine in pairs(ns.Professions.ParseNote(m.officerNote)) do mentioned[skillLine] = true end
+      local mentioned = Mentioned(m.note, m.officerNote, kept)
       local record = guild.members[m.key]
       if next(mentioned) or record then
         record = record or ns.Store.Member(guild, m.name)
@@ -94,7 +112,9 @@ function Roster.Scan()
         if ns.Professions.ApplyNotes(record, mentioned) then notesChanged = true end
       end
     end
+    noteSets = kept
   end
+  lap("scan roster:", "notes")
   ns.Fire("ROSTER")
   if notesChanged then ns.Fire("PROFS") end
 end

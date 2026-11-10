@@ -56,13 +56,18 @@ local function Pump()
   end
 end
 
-local function Send(kind, data)
+local function SendNow(kind, data)
   if not IsInGuild() then return end
   msgCounter = msgCounter + 1
   local msgId = string.format("%x", ns.Now() % 65536) .. msgCounter
   for _, part in ipairs(Proto.Chunk(msgId, Proto.Encode(kind, data, ns.Version()))) do queue[#queue + 1] = part end
   Pump()
   if queue[1] and not ticker then ticker = C_Timer.NewTicker(0.25, Pump) end
+end
+
+-- encoding and compressing a message is the expensive part of sending (measured: /guildy perf)
+local function Send(kind, data)
+  ns.Perf.Call("send", kind, SendNow, kind, data)
 end
 
 local function IsOwnKey(key)

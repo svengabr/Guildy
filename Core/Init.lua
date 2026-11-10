@@ -42,6 +42,7 @@ local HANDLERS = {
     if name == ns.ADDON then
       GuildyDB = ns.Store.Init(rawget(_G, "GuildyDB"))
       ns.Chat.InitSeen(GuildyDB.settings, ns.Now())
+      ns.Perf.Enable(GuildyDB.settings.perf) -- /guildy perf on: measuring from the login on
     end
   end,
   TRADE_SKILL_CLOSE = function() ns.TradeSkill.OnClose() end,
@@ -131,8 +132,52 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if event:find("^CHAT_MSG_") and ns.AnySecret(select(1, ...), select(2, ...), select(4, ...), select(12, ...)) then
     return
   end
-  ns.SafeCall(handler, ...)
+  ns.Perf.Call("event", event, ns.SafeCall, handler, ...)
 end)
+
+-- Work that runs from timers, outside the events above (/guildy perf)
+ns.Perf.Wrap(ns.Roster, "Scan", "scan", "roster")
+ns.Perf.Wrap(ns.TradeSkill, "ScanOpen", "scan", "profession window")
+ns.Perf.Wrap(ns.TradeSkill, "ScanSkills", "scan", "own skills")
+ns.Perf.Wrap(ns.GameStats, "UpdateOwn", "scan", "own statistics")
+ns.Perf.Wrap(ns.Chat, "History", "read", "chat history")
+ns.Perf.Wrap(ns.UI, "MemberTooltip", "tooltip", "member")
+
+-- /guildy perf: on | off | reset | copy, without a word the report
+local function PerfCommand(word)
+  local Perf = ns.Perf
+  if word == "on" or word == "off" then
+    ns.Settings().perf = (word == "on") or nil
+    Perf.Enable(word == "on")
+    if word == "on" then Perf.Reset() end
+    ns.Print("perf " .. word .. (word == "on" and ": use Guildy as usual, then /guildy perf" or ""))
+    return
+  end
+  if word == "reset" then
+    Perf.Reset()
+    ns.Print("perf reset")
+    return
+  end
+  if not Perf.on then
+    ns.Print("perf is off. /guildy perf on starts measuring (it stays on over /reload and logins).")
+    return
+  end
+  local online, total = ns.Roster.Counts()
+  local memory = ""
+  local update, usage = rawget(_G, "UpdateAddOnMemoryUsage"), rawget(_G, "GetAddOnMemoryUsage")
+  if update and usage then
+    update()
+    memory = (" · %.1f MB"):format((ns.Try(usage, ns.ADDON) or 0) / 1024)
+  end
+  local context = ("Guildy %s · %d members, %d online%s"):format(ns.Version(), total, online, memory)
+  local lines = Perf.Lines(context, word == "copy" and 40 or 15)
+  GuildyDB.perfReport = lines -- also in the SavedVariables after /reload
+  if word == "copy" then
+    ns.UI.CopyText(table.concat(lines, "\n"))
+  else
+    for _, line in ipairs(lines) do ns.Print(line) end
+  end
+end
 for event in pairs(HANDLERS) do
   pcall(frame.RegisterEvent, frame, event) -- some events may not exist on this client
 end
@@ -148,6 +193,12 @@ SlashCmdList.GUILDY = function(msg)
     C_Timer.After(2, function() ns.TradeSkill.Probe(args) end)
   elseif msg:match("^probe") then
     ns.TradeSkill.Probe(raw:sub(6))
+  elseif msg == "shots backdrop" then
+    ns.UI.ToggleShotBackdrop()
+  elseif msg == "shots" then
+    ns.UI.TakeShots()
+  elseif msg:match("^perf") then
+    PerfCommand(msg:match("^perf%s+(%a+)"))
   elseif msg:match("^rights") then
     ns.Roster.DebugRights(raw:sub(8))
   elseif msg == "chatdebug" then

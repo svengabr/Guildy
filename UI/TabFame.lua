@@ -1267,7 +1267,7 @@ local function Build(panel)
   end
 
   function view:OnShow()
-    ns.SafeCall(ns.GameStats.UpdateOwn)
+    ns.SafeCall(ns.GameStats.UpdateOwnIfOlder, 60)
   end
 
   return view

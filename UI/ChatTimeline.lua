@@ -196,10 +196,17 @@ function Timeline.Create(box, messages, opts)
     if newIndex then self.entries[#self.entries + 1] = { index = newIndex, isNew = true } end
     table.sort(self.entries, function(a, b) return a.index < b.index end)
     for i = #self.entries + 1, #self.marks do self.marks[i]:Hide() end
-    self:Update()
+    self:Update(true)
   end
 
-  function tl:Update()
+  -- quiet: the view was filled or resized, the player did not scroll. Then older lines are only
+  -- fetched while everything fits. Without this every render fetched the next page (emptying the
+  -- frame puts it at its top for a moment, and so does a scroll range the client has not updated
+  -- yet), each page rendered the whole history again, and one look at the chat loaded all of it
+  -- page by page: seconds of stutter in a guild with a long history (measured 2026-11-10: 31 pages
+  -- in 38 s, up to 106 ms each).
+  function tl:Update(quiet)
+    if self.frozen then return end -- the pane is being filled (UI.ChatPane)
     local height = rail:GetHeight() or 0
     local maxOffset, offset = MaxOffset(messages), Offset(messages)
     local thumbHeight = ThumbHeight(height)
@@ -248,7 +255,8 @@ function Timeline.Create(box, messages, opts)
 
     -- at the top: fetch older lines first, so the strip already shows "loading"
     local atTop = offset >= maxOffset
-    if atTop and opts.onTop then opts.onTop() end -- also when everything fits: fill the view
+    local fits = self.count <= VisibleLines(messages) -- nothing to scroll: fill the view
+    if atTop and opts.onTop and (fits or not quiet) then opts.onTop() end
 
     -- the strip: history state at the top, else the day of the top line unless that line is the
     -- day's own separator
@@ -269,6 +277,6 @@ function Timeline.Create(box, messages, opts)
   if messages.SetOnScrollChangedCallback then
     messages:SetOnScrollChangedCallback(function() tl:Update() end)
   end
-  rail:SetScript("OnSizeChanged", function() tl:Update() end)
+  rail:SetScript("OnSizeChanged", function() tl:Update(true) end)
   return tl
 end

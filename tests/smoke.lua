@@ -3,191 +3,9 @@
 -- including errors reported through geterrorhandler (ns.SafeCall).
 local T = ...
 
-local errors = {}
-local registered = {}   -- event -> {frames}
-local timers = {}
-
-local function Stub(name)
-  local stub = { _name = name, _scripts = {}, _shown = false, _text = "", _w = 100, _h = 100, _checked = false }
-  local methods = {}
-  function methods:GetName() return self._name end
-  function methods:GetWidth() return self._w end
-  function methods:GetHeight() return self._h end
-  function methods:SetWidth(w) self._w = w end
-  function methods:SetHeight(h) self._h = h end
-  function methods:SetSize(w, h) self._w, self._h = w, h end
-  function methods:GetStringWidth() return 50 end
-  function methods:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
-  function methods:GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
-  function methods:GetFrameLevel() return 1 end
-  function methods:IsShown() return self._shown end
-  function methods:IsVisible()
-    local parent = rawget(self, "_parent")
-    return self._shown and (parent == nil or type(parent) ~= "table" or not parent.IsVisible or parent:IsVisible())
-  end
-  function methods:SetParent(parent) self._parent = parent end
-  function methods:Show()
-    local was = self._shown
-    self._shown = true
-    if not was and self._scripts.OnShow then self._scripts.OnShow(self) end
-  end
-  function methods:Hide()
-    local was = self._shown
-    self._shown = false
-    if was and self._scripts.OnHide then self._scripts.OnHide(self) end
-  end
-  function methods:SetShown(v) if v then self:Show() else self:Hide() end end
-  function methods:HasFocus() return false end
-  function methods:GetText() return self._text end
-  function methods:SetText(t) self._text = t or "" end
-  function methods:GetChecked() return self._checked end
-  function methods:SetChecked(v) self._checked = v end
-  function methods:IsTruncated() return false end
-  function methods:SetScript(event, fn) self._scripts[event] = fn end
-  function methods:GetScript(event) return self._scripts[event] end
-  function methods:HookScript(event, fn)
-    local old = self._scripts[event]
-    self._scripts[event] = function(...) if old then old(...) end fn(...) end
-  end
-  function methods:RegisterEvent(event)
-    registered[event] = registered[event] or {}
-    table.insert(registered[event], self)
-  end
-  function methods:CreateTexture() return Stub() end
-  function methods:CreateFontString() return Stub() end
-  function methods:CreateAnimationGroup() return Stub() end
-  function methods:GetFontString() return self._fs or Stub() end
-  function methods:GetParent() return self._parent or Stub() end
-  local CHILDREN = { Inset = true, TitleText = true, Icon = true, Mask = true, HighlightTexture = true, SelectedTexture = true }
-  return setmetatable(stub, { __index = function(self, key)
-    if methods[key] then return methods[key] end
-    if CHILDREN[key] then
-      local child = Stub()
-      rawset(self, key, child)
-      return child
-    end
-    if type(key) == "string" and key:match("^%l") then return nil end -- fields, not methods
-    return function() end
-  end })
-end
-
-local env = {
-  UIParent = Stub("UIParent"),
-  GameTooltip = Stub("GameTooltip"),
-  DEFAULT_CHAT_FRAME = Stub("ChatFrame1"),
-  ChatFontNormal = Stub("ChatFontNormal"),
-  QuestTitleFont = Stub("QuestTitleFont"),
-  UISpecialFrames = {},
-  StaticPopupDialogs = {},
-  SlashCmdList = {},
-  RAID_CLASS_COLORS = setmetatable({}, { __index = function() return { r = 1, g = 0.5, b = 0.2 } end }),
-  ChatTypeInfo = { GUILD = { r = 0.25, g = 1, b = 0.25 }, OFFICER = { r = 0.25, g = 0.75, b = 0.25 } },
-  LOCALIZED_CLASS_NAMES_MALE = { DRUID = "Druide", PALADIN = "Paladin", ROGUE = "Schurke" },
-  ERR_GUILD_JOIN_S = "%s ist der Gilde beigetreten.",
-  ACCEPT = "Annehmen", CANCEL = "Abbrechen", YES = "Ja", NO = "Nein",
-}
-env.CreateFrame = function(_, name, parent)
-  local frame = Stub(name)
-  frame._parent = parent
-  if name then env[name] = frame end
-  frame._fs = Stub()
-  return frame
-end
-env.C_Timer = {
-  After = function(_, fn) timers[#timers + 1] = fn end,
-  NewTimer = function(_, fn) timers[#timers + 1] = fn return { Cancel = function() end } end,
-  NewTicker = function() return { Cancel = function() end } end,
-}
-env.tinsert = table.insert
-env.GetCursorPosition = function() return 100, 100 end
-env.IsMouseButtonDown = function() return false end
-local SECRET = setmetatable({}, { __index = function() error("secret value inspected") end })
-env.issecretvalue = function(v) return v == SECRET end
--- Blizzard's guild window, Guildy's host (UI/Main.lua): J shows it, Guildy follows
-env.CommunitiesFrame = Stub("CommunitiesFrame")
-env.GetTime = function() return 1000 end
-env.GetServerTime = function() return 1700000000 end
-env.GetLocale = function() return "deDE" end
-env.IsInGuild = function() return true end
-env.GetGuildInfo = function() return "Murloc Mafia", "Haifutter", 1 end
-env.GetNormalizedRealmName = function() return "Forever" end
-env.UnitName = function() return "Ran", "Fred" end
-env.UnitExists = function() return false end
-env.UnitClass = function() return "Magier", "MAGE" end
-env.UnitLevel = function() return 33 end
-env.UnitRace = function() return "Gnom", "Gnome" end
-env.UnitSex = function() return 3 end
-env.InCombatLockdown = function() return false end
-env.IsShiftKeyDown = function() return false end
-env.IsControlKeyDown = function() return false end
-env.hooksecurefunc = function() end
-env.geterrorhandler = function() return function(err) errors[#errors + 1] = tostring(err) end end
-env.StaticPopup_Show = function() end
-env.PanelTemplates_SetNumTabs = function() end
-env.PanelTemplates_SetTab = function() end
-env.PanelTemplates_TabResize = function() end
-env.ButtonFrameTemplate_HideButtonBar = function() end
-env.ToggleGuildFrame = function() end
-env.CanGuildInvite = function() return true end
-env.CanGuildRemove = function() return true end
-env.CanGuildPromote = function() return true end
-env.CanGuildDemote = function() return true end
-env.CanEditPublicNote = function() return true end
-env.CanEditMOTD = function() return true end
-env.CanEditGuildInfo = function() return true end
-env.GuildControlGetNumRanks = function() return 3 end
-env.GuildControlGetRankName = function(i) return ({ "GM", "Offizier", "Haifutter" })[i] end
-env.C_GuildInfo = {
-  GuildRoster = function() end,
-  GetMOTD = function() return "Mrglmrglmrgl!" end,
-  GetInfoText = function() return "Discord" end,
-  CanViewOfficerNote = function() return true end,
-  CanEditOfficerNote = function() return true end,
-}
-env.C_ChatInfo = { RegisterAddonMessagePrefix = function() end, SendAddonMessage = function() end, SendChatMessage = function() end }
-env.C_Spell = { GetSpellName = function(id) return "Rezept " .. id end }
-
-local roster = {
-  { "Ran-Fred", "Offizier", 1, 16, "Druide", "Sturmwind", "", "", true, 0, "DRUID", nil, nil, false, nil, nil, "Player-1-01" },
-  { "Makira-Farron", "Offizier", 1, 16, "Paladin", "Eisenschmiede", "Heiler", "", false, 0, "PALADIN", nil, nil, false, nil, nil, "Player-1-02" },
-  { "Au-Tsch", "Haifutter", 2, 21, "Schurke", "Dämmerwald", "Kürsch", "", true, 0, "ROGUE", nil, nil, false, nil, nil, "Player-1-03" },
-}
-env.GetNumGuildMembers = function() return #roster end
-env.GetGuildRosterInfo = function(i) return unpack(roster[i], 1, 17) end
-env.GetGuildRosterLastOnline = function(i) if i == 2 then return 0, 0, 3, 2 end end
-env.GetNumGuildEvents = function() return 1 end
-env.GetGuildEventInfo = function() return "join", "Au-Tsch", nil, nil, 0, 0, 1, 0 end
-env.GetNumSkillLines = function() return 2 end
-env.GetSkillLineInfo = function(i)
-  if i == 1 then return "Berufe", true end
-  return "Alchemie", false, nil, 120, 0, 0, 150
-end
-
-setmetatable(env, { __index = _G })
-env._G = env
-
-local ns = {}
-for _, file in ipairs(T.tocFiles()) do
-  local chunk, err = loadfile(T.addonDir .. "/" .. file)
-  if not chunk then error(err) end
-  setfenv(chunk, env)
-  chunk("Guildy", ns)
-end
-
-local function Fire(event, ...)
-  for _, frame in ipairs(registered[event] or {}) do
-    local handler = frame._scripts.OnEvent
-    if handler then handler(frame, event, ...) end
-  end
-end
-
-local function RunTimers(rounds)
-  for _ = 1, rounds or 5 do
-    local pending = timers
-    timers = {}
-    for _, fn in ipairs(pending) do fn() end
-  end
-end
+local world = dofile(T.testsDir .. "/wow.lua")(T)
+local env, ns, errors = world.env, world.ns, world.errors
+local Fire, RunTimers, SECRET = world.Fire, world.RunTimers, world.SECRET
 
 T.describe("Widgets", function()
   T.it("defines every W.* helper the code uses", function()
@@ -269,6 +87,162 @@ T.describe("Smoke", function()
       T.eq(ns.UI.Current(), key)
     end
     ns.UI.FilterMembers({ classFile = "PALADIN" })
+    T.eq(errors, {})
+  end)
+
+  T.it("fetches older chat lines when the player scrolls to the top, not on every render", function()
+    local fetched = 0
+    local box = env.CreateFrame("Frame")
+    local pane = ns.UI.ChatPane(box, { onTop = function() fetched = fetched + 1 end })
+    -- the client tells the timeline about every scroll change, also the one from emptying the frame
+    local onScroll
+    pane.Messages.SetOnScrollChangedCallback = function(_, fn) onScroll = fn end
+    pane.Messages.Clear = function() if onScroll then onScroll() end end
+    pane.Timeline = ns.ChatTimeline.Create(box, pane.Messages, { onTop = function() fetched = fetched + 1 end,
+      label = tostring, short = tostring, latestText = tostring, statusText = {} })
+    local lines = {}
+    for i = 1, 50 do lines[i] = { sender = "Au Tsch", text = "hi " .. i, ts = 1700000000 + i } end
+    pane:Render(lines, 1, 1, 1)
+    pane:Render(lines, 1, 1, 1)
+    T.eq(fetched, 0) -- more lines than fit: rendering alone fetches nothing
+    pane.Timeline:Update() -- the player scrolled, and the view is at the top
+    T.eq(fetched, 1)
+    pane:Render({ lines[1], lines[2] }, 1, 1, 1)
+    T.eq(fetched, 2) -- everything fits: fill the view
+    T.eq(errors, {})
+  end)
+
+  T.it("shows the newest chat lines and more of them at the top", function()
+    local before, beforeEnum = env.C_Club, env.Enum
+    local messages, asked = {}, {}
+    for i = 1, 250 do
+      messages[i] = { messageId = { epoch = (1700000000 + i) * 1000000, position = i }, content = "line " .. i,
+        author = { name = "Au-Tsch" } }
+    end
+    env.Enum = { ClubStreamType = { Guild = 1, Officer = 2 } }
+    env.C_Club = {
+      GetGuildClubId = function() return 7 end,
+      GetStreams = function() return { { streamType = 1, streamId = 70 } } end,
+      GetMessageRanges = function()
+        return { { oldestMessageId = messages[1].messageId, newestMessageId = messages[#messages].messageId } }
+      end,
+      GetMessagesInRange = function(_, _, oldest, newest)
+        asked[#asked + 1] = newest.position - oldest.position + 1
+        local part = {}
+        for i = oldest.position, newest.position do part[#part + 1] = messages[i] end
+        return part
+      end,
+    }
+    local Chat = ns.Chat
+    local lines, more = Chat.History("officer", Chat.WINDOW)
+    T.eq(#lines, 0) -- no officer stream
+    lines, more = Chat.History("guild", Chat.WINDOW)
+    T.eq({ #lines, lines[1].text, lines[#lines].text, more }, { 100, "line 151", "line 250", true })
+    T.eq(asked, { 250 }) -- the first read looks at everything loaded
+    -- a new line: only the window is asked for
+    messages[251] = { messageId = { epoch = 1700000251 * 1000000, position = 251 }, content = "line 251",
+      author = { name = "Ran-Fred" } }
+    lines, more = Chat.History("guild", Chat.WINDOW)
+    T.eq({ #lines, lines[1].text, lines[#lines].text, more }, { 101, "line 151", "line 251", true })
+    T.eq(asked, { 250, 101 })
+    -- the chat tab: scrolled to the top it shows a block more, then everything there is
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("chat")
+    local view = ns.UI.TabView("chat")
+    T.eq({ view.limit, view.more }, { 100, true })
+    view.Timeline:Update() -- the player scrolled (the stub frame is always at its top)
+    T.eq({ view.limit, view.more }, { 200, true })
+    view.Timeline:Update()
+    T.eq({ view.limit, view.more }, { 300, false })
+    T.eq(#Chat.History("guild", view.limit), 251)
+    -- a client that hands over the newest messages on their own is not asked for everything
+    local reads = #asked
+    env.C_Club.GetMessagesBefore = function(_, _, newest, count)
+      local part = {}
+      for i = math.max(1, newest.position - count + 1), newest.position do part[#part + 1] = messages[i] end
+      return part
+    end
+    lines, more = Chat.History("guild", 150)
+    T.eq({ #lines, lines[1].text, lines[#lines].text, more }, { 150, "line 102", "line 251", true })
+    T.eq(#asked, reads)
+    lines, more = Chat.History("guild", 400) -- more than there is: all of it
+    T.eq({ #lines, more }, { 251, false })
+    T.eq(#asked, reads)
+    -- an answer that is not what was asked for (here: newest first) is not used
+    env.C_Club.GetMessagesBefore = function() return { messages[251], messages[250] } end
+    T.eq(#Chat.History("guild", 2), 2)
+    T.eq(#asked, reads + 1)
+    env.C_Club.GetMessagesBefore = nil
+    -- without a limit (communities): everything, as before
+    T.eq(#Chat.StreamLines(7, 70, "guild"), 251)
+    ns.UI.SelectTab("members")
+    ns.UI.SelectTab("chat")
+    T.eq(view.limit, 100) -- opened again: the newest lines
+    env.C_Club, env.Enum = before, beforeEnum
+    ns.UI.SelectTab("chat")
+    T.eq(errors, {})
+  end)
+
+  T.it("never leaves the chat scrolled above its first line", function()
+    local pane = ns.UI.ChatPane(env.CreateFrame("Frame"), {})
+    local frame = pane.Messages
+    local offset, atBottom = 0, 0
+    frame.GetScrollOffset = function() return offset end
+    frame.SetScrollOffset = function(_, value) offset = value end
+    frame.ScrollToBottom = function() offset, atBottom = 0, atBottom + 1 end
+    frame.GetNumVisibleLines = function() return 30 end
+    local lines = {}
+    for i = 1, 300 do lines[i] = { sender = "Au Tsch", text = "hi " .. i, ts = env.GetServerTime() - 400 + i } end
+    pane:Render(lines, 1, 1, 1)
+    offset = 250 -- the player scrolled far up
+    pane:Render(lines, 1, 1, 1)
+    T.eq(offset, 250) -- the reading position stays
+    local newest = {}
+    for i = 1, 100 do newest[i] = lines[200 + i] end
+    pane:Render(newest, 1, 1, 1) -- far fewer lines now
+    T.eq(offset, 71) -- 100 lines and a day line, a full view of 30 at the top
+    pane:Render({ lines[1], lines[2] }, 1, 1, 1) -- everything fits
+    T.eq(offset, 0)
+    T.eq(errors, {})
+  end)
+
+  T.it("walks through every view for the reference screenshots", function()
+    local taken = 0
+    env.Screenshot = function() taken = taken + 1 end
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("overview")
+    env.SlashCmdList.GUILDY("shots")
+    RunTimers(1)
+    T.eq(taken, #ns.UI.SHOTS)
+    T.truthy(taken >= 19, "every tab, page and options tab")
+    T.eq(ns.UI.Current(), "overview") -- back where it started
+    T.eq(ns.UI.Options():IsShown(), false)
+    env.Screenshot = nil
+    env.SlashCmdList.GUILDY("shots backdrop") -- the plain sheet alone, on and off again
+    env.SlashCmdList.GUILDY("shots backdrop")
+    ns.UI.SelectTab("chat")
+    T.eq(errors, {})
+  end)
+
+  T.it("measures its own work with /guildy perf", function()
+    local slash = env.SlashCmdList.GUILDY
+    slash("perf") -- off: only says how to switch it on
+    T.eq(env.GuildyDB.perfReport, nil)
+    slash("perf on")
+    T.eq(env.GuildyDB.settings.perf, true)
+    ns.UI.SelectTab("members")
+    ns.Fire("ROSTER")
+    slash("perf")
+    local report = table.concat(env.GuildyDB.perfReport, " / ")
+    T.truthy(report:find("3 members, 2 online", 1, true), "the guild size in the head line")
+    T.truthy(report:find("refresh members", 1, true), "the members tab measured")
+    T.truthy(report:find("fire ROSTER", 1, true), "the roster event measured")
+    slash("perf copy")
+    slash("perf reset")
+    slash("perf off")
+    T.eq(env.GuildyDB.settings.perf, nil)
+    T.eq(ns.Perf.on, false)
+    ns.UI.SelectTab("chat")
     T.eq(errors, {})
   end)
 
@@ -1100,15 +1074,16 @@ T.describe("Hall of Fame", function()
     row:GetScript("OnMouseUp")(row)
     T.eq(#ns.Settings().fameTiles[page.key], 2)
     -- the search narrows both lists to what matches
-    local all = 0
-    for _, listRow in ipairs(fame.Lists.tiles.rows) do if listRow:IsShown() then all = all + 1 end end
+    local all = #fame.Lists.tiles.items
     fame.query = "zzz no such statistic"
     fame:Refresh()
     T.eq(fame.Lists.tiles.rows[1]:IsShown(), false)
     T.eq(fame.Lists.cards.rows[1]:IsShown(), false)
     fame.query = ""
     fame:Refresh()
-    T.truthy(all > 20 and fame.Lists.tiles.rows[all]:IsShown(), "every statistic back without a search")
+    T.truthy(all > 20 and #fame.Lists.tiles.items == all, "every statistic back without a search")
+    T.truthy(fame.Lists.tiles.rows[1]:IsShown(), "the first statistic in view")
+    T.eq(fame.Lists.tiles.rows[all], nil) -- a row out of view is not built
     -- the title cards of the page the same way, also with a title of another page
     fame:SetKind("cards")
     fame:Remove(page.titles[1].key)

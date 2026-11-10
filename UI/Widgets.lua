@@ -283,8 +283,11 @@ function W.Page(panel)
   return page
 end
 
--- Scroll list with pooled rows ----------------------------------------------------------------------
--- createRow(row) builds a row once, updateRow(row, item, index) fills it on every refresh.
+-- Scroll list ----------------------------------------------------------------------------------------
+-- createRow(row) builds a row once, updateRow(row, item, index) fills it.
+-- Only the rows in view (and two beyond each edge) are built and filled: scroll.rows[i] is the row of
+-- item i and exists once it was in view. A guild of 500 members otherwise meant 7800 widgets when the
+-- member list opened and every row filled again on each roster update (tests/bench.lua).
 
 function W.ScrollList(parent, rowHeight, createRow, updateRow)
   local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
@@ -292,7 +295,10 @@ function W.ScrollList(parent, rowHeight, createRow, updateRow)
   scroll:SetScrollChild(content)
   content:SetSize(1, 1)
   scroll.rows = {}
+  scroll.items = {}
   scroll.rowHeight = rowHeight
+  local OVER = 2
+  local round = 0 -- counts SetItems calls: a row filled in this round is not filled again while scrolling
   -- the bar (arrows, thumb) only while there is something to scroll: empty or short lists looked broken
   local function UpdateBar()
     local bar = scroll.ScrollBar
@@ -301,17 +307,18 @@ function W.ScrollList(parent, rowHeight, createRow, updateRow)
     bar:SetShown((range or 0) > 0.5)
   end
   scroll.UpdateBar = UpdateBar
-  scroll:SetScript("OnSizeChanged", function(_, width)
-    content:SetWidth(math.max(1, width or 1))
-    UpdateBar()
-  end)
-  if scroll.HookScript then scroll:HookScript("OnScrollRangeChanged", UpdateBar) end
-
-  function scroll:SetItems(items)
-    local width = self:GetWidth() or 0
-    if width > 1 then content:SetWidth(width) end
-    for i, item in ipairs(items) do
-      local row = self.rows[i]
+  -- Builds and fills the rows in view that this round has not filled yet
+  local function FillVisible()
+    local items = scroll.items
+    local height = scroll:GetHeight()
+    -- no height yet (first frame of a panel): as many rows as any screen shows
+    if type(height) ~= "number" or height < rowHeight then height = 1200 end
+    local offset = scroll.GetVerticalScroll and scroll:GetVerticalScroll() or 0
+    if type(offset) ~= "number" then offset = 0 end
+    local first = math.max(1, math.floor(offset / rowHeight) + 1 - OVER)
+    local last = math.min(#items, math.ceil((offset + height) / rowHeight) + OVER)
+    for i = first, last do
+      local row = scroll.rows[i]
       if not row then
         row = CreateFrame("Frame", nil, content)
         row:SetHeight(rowHeight)
@@ -323,13 +330,40 @@ function W.ScrollList(parent, rowHeight, createRow, updateRow)
           stripe:SetColorTexture(1, 1, 1, 0.03)
         end
         createRow(row)
-        self.rows[i] = row
+        scroll.rows[i] = row
       end
-      row:Show()
-      updateRow(row, item, i)
+      if row.filledIn ~= round then
+        row.filledIn = round
+        row:Show()
+        updateRow(row, items[i], i)
+      end
     end
-    for i = #items + 1, #self.rows do self.rows[i]:Hide() end
+  end
+
+  scroll:SetScript("OnSizeChanged", function(_, width)
+    content:SetWidth(math.max(1, width or 1))
+    UpdateBar()
+    FillVisible()
+  end)
+  if scroll.HookScript then
+    scroll:HookScript("OnScrollRangeChanged", function()
+      UpdateBar()
+      FillVisible()
+    end)
+    scroll:HookScript("OnVerticalScroll", FillVisible)
+  end
+
+  function scroll:SetItems(items)
+    local width = self:GetWidth() or 0
+    if width > 1 then content:SetWidth(width) end
+    self.items = items
+    round = round + 1
+    -- rows past the end go; rows out of view keep what they showed until they come into view
+    for i, row in pairs(self.rows) do
+      if i > #items then row:Hide() end
+    end
     content:SetHeight(math.max(1, #items * rowHeight))
+    FillVisible()
     UpdateBar()
   end
   UpdateBar()

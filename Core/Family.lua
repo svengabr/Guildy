@@ -84,31 +84,73 @@ end
 -- "Twinks: Fredwild, Ranfredo" on Ran Fred. note: the note text, selfKey: the note owner, members:
 -- { {key, name} }. Names count as whole words; a longer name wins over one inside it ("Ran Fred"
 -- over "Ran"); never the owner.
+-- Looking through every member for every note took most of the member list's refresh in a big guild
+-- (tests/bench.lua): the names of a roster are indexed once by their first word, and a note only
+-- looks at the members whose first word it contains.
+local indexes = setmetatable({}, { __mode = "k" }) -- members list -> { byWord = { word -> {entry} }, other = {entry} }
+
+local function NameIndex(members)
+  local index = indexes[members]
+  if index and index.count == #members then return index end
+  index = { byWord = {}, other = {}, count = #members }
+  for i, m in ipairs(members) do
+    local name = m.name and m.name:lower()
+    if name and #name >= 3 then
+      local entry = { key = m.key, name = name, order = i }
+      -- a whole-word match of the name starts with its first word as a whole word of the note
+      local word = name:match("^[%a\128-\255]+")
+      local list = index.other
+      if word then
+        list = index.byWord[word]
+        if not list then
+          list = {}
+          index.byWord[word] = list
+        end
+      end
+      list[#list + 1] = entry
+    end
+  end
+  indexes[members] = index
+  return index
+end
+
 function Family.NoteLinks(note, selfKey, members)
   local links = {}
   if type(note) ~= "string" or note == "" then return links end
   local text = note:lower()
   if not HasWord(text) then return links end
+  local index = NameIndex(members)
   local found = {}
-  for _, m in ipairs(members) do
-    local name = m.name and m.name:lower()
-    if name and #name >= 3 then
-      local from = 1
-      while true do
-        local start = text:find(name, from, true)
-        if not start then break end
-        local stop = start + #name - 1
-        local before, after = text:sub(start - 1, start - 1), text:sub(stop + 1, stop + 1)
-        if not before:match("[%a\128-\255]") and not after:match("[%a\128-\255]") then
-          -- the owner's own name only blocks names inside it ("Ran" in "Ran Fred")
-          found[#found + 1] = { key = m.key, start = start, stop = stop, len = #name, own = m.key == selfKey }
-          break
-        end
-        from = start + 1
+  local function Look(entry)
+    local name = entry.name
+    local from = 1
+    while true do
+      local start = text:find(name, from, true)
+      if not start then break end
+      local stop = start + #name - 1
+      local before, after = text:sub(start - 1, start - 1), text:sub(stop + 1, stop + 1)
+      if not before:match("[%a\128-\255]") and not after:match("[%a\128-\255]") then
+        -- the owner's own name only blocks names inside it ("Ran" in "Ran Fred")
+        found[#found + 1] = { key = entry.key, start = start, stop = stop, len = #name, own = entry.key == selfKey,
+          order = entry.order }
+        break
       end
+      from = start + 1
     end
   end
-  table.sort(found, function(a, b) return a.len > b.len end)
+  local looked = {}
+  for word in text:gmatch("[%a\128-\255]+") do
+    if not looked[word] then
+      looked[word] = true
+      for _, entry in ipairs(index.byWord[word] or {}) do Look(entry) end
+    end
+  end
+  for _, entry in ipairs(index.other) do Look(entry) end
+  -- the longest name first, names of one length in roster order
+  table.sort(found, function(a, b)
+    if a.len ~= b.len then return a.len > b.len end
+    return a.order < b.order
+  end)
   local taken = {}
   for _, f in ipairs(found) do
     local free = true

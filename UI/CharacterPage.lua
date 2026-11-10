@@ -720,6 +720,7 @@ local function Build()
     self:RenderDungeons(rec)
     self:RenderProfs(m)
   end
+  ns.Perf.Wrap(page, "Render", "render", "character page")
   page:SetScript("OnHide", function()
     UI.Notes.Hide()
   end)
