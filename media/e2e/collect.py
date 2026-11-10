@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(ROOT, "media", "gallery"))
 from crop import window_box  # noqa: E402  (the window in front of the run's plain backdrop)
 
-GAP = 6        # seconds: the pictures of one language are two seconds apart
+GAP = 4        # seconds: the pictures of one language are two seconds apart, two languages at least seven
 RUN_GAP = 300  # seconds: between two languages lie a reload and the wait for J; longer ends the run
 
 
