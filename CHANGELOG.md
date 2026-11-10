@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.2
+
+- Customize Guildy: the cog left of the close button opens a window of its own beside Guildy's, so every
+  change shows at once. Its tabs are named like Guildy's: General (where a member's tooltip stands: beside
+  the window, beside the row, at the cursor or the game's own spot; resetting everything), Chat
+  (professions as icons in the online list), Members (columns to show, twinks under their main, and how
+  the list tells online from offline, each style with a preview), Hall of Fame and Professions (sharing
+  your professions, moved here from the info tab).
+- Hall of Fame editor in that window: per page, the tiles and the title cards on top are yours to pick,
+  order and remove, drawn as the page shows them with the guild's real numbers. Tiles can show any
+  statistic Guildy tracks, title cards any title of any page; a search narrows both lists, and "Restore
+  defaults" brings a page back.
+- Members: online members stand above offline ones, each under a header with its count; the options
+  offer one list with greyed-out offline names or with a status dot instead. A member's tooltip now
+  stands beside the window instead of over the list.
+- Every tab is built on the same layout, so nothing moves when switching between them: one toolbar row
+  in the same place (search or selection on the left, actions on the right), the same edges for all
+  boxes, sidebars of one width, a status line below for hints and counts, and one size for buttons,
+  dropdowns and search fields. "Invite member", "Join a community" and "Edit ranks" moved into the
+  toolbar; the member list's column header is the first row of its box.
+- Account: the professions of your characters are tiles, one per profession with the best skill, its
+  bar and the characters that have it (all of them in the tooltip).
+- A profession a character unlearned leaves it: your own characters lose what is no longer in their
+  skill list, and others keep at most their two newest primary professions.
+
 ## 1.1.1
 
 - Hall of Fame: the general page shows the guild's epic items and need rolls instead of pets. The game
