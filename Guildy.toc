@@ -51,4 +51,5 @@ UI\TabInfo.lua
 UI\TabRanks.lua
 UI\TabAccount.lua
 UI\TabCommunities.lua
+UI\Options.lua
 Core\Init.lua

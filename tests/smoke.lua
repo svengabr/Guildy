@@ -1009,4 +1009,130 @@ T.describe("Hall of Fame", function()
     RunTimers()
     T.eq(errors, {})
   end)
+
+  T.it("customizes the member list style and the Hall of Fame tiles in the options", function()
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("members")
+    local members = ns.UI.TabView("members")
+    local function Headers()
+      local count = 0
+      for _, row in ipairs(members.List.rows) do
+        if row:IsShown() and row.Section:IsShown() then count = count + 1 end
+      end
+      return count
+    end
+    T.truthy(Headers() > 0, "sections by default")
+    ns.UI.ToggleOptions()
+    local options = ns.UI.Options()
+    T.truthy(options and options:IsShown(), "options open")
+    for _, key in ipairs({ "general", "chat", "members", "fame", "professions" }) do options:Select(key) end
+    -- members: a column switched off leaves the list, twinks stand on their own; chat: no icons
+    local lists = options.Panels.members
+    local function Toggle(check, on)
+      check:SetChecked(on)
+      check:GetScript("OnClick")(check)
+    end
+    for _, check in ipairs(lists.Columns) do
+      Toggle(check, false)
+      T.eq(ns.Settings().memberColumns[check.key], false)
+      T.eq(members.Headers[check.key]:IsShown(), false)
+      Toggle(check, true)
+      T.eq(ns.Settings().memberColumns[check.key], nil)
+    end
+    T.truthy(members.Headers.rank:IsShown(), "rank column back")
+    Toggle(lists.Twinks, false)
+    T.eq(ns.Settings().memberTwinks, false)
+    for _, row in ipairs(members.List.rows) do
+      if row:IsShown() and row.member then T.eq(row.Cells.name:GetText():find("^      ") == nil, true) end
+    end
+    Toggle(lists.Twinks, true)
+    T.eq(ns.Settings().memberTwinks, nil)
+    local chatProfs = options.Panels.chat.ChatProfs
+    Toggle(chatProfs, false)
+    T.eq(ns.Settings().chatProfs, false)
+    ns.UI.SelectTab("chat")
+    Toggle(chatProfs, true)
+    -- professions: sharing
+    local share = options.Panels.professions.Share
+    local shared = ns.Settings().share
+    Toggle(share, false)
+    T.eq(ns.Settings().share, false)
+    Toggle(share, true)
+    T.eq(ns.Settings().share, true)
+    ns.Settings().share = shared
+    -- every tooltip position draws a member's tooltip
+    for _, mode in ipairs(ns.UI.TOOLTIP_ANCHORS) do
+      ns.Settings().tooltipAnchor = mode
+      T.eq(ns.UI.TooltipAnchor(), mode)
+      ns.UI.MemberTooltip(members.List.rows[2], ns.Roster.Members()[1])
+    end
+    ns.Settings().tooltipAnchor = nil
+    T.eq(ns.UI.TooltipAnchor(), "window")
+    ns.UI.SelectTab("members")
+    -- a click on a style card changes the list at once
+    for _, card in ipairs(options.Panels.members.Cards) do
+      card:GetScript("OnMouseUp")(card)
+      T.eq(ns.Settings().memberStyle, card.style)
+      T.eq(Headers() > 0, card.style == "sections")
+    end
+    ns.Settings().memberStyle = nil
+    -- the tile editor: remove, add at the end, move; a page keeps its last tile
+    local fame = options.Panels.fame
+    local page = ns.Stats.PAGES[1]
+    local a, b = page.headline[1], page.headline[2]
+    fame:Remove(a)
+    T.eq(#ns.Settings().fameTiles[page.key], #page.headline - 1)
+    T.eq(ns.Settings().fameTiles[page.key][1], b)
+    fame:Add(a)
+    T.eq(ns.Settings().fameTiles[page.key][#page.headline], a)
+    T.eq(fame.selected, a)
+    fame:Move(a, -1)
+    T.eq(ns.Settings().fameTiles[page.key][#page.headline - 1], a)
+    -- a click on a free statistic's row adds it; none can be added to a full page
+    T.eq(#ns.Settings().fameTiles[page.key], ns.Stats.MAX_TILES)
+    fame:Add(347)
+    T.eq(#ns.Settings().fameTiles[page.key], ns.Stats.MAX_TILES)
+    ns.Settings().fameTiles = { [page.key] = { b } }
+    fame:Refresh()
+    fame:Remove(b)
+    T.eq(ns.Settings().fameTiles[page.key], { b })
+    local row = fame.List.rows[1]
+    row:GetScript("OnMouseUp")(row)
+    T.eq(#ns.Settings().fameTiles[page.key], 2)
+    -- the search narrows both lists to what matches
+    local all = 0
+    for _, listRow in ipairs(fame.Lists.tiles.rows) do if listRow:IsShown() then all = all + 1 end end
+    fame.query = "zzz no such statistic"
+    fame:Refresh()
+    T.eq(fame.Lists.tiles.rows[1]:IsShown(), false)
+    T.eq(fame.Lists.cards.rows[1]:IsShown(), false)
+    fame.query = ""
+    fame:Refresh()
+    T.truthy(all > 20 and fame.Lists.tiles.rows[all]:IsShown(), "every statistic back without a search")
+    -- the title cards of the page the same way, also with a title of another page
+    fame:SetKind("cards")
+    fame:Remove(page.titles[1].key)
+    T.eq(ns.Settings().fameCards[page.key][1], page.titles[2].key)
+    ns.Settings().fameCards = { [page.key] = { page.titles[2].key } }
+    fame:Refresh()
+    fame:Add("GOLD")
+    T.eq(ns.Settings().fameCards[page.key], { page.titles[2].key, "GOLD" })
+    -- a click on a row of the title list adds to the title cards, whatever row was picked before
+    fame:SetKind("tiles")
+    local titleRow = fame.Lists.cards.rows[1]
+    titleRow:GetScript("OnMouseUp")(titleRow)
+    T.eq(#ns.Settings().fameCards[page.key], 3)
+    T.eq(fame.kind, "cards")
+    ns.UI.SelectTab("fame")
+    -- restoring brings the page back to what Guildy ships
+    fame:Restore()
+    T.eq(ns.Settings().fameTiles[page.key], nil)
+    T.eq(ns.Settings().fameCards[page.key], nil)
+    fame:SetKind("tiles")
+    ns.Settings().fameTiles = nil
+    ns.UI.SelectTab("fame")
+    ns.UI.ToggleOptions()
+    T.eq(options:IsShown(), false)
+    T.eq(errors, {})
+  end)
 end)

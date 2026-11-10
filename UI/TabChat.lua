@@ -5,7 +5,6 @@ local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
-local LIST_WIDTH = 290
 local ZONE_WIDTH = 104
 local ROW = 18
 local date = rawget(_G, "date") or os.date
@@ -185,8 +184,8 @@ end
 -- while empty, shift-clicked links go in while it has focus. onSend(text) on Enter.
 function UI.ChatInput(parent, onSend)
   local input = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-  input:SetPoint("BOTTOMLEFT", 6, 4)
-  input:SetPoint("BOTTOMRIGHT", 0, 4)
+  input:SetPoint("BOTTOMLEFT", 6, 1)
+  input:SetPoint("BOTTOMRIGHT", 0, 1)
   input:SetHeight(22)
   input:SetAutoFocus(false)
   input:SetMaxLetters(255)
@@ -233,14 +232,16 @@ local function Build(panel)
   local view = { kind = "guild" }
 
   -- right: online list -------------------------------------------------------------------------
+  local page = W.Page(panel)
+  local bar = page.Bar
+  panel = page.Body
   local right = CreateFrame("Frame", nil, panel)
   right:SetPoint("TOPRIGHT", 0, 0)
   right:SetPoint("BOTTOMRIGHT", 0, 0)
-  right:SetWidth(LIST_WIDTH)
+  right:SetWidth(W.SIDE)
 
-  view.Count = W.Text(right, "GameFontNormal")
-  view.Count:SetPoint("TOPLEFT", 4, -6)
-  view.SortButton = W.MenuButton(right, L.SORT_LABEL_LEVEL, function()
+  view.Count = W.Text(bar, "GameFontNormalSmall")
+  view.SortButton = W.MenuButton(bar, L.SORT_LABEL_LEVEL, function()
     local items = {}
     for _, field in ipairs({ "level", "name", "zone" }) do
       items[#items + 1] = { text = L["SORT_BY_" .. field:upper()], checked = ns.Settings().listSort == field,
@@ -251,11 +252,9 @@ local function Build(panel)
     end
     return items
   end, 110)
-  view.SortButton:SetPoint("TOPRIGHT", 0, -2)
 
   local listBox = W.Box(right)
-  listBox:SetPoint("TOPLEFT", 0, -28)
-  listBox:SetPoint("BOTTOMRIGHT", 0, 30)
+  listBox:SetAllPoints()
   view.List = W.ScrollList(listBox, ROW, function(row)
     row:EnableMouse(true)
     row.Level = W.Text(row, "GameFontDisableSmall")
@@ -290,7 +289,11 @@ local function Build(panel)
     row.Level:SetText(m.level)
     row.Name:SetText(W.ClassName(m.name, m.classFile) .. (m.rankIndex == 0 and " |cffffd100*|r" or ""))
     row.Zone:SetText(m.zone or "")
-    local profs = ns.TradeSkill.ProfsOf(m)
+    -- the two primary professions as icons, unless switched off (settings.chatProfs, the options); the
+    -- name takes their room then
+    local icons = ns.Settings().chatProfs ~= false
+    row.Name:SetPoint("RIGHT", row.Zone, "LEFT", icons and -36 or -6, 0)
+    local profs = icons and ns.TradeSkill.ProfsOf(m)
     local shown = 0
     if profs then
       for _, skillLine in ipairs(ns.Professions.ORDER) do
@@ -307,28 +310,32 @@ local function Build(panel)
   view.List:SetPoint("BOTTOMRIGHT", -16, 4)
   W.SlimScrollBar(view.List, 4) -- same slim gold track as the chat timeline
 
-  view.InviteButton = W.Button(right, L.INVITE_MEMBER, nil, 150)
+  view.InviteButton = W.Button(bar, L.INVITE_MEMBER, nil, 120, { small = true })
   UI.SecureAction(view.InviteButton, function() return UI.InviteAction() end, nil,
     function() ns.Print(ns.L.INVITE_UNAVAILABLE) end)
-  view.InviteButton:SetPoint("BOTTOMRIGHT", 0, 2)
+  -- toolbar, from the right: invite, sort, the online count (the sort keeps its place without invite right)
+  page:Right(view.InviteButton)
+  view.SortButton:SetPoint("RIGHT", bar, "RIGHT", -(120 + 6), 0)
+  view.Count:SetPoint("RIGHT", view.SortButton, "LEFT", -10, 0)
 
   -- left: chat ---------------------------------------------------------------------------------
   local left = CreateFrame("Frame", nil, panel)
   left:SetPoint("TOPLEFT", 0, 0)
   left:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", -8, 0)
 
-  view.Channel = W.MenuButton(left, L.CHANNEL_GUILD, function()
+  view.Channel = W.MenuButton(bar, L.CHANNEL_GUILD, function()
     local items = { { text = L.CHANNEL_GUILD, checked = view.kind == "guild", onClick = function() view:SetKind("guild") end } }
     if ns.Roster.Can().officerChat then
       items[#items + 1] = { text = L.CHANNEL_OFFICER, checked = view.kind == "officer", onClick = function() view:SetKind("officer") end }
     end
     return items
   end, 130)
-  view.Channel:SetPoint("TOPLEFT", 50, -2) -- clear of the portrait
+  page:Left(view.Channel)
 
+  -- the input line closes the chat column at the body's bottom edge
   local chatBox = W.Box(left)
-  chatBox:SetPoint("TOPLEFT", 0, -28)
-  chatBox:SetPoint("BOTTOMRIGHT", 0, 30)
+  chatBox:SetPoint("TOPLEFT", 0, 0)
+  chatBox:SetPoint("BOTTOMRIGHT", 0, 28)
   view.Pane = UI.ChatPane(chatBox, {
     status = function() return ns.Chat.HistoryState(view.kind) end,
     onTop = function() ns.Chat.LoadOlder(view.kind) end,

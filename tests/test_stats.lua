@@ -277,3 +277,56 @@ T.describe("Stats pages and gear", function()
     T.eq(Stats.GearRating(3, 5), "ok")
   end)
 end)
+
+T.describe("Stats tiles", function()
+  local general = Stats.PAGES[1]
+  T.it("offers the headline first, then the title cards' statistics without states", function()
+    local choices = Stats.TileChoices(general)
+    for i, id in ipairs(general.headline) do T.eq(choices[i], id) end
+    local seen = {}
+    for _, id in ipairs(choices) do
+      T.eq(seen[id], nil)
+      seen[id] = true
+    end
+    T.truthy(seen[347], "food from the title cards")
+    T.eq(seen[Stats.GEAR.ILVL], nil) -- a guild total of item levels says nothing
+  end)
+  T.it("keeps the default without a valid choice", function()
+    T.eq(Stats.Headline(general), general.headline)
+    T.eq(Stats.Headline(general, {}), general.headline)
+    T.eq(Stats.Headline(general, { 999999 }), general.headline)
+  end)
+  T.it("offers the other pages' statistics after the page's own", function()
+    local choices = Stats.TileChoices(general)
+    local at = {}
+    for i, id in ipairs(choices) do at[id] = i end
+    T.truthy(at[328], "gold from the economy page")
+    T.truthy(at[328] > at[347], "after the page's own")
+  end)
+  T.it("offers every tracked statistic, the end boss kills too, but no worn-item states", function()
+    local at = {}
+    for i, id in ipairs(Stats.TileChoices(general)) do at[id] = i end
+    for _, category in ipairs(Stats.CATALOG) do
+      for _, id in ipairs(category.stats) do
+        if category.isLocal then T.eq(at[id], nil) else T.truthy(at[id], "statistic " .. tostring(id)) end
+      end
+    end
+    T.truthy(at[108] > at[328], "a statistic of no page after the pages' own")
+    T.eq(Stats.Headline(general, { 108, 94 }), { 108, 94 })
+  end)
+  T.it("shows the chosen title cards in the chosen order, also another page's, at most MAX_CARDS", function()
+    T.eq(Stats.Titles(general), general.titles)
+    T.eq(Stats.Titles(general, { "NOPE" }), general.titles)
+    local list = Stats.Titles(general, { "GOLD", "SLAYER", "GOLD" })
+    T.eq(#list, 2)
+    T.eq(list[1].key, "GOLD")
+    T.eq(list[2].stat, 107)
+    local all = {}
+    for i, fame in ipairs(Stats.TitleChoices(general)) do all[i] = fame.key end
+    T.eq(#Stats.Titles(general, all), Stats.MAX_CARDS)
+  end)
+  T.it("shows the chosen statistics in the chosen order, each once, at most MAX_TILES", function()
+    T.eq(Stats.Headline(general, { 347, 107, 347 }), { 347, 107 })
+    T.eq(#Stats.Headline(general, Stats.TileChoices(general)), Stats.MAX_TILES)
+  end)
+end)

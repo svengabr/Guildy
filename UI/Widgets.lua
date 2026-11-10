@@ -233,6 +233,56 @@ function W.EditBox(parent, width, numeric)
   return box
 end
 
+-- Page scaffold --------------------------------------------------------------------------------------
+-- Every view (tab or page) is built on the same three parts, so nothing moves when switching between
+-- them: a toolbar row right of the portrait, the body below it with the same four edges everywhere,
+-- and a status line under the body (a hint on the left, a count on the right).
+W.BAR_X = 54      -- the toolbar starts here, clear of the portrait
+W.BAR_H = 24
+W.GAP = 8         -- between boxes
+W.STATUS_H = 18
+W.SIDE = 270      -- width of a sidebar box, the same in every view
+W.SEARCH_W = 220
+
+-- page.Bar, page.Body; page:Left(control) / page:Right(control) chain controls into the toolbar from
+-- its left and right end; page.Hint and page.Count are the status line's two texts.
+function W.Page(panel)
+  local page = {}
+  page.Bar = CreateFrame("Frame", nil, panel)
+  page.Bar:SetPoint("TOPLEFT", W.BAR_X, -2)
+  page.Bar:SetPoint("TOPRIGHT", 0, -2)
+  page.Bar:SetHeight(W.BAR_H)
+  page.Body = CreateFrame("Frame", nil, panel)
+  page.Body:SetPoint("TOPLEFT", 0, -(W.BAR_H + 6))
+  page.Body:SetPoint("BOTTOMRIGHT", 0, W.STATUS_H)
+  page.Count = W.Text(panel, "GameFontDisableSmall")
+  page.Count:SetPoint("BOTTOMRIGHT", -6, 3)
+  page.Count:SetJustifyH("RIGHT")
+  page.Hint = W.Text(panel, "GameFontDisableSmall")
+  page.Hint:SetPoint("BOTTOMLEFT", 4, 3)
+  page.Hint:SetPoint("RIGHT", page.Count, "LEFT", -12, 0)
+  page.Hint:SetWordWrap(false)
+  function page:Left(control, gap)
+    if self.left then
+      control:SetPoint("LEFT", self.left, "RIGHT", gap or 6, 0)
+    else
+      control:SetPoint("LEFT", self.Bar, "LEFT", gap or 0, 0)
+    end
+    self.left = control
+    return control
+  end
+  function page:Right(control, gap)
+    if self.right then
+      control:SetPoint("RIGHT", self.right, "LEFT", -(gap or 6), 0)
+    else
+      control:SetPoint("RIGHT", self.Bar, "RIGHT", -(gap or 0), 0)
+    end
+    self.right = control
+    return control
+  end
+  return page
+end
+
 -- Scroll list with pooled rows ----------------------------------------------------------------------
 -- createRow(row) builds a row once, updateRow(row, item, index) fills it on every refresh.
 
@@ -409,7 +459,8 @@ end
 local MENU_ARROW = "Interface\\Buttons\\Arrow-Down-Up"
 function W.DropButton(parent, text, onClick, width, maxWidth)
   local arrow = W.TextureExists(MENU_ARROW)
-  local button = W.Button(parent, text, onClick, width, { pad = arrow and 38 or nil, maxWidth = maxWidth })
+  -- small font like every other toolbar control
+  local button = W.Button(parent, text, onClick, width, { small = true, pad = arrow and 34 or nil, maxWidth = maxWidth })
   if arrow then
     local icon = button:CreateTexture(nil, "OVERLAY")
     icon:SetSize(12, 12)

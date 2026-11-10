@@ -8,8 +8,6 @@ local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
-local LIST_WIDTH = 250
-local MEMBERS_WIDTH = 250
 local ROW = 42
 local MEMBER_ROW = 18
 
@@ -33,15 +31,15 @@ local function Build(panel)
   local view = {}
 
   -- left: the communities -----------------------------------------------------------------------------
+  local page = W.Page(panel)
+  local bar = page.Bar
+  panel = page.Body
   local left = CreateFrame("Frame", nil, panel)
   left:SetPoint("TOPLEFT", 0, 0)
   left:SetPoint("BOTTOMLEFT", 0, 0)
-  left:SetWidth(LIST_WIDTH)
-  view.Title = W.Text(left, "GameFontNormal", L.COMMUNITIES_TITLE)
-  view.Title:SetPoint("TOPLEFT", 50, -6) -- clear of the portrait
+  left:SetWidth(W.SIDE)
   local listBox = W.Box(left)
-  listBox:SetPoint("TOPLEFT", 0, -28)
-  listBox:SetPoint("BOTTOMRIGHT", 0, 30)
+  listBox:SetAllPoints()
   view.Clubs = W.ScrollList(listBox, ROW, function(row)
     row:EnableMouse(true)
     row.Selected = row:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -125,25 +123,25 @@ local function Build(panel)
   view.Clubs:SetPoint("BOTTOMRIGHT", -3, 3)
   W.SlimScrollBar(view.Clubs, 4)
   -- joining: Guildy's own panel in the middle (invite link, creating); invitations are in the list
-  view.JoinButton = W.Button(left, L.COMMUNITIES_JOIN, function() view:ShowJoin(not view.joining) end, LIST_WIDTH,
+  view.JoinButton = W.Button(bar, L.COMMUNITIES_JOIN, function() view:ShowJoin(not view.joining) end, 150,
     { small = true })
-  view.JoinButton:SetPoint("BOTTOMLEFT", 0, 2)
 
   -- right: the members ----------------------------------------------------------------------------------
   local right = CreateFrame("Frame", nil, panel)
   right:SetPoint("TOPRIGHT", 0, 0)
   right:SetPoint("BOTTOMRIGHT", 0, 0)
-  right:SetWidth(MEMBERS_WIDTH)
-  view.Count = W.Text(right, "GameFontNormal")
-  view.Count:SetPoint("TOPLEFT", 4, -6)
+  right:SetWidth(W.SIDE)
+  view.Count = W.Text(bar, "GameFontNormalSmall")
   local membersBox = W.Box(right)
-  membersBox:SetPoint("TOPLEFT", 0, -28)
-  membersBox:SetPoint("BOTTOMRIGHT", 0, 30)
+  membersBox:SetAllPoints()
   -- inviting: Guildy's button clicks Blizzard's own "Invite member" (InviteToClub is forbidden for
   -- addons); its dialog opens over Guildy. Blizzard's window must show the community: when it still
   -- shows another club, the first click picks it there and the next one invites.
-  view.InviteSend = W.Button(right, L.COMMUNITIES_INVITE_BUTTON, nil, MEMBERS_WIDTH, { small = true })
-  view.InviteSend:SetPoint("BOTTOMRIGHT", 0, 2)
+  view.InviteSend = W.Button(bar, L.COMMUNITIES_INVITE_BUTTON, nil, 150, { small = true })
+  -- toolbar, from the right: invite members, join a community, the online count
+  page:Right(view.InviteSend)
+  page:Right(view.JoinButton)
+  page:Right(view.Count, 10)
   UI.SecureAction(view.InviteSend, function(button)
     return UI.Action.CommunityInvite(selectedClub) or UI.Action.SelectClub(selectedClub, function()
       ns.Print(L.COMMUNITIES_INVITE_AGAIN)
@@ -229,7 +227,7 @@ local function Build(panel)
   local middle = CreateFrame("Frame", nil, panel)
   middle:SetPoint("TOPLEFT", left, "TOPRIGHT", 8, 0)
   middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT", -8, 0)
-  view.Channel = W.MenuButton(middle, "", function()
+  view.Channel = W.MenuButton(bar, "", function()
     local items = {}
     for _, stream in ipairs(ns.Communities.Streams(selectedClub)) do
       items[#items + 1] = { text = stream.name, checked = stream.streamId == selectedStream,
@@ -237,10 +235,10 @@ local function Build(panel)
     end
     return items
   end, 160, 260)
-  view.Channel:SetPoint("TOPLEFT", 0, -2)
+  page:Left(view.Channel)
   local chatBox = W.Box(middle)
-  chatBox:SetPoint("TOPLEFT", 0, -28)
-  chatBox:SetPoint("BOTTOMRIGHT", 0, 30)
+  chatBox:SetPoint("TOPLEFT", 0, 0)
+  chatBox:SetPoint("BOTTOMRIGHT", 0, 28)
   view.Pane = UI.ChatPane(chatBox, {
     status = function() return ns.Communities.HistoryState(selectedClub, selectedStream) end,
     onTop = function() ns.Communities.LoadOlder(selectedClub, selectedStream) end,
@@ -252,7 +250,7 @@ local function Build(panel)
   -- the join panel over the chat (the join button, or without communities): an invite link or code,
   -- and creating a community
   local join = W.Box(middle)
-  join:SetPoint("TOPLEFT", 0, -28)
+  join:SetPoint("TOPLEFT", 0, 0)
   join:SetPoint("BOTTOMRIGHT", 0, 0)
   join:SetFrameLevel(chatBox:GetFrameLevel() + 20)
   join:EnableMouse(true)
@@ -311,7 +309,7 @@ local function Build(panel)
   -- frame (C_Club.AcceptInvitation is Blizzard's to call). Blizzard's window must show the invitation:
   -- the row click picks it there; else the first click on a button does, the next one answers.
   local invite = W.Box(middle)
-  invite:SetPoint("TOPLEFT", 0, -28)
+  invite:SetPoint("TOPLEFT", 0, 0)
   invite:SetPoint("BOTTOMRIGHT", 0, 0)
   invite:SetFrameLevel(chatBox:GetFrameLevel() + 20)
   invite:EnableMouse(true)

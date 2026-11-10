@@ -97,12 +97,64 @@ function UI.MemberMenu(m, anchor)
   W.OpenMenu(anchor or UI.CursorAnchor(), items, 210)
 end
 
+-- Where a member's tooltip stands (settings.tooltipAnchor, Guildy's options):
+--   "window"  = beside Guildy's window at the row's height, so it never covers the list (default)
+--   "row"     = beside the hovered row
+--   "cursor"  = at the mouse
+--   "default" = the game's own spot
+UI.TOOLTIP_ANCHORS = { "window", "row", "cursor", "default" }
+function UI.TooltipAnchor()
+  local chosen = ns.Settings().tooltipAnchor
+  for _, known in ipairs(UI.TOOLTIP_ANCHORS) do
+    if chosen == known then return chosen end
+  end
+  return "window"
+end
+
+local TOOLTIP_ROOM = 320 -- what a member tooltip needs beside the window
+local function AnchorTooltip(owner)
+  local mode = UI.TooltipAnchor()
+  local default = rawget(_G, "GameTooltip_SetDefaultAnchor")
+  if mode == "default" and default then
+    default(GameTooltip, owner)
+    return
+  end
+  local frame = UI.frame
+  local target = mode == "row" and owner or frame
+  local left, right = target and target:GetLeft(), target and target:GetRight()
+  local screen = UIParent and UIParent.GetWidth and UIParent:GetWidth()
+  if mode == "cursor" or mode == "default" or not (frame and left and right and screen) then
+    GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
+    return
+  end
+  -- at the row's height; right of the target where there is room (past the window's side tabs), else left
+  local top, targetTop = owner:GetTop(), target:GetTop()
+  local y = (top and targetTop) and (top - targetTop) or 0
+  local scale = target.GetEffectiveScale and UIParent.GetEffectiveScale and target:GetEffectiveScale()
+  local base = scale and UIParent:GetEffectiveScale()
+  local factor = (type(scale) == "number" and type(base) == "number" and base > 0) and scale / base or 1
+  local gap = mode == "row" and 8 or 66
+  GameTooltip:SetOwner(owner, "ANCHOR_NONE")
+  if mode == "row" then
+    -- a row at the window's right edge (the chat's online list): the tooltip on its left
+    if left * factor >= TOOLTIP_ROOM then
+      GameTooltip:SetPoint("TOPRIGHT", target, "TOPLEFT", -8, y)
+    else
+      GameTooltip:SetPoint("TOPLEFT", target, "TOPRIGHT", 8, y)
+    end
+  elseif screen - right * factor >= TOOLTIP_ROOM + gap then
+    GameTooltip:SetPoint("TOPLEFT", target, "TOPRIGHT", gap, y)
+  else
+    GameTooltip:SetPoint("TOPRIGHT", target, "TOPLEFT", -8, y)
+  end
+end
+
 -- Tooltip for a roster member (owner frame given); hint replaces the default click hint
 function UI.MemberTooltip(owner, m, hint)
   local L = ns.L
   -- the click on this member also picks them in Blizzard's list, for their notes (UI/Notes.lua)
   if UI.Notes then UI.Notes.HoverMember(owner, m, hint) end
-  GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
+  AnchorTooltip(owner)
   GameTooltip:SetText(W.ClassName(m.name, m.classFile))
   GameTooltip:AddLine(L.LEVEL_CLASS:format(m.level or 0, m.className or ""), 1, 1, 1)
   if m.rank then GameTooltip:AddDoubleLine(L.RANK, m.rank, 1, 0.82, 0, 1, 1, 1) end

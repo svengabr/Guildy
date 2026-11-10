@@ -143,13 +143,15 @@ local function Build(panel)
   local L = ns.L
   local view = {}
 
+  local page = W.Page(panel)
+  panel = page.Body
   local left = CreateFrame("Frame", nil, panel)
   left:SetPoint("TOPLEFT", 0, 0)
   left:SetPoint("BOTTOMRIGHT", panel, "BOTTOM", -4, 0)
 
   -- MOTD
   local motd = W.Box(left)
-  motd:SetPoint("TOPLEFT", 50, 0) -- clear of the portrait
+  motd:SetPoint("TOPLEFT", 0, 0)
   motd:SetPoint("TOPRIGHT", 0, 0)
   motd:SetHeight(84)
   local motdTitle = W.Text(motd, "GameFontNormal", L.MOTD)
@@ -163,7 +165,7 @@ local function Build(panel)
   local info = W.Box(left)
   info:SetPoint("TOPLEFT", motd, "BOTTOMLEFT", 0, -8)
   info:SetPoint("RIGHT", 0, 0)
-  info:SetPoint("BOTTOM", left, "BOTTOM", 0, 172)
+  info:SetPoint("BOTTOM", left, "BOTTOM", 0, 100)
   local infoTitle = W.Text(info, "GameFontNormal", L.GUILD_INFO)
   infoTitle:SetPoint("TOPLEFT", 10, -8)
   view.Info = W.Text(info, "GameFontHighlightSmall")
@@ -176,23 +178,15 @@ local function Build(panel)
   local settings = W.Box(left)
   settings:SetPoint("TOPLEFT", info, "BOTTOMLEFT", 0, -8)
   settings:SetPoint("BOTTOMRIGHT", 0, 0)
-  local settingsTitle = W.Text(settings, "GameFontNormal", L.SETTINGS)
+  local settingsTitle = W.Text(settings, "GameFontNormal", L.GUILD_SETTINGS)
   settingsTitle:SetPoint("TOPLEFT", 10, -8)
-  local share = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
-  share:SetSize(24, 24)
-  share:SetPoint("TOPLEFT", 8, -24)
-  share:SetScript("OnClick", function(self) ns.Settings().share = self:GetChecked() and true or false end)
-  W.Tooltip(share, L.SHARE, L.SHARE_TIP)
-  local shareLabel = W.Text(settings, "GameFontHighlightSmall", L.SHARE)
-  shareLabel:SetPoint("LEFT", share, "RIGHT", 2, 0)
-  view.Share = share
-
+  -- (the player's own settings are in Guildy's options, UI/Options.lua: the gear in the title bar)
   -- preferred play settings (language, region): the guild master changes them, everyone sees them
   view.PlayRows = {}
   for i, kind in ipairs({ "locale", "datacenter" }) do
     local row = CreateFrame("Frame", nil, settings)
     row:SetHeight(24)
-    row:SetPoint("TOPLEFT", 12, -52 - (i - 1) * 28)
+    row:SetPoint("TOPLEFT", 12, -28 - (i - 1) * 28)
     row:SetPoint("RIGHT", -10, 0)
     row.Label = W.Text(row, "GameFontNormalSmall", kind == "locale" and UI.PlayText("PREFERRED_LOCALE_LABEL", L.PLAY_LOCALE)
       or UI.PlayText("PREFERRED_GUILD_DATACENTER_LOCALITY_LABEL", L.PLAY_REGION))
@@ -234,10 +228,9 @@ local function Build(panel)
   end
   view.staged = {}
 
-  local control = W.Button(settings, L.GUILD_CONTROL, function() UI.SelectTab("ranks") end, 150, { small = true })
-  control:SetPoint("BOTTOMLEFT", 10, 8)
-  local blizzard = W.Button(settings, L.OPEN_BLIZZARD, function() UI.ShowBlizzard() end, 150, { small = true })
-  blizzard:SetPoint("LEFT", control, "RIGHT", 6, 0)
+  -- toolbar: the two ways on from here
+  page:Left(W.Button(page.Bar, L.GUILD_CONTROL, function() UI.SelectTab("ranks") end, 150, { small = true }))
+  page:Left(W.Button(page.Bar, L.OPEN_BLIZZARD, function() UI.ShowBlizzard() end, 150, { small = true }))
 
   -- event log
   local log = W.Box(panel)
@@ -281,7 +274,6 @@ local function Build(panel)
     local infoText = ns.Try(get) or ""
     self.Info:SetText(infoText ~= "" and infoText or ("|cff999999" .. L.EMPTY .. "|r"))
     self.InfoEditor:Update(infoText, can.editInfo)
-    self.Share:SetChecked(ns.Settings().share and true or false)
     self:RefreshPlay()
     self.Log:SetItems(EventLines())
   end

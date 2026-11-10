@@ -22,6 +22,14 @@ local COLUMNS = {
   { key = "officerNote", width = 0 }, -- rest; only for those who may read officer notes
 }
 local UNSORTED = { note = true, officerNote = true }
+local REST_WIDTH = 200 -- a rest column's width when another column follows it
+-- The columns the player can hide (settings.memberColumns[key] = false, Guildy's options); level and
+-- name always stay
+UI.MEMBER_COLUMNS = { "rank", "group", "ilvl", "zone", "lastOnline", "guildy", "note", "officerNote" }
+local function ColumnOff(key)
+  local chosen = ns.Settings().memberColumns
+  return type(chosen) == "table" and chosen[key] == false
+end
 -- colors for the guild's groups (Family.GroupColor picks one per name)
 local GROUP_COLORS = { { 64, 166, 214 }, { 196, 107, 224 }, { 224, 80, 80 }, { 102, 204, 89 }, { 255, 153, 64 },
   { 77, 204, 191 }, { 242, 217, 77 }, { 242, 128, 179 } }
@@ -51,6 +59,34 @@ local function ClassIcon(classFile)
     c[1] * 256, c[2] * 256, c[3] * 256, c[4] * 256)
 end
 
+-- How the list tells online from offline (settings.memberStyle, Guildy's options):
+--   "sections" = online above offline, each under its own header (default)
+--   "grey"     = one list, offline names lose their class color
+--   "dot"      = one list, a green or grey dot before the name
+UI.MEMBER_STYLES = { "sections", "grey", "dot" }
+function UI.MemberStyle()
+  local style = ns.Settings().memberStyle
+  for _, known in ipairs(UI.MEMBER_STYLES) do
+    if style == known then return style end
+  end
+  return "sections"
+end
+
+-- A member's name cell in a style: text (class icon, name) and the cell's alpha. Shared with the
+-- preview in Guildy's options.
+function UI.MemberNameText(name, classFile, online, style)
+  local text
+  if style == "grey" and not online then
+    text = ClassIcon(classFile) .. "|cff8a8a8a" .. name .. "|r"
+  else
+    text = ClassIcon(classFile) .. W.ClassName(name, classFile)
+  end
+  if style == "dot" then
+    text = (online and DOT:format(76, 230, 76) or DOT:format(110, 110, 110)) .. text
+  end
+  return text, online and 1 or (style == "grey" and 0.75 or 0.5)
+end
+
 local function GroupText(group, inherited)
   if not group then return "|cff5e5747–|r" end
   local color = GROUP_COLORS[ns.Family.GroupColor(group, #GROUP_COLORS)]
@@ -70,12 +106,10 @@ local function Build(panel)
   local view = { filter = {}, query = "", sort = "level", desc = true }
 
   -- toolbar ------------------------------------------------------------------------------------
-  local main = CreateFrame("Frame", nil, panel)
-  main:SetPoint("TOPLEFT", 0, 0)
-  main:SetPoint("BOTTOMRIGHT", 0, 0)
+  local page = W.Page(panel)
+  local main, bar = page.Body, page.Bar
 
-  local search = W.EditBox(main, 170)
-  search:SetPoint("TOPLEFT", 54, -4) -- clear of the portrait
+  local search = page:Left(W.EditBox(bar, W.SEARCH_W), 6) -- 6: the edit box art starts left of its frame
   search.Hint = W.Text(search, "GameFontDisableSmall", L.SEARCH_MEMBERS)
   search.Hint:SetPoint("LEFT", 2, 0)
   search:SetScript("OnTextChanged", function(self)
@@ -85,7 +119,7 @@ local function Build(panel)
   end)
   search:SetScript("OnEnterPressed", search.ClearFocus)
 
-  view.ClassButton = W.MenuButton(main, L.FILTER_CLASS, function()
+  view.ClassButton = W.MenuButton(bar, L.FILTER_CLASS, function()
     local items = { { text = L.ALL, checked = view.filter.classFile == nil, onClick = function() view:SetFilterValue("classFile", nil) end } }
     for _, classFile in ipairs(CLASSES) do
       local r, g, b = W.ClassColor(classFile)
@@ -94,17 +128,17 @@ local function Build(panel)
     end
     return items
   end, 90, 150)
-  view.ClassButton:SetPoint("LEFT", search, "RIGHT", 8, 0)
+  page:Left(view.ClassButton, 8)
 
   -- the guild's own groups, as found in the notes
-  view.GroupButton = W.MenuButton(main, L.FILTER_GROUP, function()
+  view.GroupButton = W.MenuButton(bar, L.FILTER_GROUP, function()
     local items = { { text = L.ALL, checked = view.group == nil, onClick = function() view.group = nil; view:Refresh() end } }
     for _, group in ipairs(view.groups or {}) do
       items[#items + 1] = { text = GroupText(group), checked = view.group == group, onClick = function() view.group = group; view:Refresh() end }
     end
     return items
   end, 90, 170)
-  view.GroupButton:SetPoint("LEFT", view.ClassButton, "RIGHT", 4, 0)
+  page:Left(view.GroupButton)
 
   for _, button in ipairs({ view.ClassButton, view.GroupButton }) do
     button:SetScript("OnEnter", function(self)
@@ -117,11 +151,11 @@ local function Build(panel)
   end
 
   local function Check(label, anchor, onClick)
-    local check = CreateFrame("CheckButton", nil, main, "UICheckButtonTemplate")
+    local check = CreateFrame("CheckButton", nil, bar, "UICheckButtonTemplate")
     check:SetSize(24, 24)
     check:SetPoint("LEFT", anchor, "RIGHT", 6, 0)
     check:SetScript("OnClick", onClick)
-    check.Label = W.Text(main, "GameFontHighlightSmall", label)
+    check.Label = W.Text(bar, "GameFontHighlightSmall", label)
     check.Label:SetPoint("LEFT", check, "RIGHT", 0, 0)
     return check
   end
@@ -136,7 +170,7 @@ local function Build(panel)
   end)
   view.FoldCheck = Check(L.FOLD_TWINKS, view.NoOfficerNoteCheck.Label, function(self) view.fold = self:GetChecked() or nil; view:Refresh() end)
 
-  view.Reset = W.Button(main, L.RESET, function()
+  view.Reset = W.Button(bar, L.RESET, function()
     view.filter, view.group, view.noNote, view.noOfficerNote = {}, nil, nil, nil
     search:SetText("")
     onlineCheck:SetChecked(false)
@@ -144,13 +178,21 @@ local function Build(panel)
     view.NoOfficerNoteCheck:SetChecked(false)
     view:Refresh()
   end, 70, { small = true })
-  view.Reset:SetPoint("LEFT", view.FoldCheck.Label, "RIGHT", 8, 0)
+  page:Right(view.Reset)
 
   -- header -------------------------------------------------------------------------------------
-  local header = CreateFrame("Frame", nil, main)
-  header:SetPoint("TOPLEFT", 0, -32)
-  header:SetPoint("RIGHT", main, "RIGHT", 0, 0)
+  -- the list box fills the body like every view's boxes; the column header is its first row
+  local listBox = W.Box(main)
+  listBox:SetAllPoints()
+  local header = CreateFrame("Frame", nil, listBox)
+  header:SetPoint("TOPLEFT", 0, -4)
+  header:SetPoint("RIGHT", listBox, "RIGHT", 0, 0)
   header:SetHeight(20)
+  local headerLine = header:CreateTexture(nil, "ARTWORK")
+  headerLine:SetPoint("BOTTOMLEFT", 6, -1)
+  headerLine:SetPoint("BOTTOMRIGHT", -6, -1)
+  headerLine:SetHeight(1)
+  headerLine:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.3)
   local x = 8
   view.Headers = {}
   for _, column in ipairs(COLUMNS) do
@@ -172,22 +214,76 @@ local function Build(panel)
     view.Headers[column.key] = button
   end
 
-  local listBox = W.Box(main)
-  listBox:SetPoint("TOPLEFT", 0, -54)
-  listBox:SetPoint("BOTTOMRIGHT", 0, 18) -- room for the summary below
+  -- The shown columns from the left, the last one up to the right edge. Hidden: those switched off in
+  -- the options, and the officer note for those who may not read it.
+  local function PlaceCells(row)
+    for _, column in ipairs(COLUMNS) do
+      local cell = row.Cells[column.key]
+      cell:ClearAllPoints()
+      if not column.hidden then
+        cell:SetPoint("LEFT", column.x - 4, 0)
+        if column.last then
+          cell:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+        else
+          cell:SetWidth(column.width > 0 and column.width or REST_WIDTH)
+        end
+      end
+    end
+  end
+  function view:LayoutColumns()
+    local x, last, signature = 8, nil, ""
+    self.hidden = {}
+    for _, column in ipairs(COLUMNS) do
+      column.hidden = (column.key == "officerNote" and not self.viewOfficer) or ColumnOff(column.key)
+      column.last = false
+      self.hidden[column.key] = column.hidden
+      if not column.hidden then
+        column.x = x
+        x = x + (column.width > 0 and column.width or REST_WIDTH) + 6
+        last = column
+        signature = signature .. column.key .. ","
+      end
+    end
+    if last then last.last = true end
+    if signature == self.columnSignature then return end
+    self.columnSignature = signature
+    for _, column in ipairs(COLUMNS) do
+      local button = self.Headers[column.key]
+      button:SetShown(not column.hidden)
+      button:ClearAllPoints()
+      if not column.hidden then
+        button:SetPoint("LEFT", column.x, 0)
+        if column.last then
+          button:SetPoint("RIGHT", header, "RIGHT", -26, 0)
+        else
+          button:SetWidth(column.width > 0 and column.width or REST_WIDTH)
+        end
+      end
+    end
+    for _, row in ipairs(self.List.rows) do PlaceCells(row) end
+  end
+
   view.List = W.ScrollList(listBox, ROW, function(row)
     row:EnableMouse(true)
     row.Cells = {}
     for _, column in ipairs(COLUMNS) do
       local cell = W.Text(row, "GameFontHighlightSmall")
-      cell:SetPoint("LEFT", column.x - 4, 0)
-      if column.width > 0 then cell:SetWidth(column.width) else cell:SetPoint("RIGHT", row, "RIGHT", -4, 0) end
       cell:SetWordWrap(false)
       row.Cells[column.key] = cell
     end
+    PlaceCells(row)
     local highlight = row:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetColorTexture(1, 0.82, 0, 0.1)
+    row.Highlight = highlight
+    -- section header ("Online · 5"): label on the left, a hairline to the right edge
+    row.Section = W.Text(row, "GameFontNormalSmall")
+    row.Section:SetPoint("LEFT", 4, 0)
+    row.SectionLine = row:CreateTexture(nil, "ARTWORK")
+    row.SectionLine:SetHeight(1)
+    row.SectionLine:SetPoint("LEFT", row.Section, "RIGHT", 8, 0)
+    row.SectionLine:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    row.SectionLine:SetColorTexture(1, 1, 1, 0.12)
     row:SetScript("OnMouseUp", function(self, button)
       if not self.member then return end
       if button == "RightButton" then
@@ -201,11 +297,21 @@ local function Build(panel)
   end, function(row, item)
     local m = item.m
     row.member = m
-    local dim = not m.online
     local c = row.Cells
+    local isHeader = item.header ~= nil
+    row.Section:SetShown(isHeader)
+    row.SectionLine:SetShown(isHeader)
+    row.Highlight:SetAlpha(isHeader and 0 or 1)
+    for key, cell in pairs(c) do cell:SetShown(not isHeader and not view.hidden[key]) end
+    if isHeader then
+      row.Section:SetText(item.header)
+      if item.online then row.Section:SetTextColor(unpack(ONLINE_COLOR)) else row.Section:SetTextColor(0.6, 0.6, 0.6) end
+      return
+    end
+    local dim = not m.online
     c.level:SetText(m.level)
     -- twinks under their main are indented; a folded main shows how many hang on it
-    local name = ClassIcon(m.classFile) .. W.ClassName(m.name, m.classFile)
+    local name, nameAlpha = UI.MemberNameText(m.name, m.classFile, m.online, view.style)
     if item.child then name = "      " .. name .. "  |cff8f8268" .. L.TWINK .. "|r" end
     if item.more then name = name .. "  |cff8f8268+" .. item.more .. "|r" end
     c.name:SetText(name)
@@ -227,16 +333,13 @@ local function Build(panel)
       if dim then cell:SetTextColor(0.6, 0.6, 0.6) else cell:SetTextColor(1, 1, 1) end
     end
     if m.online then c.lastOnline:SetTextColor(unpack(ONLINE_COLOR)) end
-    c.name:SetAlpha(dim and 0.7 or 1)
-    c.group:SetAlpha(dim and 0.7 or 1)
+    c.name:SetAlpha(nameAlpha)
+    c.group:SetAlpha(dim and 0.5 or 1)
   end)
-  view.List:SetPoint("TOPLEFT", 4, -4)
+  view.List:SetPoint("TOPLEFT", 4, -28)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  -- below the list: in the header it ran into the officer note column
-  view.Summary = W.Text(main, "GameFontDisableSmall")
-  view.Summary:SetPoint("BOTTOMRIGHT", main, "BOTTOMRIGHT", -6, 2)
-  view.Summary:SetJustifyH("RIGHT")
+  view.Summary = page.Count -- the status line under the list
 
   -- behaviour ----------------------------------------------------------------------------------
   function view:SetFilterValue(key, value)
@@ -260,7 +363,11 @@ local function Build(panel)
   function view:Refresh()
     -- officer note column and filter only for those who may read officer notes
     self.viewOfficer = ns.Roster.Can().viewOfficer and true or false
-    self.Headers.officerNote:SetShown(self.viewOfficer)
+    self:LayoutColumns()
+    -- twinks under their main, or every character on its own (settings.memberTwinks, the options)
+    self.flat = ns.Settings().memberTwinks == false
+    self.FoldCheck:SetShown(not self.flat)
+    self.FoldCheck.Label:SetShown(not self.flat)
     self.NoOfficerNoteCheck:SetShown(self.viewOfficer)
     self.NoOfficerNoteCheck.Label:SetShown(self.viewOfficer)
     if not self.viewOfficer then self.noOfficerNote = nil; self.NoOfficerNoteCheck:SetChecked(false) end
@@ -303,19 +410,25 @@ local function Build(panel)
 
     -- twinks right under their main (when the main is shown), or folded into it; flat while
     -- looking for members without a note
+    -- Two sections, online above offline, each under its own header and sorted on its own. A twink
+    -- only hangs under its main while both are in the same section; otherwise it stands alone.
     local items = {}
-    if self.noNote or self.noOfficerNote then
-      for _, m in ipairs(kept) do items[#items + 1] = { m = m } end
-    else
+    local function Section(part, label)
+      if #part == 0 then return end
+      if label then items[#items + 1] = { header = label:format(#part), online = part[1].online } end
+      if self.noNote or self.noOfficerNote or self.flat then
+        for _, m in ipairs(part) do items[#items + 1] = { m = m } end
+        return
+      end
       local shown, twinksOf = {}, {}
-      for _, m in ipairs(kept) do shown[m.key] = true end
-      for _, m in ipairs(kept) do
+      for _, m in ipairs(part) do shown[m.key] = true end
+      for _, m in ipairs(part) do
         if m.mainKey and m.mainKey ~= m.key and shown[m.mainKey] then
           twinksOf[m.mainKey] = twinksOf[m.mainKey] or {}
           table.insert(twinksOf[m.mainKey], m)
         end
       end
-      for _, m in ipairs(kept) do
+      for _, m in ipairs(part) do
         local isTwinkUnderMain = m.mainKey and m.mainKey ~= m.key and shown[m.mainKey]
         if not isTwinkUnderMain then
           local twinks = twinksOf[m.key]
@@ -325,6 +438,17 @@ local function Build(panel)
           end
         end
       end
+    end
+    local online, offline = {}, {}
+    for _, m in ipairs(kept) do
+      if m.online then online[#online + 1] = m else offline[#offline + 1] = m end
+    end
+    self.style = UI.MemberStyle()
+    if self.style == "sections" then
+      Section(online, L.SECTION_ONLINE)
+      Section(offline, L.OFFLINE_N)
+    else
+      Section(kept) -- one list in the chosen sort order
     end
     self.List:SetItems(items)
     -- level and profession have no menu here; a drill-down from the overview names them in the summary

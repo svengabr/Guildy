@@ -238,6 +238,83 @@ Stats.PAGES = {
   } },
 }
 
+-- The tiles and title cards on top of a page are the player's choice (settings.fameTiles[page.key]
+-- and settings.fameCards[page.key], Guildy's options)
+Stats.MAX_TILES = 7
+Stats.MAX_CARDS = 8
+
+-- What a page's tiles can show: its default headline first, then the statistics of its title cards,
+-- then the same of every other page, then every other statistic Guildy tracks (Stats.CATALOG, the
+-- end boss kills included). No states like the item level and the worn items per quality (the
+-- catalog's local category): a guild total of them says nothing.
+function Stats.TileChoices(page)
+  local list, seen = {}, {}
+  local function Add(from)
+    for _, id in ipairs(from.headline) do
+      if not seen[id] then list[#list + 1] = id; seen[id] = true end
+    end
+    for _, fame in ipairs(from.titles) do
+      if not fame.current and not seen[fame.stat] then list[#list + 1] = fame.stat; seen[fame.stat] = true end
+    end
+  end
+  Add(page)
+  for _, other in ipairs(Stats.PAGES) do
+    if other ~= page then Add(other) end
+  end
+  for _, category in ipairs(Stats.CATALOG) do
+    if not category.isLocal then
+      for _, id in ipairs(category.stats) do
+        if not seen[id] then list[#list + 1] = id; seen[id] = true end
+      end
+    end
+  end
+  return list
+end
+
+-- The tiles of a page for a chosen list of statistics: those of them the page offers, in the chosen
+-- order, each once, at most Stats.MAX_TILES; the default headline when nothing valid is chosen.
+function Stats.Headline(page, chosen)
+  if type(chosen) ~= "table" then return page.headline end
+  local offered = {}
+  for _, id in ipairs(Stats.TileChoices(page)) do offered[id] = true end
+  local list = {}
+  for _, id in ipairs(chosen) do
+    if offered[id] and #list < Stats.MAX_TILES then
+      list[#list + 1] = id
+      offered[id] = nil
+    end
+  end
+  return #list > 0 and list or page.headline
+end
+
+-- The title cards a page can show: its own titles first, then those of every other page
+function Stats.TitleChoices(page)
+  local list = {}
+  for _, fame in ipairs(page.titles) do list[#list + 1] = fame end
+  for _, other in ipairs(Stats.PAGES) do
+    if other ~= page then
+      for _, fame in ipairs(other.titles) do list[#list + 1] = fame end
+    end
+  end
+  return list
+end
+
+-- The title cards of a page for a chosen list of title keys ("SLAYER", ...): those titles in the chosen
+-- order, each once, at most Stats.MAX_CARDS; the page's own titles when nothing valid is chosen.
+function Stats.Titles(page, chosen)
+  if type(chosen) ~= "table" then return page.titles end
+  local byKey = {}
+  for _, fame in ipairs(Stats.TitleChoices(page)) do byKey[fame.key] = fame end
+  local list = {}
+  for _, key in ipairs(chosen) do
+    if byKey[key] and #list < Stats.MAX_CARDS then
+      list[#list + 1] = byKey[key]
+      byKey[key] = nil
+    end
+  end
+  return #list > 0 and list or page.titles
+end
+
 local wanted
 -- { [statID] = true } for every statistic Guildy asks the game for
 function Stats.Wanted()

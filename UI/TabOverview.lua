@@ -43,24 +43,21 @@ local function Build(panel)
   local L = ns.L
   local view = {}
 
-  local top = CreateFrame("Frame", nil, panel)
-  top:SetPoint("TOPLEFT", 0, 0)
-  top:SetPoint("TOPRIGHT", 0, 0)
-  top:SetHeight(26)
-  local label = W.Text(top, "GameFontNormal", L.ACTIVE_IN)
-  label:SetPoint("LEFT", 52, 0) -- clear of the portrait
-  view.Window = W.Segmented(top, {
+  local page = W.Page(panel)
+  panel = page.Body -- the boxes live in the body; the toolbar holds the time window
+  local label = page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.ACTIVE_IN), 2)
+  view.Window = W.Segmented(page.Bar, {
     { value = 30, text = L.WINDOW_1M }, { value = 90, text = L.WINDOW_3M },
     { value = 180, text = L.WINDOW_6M }, { value = false, text = L.WINDOW_ALL },
   }, function(value)
     ns.Settings().activityDays = value
     view:Refresh()
   end)
-  view.Window:SetPoint("LEFT", label, "RIGHT", 10, 0)
+  page:Left(view.Window, 8)
 
   -- row 1: summary, classes, levels ---------------------------------------------------------------
   local summary = W.Box(panel)
-  summary:SetPoint("TOPLEFT", 0, -32)
+  summary:SetPoint("TOPLEFT", 0, 0)
   summary:SetWidth(170)
   view.Summary = summary
   view.Big = W.Text(summary, "GameFontNormalHuge")
@@ -75,7 +72,6 @@ local function Build(panel)
   local classes = W.Box(panel)
   classes:SetPoint("TOPLEFT", summary, "TOPRIGHT", 8, 0)
   classes:SetPoint("BOTTOM", summary, "BOTTOM", 0, 0)
-  classes:SetPoint("RIGHT", panel, "CENTER", 60, 0)
   local classTitle = W.Text(classes, "GameFontNormal", L.CLASSES)
   classTitle:SetPoint("TOPLEFT", 10, -8)
   view.ClassRows = {}
@@ -239,9 +235,11 @@ local function Build(panel)
     local width, height = panel:GetWidth() or 0, panel:GetHeight() or 0
     if width < 100 or height < 100 then return end
     -- row 1 takes 45 % of what remains after the profession row, at least 180 (window minimum: UI.MIN_H)
-    local rest = height - 32 - 8 - profs:GetHeight() - 8
+    local rest = height - 8 - profs:GetHeight() - 8
     local topHeight = math.max(180, math.floor(rest * 0.45))
     summary:SetHeight(topHeight)
+    -- row 1 shares the thirds of row 3: summary and classes over its first two boxes, levels over the third
+    classes:SetWidth(2 * (width - 16) / 3 + 8 - summary:GetWidth() - 8)
     local step = math.min(26, math.max(16, (topHeight - 34) / #self.ClassRows))
     for i, row in ipairs(self.ClassRows) do
       row:ClearAllPoints()
@@ -273,7 +271,7 @@ local function Build(panel)
     local boxWidth = (width - 16) / 3
     activity:SetWidth(boxWidth)
     changes:SetWidth(boxWidth)
-    local bottomHeight = height - 32 - topHeight - 8 - profs:GetHeight() - 8
+    local bottomHeight = height - topHeight - 8 - profs:GetHeight() - 8
     local activityStep = math.min(28, math.max(16, (bottomHeight - 34) / #self.ActivityRows))
     for i, row in ipairs(self.ActivityRows) do
       row:ClearAllPoints()

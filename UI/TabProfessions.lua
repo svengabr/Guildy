@@ -5,7 +5,7 @@ local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
-local RAIL_W, BOOK_W = 240, 300
+local RAIL_W, BOOK_W = W.SIDE, W.SIDE -- both sidebars as wide as in every other view
 local RAIL_ROW, MEMBER_ROW, RECIPE_ROW = 44, 20, 20
 local BAR_W = 110
 local SKILL_SCALE = W.SKILL_SCALE -- the bar's full width: highest trainer cap of the game (UI/Widgets.lua)
@@ -207,10 +207,13 @@ local function Build(panel)
   end
 
   -- top row: search, hint, reading members --------------------------------------------------------------
-  local search = W.EditBox(panel, 320)
-  search:SetPoint("TOPLEFT", 54, -4) -- clear of the portrait
+  local page = W.Page(panel)
+  panel = page.Body
+  local search = page:Left(W.EditBox(page.Bar, W.SEARCH_W), 6)
   search.Hint = W.Text(search, "GameFontDisableSmall", L.SEARCH_RECIPES)
   search.Hint:SetPoint("LEFT", 2, 0)
+  search.Hint:SetPoint("RIGHT", -2, 0)
+  search.Hint:SetWordWrap(false)
   search:SetScript("OnTextChanged", function(self)
     view.query = self:GetText() or ""
     self.Hint:SetShown(view.query == "")
@@ -225,21 +228,17 @@ local function Build(panel)
   end
   view.Search = search
 
-  view.Harvest = W.Button(panel, L.HARVEST, function()
+  view.Harvest = W.Button(page.Bar, L.HARVEST, function()
     if ns.Harvest.IsRunning() then ns.Harvest.Stop() else ns.Harvest.Start() end
-  end, 190, { fit = { L.HARVEST, L.HARVEST_STOP } })
-  view.Harvest:SetPoint("TOPRIGHT", 0, -2)
+  end, 150, { small = true, fit = { L.HARVEST, L.HARVEST_STOP } })
+  page:Right(view.Harvest)
   W.Tooltip(view.Harvest, L.HARVEST, L.HARVEST_TIP)
 
-  view.Info = W.Text(panel, "GameFontDisableSmall")
-  view.Info:SetPoint("LEFT", search, "RIGHT", 12, 0)
-  view.Info:SetPoint("RIGHT", view.Harvest, "LEFT", -8, 0)
-  view.Info:SetJustifyH("LEFT")
-  view.Info:SetWordWrap(false)
+  view.Info = page.Hint -- where the data comes from, or the number of search results: the status line
 
   -- status column while reading members: current look and the latest results ----------------------------
   local status = W.Box(panel)
-  status:SetPoint("TOPRIGHT", 0, -30)
+  status:SetPoint("TOPRIGHT", 0, 0)
   status:SetPoint("BOTTOMRIGHT", 0, 0)
   status:SetWidth(BOOK_W + 100)
   status.Title = W.Text(status, "GameFontNormal", L.HARVEST_STATUS)
@@ -386,7 +385,7 @@ local function Build(panel)
 
   -- rail: one row per profession ------------------------------------------------------------------------
   local rail = W.Box(panel)
-  rail:SetPoint("TOPLEFT", 0, -30)
+  rail:SetPoint("TOPLEFT", 0, 0)
   rail:SetPoint("BOTTOMLEFT", 0, 0)
   rail:SetWidth(RAIL_W)
   view.Rail = W.ScrollList(rail, RAIL_ROW, function(row)
@@ -431,7 +430,7 @@ local function Build(panel)
 
   -- members of the selected profession ------------------------------------------------------------------
   local members = W.Box(panel)
-  members:SetPoint("TOPLEFT", rail, "TOPRIGHT", 6, 0)
+  members:SetPoint("TOPLEFT", rail, "TOPRIGHT", W.GAP, 0)
   view.MembersBox = members
   local header = CreateFrame("Frame", nil, members)
   header:SetPoint("TOPLEFT", 8, -8)
@@ -648,7 +647,7 @@ local function Build(panel)
 
   -- recipe book of the selected member -----------------------------------------------------------------
   local book = W.Box(panel)
-  book:SetPoint("TOPRIGHT", 0, -30)
+  book:SetPoint("TOPRIGHT", 0, 0)
   book:SetPoint("BOTTOMRIGHT", 0, 0)
   book:SetWidth(BOOK_W)
   view.BookBox = book
@@ -669,18 +668,18 @@ local function Build(panel)
   book.Open = W.Button(book, L.OPEN_BOOK_SHORT, function()
     local m, skillLine = Selected()
     if m and ns.TradeSkill.CanOpenBook(m) then ns.TradeSkill.OpenBook(m, skillLine) end
-  end, 92, { small = true })
+  end, 86, { small = true })
   book.Open:SetPoint("TOPLEFT", 8, -48)
   W.Tooltip(book.Open, L.OPEN_BOOK, L.OPEN_BOOK_TIP)
   book.Whisper = W.Button(book, L.WHISPER, function()
     local m = Selected()
     if m then UI.Whisper(m.fullName) end
-  end, 80, { small = true })
+  end, 76, { small = true })
   book.Whisper:SetPoint("LEFT", book.Open, "RIGHT", 4, 0)
   book.Invite = W.Button(book, L.GROUP_INVITE_SHORT, function()
     local m = Selected()
     if m then ns.Roster.GroupInvite(m) end
-  end, 80, { small = true })
+  end, 76, { small = true })
   book.Invite:SetPoint("LEFT", book.Whisper, "RIGHT", 4, 0)
 
   local bookSearch = W.EditBox(book, BOOK_W - 30)
@@ -740,13 +739,13 @@ local function Build(panel)
     self.Status:SetShown(statusShown)
     self.BookBox:SetShown(not statusShown and not searching)
     self.MembersBox:ClearAllPoints()
-    self.MembersBox:SetPoint("TOPLEFT", rail, "TOPRIGHT", 6, 0)
+    self.MembersBox:SetPoint("TOPLEFT", rail, "TOPRIGHT", W.GAP, 0)
     if statusShown then
-      self.MembersBox:SetPoint("BOTTOMRIGHT", self.Status, "BOTTOMLEFT", -6, 0)
+      self.MembersBox:SetPoint("BOTTOMRIGHT", self.Status, "BOTTOMLEFT", -W.GAP, 0)
     elseif searching then
       self.MembersBox:SetPoint("BOTTOMRIGHT", 0, 0)
     else
-      self.MembersBox:SetPoint("BOTTOMRIGHT", self.BookBox, "BOTTOMLEFT", -6, 0)
+      self.MembersBox:SetPoint("BOTTOMRIGHT", self.BookBox, "BOTTOMLEFT", -W.GAP, 0)
     end
   end
 

@@ -10,7 +10,7 @@ local UI = ns.UI
 
 local TEXTURES = "Interface\\AddOns\\Guildy\\Textures\\"
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local HERO_WIDTH = 270
+local HERO_WIDTH = W.SIDE
 local FAMILY_COLS, FAMILY_ROWS = 4, 2
 local CARD_H = 58
 local MEDALS = 4
@@ -325,12 +325,13 @@ local function Build()
   page:SetAllPoints()
   page:Hide()
 
-  page.Back = W.Button(page, L.BACK, function() UI.SelectTab(page.backTab or "chat") end, 90)
-  page.Back:SetPoint("TOPLEFT", 54, -2) -- clear of the portrait
+  local shell = W.Page(page) -- the same toolbar and body as every tab
+  local body = shell.Body
+  page.Back = shell:Left(W.Button(shell.Bar, L.BACK, function() UI.SelectTab(page.backTab or "chat") end, 90, { small = true }))
 
   -- hero card --------------------------------------------------------------------------------------
-  local hero = W.Box(page)
-  hero:SetPoint("TOPLEFT", 0, -30)
+  local hero = W.Box(body)
+  hero:SetPoint("TOPLEFT", 0, 0)
   hero:SetPoint("BOTTOMLEFT", 0, 0)
   hero:SetWidth(HERO_WIDTH)
   page.Hero = hero
@@ -385,7 +386,7 @@ local function Build()
   end, 80, { small = true })
 
   -- right side -------------------------------------------------------------------------------------
-  local right = CreateFrame("Frame", nil, page)
+  local right = CreateFrame("Frame", nil, body)
   right:SetPoint("TOPLEFT", hero, "TOPRIGHT", 8, 0)
   right:SetPoint("BOTTOMRIGHT", 0, 0)
   page.Right = right

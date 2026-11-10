@@ -272,6 +272,25 @@ local function Build()
     frame.Close:SetScript("OnClick", function() UI.Hide() end)
   end
 
+  -- the gear left of the close button: Guildy's options (UI/Options.lua)
+  -- a red panel button with a gold cog, like the close button beside it (the cog without a background
+  -- of its own where the client has one)
+  local cog = "Interface\\Scenarios\\ScenarioIcon-Interact"
+  if not W.TextureExists(cog) then cog = "Interface\\Buttons\\UI-OptionsButton" end
+  frame.OptionsButton = W.IconButton(frame, cog, 22, function() UI.ToggleOptions() end, ns.L.OPTIONS_TITLE)
+  frame.OptionsButton:SetSize(28, 22)
+  frame.OptionsButton.Icon:SetSize(15, 15)
+  frame.OptionsButton.Icon:SetTexCoord(0, 1, 0, 1)
+  if type(frame.Close) == "table" and frame.Close.GetObjectType then
+    frame.OptionsButton:SetPoint("RIGHT", frame.Close, "LEFT", -1, 0)
+    -- the template's border and title bar lie 500 levels above the frame, the close button above them;
+    -- two levels above the close button's, so the bar's art never covers the button's own
+    frame.OptionsButton:SetFrameLevel(frame.Close:GetFrameLevel() + 2)
+  else
+    frame.OptionsButton:SetPoint("TOPRIGHT", -30, -1)
+    frame.OptionsButton:SetFrameLevel(frame:GetFrameLevel() + 510)
+  end
+
   -- guild emblem in the portrait (Blizzard's own drawing; the grey helmet when the guild has none)
   frame.Emblem = UI.GuildEmblem(frame, 60)
   frame.Emblem:SetPoint("TOPLEFT", -5, 8)
@@ -333,6 +352,7 @@ local function Build()
   -- (no sounds of its own: Blizzard's window plays its open and close sounds)
   frame:SetScript("OnHide", function()
     if UI.HideOverlay then UI.HideOverlay() end
+    if UI.HideOptions then UI.HideOptions() end -- the options are a window of their own (UI/Options.lua)
     -- Blizzard's own window instead (UI.ShowBlizzard): its chat shows the same club stream Guildy
     -- focused, and unfocusing it here left Blizzard's chat empty. Told when Blizzard's window closes.
     if blizzardMode then return end

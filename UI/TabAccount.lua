@@ -6,10 +6,11 @@ local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 
-local HERO_WIDTH = 270
+local HERO_WIDTH = W.SIDE
 local CARD_COLS, CARD_ROWS = 4, 3
-local PROF_ROW = 22
-local PROF_MAX = 24
+-- a profession tile: its fixed part (name, best skill, bar) and one line per character under it
+local TILE_HEAD, TILE_LINE, TILE_LINES = 66, 15, 3
+local TILE_MIN_W, TILE_GAP = 130, 6
 local ACCOUNT_ICON = "Interface\\Icons\\INV_Misc_GroupNeedMore"
 
 -- The account's characters: roster members for those in the current guild (with menu and live data),
@@ -33,13 +34,15 @@ local function Build(panel)
   local view = {}
 
   -- hero ---------------------------------------------------------------------------------------------
+  local page = W.Page(panel)
+  panel = page.Body
   local hero = W.Box(panel)
-  hero:SetPoint("TOPLEFT", 0, -30)
+  hero:SetPoint("TOPLEFT", 0, 0)
   hero:SetPoint("BOTTOMLEFT", 0, 0)
-  hero:SetWidth(HERO_WIDTH)
+  hero:SetWidth(W.SIDE)
   -- the account card: no character chosen yet, the account as a whole
-  hero.Portrait = P.Portrait(hero, 84)
-  hero.Portrait:SetPoint("TOP", 0, -16)
+  hero.Portrait = P.Portrait(hero, 68) -- small enough that the guild list clears the numbers at the bottom
+  hero.Portrait:SetPoint("TOP", 0, -12)
   hero.Portrait.Picture:SetTexture(W.TextureExists(ACCOUNT_ICON) and ACCOUNT_ICON or "Interface\\Icons\\INV_Misc_Book_09")
   hero.Portrait.Picture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   hero.Portrait.Ring:SetVertexColor(W.GOLD[1], W.GOLD[2], W.GOLD[3])
@@ -58,7 +61,7 @@ local function Build(panel)
 
   -- without a guild: why the window is so empty
   hero.NoGuild = W.Box(hero, 0.05, 0.5)
-  hero.NoGuild:SetPoint("TOP", hero.Where, "BOTTOM", 0, -14)
+  hero.NoGuild:SetPoint("TOP", hero.Where, "BOTTOM", 0, -10)
   hero.NoGuild:SetSize(HERO_WIDTH - 28, 60)
   hero.NoGuild.Title = W.Text(hero.NoGuild, "GameFontNormal", L.ACCOUNT_NO_GUILD)
   hero.NoGuild.Title:SetPoint("TOPLEFT", 10, -8)
@@ -147,28 +150,50 @@ local function Build(panel)
   profs.Note:SetText(L.ACCOUNT_PROFS_NOTE)
   profs.Empty = W.Text(profs, "GameFontDisableSmall", L.NO_PROFESSIONS)
   profs.Empty:SetPoint("TOPLEFT", 12, -32)
-  profs.Rows = {}
-  for i = 1, PROF_MAX do
-    local row = CreateFrame("Frame", nil, profs)
-    row:SetHeight(PROF_ROW)
-    row.Icon = row:CreateTexture(nil, "ARTWORK")
-    row.Icon:SetSize(16, 16)
-    row.Icon:SetPoint("LEFT")
-    row.Name = W.Text(row, "GameFontHighlightSmall")
-    row.Name:SetPoint("LEFT", row.Icon, "RIGHT", 6, 0)
-    row.Name:SetWidth(112)
-    row.Name:SetWordWrap(false)
-    row.Who = W.Text(row, "GameFontHighlightSmall")
-    row.Who:SetPoint("LEFT", row.Name, "RIGHT", 4, 0)
-    row.Who:SetWidth(112)
-    row.Who:SetWordWrap(false)
-    row.Level = W.Text(row, "GameFontHighlightSmall")
-    row.Level:SetPoint("RIGHT")
-    row.Level:SetWidth(52)
-    row.Level:SetJustifyH("RIGHT")
-    row.Bar = W.SkillBar(row, 80)
-    row.Bar:SetPoint("LEFT", row.Who, "RIGHT", 6, 0)
-    profs.Rows[i] = row
+  -- one tile per profession somebody on the account has: icon and name, the best skill big with its
+  -- bar, under it the characters with the profession (best first; the rest in the tooltip)
+  profs.Tiles = {}
+  for i = 1, #ns.Professions.ORDER do
+    local tile = W.Box(profs, 0.05, 0.45)
+    tile.Icon = tile:CreateTexture(nil, "ARTWORK")
+    tile.Icon:SetSize(16, 16)
+    tile.Icon:SetPoint("TOPLEFT", 8, -8)
+    tile.Name = W.Text(tile, "GameFontHighlightSmall")
+    tile.Name:SetPoint("LEFT", tile.Icon, "RIGHT", 6, 0)
+    tile.Name:SetPoint("RIGHT", tile, "RIGHT", -6, 0)
+    tile.Name:SetWordWrap(false)
+    tile.Best = W.Text(tile, "GameFontNormalLarge")
+    tile.Best:SetPoint("TOPLEFT", 8, -29)
+    tile.Max = W.Text(tile, "GameFontDisableSmall")
+    tile.Max:SetPoint("BOTTOMLEFT", tile.Best, "BOTTOMRIGHT", 3, 1)
+    tile.Bar = W.SkillBar(tile, 80)
+    tile.Bar:SetPoint("TOPLEFT", 8, -51)
+    tile.Lines = {}
+    for line = 1, TILE_LINES + 1 do -- the last one may say "+2 more"
+      local who = W.Text(tile, "GameFontHighlightSmall")
+      who:SetPoint("TOPLEFT", 8, -TILE_HEAD - (line - 1) * TILE_LINE + 2)
+      who:SetPoint("RIGHT", tile, "RIGHT", -40, 0)
+      who:SetWordWrap(false)
+      local rank = W.Text(tile, "GameFontHighlightSmall")
+      rank:SetPoint("TOPRIGHT", -8, -TILE_HEAD - (line - 1) * TILE_LINE + 2)
+      rank:SetJustifyH("RIGHT")
+      tile.Lines[line] = { Who = who, Rank = rank }
+    end
+    tile:EnableMouse(true)
+    tile:SetScript("OnEnter", function(self)
+      if not self.group then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText(ns.TradeSkill.Name(self.group.skillLine), 1, 0.82, 0)
+      for _, e in ipairs(self.group.entries) do
+        local r, g, b = W.ClassColor(e.m.classFile)
+        local prof = e.prof
+        GameTooltip:AddDoubleLine(e.m.name or "?", prof.rank and (prof.rank .. (prof.max and (" / " .. prof.max) or "")) or "–",
+          r, g, b, 1, 1, 1)
+      end
+      GameTooltip:Show()
+    end)
+    tile:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    profs.Tiles[i] = tile
   end
 
   -- render -----------------------------------------------------------------------------------------------
@@ -285,48 +310,75 @@ local function Build(panel)
   end
 
   function view:RenderProfs(me, list)
-    -- every profession of every character, highest skill first, in two columns
-    local entries = {}
+    -- the account's professions in the game's order (primary ones first), each with its characters,
+    -- highest skill first
     local everyone = { me }
     for _, other in ipairs(list) do everyone[#everyone + 1] = other end
+    local bySkill = {}
     for _, m in ipairs(everyone) do
-      for _, p in ipairs(P.ProfList(m)) do entries[#entries + 1] = { m = m, skillLine = p.skillLine, prof = p.prof } end
-    end
-    table.sort(entries, function(a, b)
-      local x, y = a.prof.rank or 0, b.prof.rank or 0
-      if x ~= y then return x > y end
-      return (a.m.name or "") < (b.m.name or "")
-    end)
-    local width = (profs:GetWidth() or 600) - 24
-    local colW = math.floor((width - 24) / 2)
-    local perCol = math.max(1, math.floor(((profs:GetHeight() or 300) - 40) / PROF_ROW))
-    local shown = math.min(#entries, PROF_MAX, perCol * 2)
-    for i, row in ipairs(profs.Rows) do
-      local e = i <= shown and entries[i]
-      if e then
-        local col = i <= perCol and 0 or 1
-        local line = col == 0 and i or i - perCol
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 12 + col * (colW + 24), -30 - (line - 1) * PROF_ROW)
-        row:SetWidth(colW)
-        row.Icon:SetTexture(ns.Professions.ICONS[e.skillLine])
-        row.Name:SetText(ns.TradeSkill.Name(e.skillLine))
-        row.Who:SetText(W.ClassName(e.m.name, e.m.classFile))
-        local prof = e.prof
-        row.Level:SetText(prof.rank and (prof.rank .. (prof.max and ("|cff999999/" .. prof.max .. "|r") or "")) or "|cff999999–|r")
-        row.Bar:SetBarWidth(colW - 16 - 6 - 112 - 4 - 112 - 6 - 52 - 8)
-        if prof.rank then
-          row.Bar:SetSkill(prof.rank, prof.max)
-          row.Bar:Show()
-        else
-          row.Bar:Hide()
-        end
-        row:Show()
-      else
-        row:Hide()
+      for _, p in ipairs(P.ProfList(m)) do
+        bySkill[p.skillLine] = bySkill[p.skillLine] or { skillLine = p.skillLine, entries = {} }
+        table.insert(bySkill[p.skillLine].entries, { m = m, prof = p.prof })
       end
     end
-    profs.Empty:SetShown(#entries == 0)
+    local groups = {}
+    for _, skillLine in ipairs(ns.Professions.ORDER) do
+      local group = bySkill[skillLine]
+      if group then
+        table.sort(group.entries, function(a, b)
+          local x, y = a.prof.rank or 0, b.prof.rank or 0
+          if x ~= y then return x > y end
+          return (a.m.name or "") < (b.m.name or "")
+        end)
+        groups[#groups + 1] = group
+      end
+    end
+    -- as many columns as fit (tiles at least TILE_MIN_W wide), at most six; the character lines take
+    -- what height the rows leave, so the tiles never run out of the box
+    local width = (profs:GetWidth() or 600) - 24
+    local height = (profs:GetHeight() or 300) - 30 - 10
+    local columns = math.max(1, math.min(6, math.floor((width + TILE_GAP) / (TILE_MIN_W + TILE_GAP))))
+    local tileW = math.floor((width - (columns - 1) * TILE_GAP) / columns)
+    local rows = math.max(1, math.ceil(#groups / columns))
+    local room = math.floor((height - (rows - 1) * TILE_GAP) / rows)
+    local lines = math.max(0, math.min(TILE_LINES, math.floor((room - TILE_HEAD - 6) / TILE_LINE)))
+    local tileH = TILE_HEAD + (lines > 0 and (lines * TILE_LINE + 6) or 0)
+    for i, tile in ipairs(profs.Tiles) do
+      local group = groups[i]
+      tile.group = group
+      tile:SetShown(group ~= nil)
+      if group then
+        tile:ClearAllPoints()
+        tile:SetSize(tileW, tileH)
+        tile:SetPoint("TOPLEFT", 12 + ((i - 1) % columns) * (tileW + TILE_GAP),
+          -30 - math.floor((i - 1) / columns) * (tileH + TILE_GAP))
+        tile.Icon:SetTexture(ns.Professions.ICONS[group.skillLine])
+        tile.Name:SetText(ns.TradeSkill.Name(group.skillLine))
+        local best = group.entries[1].prof
+        tile.Best:SetText(best.rank and tostring(best.rank) or "–")
+        tile.Max:SetText(best.rank and best.max and ("/ " .. best.max) or "")
+        tile.Bar:SetBarWidth(tileW - 16)
+        tile.Bar:SetShown(best.rank ~= nil)
+        if best.rank then tile.Bar:SetSkill(best.rank, best.max) end
+        -- with more characters than lines the last line counts the rest
+        local fits = #group.entries <= lines
+        for index, line in ipairs(tile.Lines) do
+          local e = group.entries[index]
+          local more = not fits and index == lines
+          if index <= lines and e and not more then
+            line.Who:SetText(W.ClassName(e.m.name, e.m.classFile))
+            line.Rank:SetText(e.prof.rank and tostring(e.prof.rank) or "|cff999999–|r")
+          elseif more then
+            line.Who:SetText("|cff8f8268" .. L.FAMILY_MORE:format(#group.entries - lines + 1) .. "|r")
+            line.Rank:SetText("")
+          end
+          local on = index <= lines and (e ~= nil or more) and (e ~= nil)
+          line.Who:SetShown(on)
+          line.Rank:SetShown(on and not more)
+        end
+      end
+    end
+    profs.Empty:SetShown(#groups == 0)
   end
 
   function view:Refresh()

@@ -177,10 +177,54 @@ end
 -- shared with the character page (UI/CharacterPage.lua)
 UI.Fame = { DungeonIcon = DungeonIcon, DungeonTitle = DungeonTitle, DungeonKills = DungeonKills,
   StatName = StatName, Format = Format, Icon = Icon }
+-- Guild total of a tile's statistic over all time, as its tile shows it ("–" while nobody has it):
+-- the sum over the members; for "dungeons" the dungeons anybody cleared
+function UI.Fame.TileValue(id)
+  local entries = ns.GameStats.Entries()
+  if id == "dungeons" then
+    local count, known = 0, false
+    for _, dungeon in ipairs(S.DUNGEONS) do
+      for _, entry in ipairs(entries) do
+        local kills = DungeonKills(entry.rec, dungeon, "all")
+        if kills then known = true end
+        if kills and kills > 0 then
+          count = count + 1
+          break
+        end
+      end
+    end
+    return known and Format(id, count) or "–"
+  end
+  local ranking = S.Ranking(entries, id, "all", ns.Now(), ns.GameStats.Date)
+  return #ranking > 0 and Format(id, S.Total(ranking)) or "–"
+end
+
+-- Name of the catalog category a statistic is in ("Deaths", "Wealth", ...), nil for the special ones
+local categoryOf
+function UI.Fame.CategoryName(id)
+  if not categoryOf then
+    categoryOf = {}
+    for _, category in ipairs(S.CATALOG) do
+      for _, stat in ipairs(category.stats) do categoryOf[stat] = categoryOf[stat] or category end
+    end
+  end
+  return categoryOf[id] and CategoryName(categoryOf[id]) or nil
+end
+
+-- Name of a tile's statistic, as the tile shows it
+function UI.Fame.TileName(id)
+  return id == "dungeons" and ns.L.FAME_GUILD_DUNGEONS or StatName(id)
+end
 
 local function ShortDate(ts)
   local date = rawget(_G, "date") or os.date
   return date("%d.%m.", ts)
+end
+
+-- The tiles of a page: the player's choice from Guildy's options, else the page's default
+local function Headline(page)
+  local chosen = ns.Settings().fameTiles
+  return S.Headline(page, type(chosen) == "table" and chosen[page.key] or nil)
 end
 
 local function Page(key)
@@ -195,32 +239,23 @@ local function Build(panel)
   local view = { period = ns.Settings().famePeriod or "all", page = S.PAGES[1].key, mode = "home" }
 
   -- top bar -------------------------------------------------------------------------------------
-  local title = W.Text(panel, "GameFontNormalLarge", L.TAB_FAME)
-  title:SetPoint("TOPLEFT", 54, -4) -- clear of the portrait
-  -- how many members the values come from: a tooltip on the title, not another text in the bar
-  local titleHover = CreateFrame("Frame", nil, panel)
-  titleHover:SetAllPoints(title)
-  titleHover:EnableMouse(true)
-  titleHover:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-    GameTooltip:SetText(L.TAB_FAME, 1, 0.82, 0)
-    GameTooltip:AddLine(view.freshText or "", 1, 1, 1, true)
-    GameTooltip:Show()
-  end)
-  titleHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  local shell = W.Page(panel) -- "page" is a statistics page in this file
+  local bar = shell.Bar
+  panel = shell.Body
+  view.Fresh = shell.Hint -- how many members the values come from: the status line
   local pageOptions = {}
   for i, page in ipairs(S.PAGES) do pageOptions[i] = { value = page.key, text = L["FAME_PAGE_" .. page.key:upper()] } end
-  view.Pages = W.Segmented(panel, pageOptions, function(value)
+  view.Pages = W.Segmented(bar, pageOptions, function(value)
     view.page = value
     view.mode = "home"
     view:Refresh()
   end)
-  view.Pages:SetPoint("LEFT", title, "RIGHT", 14, 0)
+  shell:Left(view.Pages)
   -- right side: period dropdown (all time / this month / last month) and the button to all
   -- statistics (back to the pages in the detail view); both always in the same place
   local PERIODS = { { value = "all", text = L.FAME_ALL }, { value = "month", text = L.FAME_MONTH },
     { value = "last", text = L.FAME_LAST } }
-  view.Period = W.MenuButton(panel, L.FAME_ALL, function()
+  view.Period = W.MenuButton(bar, L.FAME_ALL, function()
     local items = { { text = L.FAME_PERIOD, isTitle = true } }
     for _, option in ipairs(PERIODS) do
       -- Forever's launch month has no month before it: shown, but greyed out
@@ -242,15 +277,15 @@ local function Build(panel)
       if option.value == value then self:SetText(L.FAME_PERIOD .. ": " .. option.text) end
     end
   end
-  view.AllButton = W.Button(panel, L.FAME_ALL_STATS, function()
+  view.AllButton = W.Button(bar, L.FAME_ALL_STATS, function()
     if view.mode == "detail" then view:ShowHome() else view:ShowDetail(view.detailStat or 107) end
   end, 170, { small = true })
-  view.AllButton:SetPoint("TOPRIGHT", 0, -2)
-  view.Period:SetPoint("RIGHT", view.AllButton, "LEFT", -8, 0)
+  shell:Right(view.AllButton)
+  shell:Right(view.Period)
 
   -- home: totals, cards, page box -----------------------------------------------------------------
   local home = CreateFrame("Frame", nil, panel)
-  home:SetPoint("TOPLEFT", 0, -30)
+  home:SetPoint("TOPLEFT", 0, 0)
   home:SetPoint("BOTTOMRIGHT", 0, 0)
   view.Home = home
 
@@ -641,7 +676,7 @@ local function Build(panel)
 
   -- detail: statistic tree and ranking ---------------------------------------------------------
   local detail = CreateFrame("Frame", nil, panel)
-  detail:SetPoint("TOPLEFT", 0, -30)
+  detail:SetPoint("TOPLEFT", 0, 0)
   detail:SetPoint("BOTTOMRIGHT", 0, 0)
   detail:Hide()
   view.Detail = detail
@@ -739,7 +774,7 @@ local function Build(panel)
     local width = panel:GetWidth() or 0
     if width < 100 then return end
     local gap = 8
-    local tiles = #Page(self.page).headline
+    local tiles = #Headline(Page(self.page))
     local tileWidth = (width - gap * (tiles - 1)) / tiles
     for i, tile in ipairs(self.Tiles) do
       tile:ClearAllPoints()
@@ -830,8 +865,9 @@ local function Build(panel)
   end
 
   function view:RefreshTiles(entries, page)
+    local headline = Headline(page)
     for i, tile in ipairs(self.Tiles) do
-      local id = page.headline[i]
+      local id = headline[i]
       tile.id = id
       tile:SetShown(id ~= nil)
       if id then
@@ -861,7 +897,8 @@ local function Build(panel)
 
   function view:RefreshCards(entries, page)
     local index = 0
-    for _, fame in ipairs(page.titles) do
+    local chosen = ns.Settings().fameCards
+    for _, fame in ipairs(S.Titles(page, type(chosen) == "table" and chosen[page.key] or nil)) do
       if index < #self.Cards then
         local top = Ranking(entries, fame.stat, fame.current and "all" or self.period)[1]
         if top and top.value > 0 then
@@ -1204,6 +1241,7 @@ local function Build(panel)
       counts[src] = (counts[src] or 0) + 1
     end
     self.freshText = L.FAME_FRESH:format(#entries, #ns.Roster.Members(), counts.self + counts.relay, counts.seen)
+    self.Fresh:SetText(self.freshText)
     local inDetail = self.mode == "detail"
     self.Home:SetShown(not inDetail)
     self.Detail:SetShown(inDetail)

@@ -41,10 +41,12 @@ local function Build(panel)
   local view = { selected = nil }
 
   -- rank list
+  local page = W.Page(panel)
+  panel = page.Body
   local ranks = W.Box(panel)
-  ranks:SetPoint("TOPLEFT", 50, 0) -- clear of the portrait
+  ranks:SetPoint("TOPLEFT", 0, 0)
   ranks:SetPoint("BOTTOM", 0, 0)
-  ranks:SetWidth(260)
+  ranks:SetWidth(W.SIDE)
   local ranksTitle = W.Text(ranks, "GameFontNormal", L.RANKS)
   ranksTitle:SetPoint("TOPLEFT", 10, -8)
   view.List = W.ScrollList(ranks, 22, function(row)
@@ -79,7 +81,7 @@ local function Build(panel)
   view.PermsBox = perms
   view.PermsTitle = W.Text(perms, "GameFontNormal")
   view.PermsTitle:SetPoint("TOPLEFT", 10, -8)
-  view.PermsTitle:SetPoint("RIGHT", -170, 0)
+  view.PermsTitle:SetPoint("RIGHT", -10, 0)
   view.PermsTitle:SetWordWrap(false)
   view.Lines = {}
   for i = 1, NUM_FLAGS do
@@ -132,20 +134,19 @@ local function Build(panel)
     row.When:SetText(ns.Roster.LastOnlineText(m))
   end)
   view.Members:SetPoint("TOPLEFT", view.MembersTitle, "BOTTOMLEFT", -2, -6)
-  view.Members:SetPoint("BOTTOMRIGHT", -28, 30)
+  view.Members:SetPoint("BOTTOMRIGHT", -28, 8)
 
   -- guild master: Blizzard's rank editor over this box
-  view.Edit = W.Button(perms, L.RANKS_EDIT, nil, 150, { small = true })
-  view.Edit:SetPoint("TOPRIGHT", -8, -6)
+  view.Edit = W.Button(page.Bar, L.RANKS_EDIT, nil, 150, { small = true })
+  page:Right(view.Edit)
   local function Place(editor)
     editor:ClearAllPoints()
     editor:SetPoint("TOPRIGHT", perms, "TOPRIGHT", 0, 0)
   end
   UI.SecureAction(view.Edit, function() return UI.Action.RankEditor(Place) end, L.RANKS_EDIT_TIP,
     function() ns.Print(L.BLIZZARD_PART_MISSING) end)
-  view.Hint = W.Text(perms, "GameFontDisableSmall", L.RANKS_READONLY)
-  view.Hint:SetPoint("BOTTOMLEFT", 10, 10)
-  view.Hint:SetPoint("RIGHT", -10, 0)
+  view.Hint = page.Hint -- the status line
+  view.Hint:SetText(L.RANKS_READONLY)
 
   function view:Refresh()
     local list = Ranks()
