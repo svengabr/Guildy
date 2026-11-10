@@ -483,6 +483,7 @@ ns.LocaleTables.deDE = {
   OPTIONS_LANGUAGE = "Sprache",
   OPTIONS_LANGUAGE_AUTO = "Automatisch (%s)",
   OPTIONS_LANGUAGE_TIP = "Die Sprache von Guildys eigenen Texten. Das Spiel behält seine Sprache. Beim Ändern wird die Oberfläche neu geladen.",
+  OPTIONS_LANGUAGE_RELOAD = "Tippe /reload, um Guildys Sprache umzustellen.",
   OPTIONS_COLUMNS_HEAD = "Spalten der Mitgliederliste",
   OPTIONS_COLUMNS_FIXED = "Stufe und Name bleiben immer.",
   OPTIONS_TWINKS = "Twinks unter ihrem Main zeigen",

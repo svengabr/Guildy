@@ -1,5 +1,6 @@
--- /guildy shots all in the loaded addon: language by language over interface reloads (the stub counts
--- them, nothing reloads), waiting for the player to open Guildy, and always putting things back.
+-- /guildy shots all in the loaded addon: language by language over interface reloads, which the player
+-- types (the client blocks a reload from addon code outside a click), waiting for the player to open
+-- Guildy, and always putting things back.
 local T = ...
 local NOW = 1700000000 -- the stub's GetServerTime
 
@@ -9,6 +10,15 @@ local function World(db, more)
   local world = dofile(T.testsDir .. "/wow.lua")(T, opts)
   world.taken = 0
   world.env.Screenshot = function() world.taken = world.taken + 1 end
+  world.said = {}
+  world.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, line) world.said[#world.said + 1] = line end }
+  world.Asked = function() -- how often the player was asked to type /reload
+    local n = 0
+    for _, line in ipairs(world.said) do
+      if line:find("/reload", 1, true) then n = n + 1 end
+    end
+    return n
+  end
   world.Start = function()
     world.Fire("ADDON_LOADED", "Guildy")
     world.Fire("PLAYER_LOGIN")
@@ -32,9 +42,10 @@ T.describe("Shots in all languages", function()
     world.env.SlashCmdList.GUILDY("shots all")
     T.eq(ns.Settings().language, "enUS")
     T.eq(#ns.DB().shotRun.queue, #ns.Locale.Languages() - 1)
-    T.eq(world.calls.reloads, 1)
+    T.eq(world.Asked(), 1)
     world.env.SlashCmdList.GUILDY("shots all") -- a second one while it runs: refused
-    T.eq(world.calls.reloads, 1)
+    T.eq(world.Asked(), 1)
+    T.eq(world.calls.reloads, nil) -- never from addon code
     T.eq(world.errors, {})
   end)
 
@@ -51,7 +62,8 @@ T.describe("Shots in all languages", function()
     T.eq({ ns.UI.frame:GetWidth(), ns.UI.frame:GetHeight() }, { ns.UI.MIN_W, ns.UI.MIN_H })
     T.eq(ns.Settings().width, 1300) -- the run's size is not saved
     T.eq(ns.Settings().language, "ptBR")
-    T.eq(world.calls.reloads, 1)
+    T.eq(world.Asked(), 1)
+    T.eq(world.calls.reloads, nil)
     T.eq(world.errors, {})
   end)
 
@@ -66,7 +78,8 @@ T.describe("Shots in all languages", function()
     T.eq({ ns.Settings().width, ns.Settings().height }, { 1300, 700 })
     T.eq({ ns.UI.frame:GetWidth(), ns.UI.frame:GetHeight() }, { 1300, 700 })
     T.eq(ns.DB().shotRun, nil)
-    T.eq(world.calls.reloads, 1) -- back to the client's language
+    T.eq(world.Asked(), 1) -- back to the client's language
+    T.eq(world.calls.reloads, nil)
     T.eq(world.errors, {})
   end)
 
@@ -91,7 +104,8 @@ T.describe("Shots in all languages", function()
     T.eq(world.taken, 0)
     T.eq(world.ns.Settings().language, nil)
     T.eq(world.ns.DB().shotRun, nil)
-    T.eq(world.calls.reloads, 1)
+    T.eq(world.Asked(), 1)
+    T.eq(world.calls.reloads, nil)
     T.eq(world.errors, {})
   end)
 

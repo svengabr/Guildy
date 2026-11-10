@@ -483,6 +483,7 @@ ns.LocaleTables.ptBR = {
   OPTIONS_LANGUAGE = "Idioma",
   OPTIONS_LANGUAGE_AUTO = "Automático (%s)",
   OPTIONS_LANGUAGE_TIP = "O idioma dos textos do Guildy. O jogo mantém o idioma dele. Ao mudar, a interface é recarregada.",
+  OPTIONS_LANGUAGE_RELOAD = "Digite /reload para mudar o idioma do Guildy.",
   OPTIONS_COLUMNS_HEAD = "Colunas da lista de membros",
   OPTIONS_COLUMNS_FIXED = "Nível e nome sempre ficam.",
   OPTIONS_TWINKS = "Mostrar alts sob o principal",

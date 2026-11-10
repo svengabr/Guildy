@@ -119,8 +119,10 @@ New:
   pictures as today. After the last language: restore language and window size,
   one last reload. About five minutes. Amended while building: Guildy cannot open
   itself (only Blizzard's own code may open the guild window, addon code would taint
-  it), so after each reload the run waits up to two minutes for J; apart from those
-  six key presses mouse and keyboard stay untouched.
+  it), so after each reload the run waits up to two minutes for J. Amended after the
+  first run in the game: the client blocks a reload that addon code starts from a timer
+  (ADDON_ACTION_BLOCKED on `Reload()`), so the run asks for `/reload` in chat instead of
+  reloading. Per language the player types `/reload` and presses J.
   "Smallest version" is read as the smallest window size, not the UI scale.
   **(call)**
 - `/guildy shots stop` ends a run and restores language and size.

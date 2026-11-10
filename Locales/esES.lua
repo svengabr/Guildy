@@ -483,6 +483,7 @@ ns.LocaleTables.esES = {
   OPTIONS_LANGUAGE = "Idioma",
   OPTIONS_LANGUAGE_AUTO = "Automático (%s)",
   OPTIONS_LANGUAGE_TIP = "El idioma de los textos de Guildy. El juego conserva su idioma. Al cambiarlo se recarga la interfaz.",
+  OPTIONS_LANGUAGE_RELOAD = "Escribe /reload para cambiar el idioma de Guildy.",
   OPTIONS_COLUMNS_HEAD = "Columnas de la lista de miembros",
   OPTIONS_COLUMNS_FIXED = "Nivel y nombre siempre se quedan.",
   OPTIONS_TWINKS = "Mostrar alters bajo su principal",

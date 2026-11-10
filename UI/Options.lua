@@ -46,7 +46,8 @@ end
 
 -- language ---------------------------------------------------------------------------------------------
 -- The language of Guildy's own texts: nil follows the client. Most texts are set once when the window
--- is built, so a change of the language in force loads the interface anew.
+-- is built, so a change of the language in force loads the interface anew. Should the client refuse
+-- that (it blocks a reload outside a click), a chat line asks for /reload.
 local function ClientLanguage()
   return ns.Locale.Resolve(nil, rawget(_G, "GetLocale") and GetLocale() or nil)
 end
@@ -56,6 +57,7 @@ function UI.SetLanguage(code)
   ns.Settings().language = code
   if ns.Locale.Resolve(code, ClientLanguage()) ~= ns.Locale.current then
     ns.ReloadUI()
+    C_Timer.After(1, function() ns.Print(ns.L.OPTIONS_LANGUAGE_RELOAD) end) -- still here: not reloaded
   elseif options and options.Panels and options.Panels.general then
     options.Panels.general:Refresh()
   end

@@ -114,4 +114,16 @@ T.describe("Language", function()
     T.eq(world.calls.reloads, 1)
     T.eq(world.errors, {})
   end)
+
+  T.it("asks for /reload when the client did not reload", function()
+    local world = World(nil)
+    world.Start()
+    local said = {}
+    world.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, line) said[#said + 1] = line end }
+    world.ns.UI.SetLanguage("enUS")
+    world.RunTimers(3) -- the stub does not reload either
+    T.eq(#said, 1)
+    T.truthy(said[1]:find("/reload", 1, true), "names the command")
+    T.eq(world.errors, {})
+  end)
 end)

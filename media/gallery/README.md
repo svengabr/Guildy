@@ -28,9 +28,9 @@ copies that run to `src/` as `01-chat.jpg` … `19-options-professions.jpg` (the
 
 `/guildy shots all` is the check that the translations fit: it takes the same views in every language Guildy
 has, with the window at its smallest size (1130 x 560), where long texts run out of room first. Guildy's
-language only changes with a reload of the interface, so the run sets a language, reloads, and waits until you
-press J (only the game itself can open the guild window); then it takes the 19 pictures and goes on to the next
-language. Six languages take about five minutes. At the end, and also when the run is stopped
+language only changes with a reload of the interface, so the run sets a language and asks you in chat to type
+`/reload` (the client blocks a reload started by an addon's timer) and then to press J (only the game itself can
+open the guild window); then it takes the 19 pictures and goes on to the next language. Six languages take about five minutes. At the end, and also when the run is stopped
 (`/guildy shots stop`) or cut off, language and window size are what they were before. Then:
 
 ```sh

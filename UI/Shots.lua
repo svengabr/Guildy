@@ -177,8 +177,9 @@ end
 -- Every view in every language, at the smallest window size: the end-to-end check of the translations
 -- (media/e2e/collect.py files the pictures by language). Guildy's language only changes with a reload
 -- of the interface, so the run goes language by language over reloads and keeps its state in
--- GuildyDB.shotRun (Core/ShotRun.lua). Guildy cannot open itself (UI.Show: only Blizzard's own code may
--- open the guild window), so after each reload the run waits for J.
+-- GuildyDB.shotRun (Core/ShotRun.lua). The player does two things per language: type /reload (the client
+-- blocks a reload that addon code starts from a timer) and press J (Guildy cannot open itself, UI.Show:
+-- only Blizzard's own code may open the guild window).
 local WAIT_OPEN, WAIT_ROSTER = 120, 20 -- seconds for the player to press J, and for the guild roster
 
 local function Run()
@@ -190,11 +191,6 @@ local function ApplySize(width, height)
   if UI.frame and width and height then UI.frame:SetSize(width, height) end -- not saved: only the grip saves
 end
 
-local function Reload()
-  ns.ReloadUI()
-  -- still here two seconds later: the client did not reload from addon code
-  C_Timer.After(2, function() ns.Print("shots: type /reload to go on") end)
-end
 
 -- The end of a run, finished, stopped or given up: language and size as before
 local function Finish(message)
@@ -207,7 +203,9 @@ local function Finish(message)
   ApplySize(settings.width, settings.height)
   ns.Print(message)
   local client = rawget(_G, "GetLocale") and GetLocale() or nil
-  if ns.Locale.Resolve(settings.language, client) ~= ns.Locale.current then Reload() end
+  if ns.Locale.Resolve(settings.language, client) ~= ns.Locale.current then
+    ns.Print("shots: type /reload to get your language back.")
+  end
 end
 
 -- Looks once a second, up to `seconds` times; the run counts as alive meanwhile
@@ -254,7 +252,11 @@ function NextLanguage()
     return
   end
   ns.Settings().language = code
-  if code == ns.Locale.current then ShootLanguage() else Reload() end
+  if code == ns.Locale.current then
+    ShootLanguage()
+  else
+    ns.Print(("shots: %s is next. Type /reload, then press J."):format(ns.Locale.NAMES[code] or code))
+  end
 end
 
 function UI.TakeAllShots()
@@ -268,7 +270,7 @@ function UI.TakeAllShots()
   end
   local languages = ns.Locale.Languages()
   ns.DB().shotRun = ns.ShotRun.Start(ns.Settings(), languages, ns.Now())
-  ns.Print(("shots: %d languages, about %d minutes. The interface reloads between them; press J after each reload."):format(
+  ns.Print(("shots: %d languages, about %d minutes."):format(
     #languages, math.ceil(#languages * (#UI.SHOTS * STEP + 15) / 60)))
   NextLanguage()
 end

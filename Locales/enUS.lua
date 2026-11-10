@@ -483,6 +483,7 @@ ns.LocaleTables.enUS = {
   OPTIONS_LANGUAGE = "Language",
   OPTIONS_LANGUAGE_AUTO = "Automatic (%s)",
   OPTIONS_LANGUAGE_TIP = "The language of Guildy's own texts. The game keeps its language. Changing it reloads the interface.",
+  OPTIONS_LANGUAGE_RELOAD = "Type /reload to switch Guildy's language.",
   OPTIONS_COLUMNS_HEAD = "Columns of the member list",
   OPTIONS_COLUMNS_FIXED = "Level and name always stay.",
   OPTIONS_TWINKS = "Show twinks under their main",

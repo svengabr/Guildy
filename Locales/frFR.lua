@@ -483,6 +483,7 @@ ns.LocaleTables.frFR = {
   OPTIONS_LANGUAGE = "Langue",
   OPTIONS_LANGUAGE_AUTO = "Automatique (%s)",
   OPTIONS_LANGUAGE_TIP = "La langue des textes de Guildy. Le jeu garde sa langue. Un changement recharge l'interface.",
+  OPTIONS_LANGUAGE_RELOAD = "Tapez /reload pour changer la langue de Guildy.",
   OPTIONS_COLUMNS_HEAD = "Colonnes de la liste des membres",
   OPTIONS_COLUMNS_FIXED = "Niveau et nom restent toujours.",
   OPTIONS_TWINKS = "Afficher les rerolls sous leur main",

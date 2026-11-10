@@ -484,6 +484,7 @@ ns.LocaleTables.ruRU = {
   OPTIONS_LANGUAGE = "Язык",
   OPTIONS_LANGUAGE_AUTO = "Автоматически (%s)",
   OPTIONS_LANGUAGE_TIP = "Язык собственных текстов Guildy. Язык игры не меняется. При смене интерфейс перезагружается.",
+  OPTIONS_LANGUAGE_RELOAD = "Введите /reload, чтобы сменить язык Guildy.",
   OPTIONS_COLUMNS_HEAD = "Столбцы списка участников",
   OPTIONS_COLUMNS_FIXED = "Уровень и имя остаются всегда.",
   OPTIONS_TWINKS = "Показывать твинков под основным",
