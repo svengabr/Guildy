@@ -2,6 +2,7 @@
 ## Title: Guildy
 ## Notes: Modern guild window for WoW Forever: chat first, census of active members, professions and recipe search, synced between Guildy users.
 ## Notes-deDE: Modernes Gildenfenster für WoW Forever: Chat zuerst, Census der aktiven Mitglieder, Berufe und Rezeptsuche, abgeglichen zwischen Guildy-Nutzern.
+## Notes-frFR: Fenêtre de guilde moderne pour WoW Forever : la discussion d'abord, recensement des membres actifs, métiers et recherche de recettes, synchronisés entre utilisateurs de Guildy.
 ## Author: Conoar
 #@debug@
 ## Version: dev
@@ -19,6 +20,7 @@ Libs\LibDeflate\LibDeflate.lua
 Libs\json\json.lua
 Locales\enUS.lua
 Locales\deDE.lua
+Locales\frFR.lua
 Locales\Locales.lua
 Core\Perf.lua
 Core\Names.lua
