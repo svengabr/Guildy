@@ -346,7 +346,7 @@ local function Build(panel)
   -- a set filter shows only its value (the full text is in the tooltip), so the toolbar fits
   local function Label(button, base, value)
     button:SetText(value or base)
-    button.tip = value and (base .. ": " .. value) or nil
+    button.tip = value and L.LABEL_VALUE:format(base, value) or nil
   end
 
   function view:Refresh()

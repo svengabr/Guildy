@@ -274,7 +274,7 @@ local function Build(panel)
   end
   function view.Period:SetValue(value)
     for _, option in ipairs(PERIODS) do
-      if option.value == value then self:SetText(L.FAME_PERIOD .. ": " .. option.text) end
+      if option.value == value then self:SetText(L.LABEL_VALUE:format(L.FAME_PERIOD, option.text)) end
     end
   end
   view.AllButton = W.Button(toolbar, L.FAME_ALL_STATS, function()

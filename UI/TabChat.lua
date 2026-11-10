@@ -59,7 +59,7 @@ end
 -- Short day name for the timeline: "Today", "Yest.", the weekday within a week, else the date
 local function DayShort(ts)
   local L, age = ns.L, DayAge(ts)
-  if age == 0 then return L.CHAT_TODAY end
+  if age == 0 then return L.CHAT_TODAY_SHORT end
   if age == 1 then return L.CHAT_YESTERDAY_SHORT end
   if ns.Now() - ts < 6 * 86400 then return Weekday(L.WEEKDAYS_SHORT, ts) or date("%d.%m.", ts) end
   return date("%d.%m.", ts)

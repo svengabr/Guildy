@@ -489,12 +489,12 @@ local function Build()
     end
 
     local notes = {}
-    if m.note and m.note ~= "" then notes[#notes + 1] = "|cffffd100" .. L.NOTE .. ":|r " .. m.note end
+    if m.note and m.note ~= "" then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.NOTE, "|r" .. m.note) end
     if can.viewOfficer and m.officerNote and m.officerNote ~= "" then
-      notes[#notes + 1] = "|cffffd100" .. L.OFFICER_NOTE .. ":|r " .. m.officerNote
+      notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.OFFICER_NOTE, "|r" .. m.officerNote)
     end
     local guildy = not m.elsewhere and UI.GuildyVersionText and UI.GuildyVersionText(m)
-    if guildy then notes[#notes + 1] = "|cffffd100" .. L.COL_GUILDY .. ":|r " .. guildy end
+    if guildy then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.COL_GUILDY, "|r" .. guildy) end
     hero.Notes:SetText(table.concat(notes, "\n"))
     hero.Notes:ClearAllPoints()
     hero.Notes:SetPoint("TOP", hero.Where, "BOTTOM", 0, -10)

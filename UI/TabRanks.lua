@@ -68,7 +68,7 @@ local function Build(panel)
   end, function(row, rank)
     row.rank = rank
     row.Name:SetText(rank.index .. ". " .. rank.name)
-    row.Count:SetText(L.RANK_MEMBERS:format(rank.count))
+    row.Count:SetText(rank.count == 1 and L.RANK_MEMBERS_ONE or L.RANK_MEMBERS:format(rank.count))
     row.Selected:SetShown(view.selected == rank.index)
   end)
   view.List:SetPoint("TOPLEFT", 8, -28)
