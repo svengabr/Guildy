@@ -53,7 +53,7 @@ local function DayLabel(ts)
   if age == 0 then return L.CHAT_TODAY end
   if age == 1 then return L.CHAT_YESTERDAY end
   local weekday = Weekday(L.WEEKDAYS, ts)
-  return (weekday and weekday .. ", " or "") .. date("%d.%m.%Y", ts)
+  return (weekday and weekday .. ", " or "") .. date(L.DATE_LONG, ts)
 end
 
 -- Short day name for the timeline: "Today", "Yest.", the weekday within a week, else the date
@@ -61,8 +61,8 @@ local function DayShort(ts)
   local L, age = ns.L, DayAge(ts)
   if age == 0 then return L.CHAT_TODAY_SHORT end
   if age == 1 then return L.CHAT_YESTERDAY_SHORT end
-  if ns.Now() - ts < 6 * 86400 then return Weekday(L.WEEKDAYS_SHORT, ts) or date("%d.%m.", ts) end
-  return date("%d.%m.", ts)
+  if ns.Now() - ts < 6 * 86400 then return Weekday(L.WEEKDAYS_SHORT, ts) or date(L.DATE_SHORT, ts) end
+  return date(L.DATE_SHORT, ts)
 end
 
 -- The chat column shared by the chat tab and the communities view: history with day lines, the

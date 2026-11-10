@@ -22,7 +22,8 @@ local function SourceText(src)
   return L.SRC_RELAY
 end
 
--- "über Guildy" for today's data, "vor 3 Tg. · über Guildy" for older (amber after a week)
+-- "über Guildy" for today's data, "vor 3 Tg. · über Guildy" for older (amber after a week). Second value:
+-- the age alone, for a column too narrow for both (the book's head line names the source too)
 local function DataText(prof)
   if prof.src == "note" then return SourceText(prof.src) end
   local days = type(prof.ts) == "number" and math.floor((ns.Now() - prof.ts) / 86400) or nil
@@ -30,7 +31,7 @@ local function DataText(prof)
   if days <= 0 then return SourceText(prof.src) end
   local age = ns.L.DAYS_AGO:format(days)
   if days > 7 then age = "|cffff9f2e" .. age .. "|r" end
-  return age .. ns.L.SEP .. SourceText(prof.src)
+  return age .. ns.L.SEP .. SourceText(prof.src), age
 end
 
 -- Icon of a recipe: the made item's icon from a recipe book read earlier. Without one, the recipe spell's
@@ -563,7 +564,8 @@ local function Build(panel)
     row.Recipes:SetText(count > 0 and count or (MUTED .. "–|r"))
     row.Recipes:ClearAllPoints()
     row.Recipes:SetPoint("LEFT", count > 0 and (RECIPES_X + 17) or RECIPES_X, 0)
-    row.Data:SetText(DataText(prof))
+    local data, short = DataText(prof)
+    W.Shorten(row.Data, data, short or data)
   end)
   view.Members:SetPoint("TOPLEFT", 4, -74)
   view.Members:SetPoint("BOTTOMRIGHT", -26, 4)
@@ -666,21 +668,22 @@ local function Build(panel)
     local m = view.memberKey and ns.Roster.Find(view.memberKey)
     return m, view.skill
   end
-  book.Open = W.Button(book, L.OPEN_BOOK_SHORT, function()
-    local m, skillLine = Selected()
-    if m and ns.TradeSkill.CanOpenBook(m) then ns.TradeSkill.OpenBook(m, skillLine) end
-  end, 86, { small = true })
-  book.Open:SetPoint("TOPLEFT", 8, -48)
-  W.Tooltip(book.Open, L.OPEN_BOOK, L.OPEN_BOOK_TIP)
   book.Whisper = W.Button(book, L.WHISPER, function()
     local m = Selected()
     if m then UI.Whisper(m.fullName) end
   end, 76, { small = true })
-  book.Whisper:SetPoint("LEFT", book.Open, "RIGHT", 4, 0)
   book.Invite = W.Button(book, L.GROUP_INVITE_SHORT, function()
     local m = Selected()
     if m then ns.Roster.GroupInvite(m) end
   end, 76, { small = true })
+  -- the three stand in one row; the first gets what the other two leave of the box
+  book.Open = W.Button(book, L.OPEN_BOOK_SHORT, function()
+    local m, skillLine = Selected()
+    if m and ns.TradeSkill.CanOpenBook(m) then ns.TradeSkill.OpenBook(m, skillLine) end
+  end, 86, { small = true, maxWidth = math.max(86, BOOK_W - 24 - book.Whisper:GetWidth() - book.Invite:GetWidth()) })
+  book.Open:SetPoint("TOPLEFT", 8, -48)
+  W.Tooltip(book.Open, L.OPEN_BOOK, L.OPEN_BOOK_TIP)
+  book.Whisper:SetPoint("LEFT", book.Open, "RIGHT", 4, 0)
   book.Invite:SetPoint("LEFT", book.Whisper, "RIGHT", 4, 0)
 
   local bookSearch = W.EditBox(book, BOOK_W - 30)

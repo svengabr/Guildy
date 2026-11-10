@@ -49,6 +49,10 @@ def window_box(img):
     for start, stop in xs[1:]:
         if start - x1 <= JOIN:
             x1 = stop
+    # the options window may be taller than Guildy's at its smallest size
+    for start, stop in runs(mask[:, x0:x1].mean(axis=1), 0.05, 40):
+        if start <= y1 and stop >= y0:
+            y0, y1 = min(y0, start), max(y1, stop - TABS)
     h, w = mask.shape
     return (max(0, x0 - PAD), max(0, y0 - PAD), min(w, x1 + PAD), min(h, y1 + TABS + PAD))
 

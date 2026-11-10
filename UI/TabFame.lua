@@ -218,7 +218,7 @@ end
 
 local function ShortDate(ts)
   local date = rawget(_G, "date") or os.date
-  return date("%d.%m.", ts)
+  return date(ns.L.DATE_SHORT, ts)
 end
 
 -- The tiles of a page: the player's choice from Guildy's options, else the page's default

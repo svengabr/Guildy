@@ -87,6 +87,12 @@ function W.Text(parent, template, text)
   return label
 end
 
+-- Sets full on a one-line label, or short where the label has no room for full
+function W.Shorten(label, full, short)
+  label:SetText(full)
+  if label.IsTruncated and label:IsTruncated() then label:SetText(short) end
+end
+
 -- Width in px of the widest of texts in a font (a font object or its global name), at least min,
 -- plus pad. Measured on one hidden font string; 0 for texts the client can't measure.
 local measure

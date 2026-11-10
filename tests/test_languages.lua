@@ -126,4 +126,28 @@ T.describe("Language", function()
     T.truthy(said[1]:find("/reload", 1, true), "names the command")
     T.eq(world.errors, {})
   end)
+
+  T.it("keeps the short text for a label the full one does not fit", function()
+    local world = World("enUS")
+    world.Start()
+    local function Label(room)
+      local label = { text = "" }
+      function label:SetText(text) self.text = text end
+      function label:IsTruncated() return #self.text > room end
+      return label
+    end
+    local narrow, wide = Label(10), Label(40)
+    world.ns.Widgets.Shorten(narrow, "2 d ago, own data", "2 d ago")
+    world.ns.Widgets.Shorten(wide, "2 d ago, own data", "2 d ago")
+    T.eq(narrow.text, "2 d ago")
+    T.eq(wide.text, "2 d ago, own data")
+  end)
+
+  T.it("writes the chat's day divider in the language's date order", function()
+    local world = World("frFR")
+    world.Start()
+    T.eq(world.ns.L.DATE_LONG, "%d/%m/%Y")
+    T.eq(world.ns.L.DATE_SHORT, "%d/%m")
+    T.eq(world.ns.LocaleTables.deDE.DATE_LONG, "%d.%m.%Y")
+  end)
 end)
