@@ -96,6 +96,10 @@ J, the micro menu and Escape work as before. If you disable Guildy, you get Bliz
 
 Bugs and wishes go to the [issues](https://github.com/svengabr/Guildy/issues). I read all of them, and I'm especially glad to hear from officers of bigger guilds, because my own guild has about a hundred members and I can't test every size myself.
 
+## About me
+
+I'm Sven. I've been a software developer for over 20 years, and in my free time I write World of Warcraft addons for fun, these days mostly for WoW Forever. They are small tools that fix the little annoyances I run into while playing. All of them are free and open source, and they will stay that way.
+
 ## Deutsch
 
 Auf WoW Forever habe ich das Gildenfenster fast nie geöffnet. Ein Chat und eine schlichte Liste, beides habe ich selten gebraucht. Guildy habe ich gebaut, um das zu ändern. **J** öffnet den Gildenchat, und daneben gibt es Reiter für die Mitglieder, einen Census der aktiven Mitglieder, Berufe mit Rezeptsuche und Gildenrekorde aus den Charakter-Statistiken von Forever.
@@ -120,6 +124,8 @@ Die Ruhmeshalle: Forever führt Statistiken pro Charakter, etwa getötete Kreatu
 Einladen und Verwalten: „Mitglied einladen“ öffnet Blizzards Einladen-Dialog mit deinem Ziel schon eingetragen und schlägt vor, wer dich zuletzt angeflüstert hat. Gildenverwaltung ist auf Forever Blizzards eigenem Code vorbehalten. Guildy sitzt in Blizzards Gildenfenster und legt dessen Bedienelemente unter die eigenen, deshalb geht es trotzdem: Entfernen auf der Charakterseite und im Mitgliedermenü, Nachricht des Tages und Gildeninfo im Info-Reiter, Ränge und Rechte im Reiter Ränge in Blizzards eigenem Rang-Editor, Rang und Notizen auf der Charakterseite über Blizzards Mitglieder-Fenster.
 
 Befehle: `/guildy` schließt das Fenster (geöffnet wird es mit **J** oder dem Gilden-Knopf im Mikromenü), `/guildy sync` schickt deine Berufsübersicht an die Gilde, `/guildy debug` zeigt, was Guildy über deine Berufe weiß. Mit `/guildy perf on` und danach `/guildy perf` misst Guildy, wie lange sein eigener Code läuft. Wenn es bei dir ruckelt, hilft mir dieser Bericht am meisten.
+
+Über mich: Ich bin Sven, seit über 20 Jahren Softwareentwickler. In meiner Freizeit schreibe ich aus Spaß Addons für World of Warcraft, inzwischen vor allem für WoW Forever. Es sind kleine Werkzeuge gegen die Kleinigkeiten, die mich beim Spielen stören. Alle sind kostenlos und quelloffen, und das bleibt so.
 
 Unterstützen: Guildy ist kostenlos und bleibt es. Wenn es dir das Spiel ein bisschen leichter macht, kannst du mir [einen Kaffee ausgeben](https://buymeacoffee.com/conoar) oder etwas über [PayPal](https://paypal.me/svengabr) schicken.
 

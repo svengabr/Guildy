@@ -47,7 +47,7 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: What J opens: the guild chat with times, a timeline of the days and a mark for what is new since your last login. Next to it everyone who is online, with level, class colour and zone.
 2. `media/gallery/02-members.jpg`
    - Title: Members
-   - Description: Online members above offline ones. Search names, zones and notes, filter by class and group, sort by any column. The columns are yours to choose.
+   - Description: Online members above offline ones. Search names, zones and notes, filter by class and rank, sort by any column. The columns are yours to choose.
 3. `media/gallery/03-overview.jpg`
    - Title: Overview
    - Description: Classes, levels and professions of the members who were online in the last month, three months, six months or ever, with who joined and left recently. Click a bar to see who is behind it.
@@ -65,7 +65,7 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: The reputation of every member per standing, for all time, this month or last month.
 8. `media/gallery/08-hall-of-fame-pvp.jpg`
    - Title: Hall of Fame: PvP
-   - Description: Honorable kills, duels won and lost, and battlegrounds, with the win rate of every member.
+   - Description: Honorable kills, duels won and lost, and battlegrounds, with the win rate of every member. The numbers in this picture are sample values.
 9. `media/gallery/09-professions.jpg`
    - Title: Professions
    - Description: Every profession with how many members have it. Pick one for its members with skill and recipes, and browse a member's recipes next to it. The search finds who can craft an item.
@@ -82,7 +82,7 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Title: Account
    - Description: Your own characters and all their professions together, one tile per profession.
 14. `media/gallery/15-options-members.jpg`
-   - Title: Options
+   - Title: Options: Members
    - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: the columns of the member list and how it tells online from offline.
 15. `media/gallery/16-options-hall-of-fame.jpg`
    - Title: Options: Hall of Fame
