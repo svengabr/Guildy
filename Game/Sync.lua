@@ -249,6 +249,22 @@ local function MarkUser(name, version)
   local changed = not known or (version and known.v ~= version)
   users[key] = { name = name, v = version or (known and known.v), at = ns.Now() }
   if changed then ns.Fire("USERS") end
+  -- a release newer than this one: remembered (settings.newestVersion), so the window keeps saying so
+  -- when that member is offline again
+  local settings = ns.Settings()
+  local newest = ns.Protocol.NewerVersion(ns.Version(), settings.newestVersion, version)
+  if newest ~= settings.newestVersion then
+    settings.newestVersion = newest
+    ns.Fire("VERSION", newest)
+  end
+end
+
+-- The newest Guildy release seen in the guild when it is newer than this one, else nil
+function Sync.NewerVersion()
+  local settings = ns.Settings()
+  local newest = ns.Protocol.NewerVersion(ns.Version(), settings.newestVersion, nil)
+  if newest ~= settings.newestVersion then settings.newestVersion = newest end -- updated since
+  return newest
 end
 
 -- Addon version of a member who used Guildy this session: "0.3.0", "dev", or "" for a Guildy too

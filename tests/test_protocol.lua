@@ -44,6 +44,19 @@ T.describe("Protocol", function()
     T.eq(P.CompareVersions("dev", "0.3.0"), nil)
   end)
 
+  T.it("knows the newest release that is newer than the own one", function()
+    T.eq(P.NewerVersion("1.1.2", nil, "1.1.3"), "1.1.3")
+    T.eq(P.NewerVersion("1.1.2", "1.1.3", "1.2.0"), "1.2.0")
+    T.eq(P.NewerVersion("1.1.2", "1.2.0", "1.1.3"), "1.2.0") -- an older one seen later changes nothing
+    T.eq(P.NewerVersion("1.1.2", "1.1.3", nil), "1.1.3")     -- remembered while its member is offline
+    T.eq(P.NewerVersion("1.2.0", "1.1.3", nil), nil)         -- updated since
+    T.eq(P.NewerVersion("1.1.2", nil, "1.1.2"), nil)
+    T.eq(P.NewerVersion("1.1.2", nil, "dev"), nil)
+    T.eq(P.NewerVersion("1.1.2", nil, "1.1.3-4-gabc123"), nil) -- a packager build is no release
+    T.eq(P.NewerVersion("1.1.2", nil, ""), nil)
+    T.eq(P.NewerVersion("dev", nil, "9.9.9"), nil)             -- a development copy is never outdated
+  end)
+
   T.it("limits messages per sender", function()
     local limiter = P.NewLimiter(3, 10)
     for _ = 1, 3 do T.eq(P.Allow(limiter, "A", 0), true) end

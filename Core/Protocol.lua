@@ -112,6 +112,24 @@ end
 
 -- Compares two addon versions ("0.2.0", "v0.10.1-beta"): -1, 0 or 1; nil when either has no numbers
 -- (like "dev")
+-- The newer of a known newest version and one just seen, for someone running `own`: `seen` when it is a
+-- release ("1.2.0", no "dev" or packager build like "1.2.0-3-gabc") newer than own and than `known`;
+-- else `known` while that is still newer than own; else nil (own is up to date, or no release itself).
+function Protocol.NewerVersion(own, known, seen)
+  local function Release(version)
+    return type(version) == "string" and version:match("^v?%d+%.%d+%.%d+$") ~= nil
+  end
+  if not Release(own) then return nil end
+  local best = nil
+  for _, version in ipairs({ known or false, seen or false }) do
+    if Release(version) and Protocol.CompareVersions(own, version) == -1
+      and (not best or Protocol.CompareVersions(best, version) == -1) then
+      best = version
+    end
+  end
+  return best
+end
+
 function Protocol.CompareVersions(a, b)
   if type(a) ~= "string" or type(b) ~= "string" then return nil end
   local x, y = {}, {}

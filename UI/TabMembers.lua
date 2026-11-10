@@ -339,7 +339,9 @@ local function Build(panel)
   view.List:SetPoint("TOPLEFT", 4, -28)
   view.List:SetPoint("BOTTOMRIGHT", -26, 4)
 
-  view.Summary = page.Count -- the status line under the list
+  -- how many of the members the filters leave: in the toolbar, left of the reset button
+  view.Summary = page:Right(W.Text(bar, "GameFontDisableSmall"), 10)
+  view.Summary:SetJustifyH("RIGHT")
 
   -- behaviour ----------------------------------------------------------------------------------
   function view:SetFilterValue(key, value)

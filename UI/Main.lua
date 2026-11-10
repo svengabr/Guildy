@@ -218,6 +218,25 @@ local function TellHidden()
   if ns.Chat then ns.Chat.Focus(false) end
 end
 
+-- The version text in the window's title bar; a newer release in the guild is said in the chat once
+-- per session (and again when a still newer one shows up)
+local announced
+function UI.UpdateVersion()
+  local L = ns.L
+  local newer = ns.Sync and ns.Sync.NewerVersion()
+  if frame and frame.Version then
+    local text = L.VERSION_SHOWN:format(ns.Version())
+    if newer then text = text .. "  ·  |cffff9933" .. L.UPDATE_AVAILABLE:format(newer) .. "|r" end
+    frame.Version.Text:SetText(text)
+    -- only as wide as its text: the rest of the title bar stays free for dragging the window
+    frame.Version:SetWidth(math.max(40, (frame.Version.Text:GetStringWidth() or 0) + 4))
+  end
+  if newer and announced ~= newer then
+    announced = newer
+    ns.Print(L.UPDATE_CHAT:format(newer, ns.Version()))
+  end
+end
+
 local function Build()
   frame = CreateFrame("Frame", "GuildyFrame", Host() or UIParent, "ButtonFrameTemplate")
   frame:Hide()
@@ -327,6 +346,25 @@ local function Build()
   frame.Content = CreateFrame("Frame", nil, frame)
   frame.Content:SetPoint("TOPLEFT", 12, -30)
   frame.Content:SetPoint("BOTTOMRIGHT", -10, 12)
+
+  -- the installed version at the left of the title bar (right of the portrait), and a note when a
+  -- guild member already uses a newer release (Game/Sync.lua). On the title bar's level like the cog.
+  frame.Version = CreateFrame("Frame", nil, frame)
+  frame.Version:SetSize(280, 16)
+  frame.Version:SetPoint("TOPLEFT", 66, -3)
+  frame.Version:SetFrameLevel(frame.OptionsButton:GetFrameLevel())
+  frame.Version.Text = W.Text(frame.Version, "GameFontDisableSmall")
+  frame.Version.Text:SetPoint("LEFT")
+  frame.Version:EnableMouse(true)
+  frame.Version:SetScript("OnEnter", function(self)
+    local newer = ns.Sync and ns.Sync.NewerVersion()
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+    GameTooltip:SetText(ns.L.VERSION_SHOWN:format(ns.Version()), 1, 0.82, 0)
+    GameTooltip:AddLine(newer and ns.L.UPDATE_TIP:format(newer) or ns.L.VERSION_CURRENT, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  frame.Version:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  UI.UpdateVersion()
 
   local buttons = 0
   for _, tab in ipairs(tabs) do
@@ -630,6 +668,7 @@ for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", 
   ns.On(event, function(...) Refresh(event, ...) end)
 end
 ns.On("ROSTER", function() if frame then UpdateTitle() end end)
+ns.On("VERSION", function() UI.UpdateVersion() end)
 ns.On("GUILD", function()
   if not frame then return end
   UpdateTitle()

@@ -242,7 +242,7 @@ local function Build(panel)
   local shell = W.Page(panel) -- "page" is a statistics page in this file
   local toolbar = shell.Bar
   panel = shell.Body
-  view.Fresh = shell.Hint -- how many members the values come from: the status line
+  view.Fresh = W.Text(toolbar, "GameFontDisableSmall") -- how many members the values come from
   local pageOptions = {}
   for i, page in ipairs(S.PAGES) do pageOptions[i] = { value = page.key, text = L["FAME_PAGE_" .. page.key:upper()] } end
   view.Pages = W.Segmented(toolbar, pageOptions, function(value)
@@ -282,6 +282,7 @@ local function Build(panel)
   end, 170, { small = true })
   shell:Right(view.AllButton)
   shell:Right(view.Period)
+  shell:Fill(view.Fresh)
 
   -- home: totals, cards, page box -----------------------------------------------------------------
   local home = CreateFrame("Frame", nil, panel)

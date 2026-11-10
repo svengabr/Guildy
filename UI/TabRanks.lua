@@ -145,8 +145,8 @@ local function Build(panel)
   end
   UI.SecureAction(view.Edit, function() return UI.Action.RankEditor(Place) end, L.RANKS_EDIT_TIP,
     function() ns.Print(L.BLIZZARD_PART_MISSING) end)
-  view.Hint = page.Hint -- the status line
-  view.Hint:SetText(L.RANKS_READONLY)
+  -- who is not the guild master has no button in the toolbar: the reason stands there
+  view.Hint = page:Left(W.Text(page.Bar, "GameFontDisableSmall", L.RANKS_READONLY), 2)
 
   function view:Refresh()
     local list = Ranks()

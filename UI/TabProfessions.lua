@@ -234,7 +234,8 @@ local function Build(panel)
   page:Right(view.Harvest)
   W.Tooltip(view.Harvest, L.HARVEST, L.HARVEST_TIP)
 
-  view.Info = page.Hint -- where the data comes from, or the number of search results: the status line
+  -- where the data comes from, or the number of search results: between the search and the button
+  view.Info = page:Fill(W.Text(page.Bar, "GameFontDisableSmall"))
 
   -- status column while reading members: current look and the latest results ----------------------------
   local status = W.Box(panel)
