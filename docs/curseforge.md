@@ -35,8 +35,10 @@ the images point to GitHub raw URLs and show up as they are.
 ## Gallery (in this order)
 
 Real in-game screenshots (German client) of my own guild, taken by `/guildy shots` in front of a plain backdrop
-and cut out by `media/gallery/crop.py` and `gallery.py` (see `media/gallery/README.md`). Nothing in them is
-retouched: the names, notes and chat are the guild's own.
+and cut out by `media/gallery/crop.py` and `gallery.py` (see `media/gallery/README.md`). Nothing is retouched
+afterwards: during the run Guildy itself shows made-up character names, guild and community names, notes, message
+of the day and chat (`Core/Anon.lua`). Levels, classes, zones, professions and statistics are the real ones,
+except the PvP statistics: my guild hardly does PvP, so the PvP page shows sample values.
 
 Title and description per image (CurseForge allows 255 characters per description).
 
@@ -82,9 +84,12 @@ Title and description per image (CurseForge allows 255 characters per descriptio
 14. `media/gallery/15-options-members.jpg`
    - Title: Options
    - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: the columns of the member list and how it tells online from offline.
+15. `media/gallery/16-options-hall-of-fame.jpg`
+   - Title: Options: Hall of Fame
+   - Description: Pick which tiles and title cards each Hall of Fame page shows, in which order. Any statistic Guildy tracks can be a tile.
 
-No longer part of the gallery: `00-guildy.jpg`, `09-professions-leatherworking.jpg` and `12-sync.jpg` (rendered
-or retouched pictures of the old look). Remove them from the CurseForge gallery when uploading the new ones.
+The pictures made up to 1.2.0 (`00-guildy`, `09-professions-leatherworking`, `12-sync` and the old look of the
+others) are gone from the repository. Remove them from the CurseForge gallery when uploading the new ones.
 
 ## Links
 

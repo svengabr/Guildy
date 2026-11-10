@@ -35,6 +35,8 @@ Made for WoW Forever. English and German.
 
 ![Options next to the window](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/15-options-members.jpg)
 
+![Hall of Fame options](https://raw.githubusercontent.com/svengabr/Guildy/main/media/gallery/16-options-hall-of-fame.jpg)
+
 ## Where the profession data comes from
 
 An addon can only read its own character directly, so Guildy collects the rest from several places:
