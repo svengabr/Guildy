@@ -1,26 +1,32 @@
 # Gallery images
 
-The CurseForge gallery is built from real in-game screenshots (German client). `build.py` cuts the Guildy window
-out of the game world (day or night sky), places it on a neutral background (1920×1080 JPG) and replaces every
-character name with a made-up one in the same class colour and the game font; the guild chat is rewritten.
-`12-sync.jpg` (English) and `sync-de.jpg` (German) are rendered from `sync.html` with headless Chrome, the
-overview image `00-guildy.jpg` from `promo.html` (logo, claim, features, cut-outs of 01, 04 and 09):
+The gallery pictures are real in-game screenshots (German client), unretouched. Three steps make them:
 
 ```sh
-chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 --allow-file-access-from-files \
-  --window-size=1920,1080 --screenshot=00-guildy.png promo.html   # then save as JPG (quality 92)
+python collect.py "<WoW folder>/_forever_/Screenshots"   # the newest /guildy shots run -> src/
+python crop.py                                            # the window cut out -> src/crop/
+python gallery.py                                         # 1920x1080 JPGs in this folder
 ```
+
+`build.py`, `screens.py`, `promo.html` and `sync.html` made the pictures up to 1.2.0 (made-up names painted over
+the real ones, a rendered overview and a sharing explainer). They are kept for reference and no longer used.
+
+## Reference screenshots
+
+`/guildy shots` (with Guildy open) walks through every tab, Hall of Fame page, the character page and the options
+and takes one screenshot per view, in about 40 seconds. During the run a plain dark sheet covers the screen behind
+Guildy (`/guildy shots backdrop` switches it on and off for pictures taken by hand). Then:
 
 ```sh
-python build.py        # everything
-python build.py 05     # only 05-…
-python build.py sync   # only the sync explainer
+python media/gallery/collect.py "<WoW folder>/_forever_/Screenshots"
 ```
 
-Local only, git-ignored (they contain the real names): `src/*.webp` (the screenshots) and `screens.py` (where each
-name sits, real → made-up names, the rewritten chat). `PROBE=1 python build.py` prints the text lines it finds.
+copies that run to `src/` as `01-chat.jpg` … `19-options-professions.jpg` (the list is in `UI/Shots.lua`).
 
-Also needed: Pillow, numpy, Chrome and the game font, which is not in the repo (Blizzard asset, git-ignored):
+Local only, git-ignored: `src/` (the raw screenshots and the cut-outs) and `screens.py`.
+
+Needed: Pillow and numpy. The old `build.py` also needs Chrome and the game font, which is not in the repo
+(Blizzard asset, git-ignored):
 
 - `fonts/FRIZQT__.TTF`: `curl -L -o fonts/FRIZQT__.TTF https://wago.tools/api/casc/615960`
 

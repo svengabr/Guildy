@@ -34,54 +34,57 @@ the images point to GitHub raw URLs and show up as they are.
 
 ## Gallery (in this order)
 
-`00-guildy.jpg` is the overview image (logo, claim, the main features and three screenshots), rendered from
-`media/gallery/promo.html` with headless Chrome. The rest are real in-game screenshots (German client), cut
-out and placed on a neutral background by `media/gallery/build.py`. All character names are made up and the guild chat is rewritten. `12-sync.jpg` is
-rendered from `media/gallery/sync.html` (a German version is `sync-de.jpg`, not part of the gallery).
+Real in-game screenshots (German client) of my own guild, taken by `/guildy shots` in front of a plain backdrop
+and cut out by `media/gallery/crop.py` and `gallery.py` (see `media/gallery/README.md`). Nothing in them is
+retouched: the names, notes and chat are the guild's own.
 
 Title and description per image (CurseForge allows 255 characters per description).
 
-0. `media/gallery/00-guildy.jpg` (mark it as the featured image)
-   - Title: Guildy
-   - Description: Make the guild window worth opening again: guild chat with history and the online list, a census of active members, professions with recipe search, a Hall of Fame from character statistics and character pages. Lives inside Blizzard's own guild window.
-1. `media/gallery/01-chat.jpg`
-   - Title: Chat first
-   - Description: Press J and Guildy opens on the guild chat with its whole history: times, a timeline of the days and a mark for what's new since your last login. Next to it every online member with level, class colour, professions and zone.
+1. `media/gallery/01-chat.jpg` (mark it as the featured image)
+   - Title: Chat
+   - Description: What J opens: the guild chat with times, a timeline of the days and a mark for what is new since your last login. Next to it everyone who is online, with level, class colour and zone.
 2. `media/gallery/02-members.jpg`
    - Title: Members
-   - Description: Search names, zones and notes, filter by class, level and profession, and sort by any column. A click opens the character page with Blizzard's member panel beside it for rank and notes; a right click opens Blizzard's member menu.
+   - Description: Online members above offline ones. Search names, zones and notes, filter by class and group, sort by any column. The columns are yours to choose.
 3. `media/gallery/03-overview.jpg`
    - Title: Overview
-   - Description: Your guild at a glance: classes, levels and professions of the members active in the last month, three months, six months or ever. Also shows last online, who joined and left in the last 30 days, and a class × level grid.
+   - Description: Classes, levels and professions of the members who were online in the last month, three months, six months or ever, with who joined and left recently. Click a bar to see who is behind it.
 4. `media/gallery/04-hall-of-fame.jpg`
    - Title: Hall of Fame: General
-   - Description: Guild totals from Forever's character statistics: creatures killed, quests, deaths, flight paths, mounts and pets. Title cards crown the top members; the equipment list compares item level and quality and flags who needs an upgrade.
+   - Description: Guild totals from Forever's character statistics: creatures killed, quests, deaths, flight paths, mounts. Title cards name the top members, and the list below compares equipment.
 5. `media/gallery/05-hall-of-fame-economy.jpg`
    - Title: Hall of Fame: Economy
-   - Description: Where the guild's gold comes from (quests, loot, vendors, auction house) and where it goes (flights, mail). Title cards for the top earners and traders, plus gold earned, spent and auctions per member.
+   - Description: Where the guild's gold comes from and where it goes, with gold earned and spent per member.
 6. `media/gallery/06-hall-of-fame-dungeons.jpg`
    - Title: Hall of Fame: Dungeons
-   - Description: Dungeon bosses killed, dungeons cleared and entered, and deaths inside. The progress grid covers all 32 dungeons and raids, grouped by level, and counts each member's clears; click a dungeon for its ranking.
+   - Description: End bosses killed and a grid of every dungeon and raid with each member's clears.
 7. `media/gallery/07-hall-of-fame-reputation.jpg`
    - Title: Hall of Fame: Reputation
-   - Description: Factions met and standings reached across the guild, with the reputation of every member from Friendly to Exalted. Switch between all time, this month and last month.
+   - Description: The reputation of every member per standing, for all time, this month or last month.
 8. `media/gallery/08-hall-of-fame-pvp.jpg`
    - Title: Hall of Fame: PvP
-   - Description: Honorable kills, duels won and lost, and battlegrounds played across the guild. Title cards for the top fighter and the duel master, plus win rate and this month's kills for every member.
+   - Description: Honorable kills, duels won and lost, and battlegrounds, with the win rate of every member.
 9. `media/gallery/09-professions.jpg`
    - Title: Professions
-   - Description: Every profession at a glance: how many members have it and how many are online. Pick one for its members with skill, recipes and data source, and browse a member's recipes right next to it. The search finds who can craft an item.
-   - Second image `media/gallery/09-professions-leatherworking.jpg`, Title: Professions: Leatherworking
-   - Description: Online members first, then offline, with skill bars and a hint when someone needs a trainer for the next rank. Data comes from Guildy users, profession links in chat, guild notes, or from reading the recipe books of online members.
+   - Description: Every profession with how many members have it. Pick one for its members with skill and recipes, and browse a member's recipes next to it. The search finds who can craft an item.
 10. `media/gallery/10-info-log.jpg`
    - Title: Info & Log
-   - Description: Message of the day and guild information, both editable right in the window, next to the full guild log: joins, leaves, invites, promotions and demotions. Your sharing settings are here too.
+   - Description: Message of the day and guild information, both editable in the window, next to the guild log.
 11. `media/gallery/11-ranks.jpg`
    - Title: Ranks
-   - Description: Every guild rank with its member count, permissions and members. The guild master edits ranks and permissions in Blizzard's own rank editor, opened right inside the tab.
-12. `media/gallery/12-sync.jpg`
-   - Title: How sharing works
-   - Description: No server, no account: Guildy users swap what they know over the hidden guild addon channel. Newer data replaces older data, members pass on what they've seen, and members without Guildy are read when you target them nearby.
+   - Description: Every rank with its permissions and members. The guild master edits them in Blizzard's own rank editor, which opens inside the tab.
+12. `media/gallery/14-character.jpg`
+   - Title: Character page
+   - Description: A member's statistics, dungeon collection and professions, with their twinks once Guildy knows them.
+13. `media/gallery/13-account.jpg`
+   - Title: Account
+   - Description: Your own characters and all their professions together, one tile per profession.
+14. `media/gallery/15-options-members.jpg`
+   - Title: Options
+   - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: the columns of the member list and how it tells online from offline.
+
+No longer part of the gallery: `00-guildy.jpg`, `09-professions-leatherworking.jpg` and `12-sync.jpg` (rendered
+or retouched pictures of the old look). Remove them from the CurseForge gallery when uploading the new ones.
 
 ## Links
 
