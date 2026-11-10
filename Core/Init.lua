@@ -41,6 +41,10 @@ local HANDLERS = {
   ADDON_LOADED = function(name)
     if name == ns.ADDON then
       GuildyDB = ns.Store.Init(rawget(_G, "GuildyDB"))
+      -- a /guildy shots all cut off by a crash or a logout: language and size back, before they apply
+      if ns.ShotRun.Recover(GuildyDB, ns.Now()) then
+        C_Timer.After(5, function() ns.Print("shots: the run over all languages was cut off, language and size are back") end)
+      end
       -- the language chosen in the options, else the client's (Locales/Locales.lua)
       ns.Locale.Apply(ns.Locale.Resolve(GuildyDB.settings.language, GetLocale()))
       ns.Chat.InitSeen(GuildyDB.settings, ns.Now())
@@ -59,6 +63,7 @@ local HANDLERS = {
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
     ns.Sync.Start()
     ns.GameStats.Start()
+    ns.UI.ResumeShots() -- /guildy shots all goes on after its reload
   end,
   PLAYER_LOGOUT = function()
     ns.Chat.OnLogout(ns.Settings(), ns.Now())
@@ -199,6 +204,10 @@ SlashCmdList.GUILDY = function(msg)
     ns.UI.ToggleShotBackdrop()
   elseif msg == "shots anon" then
     ns.UI.ToggleShotNames()
+  elseif msg == "shots all" then
+    ns.UI.TakeAllShots()
+  elseif msg == "shots stop" then
+    ns.UI.StopShots()
   elseif msg == "shots" then
     ns.UI.TakeShots()
   elseif msg:match("^perf") then

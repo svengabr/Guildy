@@ -31,4 +31,16 @@ T.describe("ShotRun", function()
     R.Next(run, 1)
     T.eq(#languages, 2)
   end)
+  T.it("puts a cut-off run back and leaves a fresh one alone", function()
+    local db = { settings = { language = "ruRU", width = 1130, height = 560 } }
+    db.shotRun = { queue = { "ptBR" }, language = false, width = 1300, height = 700, touched = 100 }
+    T.eq(R.Recover(db, 100 + R.STALE), false)
+    T.truthy(db.shotRun, "still running")
+    T.eq(R.Recover(db, 101 + R.STALE), true)
+    T.eq(db, { settings = { width = 1300, height = 700 } })
+    T.eq(R.Recover(db, 0), false) -- no run at all
+    db.shotRun = "junk"
+    T.eq(R.Recover(db, 0), true)
+    T.eq(db.shotRun, nil)
+  end)
 end)

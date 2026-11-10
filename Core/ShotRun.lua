@@ -32,6 +32,15 @@ function ShotRun.Stale(run, now)
   return now - (run.touched or 0) > ShotRun.STALE
 end
 
+-- A run that was cut off is put back and forgotten (true); a fresh one or none is left alone. db: GuildyDB.
+-- Called before the saved language is applied, so the language from before the run is in force at once.
+function ShotRun.Recover(db, now)
+  if db.shotRun == nil or not ShotRun.Stale(db.shotRun, now) then return false end
+  if type(db.shotRun) == "table" and type(db.settings) == "table" then ShotRun.Restore(db.shotRun, db.settings) end
+  db.shotRun = nil
+  return true
+end
+
 -- Language and window size as they were before the run
 function ShotRun.Restore(run, settings)
   settings.language = run.language or nil

@@ -114,20 +114,23 @@ function UI.ToggleShotNames()
 end
 
 local STEP = 2 -- seconds per view: shown, one second to settle, the picture, one second to the next
-local running
+local running -- the pictures being taken: { stopped }
 
-function UI.TakeShots()
+-- onDone: called after the last picture and the clean-up, not when the pictures were stopped.
+-- True when the pictures were started.
+function UI.TakeShots(onDone)
   local shoot = rawget(_G, "Screenshot")
-  if running then return end
+  if running then return false end
   if not shoot then
     ns.Print("shots: this client has no Screenshot()")
-    return
+    return false
   end
   if not UI.IsShown() then
     ns.Print("shots: open Guildy first (J)")
-    return
+    return false
   end
-  running = true
+  local this = {}
+  running = this
   -- the "screen captured" line of one picture would be in the next one
   local status = rawget(_G, "ActionStatus")
   if status and status.UnregisterEvent then status:UnregisterEvent("SCREENSHOT_SUCCEEDED") end
@@ -139,6 +142,7 @@ function UI.TakeShots()
   ns.Print(("shots: %d pictures, about %d seconds. Leave mouse and keyboard alone."):format(#UI.SHOTS, #UI.SHOTS * STEP))
   for i, shot in ipairs(UI.SHOTS) do
     C_Timer.After((i - 1) * STEP, function()
+      if this.stopped then return end
       UI.fromTimer = true -- no click behind this: nothing protected (community avatars)
       ns.SafeCall(shot[2])
       UI.fromTimer = nil
@@ -146,6 +150,7 @@ function UI.TakeShots()
       if tip then tip:Hide() end
     end)
     C_Timer.After((i - 1) * STEP + 1, function()
+      if this.stopped then return end
       local tip = rawget(_G, "GameTooltip")
       if tip then tip:Hide() end -- of whatever the resting mouse is on
       ns.SafeCall(shoot)
@@ -158,6 +163,128 @@ function UI.TakeShots()
     if not hadBackdrop then Backdrop(false) end
     if not wasAnonymous then Anonymous(false) end
     if back then UI.SelectTab(back) end
-    ns.Print("shots: done. Collect them with: python media/gallery/collect.py")
+    if this.stopped then return end
+    if onDone then
+      onDone()
+    else
+      ns.Print("shots: done. Collect them with: python media/gallery/collect.py")
+    end
   end)
+  return true
+end
+
+-- /guildy shots all -------------------------------------------------------------------------------------
+-- Every view in every language, at the smallest window size: the end-to-end check of the translations
+-- (media/e2e/collect.py files the pictures by language). Guildy's language only changes with a reload
+-- of the interface, so the run goes language by language over reloads and keeps its state in
+-- GuildyDB.shotRun (Core/ShotRun.lua). Guildy cannot open itself (UI.Show: only Blizzard's own code may
+-- open the guild window), so after each reload the run waits for J.
+local WAIT_OPEN, WAIT_ROSTER = 120, 20 -- seconds for the player to press J, and for the guild roster
+
+local function Run()
+  local db = ns.DB()
+  return db and db.shotRun
+end
+
+local function ApplySize(width, height)
+  if UI.frame and width and height then UI.frame:SetSize(width, height) end -- not saved: only the grip saves
+end
+
+local function Reload()
+  ns.ReloadUI()
+  -- still here two seconds later: the client did not reload from addon code
+  C_Timer.After(2, function() ns.Print("shots: type /reload to go on") end)
+end
+
+-- The end of a run, finished, stopped or given up: language and size as before
+local function Finish(message)
+  local run = Run()
+  if not run then return end
+  local settings = ns.Settings()
+  ns.ShotRun.Restore(run, settings)
+  ns.DB().shotRun = nil
+  if running then running.stopped = true end
+  ApplySize(settings.width, settings.height)
+  ns.Print(message)
+  local client = rawget(_G, "GetLocale") and GetLocale() or nil
+  if ns.Locale.Resolve(settings.language, client) ~= ns.Locale.current then Reload() end
+end
+
+-- Looks once a second, up to `seconds` times; the run counts as alive meanwhile
+local function WaitFor(check, seconds, onYes, onNo)
+  local run = Run()
+  local function Look(left)
+    if Run() ~= run then return end -- stopped meanwhile
+    run.touched = ns.Now()
+    if check() then
+      onYes()
+    elseif left <= 0 then
+      onNo()
+    else
+      C_Timer.After(1, function() Look(left - 1) end)
+    end
+  end
+  Look(seconds)
+end
+
+local NextLanguage
+
+-- The pictures of the language in force
+local function ShootLanguage()
+  local name = ns.Locale.NAMES[ns.Locale.current] or ns.Locale.current
+  if not UI.IsShown() then ns.Print(("shots: %s. Open Guildy (J) to go on."):format(name)) end
+  WaitFor(UI.IsShown, WAIT_OPEN, function()
+    WaitFor(function() return #ns.Roster.Members() > 0 end, WAIT_ROSTER, function()
+      local run = Run()
+      ApplySize(UI.MIN_W, UI.MIN_H)
+      C_Timer.After(2, function() -- the views lay themselves out at the new size
+        if Run() ~= run then return end
+        if not UI.TakeShots(NextLanguage) then Finish("shots: stopped, the pictures could not be taken.") end
+      end)
+    end, function() Finish("shots: stopped, the guild roster did not arrive.") end)
+  end, function() Finish("shots: stopped, Guildy was not opened.") end)
+end
+
+function NextLanguage()
+  local run = Run()
+  if not run then return end
+  local code = ns.ShotRun.Next(run, ns.Now())
+  if not code then
+    Finish("shots: every language done. Collect them with: python media/e2e/collect.py")
+    return
+  end
+  ns.Settings().language = code
+  if code == ns.Locale.current then ShootLanguage() else Reload() end
+end
+
+function UI.TakeAllShots()
+  if Run() or running then
+    ns.Print("shots: a run is on. /guildy shots stop ends it.")
+    return
+  end
+  if not rawget(_G, "Screenshot") then
+    ns.Print("shots: this client has no Screenshot()")
+    return
+  end
+  local languages = ns.Locale.Languages()
+  ns.DB().shotRun = ns.ShotRun.Start(ns.Settings(), languages, ns.Now())
+  ns.Print(("shots: %d languages, about %d minutes. The interface reloads between them; press J after each reload."):format(
+    #languages, math.ceil(#languages * (#UI.SHOTS * STEP + 15) / 60)))
+  NextLanguage()
+end
+
+-- After the reload of a run (PLAYER_LOGIN): on with the language now in force
+function UI.ResumeShots()
+  if Run() then ShootLanguage() end
+end
+
+function UI.StopShots()
+  if Run() then
+    Finish("shots: stopped.")
+  elseif running then
+    running.stopped = true
+    ns.Print("shots: stopped.")
+  else
+    ns.Print("shots: no run is on.")
+  end
 end
