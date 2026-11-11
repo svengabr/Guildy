@@ -94,3 +94,55 @@ T.describe("Census", function()
     T.eq(changes[3].by, "Officer")
   end)
 end)
+
+T.describe("Census endgame", function()
+  local function m(t)
+    local out = { level = 60, classFile = "MAGE", online = true }
+    for k, v in pairs(t or {}) do out[k] = v end
+    return out
+  end
+  T.it("picks the phase", function()
+    local sixty, low = m(), m({ level = 40 })
+    T.eq(Census.Phase({ sixty, low }, "level"), "level")
+    T.eq(Census.Phase({ low }, "endgame"), "endgame")
+    T.eq(Census.Phase({ sixty, sixty, sixty, low, low, low }), "endgame")
+    T.eq(Census.Phase({ sixty, sixty, low, low, low, low }), "level")
+    T.eq(Census.Phase({}), "level")
+    T.eq(Census.Phase({ low, m({ online = false, daysOffline = 90 }) }), "level") -- an inactive 60 does not count
+    T.eq(Census.Phase({ sixty }, "nonsense"), "endgame")
+  end)
+  T.it("stacks item levels of the level 60 members", function()
+    local a, b, c, d = m(), m({ classFile = "DRUID" }), m({ level = 59 }), m()
+    local ilvl = { [a] = 579, [b] = 571, [c] = 600 }
+    local r = Census.ItemLevels({ a, b, c, d }, 30, function(x) return ilvl[x] end)
+    T.eq(r.counts, { [57] = { MAGE = 1, DRUID = 1 } })
+    T.eq(r.totals, { [57] = 2 })
+    T.eq({ r.min, r.max, r.top }, { 57, 57, 2 })
+    local empty = Census.ItemLevels({}, 30, function() end)
+    T.eq(empty.min, nil)
+    T.eq(empty.top, 0)
+  end)
+  T.it("knows who is raid ready", function()
+    T.eq(Census.IsReady(m(), 560), true)
+    T.eq(Census.IsReady(m(), 559), false)
+    T.eq(Census.IsReady(m(), nil), false)
+    T.eq(Census.IsReady(m({ level = 59 }), 600), false)
+    T.eq(Census.IsReady(m({ online = false, daysOffline = 7 }), 600), true)
+    T.eq(Census.IsReady(m({ online = false, daysOffline = 7.5 }), 600), false)
+  end)
+  T.it("sums up a raid", function()
+    local old, new, open, away = m({ name = "old" }), m({ name = "new" }), m({ name = "open" }), m({ name = "away", level = 30 })
+    local values = { [old] = { [1098] = 4 }, [new] = { [1098] = 1 }, [open] = { [107] = 9 }, [away] = { [1098] = 2 } }
+    local start = { [old] = { [1098] = 3 }, [new] = {}, [open] = {} }
+    local ilvl = { [old] = 600, [new] = 600, [open] = 580 }
+    local raids = Census.Raids({ old, new, open, away }, 30, { { key = "onyxia", raid = true, stats = { 1098 } } },
+      function(x) return values[x] end, function(x) return start[x] end, function(x) return ilvl[x] end)
+    T.eq(#raids, 1)
+    T.eq(raids[1].raid.key, "onyxia")
+    T.eq(raids[1].readings, 3)
+    T.eq(#raids[1].killers, 2)
+    T.eq(raids[1].new, 1)
+    T.eq(#raids[1].open, 1)
+    T.eq(raids[1].open[1].name, "open")
+  end)
+end)

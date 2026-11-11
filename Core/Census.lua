@@ -128,3 +128,98 @@ function Census.Sorted(counts)
   end)
   return list
 end
+
+-- endgame -------------------------------------------------------------------------------------------------
+
+Census.READY_ILVL = 56     -- average item level from which a level 60 member counts for the raid roster
+Census.READY_DAYS = 7      -- and has to have been online within these days
+Census.ENDGAME_SHARE = 0.5 -- share of level 60 among the active members from which the overview shows the endgame
+
+-- Which view the overview shows: the setting ("level" / "endgame") when there is one, else the endgame
+-- as soon as ENDGAME_SHARE of the members active in the last 30 days are level 60
+function Census.Phase(members, setting)
+  if setting == "level" or setting == "endgame" then return setting end
+  local active, top = 0, 0
+  for _, m in ipairs(members) do
+    if Census.IsActive(m, 30) then
+      active = active + 1
+      if (tonumber(m.level) or 0) >= Census.MAX_LEVEL then top = top + 1 end
+    end
+  end
+  return (active > 0 and top / active >= Census.ENDGAME_SHARE) and "endgame" or "level"
+end
+
+local function IsTop(m, windowDays)
+  return (tonumber(m.level) or 0) >= Census.MAX_LEVEL and Census.IsActive(m, windowDays)
+end
+
+-- Item levels of the level 60 members active in the window: { counts = { [itemLevel] = { [classFile] = n } },
+-- totals = { [itemLevel] = n }, min, max, top = highest column }. ilvlOf(m) -> average item level in
+-- tenths as stored, or nil without an equipment reading; a column holds one whole item level.
+function Census.ItemLevels(members, windowDays, ilvlOf)
+  local result = { counts = {}, totals = {}, top = 0 }
+  for _, m in ipairs(members) do
+    local tenths = IsTop(m, windowDays) and ilvlOf(m)
+    if type(tenths) == "number" then
+      local level = math.floor(tenths / 10)
+      result.totals[level] = (result.totals[level] or 0) + 1
+      result.top = math.max(result.top, result.totals[level])
+      result.min = math.min(result.min or level, level)
+      result.max = math.max(result.max or level, level)
+      if m.classFile then
+        local byClass = result.counts[level] or {}
+        byClass[m.classFile] = (byClass[m.classFile] or 0) + 1
+        result.counts[level] = byClass
+      end
+    end
+  end
+  return result
+end
+
+-- Raid ready: level 60, online within READY_DAYS and equipped from READY_ILVL up (tenths as stored)
+function Census.IsReady(m, ilvlTenths)
+  if (tonumber(m.level) or 0) < Census.MAX_LEVEL or type(ilvlTenths) ~= "number" then return false end
+  if not (m.online or (type(m.daysOffline) == "number" and m.daysOffline <= Census.READY_DAYS)) then return false end
+  return ilvlTenths >= Census.READY_ILVL * 10
+end
+
+-- Per raid (raids = the entries of Stats.DUNGEONS with raid = true): { {raid, readings, killers = { m },
+-- new, open = { m }} }. Counted are the level 60 members active in the window that have statistics
+-- (valuesOf(m) -> current values or nil): readings = how many, killers = those with an end boss kill,
+-- new = killers whose first values of this month (monthStartOf(m), nil = unknown) had none, open = raid
+-- ready members without a kill, best equipped first.
+function Census.Raids(members, windowDays, raids, valuesOf, monthStartOf, ilvlOf)
+  local list = {}
+  local function Kills(values, raid)
+    local sum = 0
+    for _, id in ipairs(raid.stats) do sum = sum + (values[id] or 0) end
+    return sum
+  end
+  for _, raid in ipairs(raids) do
+    local entry = { raid = raid, readings = 0, killers = {}, new = 0, open = {} }
+    local ilvls = {}
+    for _, m in ipairs(members) do
+      local values = IsTop(m, windowDays) and valuesOf(m)
+      if type(values) == "table" then
+        entry.readings = entry.readings + 1
+        if Kills(values, raid) > 0 then
+          entry.killers[#entry.killers + 1] = m
+          local start = monthStartOf(m)
+          if type(start) == "table" and Kills(start, raid) == 0 then entry.new = entry.new + 1 end
+        else
+          local ilvl = ilvlOf(m)
+          if Census.IsReady(m, ilvl) then
+            entry.open[#entry.open + 1] = m
+            ilvls[m] = ilvl
+          end
+        end
+      end
+    end
+    table.sort(entry.open, function(a, b)
+      if ilvls[a] ~= ilvls[b] then return ilvls[a] > ilvls[b] end
+      return (a.name or "") < (b.name or "")
+    end)
+    list[#list + 1] = entry
+  end
+  return list
+end

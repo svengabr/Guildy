@@ -196,3 +196,44 @@ T.describe("Activity players", function()
     T.eq(A.PulseChange(guild, 74, "2026-11"), 3)
   end)
 end)
+
+T.describe("Activity month", function()
+  Stats.LAUNCH_MONTH = "2026-01" -- ordinary months here
+  local TENTH = os.time({ year = 2026, month = 11, day = 10, hour = 12 })
+  local FIRST, BEFORE = TENTH - 9 * DAY, TENTH - 35 * DAY
+  local function row(rows, id)
+    for _, r in ipairs(rows) do
+      if r.id == id then return r end
+    end
+  end
+  T.it("has the six rows in order", function()
+    local rows = A.Month({}, {}, function() end, TENTH, date, nil)
+    local ids = {}
+    for i, r in ipairs(rows) do ids[i] = r.id end
+    T.eq(ids, A.MONTH_ROWS)
+    T.eq(row(rows, 98).value, 0)
+    T.eq(row(rows, 98).compare, nil)
+    T.eq(row(rows, "days").value, 0)
+  end)
+  T.it("compares with last month up to the same day", function()
+    local full = { rec = { ts = TENTH, v = { [98] = 70 }, months = {
+      ["2026-10"] = { ts = BEFORE, v = { [98] = 10 } }, ["2026-11"] = { ts = FIRST, v = { [98] = 40 } } } } }
+    local fresh = { rec = { ts = TENTH, v = { [98] = 500 }, months = {} } } -- no start value: left out
+    local r = row(A.Month({ full, fresh }, {}, function() end, TENTH, date, nil), 98)
+    T.eq(r.value, 30)
+    T.eq(r.last, 30)
+    T.eq(r.compare, 10) -- day 10 of 30
+  end)
+  T.it("averages the days online per player", function()
+    local today = A.Day(TENTH)
+    local records = { a = { seen = { [today] = true, [today - 1] = true, [today - 20] = true } }, b = { seen = { [today - 1] = true } },
+      c = { seen = { [today - 2] = true } } }
+    local players = { { chars = { { key = "a" }, { key = "b" } } }, { chars = { { key = "c" } } }, { chars = { { key = "d" } } } }
+    local recordOf = function(m) return records[m.key] end
+    local r = row(A.Month({}, players, recordOf, TENTH, date, today - 5), "days")
+    T.eq(r.value, 1.5)   -- 2 and 1 days; the player never seen is left out
+    T.eq(r.last, nil)    -- counting began this month
+    r = row(A.Month({}, players, recordOf, TENTH, date, today - 50), "days")
+    T.eq(r.last, 0.5)    -- one day of one of two players
+  end)
+end)

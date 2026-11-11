@@ -258,3 +258,68 @@ function Activity.PulseChange(guild, pulse, previousKey)
   if type(pulse) ~= "number" or type(before) ~= "number" then return nil end
   return math.floor((pulse - before) * 10 + 0.5) / 10
 end
+
+-- month ---------------------------------------------------------------------------------------------------
+
+Activity.MONTH_ROWS = { "raidBosses", "dungeonBosses", 932, 98, 588, "days" }
+
+-- First and last day (Activity.Day) of the month ts lies in
+local function MonthDays(ts, date)
+  local key = ns.Stats.MonthKey(ts, date)
+  local first, last = Activity.Day(ts), Activity.Day(ts)
+  while ns.Stats.MonthKey((first - 1) * DAY + DAY / 2, date) == key do first = first - 1 end
+  while ns.Stats.MonthKey((last + 1) * DAY + DAY / 2, date) == key do last = last + 1 end
+  return first, last
+end
+
+local function Round1(value)
+  return math.floor(value * 10 + 0.5) / 10
+end
+
+-- The rows of "This month": { {id, value, last, compare} } in the order of MONTH_ROWS. value = what the
+-- guild did this month so far, last = in the whole month before, compare = last scaled to the share of
+-- this month that has passed (a month ten days old is compared with a third of the last one); last and
+-- compare are nil when nothing is known of last month. entries = { {rec} } (GameStats.Entries); a record
+-- without a start value for a month is left out of that month. The "days" row is the mean number of
+-- days online per player (players = Activity.Players, recordOf as there), over the players seen at all;
+-- its last is nil while this client has not counted (since) the whole of last month.
+function Activity.Month(entries, players, recordOf, now, date, since)
+  local first, last = MonthDays(now, date)
+  local today = Activity.Day(now)
+  local share = (today - first + 1) / (last - first + 1)
+  local rows = {}
+  for i, id in ipairs(Activity.MONTH_ROWS) do
+    local row = { id = id, value = 0 }
+    if id == "days" then
+      local beforeFirst, beforeLast = MonthDays((first - 1) * DAY + DAY / 2, date)
+      local known = since and since <= beforeFirst
+      local count, sum, sumBefore = 0, 0, 0
+      for _, player in ipairs(players) do
+        local seen = {}
+        for _, m in ipairs(player.chars) do
+          local record = recordOf(m)
+          if record and type(record.seen) == "table" and next(record.seen) then seen[#seen + 1] = record.seen end
+        end
+        if #seen > 0 then
+          count = count + 1
+          sum = sum + Activity.SeenCount(seen, first, today)
+          sumBefore = sumBefore + Activity.SeenCount(seen, beforeFirst, beforeLast)
+        end
+      end
+      if count > 0 then
+        row.value = Round1(sum / count)
+        if known then row.last = Round1(sumBefore / count) end
+      end
+    else
+      for _, entry in ipairs(entries) do
+        local value = ns.Stats.Value(entry.rec, id, "month", now, date)
+        if value then row.value = row.value + value end
+        local before = ns.Stats.Value(entry.rec, id, "last", now, date)
+        if before then row.last = (row.last or 0) + before end
+      end
+    end
+    if row.last then row.compare = Round1(row.last * share) end
+    rows[i] = row
+  end
+  return rows
+end
