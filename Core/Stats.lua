@@ -35,6 +35,13 @@ Stats.SLOT_TWO_HANDED = 7
 -- Slots in the character window's order, in groups: armor, rings and trinkets, weapons
 Stats.GEAR_SLOT_GROUPS = { { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8 }, { 11, 12, 13, 14 }, { 16, 17, 18 } }
 
+-- Days on which the character was played, counted by its own Guildy (Game/Activity.lua) and kept in
+-- the same record, so it is shared and snapshotted per month like the game's statistics. The ID lies
+-- above Blizzard's and BELOW GEAR_BASE on purpose: released versions take every ID above GEAR_BASE
+-- for equipment (HasGear, CleanGear) and would drop a member's known equipment over it. The counter
+-- only grows; a record without it (read nearby, relayed by an older version) keeps the highest known.
+Stats.DAYS = 9800001
+
 -- Categories (Blizzard statistic category IDs) and the statistics Guildy tracks, in display order.
 -- isLocal = read by Guildy itself, never asked from the game; label = locale key for the name.
 Stats.CATALOG = {
@@ -495,6 +502,12 @@ end
 
 local PRIORITY = { self = 3, seen = 2, relay = 1 }
 
+-- The days counter never goes down: the highest of what the record had and what comes in stays
+local function KeepDays(rec, before, incoming)
+  local days = math.max(before or 0, incoming or 0, rec.v and rec.v[Stats.DAYS] or 0)
+  if days > 0 and rec.v then rec.v[Stats.DAYS] = days end
+end
+
 -- Stores newly read values (own or read nearby) for a member. Returns true when anything changed.
 function Stats.Update(member, values, ts, src, date)
   local rec = member.stats
@@ -508,6 +521,7 @@ function Stats.Update(member, values, ts, src, date)
   values = Copy(values)
   if src == "seen" then Stats.CleanGear(values) end
   Stats.CleanRecord(rec)
+  local daysBefore = rec.v and rec.v[Stats.DAYS]
   if not rec.ts or ts > rec.ts or (ts == rec.ts and (PRIORITY[src] or 0) > (PRIORITY[rec.src] or 0)) then
     local new = Copy(values)
     -- a reading without equipment (read nearby, item info not loaded) keeps the last known equipment
@@ -519,6 +533,7 @@ function Stats.Update(member, values, ts, src, date)
     rec.ts, rec.src, rec.v = ts, src, new
     changed = true
   end
+  KeepDays(rec, daysBefore, values[Stats.DAYS])
   if not rec.months[month] then
     rec.months[month] = { ts = ts, v = Copy(values) }
     changed = true
@@ -575,6 +590,7 @@ function Stats.Merge(member, incoming)
   rec.months = type(rec.months) == "table" and rec.months or {}
   Stats.CleanRecord(rec)
   local changed = false
+  local daysBefore = rec.v and rec.v[Stats.DAYS]
   if not rec.ts or incoming.ts > rec.ts
     or (incoming.ts == rec.ts and (PRIORITY[incoming.src] or 0) > (PRIORITY[rec.src] or 0)) then
     local values = Copy(incoming.v)
@@ -586,6 +602,7 @@ function Stats.Merge(member, incoming)
     rec.ts, rec.src, rec.v = incoming.ts, incoming.src, values
     changed = true
   end
+  KeepDays(rec, daysBefore, incoming.v and incoming.v[Stats.DAYS])
   for month, snap in pairs(incoming.months or {}) do
     local mine = rec.months[month]
     if not mine or snap.ts < mine.ts then
@@ -627,6 +644,13 @@ end
 local function StatValue(values, id)
   if not values then return nil end
   if id == "bosses" then return Sum(values, Stats.Bosses()) end
+  if id == "raidBosses" or id == "dungeonBosses" then
+    local sum = 0
+    for _, dungeon in ipairs(Stats.DUNGEONS) do
+      if (dungeon.raid and true or false) == (id == "raidBosses") then sum = sum + Sum(values, dungeon.stats) end
+    end
+    return sum
+  end
   if id == "spent" then return Sum(values, Stats.SPENDING) end
   if id == "dungeons" then
     local count = 0

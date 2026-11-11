@@ -330,3 +330,25 @@ T.describe("Stats tiles", function()
     T.eq(#Stats.Headline(general, Stats.TileChoices(general)), Stats.MAX_TILES)
   end)
 end)
+
+T.describe("Stats days counter and boss sums", function()
+  T.it("sums raid and dungeon end bosses apart", function()
+    local rec = { ts = 100, v = { [1098] = 3, [63580] = 2, [1095] = 5, [6145] = 1 }, months = {} }
+    T.eq(Stats.Value(rec, "raidBosses", "all"), 5)
+    T.eq(Stats.Value(rec, "dungeonBosses", "all"), 6)
+    T.eq(Stats.Value(rec, "bosses", "all"), 11)
+  end)
+  T.it("keeps the days counter when a newer record lacks it", function()
+    local member = {}
+    Stats.Update(member, { [107] = 10, [Stats.DAYS] = 12 }, 1000, "self")
+    Stats.Update(member, { [107] = 20 }, 2000, "seen")                       -- read nearby by an old client
+    T.eq(member.stats.v[Stats.DAYS], 12)
+    Stats.Merge(member, { ts = 3000, src = "relay", v = { [107] = 30, [Stats.DAYS] = 9 }, months = {} })
+    T.eq(member.stats.v[Stats.DAYS], 12)                                     -- never down
+    Stats.Merge(member, { ts = 4000, src = "relay", v = { [107] = 40, [Stats.DAYS] = 15 }, months = {} })
+    T.eq(member.stats.v[Stats.DAYS], 15)
+  end)
+  T.it("does not take the days counter for equipment", function()
+    T.eq(Stats.HasGear({ [Stats.DAYS] = 4 }), false)
+  end)
+end)
