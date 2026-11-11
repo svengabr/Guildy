@@ -579,4 +579,6 @@ ns.LocaleTables.esES = {
   RAIDS_OPEN = "Listos para la banda, sin victoria:",
   RAIDS_OPEN_NONE = "nadie",
   ACTIVITY_REPORT = "Actividad: pulso %s · %d muy activos, %d activos, %d ocasionales, %d apenas, %d sin lectura · mediana %s",
+  ENDGAME_NO_60 = "Aún no hay nadie de nivel 60.",
+  ENDGAME_NO_READING = "Aún no se ha leído a ningún miembro de nivel 60. Guildy lee a los miembros que lo usan o que juegan cerca de ti.",
 }

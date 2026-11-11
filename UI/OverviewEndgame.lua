@@ -145,6 +145,17 @@ function UI.BuildOverviewEndgame(panel)
     end
     return tick
   end
+  -- instead of an empty chart: why there is nothing yet (nobody at 60, or nobody at 60 read)
+  local function EmptyText(box)
+    local text = W.Text(box, "GameFontDisable")
+    text:SetPoint("TOPLEFT", 12, -34)
+    text:SetPoint("RIGHT", -12, 0)
+    text:SetJustifyV("TOP")
+    text:SetWordWrap(true)
+    text:Hide()
+    return text
+  end
+  view.IlvlEmpty = EmptyText(ilvl)
   view.ReadyLine = ilvl:CreateTexture(nil, "OVERLAY")
   view.ReadyLine:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.8)
   view.ReadyLine:SetWidth(1)
@@ -157,6 +168,7 @@ function UI.BuildOverviewEndgame(panel)
 
   -- raids ---------------------------------------------------------------------------------------------
   local raids = Box(L.RAIDS, L.RAIDS_HINT)
+  view.RaidsEmpty = EmptyText(raids)
   view.RaidBlocks = {}
   local function RaidBlock(i)
     local block = view.RaidBlocks[i]
@@ -273,6 +285,7 @@ function UI.BuildOverviewEndgame(panel)
 
   local function PlaceRaids()
     local list = view.raids or {}
+    if view.RaidsEmpty:IsShown() then list = {} end -- nobody to count: the text says why
     local height = raids:GetHeight() or 200
     local pitch = #list > 0 and math.min(74, math.max(48, (height - 36) / #list)) or 48
     for i, entry in ipairs(list) do
@@ -401,11 +414,23 @@ function UI.BuildOverviewEndgame(panel)
     end
     self.ilvls = ns.Census.ItemLevels(members, windowDays, IlvlOf)
     self.IlvlMax:SetText(L.LEVEL_MAX:format(self.ilvls.top))
+    local top = 0 -- level 60 members active in the time window
+    for _, m in ipairs(members) do
+      if (tonumber(m.level) or 0) >= ns.Census.MAX_LEVEL and ns.Census.IsActive(m, windowDays) then top = top + 1 end
+    end
+    local why = top == 0 and L.ENDGAME_NO_60 or L.ENDGAME_NO_READING
+    self.IlvlEmpty:SetText(why)
+    self.IlvlEmpty:SetShown(self.ilvls.min == nil)
+    self.IlvlMax:SetShown(self.ilvls.min ~= nil)
     local raidList = {}
     for _, dungeon in ipairs(S.DUNGEONS) do
       if dungeon.raid then raidList[#raidList + 1] = dungeon end
     end
     self.raids = ns.Census.Raids(members, windowDays, raidList, ValuesOf, MonthStartOf, IlvlOf)
+    local readings = 0
+    for _, entry in ipairs(self.raids) do readings = math.max(readings, entry.readings) end
+    self.RaidsEmpty:SetText(why)
+    self.RaidsEmpty:SetShown(readings == 0)
     for i, entry in ipairs(self.raids) do
       local block = RaidBlock(i)
       block.raid = entry.raid

@@ -579,4 +579,6 @@ ns.LocaleTables.frFR = {
   RAIDS_OPEN = "Prêts pour le raid, sans victoire :",
   RAIDS_OPEN_NONE = "personne",
   ACTIVITY_REPORT = "Activité : pouls %s · %d très actifs, %d actifs, %d occasionnels, %d presque pas, %d sans relevé · médiane %s",
+  ENDGAME_NO_60 = "Personne n'est encore niveau 60.",
+  ENDGAME_NO_READING = "Aucun membre de niveau 60 n'a encore été relevé. Guildy lit les membres qui l'utilisent ou qui jouent près de vous.",
 }

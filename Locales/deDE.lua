@@ -579,4 +579,6 @@ ns.LocaleTables.deDE = {
   RAIDS_OPEN = "Raidbereit ohne Sieg:",
   RAIDS_OPEN_NONE = "niemand",
   ACTIVITY_REPORT = "Aktivität: Puls %s · %d sehr aktiv, %d aktiv, %d gelegentlich, %d kaum, %d ohne Stand · Median %s",
+  ENDGAME_NO_60 = "Noch niemand auf Stufe 60.",
+  ENDGAME_NO_READING = "Noch kein Mitglied auf Stufe 60 ausgelesen. Guildy liest Mitglieder, die es nutzen oder in deiner Nähe spielen.",
 }

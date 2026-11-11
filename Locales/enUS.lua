@@ -580,4 +580,6 @@ ns.LocaleTables.enUS = {
   RAIDS_OPEN = "Raid ready without a kill:",
   RAIDS_OPEN_NONE = "nobody",
   ACTIVITY_REPORT = "Activity: pulse %s · %d very active, %d active, %d occasional, %d hardly, %d without a reading · median %s",
+  ENDGAME_NO_60 = "Nobody is level 60 yet.",
+  ENDGAME_NO_READING = "No level 60 member has been read yet. Guildy reads members who use it or who play near you.",
 }

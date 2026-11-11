@@ -1450,3 +1450,20 @@ T.describe("Screenshot run and the endgame view", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Endgame view before the guild is level 60", function()
+  T.it("says why the item levels and the raids are empty", function()
+    ns.Settings().overviewPhase = "endgame"
+    ns.UI.SelectTab("overview")
+    local view = ns.UI.TabView("overview")
+    view:Refresh()
+    local endgame = view.EndgameView
+    T.eq(endgame.IlvlEmpty:IsShown(), true)
+    T.eq(endgame.IlvlEmpty:GetText(), ns.L.ENDGAME_NO_60) -- the test guild is level 16 to 21
+    T.eq(endgame.RaidsEmpty:IsShown(), true)
+    for _, block in ipairs(endgame.RaidBlocks) do T.eq(block:IsShown(), false) end
+    ns.Settings().overviewPhase = nil
+    view:Refresh()
+    T.eq(errors, {})
+  end)
+end)

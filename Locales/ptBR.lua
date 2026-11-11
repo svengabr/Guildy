@@ -579,4 +579,6 @@ ns.LocaleTables.ptBR = {
   RAIDS_OPEN = "Prontos para a raide, sem vitória:",
   RAIDS_OPEN_NONE = "ninguém",
   ACTIVITY_REPORT = "Atividade: pulso %s · %d muito ativos, %d ativos, %d ocasionais, %d quase nada, %d sem leitura · mediana %s",
+  ENDGAME_NO_60 = "Ainda não há ninguém no nível 60.",
+  ENDGAME_NO_READING = "Ainda não foi lido nenhum membro de nível 60. O Guildy lê os membros que o usam ou que jogam perto de você.",
 }
