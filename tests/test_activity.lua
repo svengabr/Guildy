@@ -285,3 +285,11 @@ T.describe("Activity after the review", function()
     T.eq(A.LastSeenDay(40 * DAY, false, 28), nil)      -- months count as 30 days from here on
   end)
 end)
+
+T.describe("Activity and readings from the Battle.net sync", function()
+  T.it("takes a reading stamped with the last login as the state at the last logout", function()
+    -- tools/bnet-sync stamps a reading with the last login, hours before the logout the roster reports
+    T.eq(A.IsCurrent({ ts = NOW - 20 * DAY - 5 * 3600 }, { online = false, daysOffline = 20 }, NOW), true)
+    T.eq(A.IsCurrent({ ts = NOW - 22 * DAY }, { online = false, daysOffline = 20 }, NOW), false)
+  end)
+end)

@@ -27,6 +27,9 @@ Activity.MIN_COUNTED = 7   -- days counted before presence is rated at all
 Activity.FADE_FROM = 3     -- days since last online from which a score falls off ...
 Activity.GONE_DAYS = 30    -- ... down to 0 at this many: who stopped playing is not active
 Activity.VAGUE_DAYS = 28   -- a last online this long ago names no day (the game counts months as 30 days)
+-- a reading this long before the last logout still counts as taken at it: the roster gives whole hours,
+-- and a reading from the Battle.net profile (tools/bnet-sync) carries the time of the last login
+Activity.LOGOUT_SLACK = DAY
 Activity.PULSES_KEPT = 4
 
 -- weekly counts of a rates table, and the statistic each comes from
@@ -147,7 +150,7 @@ function Activity.IsCurrent(rec, m, now)
   if type(rec) ~= "table" or type(rec.ts) ~= "number" then return false end
   if rec.ts >= now - Activity.CURRENT_DAYS * DAY then return true end
   if m.online or type(m.daysOffline) ~= "number" then return false end
-  return rec.ts >= now - m.daysOffline * DAY - 3600
+  return rec.ts >= now - m.daysOffline * DAY - Activity.LOGOUT_SLACK
 end
 
 -- score ---------------------------------------------------------------------------------------------------
