@@ -22,7 +22,7 @@ is the guild's real data. For pictures taken by hand, `/guildy shots backdrop` a
 python media/gallery/collect.py "<WoW folder>/_forever_/Screenshots"
 ```
 
-copies that run to `src/` as `01-chat.jpg` … `19-options-professions.jpg` (the list is in `UI/Shots.lua`).
+copies that run to `src/` as `01-chat.jpg` … `20-overview-endgame.jpg` (the list is in `UI/Shots.lua`).
 
 ## Pictures in every language
 
@@ -30,7 +30,7 @@ copies that run to `src/` as `01-chat.jpg` … `19-options-professions.jpg` (the
 has, with the window at its smallest size (1130 x 560), where long texts run out of room first. Guildy's
 language only changes with a reload of the interface, so the run sets a language and asks you in chat to type
 `/reload` (the client blocks a reload started by an addon's timer) and then to press J (only the game itself can
-open the guild window); then it takes the 19 pictures and goes on to the next language. Six languages take about five minutes. At the end, and also when the run is stopped
+open the guild window); then it takes the 20 pictures and goes on to the next language. Six languages take about five minutes. At the end, and also when the run is stopped
 (`/guildy shots stop`) or cut off, language and window size are what they were before. Then:
 
 ```sh

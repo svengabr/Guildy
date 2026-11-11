@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- Overview tab: a second view for the endgame, with a switch "Levelling | Endgame" in the toolbar. Guildy
+  changes to it by itself once half of the active members are level 60; your own choice is kept, and the
+  general options have it too ("Overview shows").
+- The endgame view shows the activity of the guild, what it did this month against the last (raid and
+  dungeon bosses, dungeons, quests, honorable kills, days online), the item levels of the level 60
+  members, last online, comings and goings, and for every raid who has a kill and who is raid ready
+  without one. A click on a bar, column or raid lists the members behind it.
+- New: an activity score from 0 to 100 per player, a main and its twinks together. It counts the days
+  online, kills and quests, and group play: raid bosses, dungeon bosses, dungeon runs and battlegrounds
+  all go into the same pot, so raiding, dungeons or PvP alone can fill it. A player without a recent
+  statistics reading has no score rather than a low one. The guild pulse is the average.
+- Guildy now counts the days a member was seen online. The count starts with this version, so the score
+  leaves the days out for the first week.
+- Members tab: a column "Act." with the score.
+- /guildy activity prints the pulse and how many players are in each band.
+
 ## 1.3.0
 
 - Guildy now also speaks French, Spanish, Russian and Brazilian Portuguese. It follows the language of

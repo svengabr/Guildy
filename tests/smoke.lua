@@ -215,7 +215,7 @@ T.describe("Smoke", function()
     RunTimers(1)
     T.eq(taken, #ns.UI.SHOTS)
     T.eq(ns.UI.fromTimer, nil)
-    T.truthy(taken >= 19, "every tab, page and options tab")
+    T.truthy(taken >= 20, "every tab, page and options tab")
     T.eq(ns.UI.Current(), "overview") -- back where it started
     T.eq(ns.UI.Options():IsShown(), false)
     env.Screenshot = nil
@@ -1176,6 +1176,7 @@ T.describe("Made-up names for pictures", function()
   -- every view the screenshot run shows, every member's page and tooltip
   local function ShowEverything()
     for _, shot in ipairs(ns.UI.SHOTS) do shot[2]() end
+    ns.UI.SetShotPhase(nil) -- a run takes the endgame view back itself
     for _, m in ipairs(ns.Roster.Members()) do
       ns.UI.ShowMember(m)
       ns.UI.MemberTooltip(env.UIParent, m)
@@ -1424,6 +1425,28 @@ T.describe("Members tab drill-downs of the endgame view", function()
     T.eq(Listed(view), {})
     view:SetFilter({})
     T.eq(#Listed(view), #ns.Roster.Members())
+    T.eq(errors, {})
+  end)
+end)
+
+T.describe("Screenshot run and the endgame view", function()
+  T.it("photographs the endgame view and leaves the chosen phase alone", function()
+    T.eq(ns.UI.SHOTS[#ns.UI.SHOTS][1], "20-overview-endgame")
+    for _, setting in ipairs({ false, "level" }) do
+      ns.Settings().overviewPhase = setting or nil
+      local phases = {}
+      env.Screenshot = function() phases[#phases + 1] = ns.UI.OverviewPhase() end
+      env.CommunitiesFrame:Show()
+      ns.UI.SelectTab("overview")
+      env.SlashCmdList.GUILDY("shots")
+      RunTimers(1)
+      T.eq(#phases, #ns.UI.SHOTS)
+      T.eq(phases[3], "level")
+      T.eq(phases[#phases], "endgame")
+      T.eq(ns.Settings().overviewPhase, setting or nil)
+      T.eq(ns.UI.OverviewPhase(), "level") -- the override is gone with the run
+    end
+    ns.Settings().overviewPhase = nil
     T.eq(errors, {})
   end)
 end)

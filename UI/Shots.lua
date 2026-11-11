@@ -61,6 +61,12 @@ UI.SHOTS = {
     UI.ShowOptions("fame")
   end },
   { "19-options-professions", Options("professions", "professions") },
+  -- the endgame view of the overview, whatever the guild and the setting say (the run takes it back)
+  { "20-overview-endgame", function()
+    UI.HideOptions()
+    UI.SelectTab("overview")
+    UI.SetShotPhase("endgame")
+  end },
 }
 
 -- A plain dark sheet over the whole screen, right behind Guildy: the pictures show the window alone,
@@ -160,6 +166,7 @@ function UI.TakeShots(onDone)
     running = nil
     if status and status.RegisterEvent then status:RegisterEvent("SCREENSHOT_SUCCEEDED") end
     UI.HideOptions()
+    UI.SetShotPhase(nil)
     if not hadBackdrop then Backdrop(false) end
     if not wasAnonymous then Anonymous(false) end
     if back then UI.SelectTab(back) end
@@ -200,6 +207,7 @@ local function Finish(message)
   ns.ShotRun.Restore(run, settings)
   ns.DB().shotRun = nil
   if running then running.stopped = true end
+  UI.SetShotPhase(nil)
   ApplySize(settings.width, settings.height)
   ns.Print(message)
   local client = rawget(_G, "GetLocale") and GetLocale() or nil
@@ -285,6 +293,7 @@ function UI.StopShots()
     Finish("shots: stopped.")
   elseif running then
     running.stopped = true
+    UI.SetShotPhase(nil)
     ns.Print("shots: stopped.")
   else
     ns.Print("shots: no run is on.")

@@ -16,7 +16,7 @@ More screenshots are in the gallery on [CurseForge](https://www.curseforge.com/w
 | --- | --- |
 | Chat | Guild and officer chat with times and a mark for what's new since your last login. Next to it, everyone who is online. |
 | Members | Search, filter and sort the roster. Twinks can hang under their main, and you pick the columns. |
-| Overview | A census: classes, levels and professions of the members who were online lately. |
+| Overview | A census: classes, levels and professions of the members who were online lately. Once the guild is level 60 it switches to an endgame view: an activity score, what the guild did this month, item levels and raids. |
 | Professions | Who has which profession, with skill and recipes. The search answers "who can make Elixir of Lion's Strength?". |
 | Hall of Fame | Guild records from Forever's character statistics: kills, quests, deaths (including by Hogger), gold, dungeons, reputation and PvP. |
 | Ranks | Every rank with its members and permissions. The guild master edits them right there. |
