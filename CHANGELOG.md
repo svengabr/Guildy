@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
 - Guildy now also speaks French, Spanish, Russian and Brazilian Portuguese. It follows the language of
   your game; the general options have a language choice for anyone who wants another one (changing it
