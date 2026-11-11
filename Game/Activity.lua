@@ -13,6 +13,15 @@ local function Date(fmt, ts)
   return ns.GameStats.Date(fmt, ts)
 end
 
+-- Days change at 5 in the morning local time, so an evening that runs past midnight is one day
+local DAY_STARTS = 5 * 3600
+local function SetDayShift()
+  local date, time = rawget(_G, "date"), rawget(_G, "time")
+  local now = ns.Now()
+  local ok, offset = pcall(function() return time(date("*t", now)) - time(date("!*t", now)) end)
+  A.SetDayShift((ok and type(offset) == "number" and offset or 0) - DAY_STARTS)
+end
+
 -- After a roster scan: today for who is online, the day of the roster's "last online" for the others.
 -- Nothing while names are made up for pictures (the roster is the real one, but nothing new is kept).
 local function MarkRoster()
@@ -48,6 +57,7 @@ function GameActivity.OwnDays()
     own = { n = type(known) == "number" and known or 0 }
     db.ownDays[key] = own
   end
+  SetDayShift()
   local today = A.Day(ns.Now())
   if own.day ~= today then own.day, own.n = today, own.n + 1 end
   return own.n
@@ -90,5 +100,8 @@ function GameActivity.Report()
   return ns.L.ACTIVITY_REPORT:format(tostring(summary.pulse or "-"), b[1], b[2], b[3], b[4], b[5], tostring(summary.median or "-"))
 end
 
-ns.On("ROSTER", MarkRoster)
+ns.On("ROSTER", function()
+  SetDayShift()
+  MarkRoster()
+end)
 ns.On("STATS", function() cache = nil end)

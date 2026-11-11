@@ -24,7 +24,9 @@ Activity.FULL_PRESENCE = 5 -- days a week for the whole presence part
 Activity.MIN_SPAN = 3      -- days between snapshot and reading below which there are no rates
 Activity.CURRENT_DAYS = 7  -- a reading this young is current whatever the member did since
 Activity.MIN_COUNTED = 7   -- days counted before presence is rated at all
-Activity.GONE_DAYS = 30    -- last online this long ago: the score is 0, with or without a reading
+Activity.FADE_FROM = 3     -- days since last online from which a score falls off ...
+Activity.GONE_DAYS = 30    -- ... down to 0 at this many: who stopped playing is not active
+Activity.VAGUE_DAYS = 28   -- a last online this long ago names no day (the game counts months as 30 days)
 Activity.PULSES_KEPT = 4
 
 -- weekly counts of a rates table, and the statistic each comes from
@@ -33,15 +35,30 @@ local COUNTS = { kills = 107, honorKills = 588, quests = 98, dungeons = 932, bat
 
 -- days ----------------------------------------------------------------------------------------------------
 
+-- The day a time lies in. Days are counted from a shift the game layer sets (Activity.SetDayShift: the
+-- local time zone, the day changing at 5 in the morning), so an evening that runs past midnight is one
+-- day; without it days change at midnight UTC.
+local dayShift = 0
+function Activity.SetDayShift(seconds)
+  dayShift = type(seconds) == "number" and seconds or 0
+end
+
 function Activity.Day(ts)
-  return math.floor(ts / DAY)
+  return math.floor((ts + dayShift) / DAY)
+end
+
+-- A time in the middle of a day (for the date of that day)
+local function Noon(day)
+  return day * DAY + DAY / 2 - dayShift
 end
 
 -- The day a member was last online, from the roster: today when online, nil when the game does not say
+-- or says it too vaguely. The game gives whole hours, so the logout was up to an hour earlier: half an
+-- hour is taken off, else a logout shortly before the change of day would also mark the day after.
 function Activity.LastSeenDay(now, online, daysOffline)
   if online then return Activity.Day(now) end
-  if type(daysOffline) ~= "number" then return nil end
-  return Activity.Day(now - daysOffline * DAY)
+  if type(daysOffline) ~= "number" or daysOffline >= Activity.VAGUE_DAYS then return nil end
+  return Activity.Day(now - daysOffline * DAY - 1800)
 end
 
 -- Marks day in member.seen and forgets the days too old to matter; true when it was new
@@ -75,6 +92,25 @@ local function Value(values, id)
   return ns.Stats.Value({ v = values }, id, "all") or 0
 end
 
+-- The snapshot a window starts at: the first reading of the previous month, else of this month, else the
+-- newest older one (a member who has not been read for months)
+local function WindowStart(rec, now, date)
+  local function Usable(snap)
+    return type(snap) == "table" and type(snap.ts) == "number" and type(snap.v) == "table"
+      and (rec.ts - snap.ts) / DAY >= Activity.MIN_SPAN and snap or nil
+  end
+  local this = ns.Stats.MonthKey(now, date)
+  local previous = ns.Stats.PreviousMonth(this)
+  if rec.months[previous] ~= nil or rec.months[this] ~= nil then
+    return Usable(rec.months[previous] or rec.months[this])
+  end
+  local best
+  for _, snap in pairs(rec.months) do
+    if Usable(snap) and (not best or snap.ts > best.ts) then best = snap end
+  end
+  return best
+end
+
 -- What a character did per week between the first reading of the previous month (else of this month)
 -- and its newest reading: { span = days, fromDay, toDay, kills, honorKills, quests, raidBosses,
 -- dungeonBosses, dungeons, battlegrounds, ownDays }. ownDays is the growth of the member's own days
@@ -85,10 +121,8 @@ function Activity.Rates(rec, now, date, untilTs)
   if type(rec) ~= "table" or type(rec.v) ~= "table" or type(rec.ts) ~= "number" or type(rec.months) ~= "table" then
     return nil
   end
-  local this = ns.Stats.MonthKey(now, date)
-  local snap = rec.months[ns.Stats.PreviousMonth(this)] or rec.months[this]
-  if type(snap) ~= "table" or type(snap.ts) ~= "number" or type(snap.v) ~= "table" then return nil end
-  if (rec.ts - snap.ts) / DAY < Activity.MIN_SPAN then return nil end
+  local snap = WindowStart(rec, now, date)
+  if not snap then return nil end
   local ends = math.max(rec.ts, untilTs or rec.ts)
   local span = (ends - snap.ts) / DAY
   local rates = { span = span, fromDay = Activity.Day(snap.ts), toDay = Activity.Day(ends) }
@@ -154,10 +188,6 @@ local function ScorePlayer(player, recordOf, now, date, since)
     if Away(m) < Away(lead) then lead = m end
   end
   player.lead = lead
-  if Away(lead) >= Activity.GONE_DAYS and Away(lead) ~= math.huge then
-    player.score, player.parts = 0, { presence = 0, playing = 0, group = 0 }
-    return
-  end
   local sum, seen, ownDays
   for _, m in ipairs(player.chars) do
     local record = recordOf(m)
@@ -169,7 +199,8 @@ local function ScorePlayer(player, recordOf, now, date, since)
     local rates = current and Activity.Rates(stats, now, date, stale and now or nil)
     if m == lead and not rates then return end
     if rates then
-      if rates.ownDays then ownDays = (ownDays or 0) + rates.ownDays * 7 / rates.span end
+      -- the days of the player, not of each character: the most any of them counted
+      if rates.ownDays then ownDays = math.max(ownDays or 0, rates.ownDays * 7 / rates.span) end
       if m == lead then
         sum = Activity.AddRates(rates, sum or {})
       else
@@ -185,7 +216,16 @@ local function ScorePlayer(player, recordOf, now, date, since)
     if counted >= Activity.MIN_COUNTED then presence = Activity.SeenCount(seen or {}, from, today) / counted * 7 end
   end
   if ownDays then presence = math.max(presence or 0, math.min(7, ownDays)) end
-  player.score, player.parts = Activity.Score(sum, presence)
+  local score, parts = Activity.Score(sum, presence)
+  -- who has not been online for days is less active than their last weeks say: from FADE_FROM days the
+  -- score falls off evenly, down to 0 at GONE_DAYS
+  local away = Away(lead)
+  if away > Activity.FADE_FROM and away ~= math.huge then
+    local keep = math.max(0, 1 - (away - Activity.FADE_FROM) / (Activity.GONE_DAYS - Activity.FADE_FROM))
+    score = math.floor(score * keep + 0.5)
+    for name, points in pairs(parts) do parts[name] = points * keep end
+  end
+  player.score, player.parts = score, parts
 end
 
 -- The players of a roster: a main with its twinks is one (mains = Family.Mains: { [key] = mainKey }), a
@@ -267,8 +307,8 @@ Activity.MONTH_ROWS = { "raidBosses", "dungeonBosses", 932, 98, 588, "days" }
 local function MonthDays(ts, date)
   local key = ns.Stats.MonthKey(ts, date)
   local first, last = Activity.Day(ts), Activity.Day(ts)
-  while ns.Stats.MonthKey((first - 1) * DAY + DAY / 2, date) == key do first = first - 1 end
-  while ns.Stats.MonthKey((last + 1) * DAY + DAY / 2, date) == key do last = last + 1 end
+  while ns.Stats.MonthKey(Noon(first - 1), date) == key do first = first - 1 end
+  while ns.Stats.MonthKey(Noon(last + 1), date) == key do last = last + 1 end
   return first, last
 end
 
@@ -291,7 +331,7 @@ function Activity.Month(entries, players, recordOf, now, date, since)
   for i, id in ipairs(Activity.MONTH_ROWS) do
     local row = { id = id, value = 0 }
     if id == "days" then
-      local beforeFirst, beforeLast = MonthDays((first - 1) * DAY + DAY / 2, date)
+      local beforeFirst, beforeLast = MonthDays(Noon(first - 1), date)
       local known = since and since <= beforeFirst
       local count, sum, sumBefore = 0, 0, 0
       for _, player in ipairs(players) do

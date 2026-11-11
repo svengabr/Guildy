@@ -165,6 +165,14 @@ since. So a member who stopped playing three weeks ago and was read on their las
 evening has a real, low score and pulls the pulse down — that is the signal the
 box exists for. **(call)**
 
+So that this holds in numbers, a score falls off with the days since the player
+was last online: unchanged for 3 days, then evenly down to 0 at 30 days. Without
+it the saturating curves kept a player who quit at "Active" for four weeks.
+**(call, from the final review)**
+
+Days are local days that change at 5 in the morning, so an evening that runs past
+midnight counts once. **(call, from the final review)**
+
 No score — shown as "no current reading", counted in its own bar, left out of the
 average — when the newest reading is not current, or the reading window is shorter
 than 3 days, or there is no statistics record at all. **(call)**

@@ -164,13 +164,6 @@ T.describe("Activity players", function()
     local _, byKey = A.Players(members, {}, recordOf, NOW, date, nil)
     T.eq(byKey.a.score, (A.Score(A.Rates(records.a.stats, NOW, date), 6 / 12 * 7)))
   end)
-  T.it("scores zero for a player gone for a month, reading or not", function()
-    local _, _, recordOf = world()
-    local _, byKey = A.Players({ { key = "b", online = false, daysOffline = 30 } }, {}, recordOf, NOW, date, nil)
-    T.eq(byKey.b.score, 0)
-    local _, alone = A.Players({ { key = "z", online = false, daysOffline = 45 } }, {}, recordOf, NOW, date, nil)
-    T.eq(alone.z.score, 0)
-  end)
   T.it("sorts scores into the five bars", function()
     local expect = { [100] = 1, [75] = 1, [74] = 2, [50] = 2, [49] = 3, [25] = 3, [24] = 4, [0] = 4 }
     for score, bucket in pairs(expect) do T.eq(A.Bucket(score), bucket, tostring(score)) end
@@ -235,5 +228,60 @@ T.describe("Activity month", function()
     T.eq(r.last, nil)    -- counting began this month
     r = row(A.Month({}, players, recordOf, TENTH, date, today - 50), "days")
     T.eq(r.last, 0.5)    -- one day of one of two players
+  end)
+end)
+
+T.describe("Activity after the review", function()
+  local function record(ts)
+    return { stats = { ts = ts, v = { [107] = 4000, [932] = 60, [1095] = 60 },
+      months = { ["2026-10"] = { ts = math.min(NOW - 40 * DAY, ts - 20 * DAY), v = { [107] = 1 } } } } }
+  end
+  local function score(member, ts)
+    local rec = record(ts)
+    local _, byKey = A.Players({ member }, {}, function() return rec end, NOW, date, nil)
+    return byKey[member.key].score
+  end
+
+  T.it("lets the score of a player who stopped fall off, down to zero at a month", function()
+    local fresh = score({ key = "a", online = true }, NOW)
+    T.truthy(fresh >= 60, tostring(fresh))
+    T.truthy(score({ key = "a", online = false, daysOffline = 2 }, NOW - 2 * DAY) >= fresh - 5, "two days away change little")
+    local two = score({ key = "a", online = false, daysOffline = 14 }, NOW - 14 * DAY)
+    T.truthy(two <= fresh * 0.6, two .. " of " .. fresh)
+    T.truthy(two > 0)
+    T.truthy(score({ key = "a", online = false, daysOffline = 29.5 }, NOW - 29.5 * DAY) <= 3)
+    T.eq(score({ key = "a", online = false, daysOffline = 45 }, NOW - 45 * DAY), 0)
+  end)
+  T.it("has no score for a member gone long of whom nothing was ever read", function()
+    local _, byKey = A.Players({ { key = "z", online = false, daysOffline = 45 } }, {}, function() end, NOW, date, nil)
+    T.eq(byKey.z.score, nil)
+  end)
+  T.it("falls back to an older snapshot when the last two months have none", function()
+    local rec = { ts = NOW - 20 * DAY, v = { [107] = 900 }, months = { ["2026-08"] = { ts = NOW - 80 * DAY, v = { [107] = 300 } } } }
+    local r = A.Rates(rec, NOW, date)
+    T.truthy(r and r.kills > 0)
+    T.eq(r.span, 60)
+  end)
+  T.it("counts the days of a player once, also from the own counters of two characters", function()
+    local function own(days)
+      return { stats = { ts = NOW, v = { [107] = 500, [Stats.DAYS] = 20 + days },
+        months = { ["2026-11"] = { ts = NOV, v = { [107] = 1, [Stats.DAYS] = 20 } } } } }
+    end
+    local records = { a = own(6), b = own(5) }
+    local members = { { key = "a", online = true }, { key = "b", online = false, daysOffline = 1 } }
+    local _, byKey = A.Players(members, { a = "a", b = "a" }, function(m) return records[m.key] end, NOW, date, nil)
+    local sum = A.AddRates(A.Rates(records.a.stats, NOW, date), A.Rates(records.b.stats, NOW, date))
+    T.eq(byKey.a.score, (A.Score(sum, 6 / 12 * 7))) -- the larger of the two, not 11 days
+  end)
+  T.it("starts the day where the game layer says, not at midnight UTC", function()
+    T.eq(A.Day(10 * DAY - 3600), 9)
+    A.SetDayShift(2 * 3600)
+    T.eq(A.Day(10 * DAY - 3600), 10)
+    A.SetDayShift(0)
+  end)
+  T.it("marks no day from a last online too vague or too close to the change of day", function()
+    T.eq(A.LastSeenDay(10 * DAY + 600, false, 0), 9)   -- whole hours: the logout was up to an hour before
+    T.eq(A.LastSeenDay(40 * DAY, false, 27), 12)
+    T.eq(A.LastSeenDay(40 * DAY, false, 28), nil)      -- months count as 30 days from here on
   end)
 end)
