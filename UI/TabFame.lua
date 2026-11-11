@@ -234,6 +234,9 @@ local function Page(key)
   return S.PAGES[1]
 end
 
+-- for the raids of the overview (UI/OverviewEndgame.lua)
+UI.DungeonIcon, UI.DungeonTitle, UI.Number = DungeonIcon, DungeonTitle, Number
+
 local function Build(panel)
   local L = ns.L
   local view = { period = ns.Settings().famePeriod or "all", page = S.PAGES[1].key, mode = "home" }

@@ -2,6 +2,9 @@
 -- bars with the highest known skill, and below: last-online activity, joins and departures of the last
 -- 30 days, and a class x level matrix. Everything grows with the window. Clicks open the members tab
 -- filtered to the bar, bucket or cell.
+-- That is the view of the level phase. Once the guild is at level 60 the tab shows the endgame view
+-- (UI/OverviewEndgame.lua) instead; a switch in the toolbar changes between the two and the choice is
+-- kept (settings.overviewPhase, unset = Guildy decides by the levels of the guild, Census.Phase).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -39,13 +42,123 @@ local function RanksOf(m)
   return ranks
 end
 
+UI.OVERVIEW_CLASSES = CLASSES
+UI.OverviewClassLabel = ClassLabel
+
+-- The view the overview shows: "level" or "endgame". For the pictures of a screenshot run the endgame
+-- can be shown without touching the setting (UI.SetShotPhase).
+local shotPhase
+function UI.OverviewPhase()
+  return shotPhase or ns.Census.Phase(ns.Roster.Members(), ns.Settings().overviewPhase)
+end
+
+function UI.SetShotPhase(phase)
+  shotPhase = phase
+  local view = UI.TabView("overview")
+  if view and view.Refresh then view:Refresh() end
+end
+
+-- Box "Last online": one bar per bucket of Census.ACTIVITY, a click shows who. :Arrange(height) spreads
+-- the rows over the box, :Fill(counts) sets them.
+function UI.OverviewOnlineBox(parent)
+  local L = ns.L
+  local box = W.Box(parent)
+  local title = W.Text(box, "GameFontNormal", L.ACTIVITY)
+  title:SetPoint("TOPLEFT", 10, -8)
+  local hint = W.Text(box, "GameFontDisableSmall", L.ACTIVITY_HINT)
+  hint:SetPoint("LEFT", title, "RIGHT", 8, 0)
+  box.Rows = {}
+  for bucket = 1, #ns.Census.ACTIVITY do
+    local row = W.BarRow(box, 110)
+    row:SetScript("OnClick", function() UI.FilterMembers({ activity = bucket }) end)
+    box.Rows[bucket] = row
+  end
+  function box:Arrange(height)
+    local step = math.min(28, math.max(16, (height - 34) / #self.Rows))
+    for i, row in ipairs(self.Rows) do
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", self, "TOPLEFT", 10, -28 - (i - 1) * step)
+      row:SetPoint("RIGHT", self, "RIGHT", -10, 0)
+    end
+  end
+  function box:Fill(counts)
+    local max = 1
+    for _, count in ipairs(counts) do max = math.max(max, count) end
+    for bucket, row in ipairs(self.Rows) do
+      local green = 1 - (bucket - 1) / (#self.Rows - 1)
+      row:SetData(L["ACTIVITY_" .. bucket], counts[bucket] or 0, max, 1 - green * 0.6, 0.35 + green * 0.5, 0.25)
+      row.Label:SetTextColor(1, 1, 1)
+    end
+  end
+  return box
+end
+
+-- Box "Comings and goings": joins and departures of the last CHANGE_DAYS days from the event log of
+-- the guild. :Fill() reads the log anew.
+function UI.OverviewChangesBox(parent)
+  local L = ns.L
+  local box = W.Box(parent)
+  local title = W.Text(box, "GameFontNormal", L.CHANGES:format(CHANGE_DAYS))
+  title:SetPoint("TOPLEFT", 10, -8)
+  box.Summary = W.Text(box, "GameFontDisableSmall")
+  box.Summary:SetPoint("LEFT", title, "RIGHT", 8, 0)
+  box.List = W.ScrollList(box, 18, function(row)
+    row.Text = W.Text(row, "GameFontHighlightSmall")
+    row.Text:SetPoint("LEFT", 4, 0)
+    row.Text:SetPoint("RIGHT", -70, 0)
+    row.Text:SetWordWrap(false)
+    row.When = W.Text(row, "GameFontDisableSmall")
+    row.When:SetPoint("RIGHT", -4, 0)
+    row.When:SetJustifyH("RIGHT")
+  end, function(row, change)
+    local m = ns.Roster.Find(change.name)
+    local name = m and W.ClassName(m.name, m.classFile) or change.name
+    if change.kind == "join" then
+      row.Text:SetText("|cff40e040+|r " .. L.CHANGE_JOIN:format(name))
+    elseif change.kind == "quit" then
+      row.Text:SetText("|cffff5a4a-|r " .. L.CHANGE_QUIT:format(name))
+    else
+      row.Text:SetText("|cffff5a4ax|r " .. L.CHANGE_REMOVE:format(name, change.by or "?"))
+    end
+    row.When:SetText(ns.Roster.LastOnlineText({ online = false, daysOffline = change.daysAgo }))
+  end)
+  box.List:SetPoint("TOPLEFT", 8, -28)
+  box.List:SetPoint("BOTTOMRIGHT", -28, 8)
+  box.Empty = W.Text(box, "GameFontDisable", L.CHANGES_EMPTY)
+  box.Empty:SetPoint("TOPLEFT", 12, -32)
+  function box:Fill()
+    local list = ns.Census.Changes(GuildEvents(), CHANGE_DAYS)
+    local joins, gone = 0, 0
+    for _, change in ipairs(list) do
+      if change.kind == "join" then joins = joins + 1 else gone = gone + 1 end
+    end
+    self.Summary:SetText(L.CHANGES_SUMMARY:format(joins, gone))
+    self.List:SetItems(list)
+    self.Empty:SetShown(#list == 0)
+  end
+  return box
+end
+
 local function Build(panel)
   local L = ns.L
   local view = {}
 
   local page = W.Page(panel)
-  panel = page.Body -- the boxes live in the body; the toolbar holds the time window
-  page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.ACTIVE_IN), 2)
+  -- the boxes live in the body, one frame per view; the toolbar holds the switch and the time window
+  view.Level = CreateFrame("Frame", nil, page.Body)
+  view.Level:SetAllPoints()
+  view.Endgame = CreateFrame("Frame", nil, page.Body)
+  view.Endgame:SetAllPoints()
+  view.Endgame:Hide()
+  panel = view.Level
+  view.Phase = W.Segmented(page.Bar, {
+    { value = "level", text = L.PHASE_LEVEL }, { value = "endgame", text = L.PHASE_ENDGAME },
+  }, function(value)
+    ns.Settings().overviewPhase = value
+    view:Refresh()
+  end)
+  page:Left(view.Phase, 2)
+  page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.ACTIVE_IN), 16)
   view.Window = W.Segmented(page.Bar, {
     { value = 30, text = L.WINDOW_1M }, { value = 90, text = L.WINDOW_3M },
     { value = 180, text = L.WINDOW_6M }, { value = false, text = L.WINDOW_ALL },
@@ -152,51 +265,13 @@ local function Build(panel)
   end
 
   -- row 3: activity, joins and departures, class x level -------------------------------------------
-  local activity = W.Box(panel)
+  local activity = UI.OverviewOnlineBox(panel)
   activity:SetPoint("TOPLEFT", profs, "BOTTOMLEFT", 0, -8)
   activity:SetPoint("BOTTOM", 0, 0)
-  local activityTitle = W.Text(activity, "GameFontNormal", L.ACTIVITY)
-  activityTitle:SetPoint("TOPLEFT", 10, -8)
-  local activityHint = W.Text(activity, "GameFontDisableSmall", L.ACTIVITY_HINT)
-  activityHint:SetPoint("LEFT", activityTitle, "RIGHT", 8, 0)
-  view.ActivityRows = {}
-  for bucket = 1, #ns.Census.ACTIVITY do
-    local row = W.BarRow(activity, 110)
-    row:SetScript("OnClick", function() UI.FilterMembers({ activity = bucket }) end)
-    view.ActivityRows[bucket] = row
-  end
 
-  local changes = W.Box(panel)
+  local changes = UI.OverviewChangesBox(panel)
   changes:SetPoint("TOPLEFT", activity, "TOPRIGHT", 8, 0)
   changes:SetPoint("BOTTOM", 0, 0)
-  local changesTitle = W.Text(changes, "GameFontNormal", L.CHANGES:format(CHANGE_DAYS))
-  changesTitle:SetPoint("TOPLEFT", 10, -8)
-  view.ChangesSummary = W.Text(changes, "GameFontDisableSmall")
-  view.ChangesSummary:SetPoint("LEFT", changesTitle, "RIGHT", 8, 0)
-  view.Changes = W.ScrollList(changes, 18, function(row)
-    row.Text = W.Text(row, "GameFontHighlightSmall")
-    row.Text:SetPoint("LEFT", 4, 0)
-    row.Text:SetPoint("RIGHT", -70, 0)
-    row.Text:SetWordWrap(false)
-    row.When = W.Text(row, "GameFontDisableSmall")
-    row.When:SetPoint("RIGHT", -4, 0)
-    row.When:SetJustifyH("RIGHT")
-  end, function(row, change)
-    local m = ns.Roster.Find(change.name)
-    local name = m and W.ClassName(m.name, m.classFile) or change.name
-    if change.kind == "join" then
-      row.Text:SetText("|cff40e040+|r " .. L.CHANGE_JOIN:format(name))
-    elseif change.kind == "quit" then
-      row.Text:SetText("|cffff5a4a-|r " .. L.CHANGE_QUIT:format(name))
-    else
-      row.Text:SetText("|cffff5a4ax|r " .. L.CHANGE_REMOVE:format(name, change.by or "?"))
-    end
-    row.When:SetText(ns.Roster.LastOnlineText({ online = false, daysOffline = change.daysAgo }))
-  end)
-  view.Changes:SetPoint("TOPLEFT", 8, -28)
-  view.Changes:SetPoint("BOTTOMRIGHT", -28, 8)
-  view.ChangesEmpty = W.Text(changes, "GameFontDisable", L.CHANGES_EMPTY)
-  view.ChangesEmpty:SetPoint("TOPLEFT", 12, -32)
 
   local matrix = W.Box(panel)
   matrix:SetPoint("TOPLEFT", changes, "TOPRIGHT", 8, 0)
@@ -231,7 +306,7 @@ local function Build(panel)
   end
 
   -- layout ----------------------------------------------------------------------------------------
-  function view:Layout()
+  function view:LayoutLevel()
     local width, height = panel:GetWidth() or 0, panel:GetHeight() or 0
     if width < 100 or height < 100 then return end
     -- row 1 takes 45 % of what remains after the profession row, at least 180 (window minimum: UI.MIN_H)
@@ -272,12 +347,7 @@ local function Build(panel)
     activity:SetWidth(boxWidth)
     changes:SetWidth(boxWidth)
     local bottomHeight = height - topHeight - 8 - profs:GetHeight() - 8
-    local activityStep = math.min(28, math.max(16, (bottomHeight - 34) / #self.ActivityRows))
-    for i, row in ipairs(self.ActivityRows) do
-      row:ClearAllPoints()
-      row:SetPoint("TOPLEFT", activity, "TOPLEFT", 10, -28 - (i - 1) * activityStep)
-      row:SetPoint("RIGHT", activity, "RIGHT", -10, 0)
-    end
+    activity:Arrange(bottomHeight)
     -- matrix: class names + 6 cells per row
     local nameWidth = 82
     local cellWidth = math.max(18, (boxWidth - 20 - nameWidth) / ns.Census.BRACKETS)
@@ -300,11 +370,28 @@ local function Build(panel)
     end
   end
 
+  function view:Layout()
+    if self.EndgameView and UI.OverviewPhase() == "endgame" then self.EndgameView:Layout() else self:LayoutLevel() end
+  end
+
   function view:Refresh()
-    self:Layout()
+    local phase = UI.OverviewPhase()
+    self.Phase:SetValue(phase)
+    self.Window:SetValue(ns.Settings().activityDays)
+    self.Level:SetShown(phase == "level")
+    self.Endgame:SetShown(phase == "endgame")
+    if phase == "endgame" then
+      self.EndgameView = self.EndgameView or UI.BuildOverviewEndgame(self.Endgame)
+      self.EndgameView:Refresh()
+    else
+      self:RefreshLevel()
+    end
+  end
+
+  function view:RefreshLevel()
+    self:LayoutLevel()
     local settings = ns.Settings()
     local windowDays = settings.activityDays
-    self.Window:SetValue(windowDays)
     local r = ns.Census.Compute(ns.Roster.Members(), windowDays, ns.TradeSkill.ProfsOf, RanksOf)
     self.Big:SetText(r.active)
     self.BigSub:SetText(windowDays and L.ACTIVE_OF:format(r.total) or L.MEMBERS_TOTAL)
@@ -356,22 +443,8 @@ local function Build(panel)
       row.Count:SetText(count .. (best and ("|cff999999" .. ns.L.SEP .. best .. "|r") or ""))
     end
 
-    local maxActivity = 1
-    for _, count in ipairs(r.activity) do maxActivity = math.max(maxActivity, count) end
-    for bucket, row in ipairs(self.ActivityRows) do
-      local green = 1 - (bucket - 1) / (#self.ActivityRows - 1)
-      row:SetData(L["ACTIVITY_" .. bucket], r.activity[bucket] or 0, maxActivity, 1 - green * 0.6, 0.35 + green * 0.5, 0.25)
-      row.Label:SetTextColor(1, 1, 1)
-    end
-
-    local list = ns.Census.Changes(GuildEvents(), CHANGE_DAYS)
-    local joins, gone = 0, 0
-    for _, change in ipairs(list) do
-      if change.kind == "join" then joins = joins + 1 else gone = gone + 1 end
-    end
-    self.ChangesSummary:SetText(L.CHANGES_SUMMARY:format(joins, gone))
-    self.Changes:SetItems(list)
-    self.ChangesEmpty:SetShown(#list == 0)
+    activity:Fill(r.activity)
+    changes:Fill()
 
     local maxCell = 1
     for _, row in pairs(r.matrix) do

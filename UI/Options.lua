@@ -80,6 +80,22 @@ function UI.LanguageItems()
   return items
 end
 
+-- The view of the overview tab: automatic (Guildy decides by the levels of the guild), level phase or
+-- endgame. The same value the switch on the tab sets (settings.overviewPhase).
+function UI.OverviewPhaseItems()
+  local L = ns.L
+  local chosen = ns.Settings().overviewPhase
+  local items = {}
+  for _, choice in ipairs({ { nil, L.OPTIONS_PHASE_AUTO }, { "level", L.PHASE_LEVEL }, { "endgame", L.PHASE_ENDGAME } }) do
+    items[#items + 1] = { text = choice[2], checked = chosen == choice[1], onClick = function()
+      ns.Settings().overviewPhase = choice[1]
+      if options and options.Panels and options.Panels.general then options.Panels.general:Refresh() end
+      RefreshTab("overview")
+    end }
+  end
+  return items
+end
+
 -- general ----------------------------------------------------------------------------------------------
 local function BuildGeneral(panel)
   local L = ns.L
@@ -121,18 +137,28 @@ local function BuildGeneral(panel)
   panel.Language:SetPoint("TOP", languageLabel, "TOP", 0, 6)
   W.Tooltip(panel.Language, L.OPTIONS_LANGUAGE, L.OPTIONS_LANGUAGE_TIP)
 
+  -- which view the overview tab shows, under the language and in line with it
+  local phaseLabel = W.Text(panel, "GameFontHighlightSmall", L.OPTIONS_PHASE)
+  phaseLabel:SetPoint("TOPLEFT", languageLabel, "BOTTOMLEFT", 0, -24)
+  panel.Phase = W.MenuButton(panel, "", UI.OverviewPhaseItems, 190, 240)
+  panel.Phase:SetPoint("LEFT", panel.Tooltip, "LEFT", 0, 0)
+  panel.Phase:SetPoint("TOP", phaseLabel, "TOP", 0, 6)
+  W.Tooltip(panel.Phase, L.OPTIONS_PHASE, L.OPTIONS_PHASE_TIP)
+
   local blizzard = W.Button(panel, L.OPEN_BLIZZARD, function()
     options:Hide()
     UI.ShowBlizzard()
   end, 170, { small = true })
-  blizzard:SetPoint("TOPLEFT", languageLabel, "BOTTOMLEFT", -2, -30)
+  blizzard:SetPoint("TOPLEFT", phaseLabel, "BOTTOMLEFT", -2, -30)
 
   -- everything this window changes back to what Guildy ships (sharing is not a look: it stays)
   local reset = W.Button(panel, L.OPTIONS_RESET_ALL, function()
     local settings = ns.Settings()
     settings.memberStyle, settings.fameTiles, settings.fameCards = nil, nil, nil
     settings.memberColumns, settings.memberTwinks, settings.chatProfs, settings.tooltipAnchor = nil, nil, nil, nil
+    settings.overviewPhase = nil
     panel:Refresh()
+    RefreshTab("overview")
     RefreshTab("members")
     RefreshTab("chat")
     RefreshTab("fame", true)
@@ -143,6 +169,8 @@ local function BuildGeneral(panel)
   function panel:Refresh()
     self.Tooltip:SetText(L["OPTIONS_TOOLTIP_" .. UI.TooltipAnchor():upper()])
     self.Language:SetText(LanguageText(ns.Settings().language))
+    local phase = ns.Settings().overviewPhase
+    self.Phase:SetText(phase == "level" and L.PHASE_LEVEL or phase == "endgame" and L.PHASE_ENDGAME or L.OPTIONS_PHASE_AUTO)
   end
 end
 

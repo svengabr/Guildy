@@ -1314,3 +1314,62 @@ T.describe("Activity in game", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Overview phases", function()
+  local function View()
+    ns.UI.SelectTab("overview")
+    return ns.UI.TabView("overview")
+  end
+
+  T.it("follows the guild until somebody chooses, then keeps the choice", function()
+    local settings = ns.Settings()
+    settings.overviewPhase = nil
+    T.eq(ns.UI.OverviewPhase(), "level")
+    local view = View()
+    view:Refresh()
+    T.eq(view.Level:IsShown(), true)
+    T.eq(view.Endgame:IsShown(), false)
+    local button = view.Phase.buttons[2]
+    button:GetScript("OnClick")(button)
+    T.eq(settings.overviewPhase, "endgame")
+    T.eq(ns.UI.OverviewPhase(), "endgame")
+    T.eq(view.Endgame:IsShown(), true)
+    T.eq(view.Level:IsShown(), false)
+    T.eq(errors, {})
+  end)
+
+  T.it("offers the same choice in the options, with automatic", function()
+    local items = ns.UI.OverviewPhaseItems()
+    T.eq(#items, 3)
+    T.eq(items[3].checked, true) -- endgame, chosen on the switch
+    items[1].onClick()
+    T.eq(ns.Settings().overviewPhase, nil)
+    T.eq(ns.UI.OverviewPhaseItems()[1].checked, true)
+    items[2].onClick()
+    T.eq(ns.Settings().overviewPhase, "level")
+    T.eq(View().Level:IsShown(), true)
+    T.eq(errors, {})
+  end)
+
+  T.it("shows the endgame view with and without statistics", function()
+    ns.Settings().overviewPhase = "endgame"
+    local view = View()
+    view:Refresh()
+    view:OnResize()
+    T.truthy(view.EndgameView, "built")
+    T.eq(errors, {})
+    local guild, kept = ns.GuildData(), {}
+    for key, member in pairs(guild.members) do
+      kept[key] = member.stats
+      member.stats = nil
+    end
+    ns.Fire("STATS")
+    view:Refresh()
+    T.eq(view.EndgameView.Pulse:GetText(), "–") -- nobody has a score
+    for key, member in pairs(guild.members) do member.stats = kept[key] end
+    ns.Fire("STATS")
+    ns.Settings().overviewPhase = nil
+    view:Refresh()
+    T.eq(errors, {})
+  end)
+end)

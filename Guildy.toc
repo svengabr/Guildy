@@ -61,6 +61,7 @@ UI\ChatTimeline.lua
 UI\TabChat.lua
 UI\TabMembers.lua
 UI\TabOverview.lua
+UI\OverviewEndgame.lua
 UI\TabFame.lua
 UI\TabProfessions.lua
 UI\TabInfo.lua
