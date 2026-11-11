@@ -29,8 +29,8 @@ Guild
 
 ## Description
 
-Use `README.md` (the part above "Deutsch" plus the German section and Support). CurseForge renders Markdown;
-the images point to GitHub raw URLs and show up as they are.
+Use `README.md` without the title, the logo, the chat image and the gallery pointer below it: the CurseForge page
+already shows those above the description. CurseForge renders Markdown.
 
 ## Gallery (in this order)
 
