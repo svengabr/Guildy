@@ -26,7 +26,7 @@ T.describe("Smoke", function()
     Fire("GUILD_ROSTER_UPDATE")
     RunTimers()
     T.eq(#ns.Roster.Members(), 3)
-    T.eq(ns.GuildData().members["makira farron"], nil) -- note "Heiler" mentions no profession
+    T.eq(ns.GuildData().members["makira farron"].profs, {}) -- note "Heiler" mentions no profession
     T.eq(ns.GuildData().members["au tsch"].profs[393].src, "note")
     T.truthy(env.GuildyDB and env.GuildyDB.settings, "GuildyDB initialised")
     T.eq(errors, {})
@@ -1241,6 +1241,76 @@ T.describe("Made-up names for pictures", function()
     T.eq(ns.Anon.on, false)
     T.eq(ns.Roster.Find("Makira Farron").name, "Makira Farron")
     T.eq(ns.Anon.Name("Makira Farron"), "Makira Farron")
+    T.eq(errors, {})
+  end)
+end)
+
+T.describe("Activity in game", function()
+  local function Today() return ns.Activity.Day(env.GetServerTime()) end
+
+  T.it("marks the days members were seen online", function()
+    local guild = ns.GuildData()
+    guild.seenSince = nil
+    for _, member in pairs(guild.members) do member.seen = nil end
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    T.eq(guild.seenSince, Today())
+    T.eq(guild.members["ran fred"].seen, { [Today()] = true })
+    T.eq(guild.members["makira farron"].seen, { [Today() - 3] = true }) -- last online 3 days and 2 hours ago
+    T.eq(errors, {})
+  end)
+
+  T.it("marks nothing while names are made up for pictures", function()
+    local guild = ns.GuildData()
+    guild.seenSince = nil
+    for _, member in pairs(guild.members) do member.seen = nil end
+    env.SlashCmdList.GUILDY("shots anon")
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    T.eq(guild.seenSince, nil)
+    T.eq(guild.members["ran fred"].seen, nil)
+    env.SlashCmdList.GUILDY("shots anon")
+    RunTimers()
+    T.eq(ns.Anon.on, false)
+    T.eq(errors, {})
+  end)
+
+  T.it("counts the days the own character was played", function()
+    env.UnitName = function() return "Ran", "Fred" end
+    env.GetStatisticsCategoryList = function() return { 128 } end
+    env.GetCategoryNumAchievements = function() return 1 end
+    env.GetStatistic = function() return "12", false, 107 end
+    local serverTime = env.GetServerTime
+    env.GuildyDB.ownDays = nil
+    local before = ns.GuildData().members["ran fred"].stats
+    if before then before.v[ns.Stats.DAYS] = nil end
+    ns.GameStats.UpdateOwn()
+    local stats = ns.GuildData().members["ran fred"].stats
+    T.eq(stats.v[ns.Stats.DAYS], 1)
+    ns.GameStats.UpdateOwn()
+    T.eq(ns.GuildData().members["ran fred"].stats.v[ns.Stats.DAYS], 1) -- the same day
+    env.GetServerTime = function() return serverTime() + 86400 end
+    ns.GameStats.UpdateOwn()
+    T.eq(ns.GuildData().members["ran fred"].stats.v[ns.Stats.DAYS], 2)
+    env.GetServerTime = serverTime
+    T.eq(errors, {})
+  end)
+
+  T.it("computes the activity of the guild and prints it on /guildy activity", function()
+    local activity = ns.GameActivity.Get()
+    local chars = 0
+    for _, player in ipairs(activity.players) do chars = chars + #player.chars end
+    T.eq(chars, #ns.Roster.Members())
+    T.eq(#activity.month, #ns.Activity.MONTH_ROWS)
+    T.eq(#activity.summary.buckets, 5)
+    T.truthy(ns.GameActivity.Get() == activity, "kept until something changes")
+    ns.Fire("STATS")
+    T.truthy(ns.GameActivity.Get() ~= activity, "computed anew after new statistics")
+    local printed
+    rawset(env.DEFAULT_CHAT_FRAME, "AddMessage", function(_, text) printed = text end)
+    env.SlashCmdList.GUILDY("activity")
+    rawset(env.DEFAULT_CHAT_FRAME, "AddMessage", nil)
+    T.truthy(printed and printed:find("[Guildy]", 1, true) and printed:find(ns.L.ACTIVITY_REPORT:match("^[^:]+"), 1, true), tostring(printed))
     T.eq(errors, {})
   end)
 end)

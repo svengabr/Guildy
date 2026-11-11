@@ -237,6 +237,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.Harvest.ResetMarks()
   elseif msg == "statreset" then
     ns.GameStats.ResetWaits()
+  elseif msg == "activity" then
+    ns.Print(ns.GameActivity.Report())
   elseif msg == "statmouse" then
     ns.GameStats.ToggleMouseover()
   elseif msg == "statdump" then

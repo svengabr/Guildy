@@ -50,6 +50,7 @@ Game\TradeSkill.lua
 Game\Harvest.lua
 Game\Sync.lua
 Game\Stats.lua
+Game\Activity.lua
 UI\Widgets.lua
 UI\Main.lua
 UI\Popups.lua

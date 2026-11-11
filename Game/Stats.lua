@@ -76,6 +76,7 @@ function GameStats.ReadOwn()
   if db and #ids > 0 then db.statIds = ids end
   if not any then return nil end
   for id, value in pairs(GameStats.ReadGear() or {}) do values[id] = value end
+  values[S.DAYS] = ns.GameActivity.OwnDays() -- the days this character was played (Game/Activity.lua)
   return values
 end
 
