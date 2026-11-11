@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 - Overview tab: a second view for the endgame, with a switch "Levelling | Endgame" in the toolbar. Guildy
   changes to it by itself once half of the active members are level 60; your own choice is kept, and the
