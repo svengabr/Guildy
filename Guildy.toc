@@ -39,6 +39,7 @@ Core\Protocol.lua
 Core\Manage.lua
 Core\Stats.lua
 Core\Family.lua
+Core\Activity.lua
 Core\Anon.lua
 Core\ShotRun.lua
 Core\Runtime.lua

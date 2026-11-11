@@ -1,0 +1,198 @@
+local T = ...
+local ns = T.pureNs()
+local A, Stats = ns.Activity, ns.Stats
+local DAY = 86400
+local date = function(fmt, ts) return os.date("!" .. fmt, ts) end
+local NOV = os.time({ year = 2026, month = 11, day = 2, hour = 12 })
+local OCT, NOW = NOV - 30 * DAY, NOV + 12 * DAY -- whole days apart, whatever the time zone does
+local TODAY = A.Day(NOW)
+
+T.describe("Activity days", function()
+  T.it("finds the last day seen", function()
+    T.eq(A.LastSeenDay(10 * DAY + 5, true, nil), 10)
+    T.eq(A.LastSeenDay(10 * DAY + 5, false, 2.5), 7)
+    T.eq(A.LastSeenDay(10 * DAY + 5, false, nil), nil) -- unknown last online: no day
+  end)
+  T.it("marks days and forgets old ones", function()
+    local m = {}
+    T.eq(A.MarkSeen(m, 100), true)
+    T.eq(A.MarkSeen(m, 100), false)
+    A.MarkSeen(m, 100 + A.DAYS_KEPT)
+    T.eq(m.seen[100], nil)
+    T.eq(m.seen[100 + A.DAYS_KEPT], true)
+  end)
+  T.it("replaces a broken list of days", function()
+    local m = { seen = "x" }
+    T.eq(A.MarkSeen(m, 7), true)
+    T.eq(m.seen, { [7] = true })
+  end)
+  T.it("counts a day once over several characters", function()
+    T.eq(A.SeenCount({ { [5] = true, [6] = true }, { [6] = true, [9] = true } }, 5, 8), 2)
+    T.eq(A.SeenCount({}, 5, 8), 0)
+  end)
+end)
+
+local function rates(t)
+  local r = { span = 30, kills = 0, honorKills = 0, quests = 0, raidBosses = 0, dungeonBosses = 0, dungeons = 0, battlegrounds = 0 }
+  for k, v in pairs(t) do r[k] = v end
+  return r
+end
+
+T.describe("Activity score", function()
+  T.it("puts the daily raider, dungeon runner and PvP player above 75", function()
+    T.truthy(A.Score(rates({ kills = 700, quests = 5, raidBosses = 4, dungeonBosses = 2, dungeons = 2 }), 7) >= 75)
+    T.truthy(A.Score(rates({ kills = 960, quests = 2, dungeonBosses = 12, dungeons = 12 }), 7) >= 75)
+    T.truthy(A.Score(rates({ kills = 50, honorKills = 150, battlegrounds = 16 }), 7) >= 75)
+  end)
+  T.it("puts the twice-a-week solo quester between 25 and 49", function()
+    local score = A.Score(rates({ kills = 300, quests = 15 }), 2)
+    T.truthy(score >= 25 and score <= 49, tostring(score))
+  end)
+  T.it("lets a daily solo player reach Active but not Very active", function()
+    local score = A.Score(rates({ kills = 800, quests = 30 }), 7)
+    T.truthy(score >= 50 and score < 75, tostring(score))
+  end)
+  T.it("gives a real zero to somebody who did nothing", function()
+    local score, parts = A.Score(rates({}), 0)
+    T.eq(score, 0)
+    T.eq(parts, { presence = 0, playing = 0, group = 0 })
+  end)
+  T.it("scales the other parts while days are not counted yet", function()
+    local with = A.Score(rates({ kills = 960, dungeonBosses = 12, dungeons = 12 }), nil)
+    T.truthy(with >= 75 and with <= 100, tostring(with))
+  end)
+  T.it("never goes above 100", function()
+    T.eq(A.Score(rates({ kills = 1e6, quests = 1e4, raidBosses = 500 }), 7), 100)
+    T.eq(A.Score(rates({ kills = 1e6, quests = 1e4, raidBosses = 500 }), nil), 100)
+  end)
+end)
+
+T.describe("Activity rates", function()
+  T.it("measures from the first reading of the previous month, per week", function()
+    local rec = { ts = NOW, v = { [107] = 4100, [1098] = 6 }, months = {
+      ["2026-10"] = { ts = OCT, v = { [107] = 100, [1098] = 0 } }, ["2026-11"] = { ts = NOV, v = { [107] = 2000 } } } }
+    local r = A.Rates(rec, NOW, date)
+    T.eq(r.span, 42)
+    T.eq(math.floor(r.kills + 0.5), 667) -- 4000 in 6 weeks
+    T.eq(r.raidBosses, 1)
+    T.eq(r.fromDay, A.Day(OCT))
+  end)
+  T.it("has no rates without a usable snapshot", function()
+    T.eq(A.Rates({ ts = NOW, v = { [107] = 5 } }, NOW, date), nil) -- no months
+    T.eq(A.Rates({ ts = NOW, v = {}, months = {} }, NOW, date), nil)
+    T.eq(A.Rates({ ts = NOV + DAY, v = {}, months = { ["2026-11"] = { ts = NOV, v = {} } } }, NOW, date), nil) -- 1 day
+    T.eq(A.Rates({ ts = NOV, v = {}, months = { ["2026-11"] = { ts = NOV + 5 * DAY, v = {} } } }, NOW, date), nil) -- snapshot newer
+    T.eq(A.Rates({ ts = NOW, v = {}, months = { ["2026-11"] = "x" } }, NOW, date), nil)
+    T.eq(A.Rates(nil, NOW, date), nil)
+  end)
+  T.it("counts a statistic that went down as zero", function()
+    local rec = { ts = NOW, v = { [107] = 50, [98] = 40 }, months = { ["2026-11"] = { ts = NOV, v = { [107] = 900, [98] = 12 } } } }
+    local r = A.Rates(rec, NOW, date)
+    T.eq(r.kills, 0)
+    T.truthy(r.quests > 0)
+  end)
+  T.it("stretches the window to a later end: nothing happened after the last logout", function()
+    local rec = { ts = NOV + 6 * DAY, v = { [107] = 1200 }, months = { ["2026-11"] = { ts = NOV, v = { [107] = 0 } } } }
+    T.eq(math.floor(A.Rates(rec, NOW, date).kills + 0.5), 1400)     -- 1200 in 6 days
+    T.eq(math.floor(A.Rates(rec, NOW, date, NOW).kills + 0.5), 700) -- 1200 in 12 days
+  end)
+  T.it("reads the growth of the days counter", function()
+    local rec = { ts = NOW, v = { [Stats.DAYS] = 20 }, months = { ["2026-11"] = { ts = NOV, v = { [Stats.DAYS] = 14 } } } }
+    T.eq(A.Rates(rec, NOW, date).ownDays, 6)
+    rec.months["2026-11"].v = {}
+    T.eq(A.Rates(rec, NOW, date).ownDays, nil) -- the counter is younger than the window
+  end)
+  T.it("knows a current reading", function()
+    T.eq(A.IsCurrent({ ts = NOW - 3 * DAY }, { online = true }, NOW), true)
+    T.eq(A.IsCurrent({ ts = NOW - 20 * DAY }, { online = false, daysOffline = 21 }, NOW), true) -- read on the last evening
+    T.eq(A.IsCurrent({ ts = NOW - 20 * DAY }, { online = false, daysOffline = 2 }, NOW), false)
+    T.eq(A.IsCurrent({ ts = NOW - 20 * DAY }, { online = false }, NOW), false) -- unknown last online
+    T.eq(A.IsCurrent(nil, { online = true }, NOW), false)
+  end)
+end)
+
+T.describe("Activity players", function()
+  local function runner(ts)
+    return { ts = ts or NOW, v = { [107] = 2000, [932] = 20, [1095] = 20 }, months = { ["2026-11"] = { ts = NOV, v = { [107] = 1 } } } }
+  end
+  local function world()
+    local members = { { key = "a", online = true, level = 60 }, { key = "b", online = false, daysOffline = 20 }, { key = "c", online = true } }
+    local records = { a = { stats = runner() }, b = { stats = runner(NOW - 25 * DAY) } }
+    return members, records, function(m) return records[m.key] end
+  end
+
+  T.it("makes one player of a main and its twinks", function()
+    local members, records, recordOf = world()
+    local players, byKey = A.Players(members, { a = "a", b = "a" }, recordOf, NOW, date, nil)
+    T.eq(#players, 2)
+    T.truthy(byKey.a == byKey.b)
+    T.eq(#byKey.a.chars, 2)
+    T.eq(byKey.a.score, (A.Score(A.Rates(records.a.stats, NOW, date), nil)))
+    T.eq(byKey.c.score, nil) -- no record at all
+  end)
+  T.it("has no score when the character played last has no current reading", function()
+    local members, _, recordOf = world()
+    members[1].online, members[1].daysOffline = false, 5
+    members[2].online, members[2].daysOffline = true, nil
+    local _, byKey = A.Players(members, { a = "a", b = "a" }, recordOf, NOW, date, nil)
+    T.eq(byKey.a.score, nil)
+  end)
+  T.it("adds the rates of the characters before the curves", function()
+    local members, records, recordOf = world()
+    members[2].daysOffline = 1
+    records.b.stats = runner()
+    local _, byKey = A.Players(members, { a = "a", b = "a" }, recordOf, NOW, date, nil)
+    local sum = A.AddRates(A.Rates(records.a.stats, NOW, date), A.Rates(records.b.stats, NOW, date))
+    T.eq(byKey.a.score, (A.Score(sum, nil)))
+  end)
+  T.it("rates presence over the days counted so far, a day once per player", function()
+    local members, records, recordOf = world()
+    records.a.seen = { [TODAY] = true, [TODAY - 1] = true, [TODAY - 2] = true }
+    records.b.seen = { [TODAY - 2] = true, [TODAY - 5] = true }
+    local _, byKey = A.Players(members, { a = "a", b = "a" }, recordOf, NOW, date, TODAY - 9)
+    T.eq(byKey.a.score, (A.Score(A.Rates(records.a.stats, NOW, date), 4 / 10 * 7)))
+  end)
+  T.it("leaves presence out until a week of days is counted", function()
+    local members, records, recordOf = world()
+    records.a.seen = { [TODAY] = true }
+    local _, byKey = A.Players(members, {}, recordOf, NOW, date, TODAY - 3)
+    T.eq(byKey.a.score, (A.Score(A.Rates(records.a.stats, NOW, date), nil)))
+  end)
+  T.it("takes the own days counter of a member when it says more", function()
+    local members, records, recordOf = world()
+    records.a.stats.v[Stats.DAYS], records.a.stats.months["2026-11"].v[Stats.DAYS] = 20, 14
+    local _, byKey = A.Players(members, {}, recordOf, NOW, date, nil)
+    T.eq(byKey.a.score, (A.Score(A.Rates(records.a.stats, NOW, date), 6 / 12 * 7)))
+  end)
+  T.it("scores zero for a player gone for a month, reading or not", function()
+    local _, _, recordOf = world()
+    local _, byKey = A.Players({ { key = "b", online = false, daysOffline = 30 } }, {}, recordOf, NOW, date, nil)
+    T.eq(byKey.b.score, 0)
+    local _, alone = A.Players({ { key = "z", online = false, daysOffline = 45 } }, {}, recordOf, NOW, date, nil)
+    T.eq(alone.z.score, 0)
+  end)
+  T.it("sorts scores into the five bars", function()
+    local expect = { [100] = 1, [75] = 1, [74] = 2, [50] = 2, [49] = 3, [25] = 3, [24] = 4, [0] = 4 }
+    for score, bucket in pairs(expect) do T.eq(A.Bucket(score), bucket, tostring(score)) end
+    T.eq(A.Bucket(nil), 5)
+  end)
+  T.it("sums up a guild, also one without any score", function()
+    T.eq(A.Summary({}), { buckets = { 0, 0, 0, 0, 0 }, scored = 0 })
+    local s = A.Summary({ { score = 80 }, { score = 60 }, {} })
+    T.eq(s.buckets, { 1, 1, 0, 0, 1 })
+    T.eq(s.pulse, 70)
+    T.eq(s.scored, 2)
+    T.eq(s.median, 70)
+  end)
+  T.it("keeps the pulse of a few months and compares with the last", function()
+    local guild = {}
+    T.eq(A.PulseChange(guild, 74, "2026-11"), nil)
+    for month = 7, 11 do A.StorePulse(guild, string.format("2026-%02d", month), 60 + month) end
+    A.StorePulse(guild, "2026-12", nil)
+    local kept = 0
+    for _ in pairs(guild.pulse) do kept = kept + 1 end
+    T.eq(kept, A.PULSES_KEPT)
+    T.eq(guild.pulse["2026-07"], nil)
+    T.eq(A.PulseChange(guild, 74, "2026-11"), 3)
+  end)
+end)
