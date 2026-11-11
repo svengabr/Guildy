@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 - The account view is gone: the side tab with all your characters and their professions had nothing to
   do with the guild, and addons made for it do that better. Twinks inside the guild stay as they are
