@@ -13,6 +13,7 @@ local COLUMNS = {
   { key = "name", width = 175 },
   { key = "rank", width = 100 },
   { key = "ilvl", width = 44, desc = true },
+  { key = "score", width = 40, desc = true }, -- the activity score of the player (Core/Activity.lua)
   { key = "zone", width = 120 },
   { key = "lastOnline", width = 70 },
   { key = "guildy", width = 46, desc = true },
@@ -23,7 +24,7 @@ local UNSORTED = { note = true, officerNote = true }
 local REST_WIDTH = 200 -- a rest column's width when another column follows it
 -- The columns the player can hide (settings.memberColumns[key] = false, Guildy's options); level and
 -- name always stay
-UI.MEMBER_COLUMNS = { "rank", "ilvl", "zone", "lastOnline", "guildy", "note", "officerNote" }
+UI.MEMBER_COLUMNS = { "rank", "ilvl", "score", "zone", "lastOnline", "guildy", "note", "officerNote" }
 local function ColumnOff(key)
   local chosen = ns.Settings().memberColumns
   return type(chosen) == "table" and chosen[key] == false
@@ -87,6 +88,28 @@ local function ItemLevel(guild, m)
   local record = guild and guild.members[m.key]
   local values = record and type(record.stats) == "table" and record.stats.v
   return values and values[ns.Stats.GEAR.ILVL] or nil
+end
+
+-- Whether the member has an end boss kill in the raid with that key (Stats.DUNGEONS)
+local function HasRaidKill(guild, m, raidKey)
+  local record = guild and guild.members[m.key]
+  local values = record and type(record.stats) == "table" and record.stats.v
+  if type(values) ~= "table" then return false end
+  for _, dungeon in ipairs(ns.Stats.DUNGEONS) do
+    if dungeon.key == raidKey then
+      for _, id in ipairs(dungeon.stats) do
+        if (values[id] or 0) > 0 then return true end
+      end
+    end
+  end
+  return false
+end
+
+local function RaidTitle(raidKey)
+  for _, dungeon in ipairs(ns.Stats.DUNGEONS) do
+    if dungeon.key == raidKey then return UI.DungeonTitle(dungeon) end
+  end
+  return raidKey
 end
 
 local function Build(panel)
@@ -224,6 +247,8 @@ local function Build(panel)
     self.hidden = {}
     for _, column in ipairs(COLUMNS) do
       column.hidden = (column.key == "officerNote" and not self.viewOfficer) or ColumnOff(column.key)
+      -- the players of an activity bar are listed with their score, whatever the options say
+      if column.key == "score" and self.filter.scoreBucket then column.hidden = false end
       column.last = false
       self.hidden[column.key] = column.hidden
       if not column.hidden then
@@ -307,6 +332,8 @@ local function Build(panel)
     c.zone:SetText(m.zone or "")
     c.rank:SetText(m.rank or "")
     c.ilvl:SetText(m.ilvl and (string.format("%.1f", m.ilvl / 10):gsub("%.", L.DECIMAL_MARK)) or "")
+    -- the score belongs to the player: on the main (or a character without family), not on its twinks
+    c.score:SetText((m.score and not (m.mainKey and m.mainKey ~= m.key)) and tostring(m.score) or "")
     c.lastOnline:SetText(ns.Roster.LastOnlineText(m))
     c.guildy:SetText(UI.GuildyVersionText(m) or "")
     c.note:SetText((m.note and m.note ~= "") and m.note or ("|cffff9a5a" .. L.NO_NOTE_CELL .. "|r"))
@@ -339,6 +366,7 @@ local function Build(panel)
 
   function view:SetFilter(filter)
     self.filter = filter or {}
+    if self.filter.scoreBucket then self.sort, self.desc = "score", true end -- the most active first
     self.OnlineCheck:SetChecked(self.filter.onlineOnly and true or false)
     self:Refresh()
   end
@@ -370,6 +398,9 @@ local function Build(panel)
       m.guildy = m.online and ns.Sync.UserVersion(m.name) or nil
       m.ilvl = ItemLevel(guild, m)
       m.mainKey = mains[m.key]
+      m.score = ns.GameActivity.ScoreOf(m.key)
+      m.scoreBucket = ns.Activity.Bucket(m.score)
+      m.raidKill = self.filter.raidKill and HasRaidKill(guild, m, self.filter.raidKill) or nil
       if type(m.rankIndex) == "number" and not rankNames[m.rankIndex] then rankNames[m.rankIndex] = m.rank or "" end
       if not m.note or m.note == "" then noNote = noNote + 1 end
       if not m.officerNote or m.officerNote == "" then noOfficerNote = noOfficerNote + 1 end
@@ -439,6 +470,9 @@ local function Build(panel)
       or (self.filter.bracket and ns.Census.BracketLabel(self.filter.bracket))
     if level then summary = L.FILTER_LEVEL .. " " .. level .. ns.L.SEP .. summary end
     if self.filter.skillLine then summary = ns.TradeSkill.Name(self.filter.skillLine) .. ns.L.SEP .. summary end
+    if self.filter.scoreBucket then summary = L["SCORE_" .. self.filter.scoreBucket] .. ns.L.SEP .. summary end
+    if self.filter.ilvl then summary = L.ILVL .. " " .. self.filter.ilvl .. ns.L.SEP .. summary end
+    if self.filter.raidKill then summary = RaidTitle(self.filter.raidKill) .. ns.L.SEP .. summary end
     self.Summary:SetText(summary)
     -- at a narrow window a long language fills the row with the filters: then only the numbers
     local last = (self.FoldCheck.Label:IsShown() and self.FoldCheck.Label)

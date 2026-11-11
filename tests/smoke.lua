@@ -1373,3 +1373,57 @@ T.describe("Overview phases", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Members tab drill-downs of the endgame view", function()
+  local function Listed(view)
+    local keys = {}
+    for _, item in ipairs(view.List.items) do
+      if item.m then keys[#keys + 1] = item.m.key end
+    end
+    table.sort(keys)
+    return keys
+  end
+  local function Prepare()
+    local guild, now = ns.GuildData(), env.GetServerTime()
+    local month = ns.Stats.MonthKey(now, ns.GameStats.Date)
+    guild.members["ran fred"].stats = { ts = now, src = "self",
+      v = { [107] = 5000, [932] = 30, [1095] = 30, [1098] = 2, [ns.Stats.GEAR.ILVL] = 579, [ns.Stats.GEAR.COUNT] = 16 },
+      months = { [month] = { ts = now - 10 * 86400, v = { [107] = 1 } } } }
+    ns.Fire("STATS")
+    ns.UI.SelectTab("members")
+    return ns.UI.TabView("members")
+  end
+
+  T.it("lists the players of an activity bar, sorted by the score", function()
+    local view = Prepare()
+    local score = ns.GameActivity.ScoreOf("ran fred")
+    T.truthy(score and score > 0, "a score")
+    local bucket = ns.Activity.Bucket(score)
+    view:SetFilter({ scoreBucket = bucket })
+    local listed = Listed(view)
+    T.truthy(#listed >= 1)
+    for _, key in ipairs(listed) do T.eq(ns.Activity.Bucket((ns.GameActivity.ScoreOf(key))), bucket, key) end
+    T.eq(view.sort, "score")
+    T.eq(view.desc, true)
+    T.eq(view.hidden.score, false)
+    T.truthy(view.Summary:GetText():find(ns.L["SCORE_" .. bucket], 1, true), view.Summary:GetText())
+    view:SetFilter({ scoreBucket = bucket == 1 and 4 or 1 })
+    T.eq(Listed(view), {})
+    T.eq(errors, {})
+  end)
+
+  T.it("lists the members of an item level column and of a raid", function()
+    local view = Prepare()
+    view:SetFilter({ ilvl = 57 })
+    T.eq(Listed(view), { "ran fred" })
+    view:SetFilter({ ilvl = 58 })
+    T.eq(Listed(view), {})
+    view:SetFilter({ raidKill = "onyxia" })
+    T.eq(Listed(view), { "ran fred" })
+    view:SetFilter({ raidKill = "hyjal" })
+    T.eq(Listed(view), {})
+    view:SetFilter({})
+    T.eq(#Listed(view), #ns.Roster.Members())
+    T.eq(errors, {})
+  end)
+end)

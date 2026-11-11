@@ -81,6 +81,10 @@ function Search.Members(members, filter, query, profsOf)
     if keep and filter.level and tonumber(m.level) ~= filter.level then keep = false end
     if keep and filter.activeDays and not ns.Census.IsActive(m, filter.activeDays) then keep = false end
     if keep and filter.activity and ns.Census.ActivityBucket(m) ~= filter.activity then keep = false end
+    -- from the endgame view of the overview; the members tab sets m.scoreBucket, m.ilvl and m.raidKill
+    if keep and filter.scoreBucket and m.scoreBucket ~= filter.scoreBucket then keep = false end
+    if keep and filter.ilvl and not (m.ilvl and math.floor(m.ilvl / 10) == filter.ilvl) then keep = false end
+    if keep and filter.raidKill and not m.raidKill then keep = false end
     if keep and filter.skillLine then
       local profs = profsOf and profsOf(m)
       if not (profs and profs[filter.skillLine]) then keep = false end
@@ -110,6 +114,8 @@ local GETTERS = {
   guildy = function(m) return m.guildy and ("1" .. m.guildy) or "0" end,
   -- set by the members tab: the average item level
   ilvl = function(m) return m.ilvl or 0 end,
+  -- set by the members tab: the activity score of the member's player, none below every score
+  score = function(m) return m.score or -1 end,
 }
 
 -- Sorts in place by field; desc reverses. Ties by name. Default directions: level high first.
