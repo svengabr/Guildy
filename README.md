@@ -106,6 +106,8 @@ Auf WoW Forever habe ich das Gildenfenster fast nie geöffnet. Ein Chat und eine
 
 Guildy läuft in Blizzards eigenem Gildenfenster und behält dessen Optik. Ich nutze es jeden Tag in meiner eigenen Gilde.
 
+Guildy gibt es auf Englisch, Deutsch, Französisch, Spanisch, Russisch und brasilianischem Portugiesisch: Es folgt der Sprache deines Spiels, und in den Optionen kannst du eine andere wählen.
+
 Die Reiter:
 
 - Der Chat zeigt die neuesten Zeilen und lädt ältere beim Hochscrollen nach, mit Uhrzeiten, einer Zeitleiste der Tage und einer Markierung „neu seit deinem letzten Login“. Die Schrift ist etwas größer, der Offizierschat ist einen Klick entfernt, Beitritte stehen als graue Zeile im Chat. Daneben siehst du alle Online-Mitglieder mit Stufe, Klassenfarbe, Berufen und Zone. Ein Klick öffnet die Charakterseite, Shift-Klick flüstert an, Rechtsklick öffnet Blizzards Mitgliedermenü, das Guildy um „Charakternamen kopieren“ ergänzt.
