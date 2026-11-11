@@ -87,7 +87,6 @@ Title and description per image (CurseForge allows 255 characters per descriptio
 
 The pictures made up to 1.2.0 (`00-guildy`, `09-professions-leatherworking`, `12-sync` and the old look of the
 others) are gone from the repository. Remove them from the CurseForge gallery when uploading the new ones.
-The account view left Guildy after 1.4.0: remove `13-account` from the CurseForge gallery too.
 
 ## Links
 
