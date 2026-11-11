@@ -21,7 +21,6 @@ More screenshots are in the gallery on [CurseForge](https://www.curseforge.com/w
 | Hall of Fame | Guild records from Forever's character statistics: kills, quests, deaths (including by Hogger), gold, dungeons, reputation and PvP. |
 | Ranks | Every rank with its members and permissions. The guild master edits them right there. |
 | Info & log | Message of the day, guild information and the guild log. |
-| Account | Your own characters and all their professions together. |
 | Communities | Your communities with their chat and members. Works without a guild too. |
 
 Click a member for their character page with twinks, dungeons, gear and professions. Inviting, removing, ranks and notes all work from Guildy's window.

@@ -28,7 +28,6 @@ PICTURES = [
     ("09-professions", "09-professions"),
     ("10-info-log", "10-info"),
     ("11-ranks", "11-ranks"),
-    ("13-account", "12-account"),
     ("14-character", "14-character"),
     ("15-options-members", "17-options-members"),
     ("16-options-hall-of-fame", "18-options-fame"),

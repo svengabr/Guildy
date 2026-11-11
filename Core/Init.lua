@@ -20,23 +20,6 @@ local function OnGuildChat(kind, text, sender, ...)
   ns.TradeSkill.OnChatMessage(text, sender, guid)
 end
 
--- Remembers class, level, race and guild of the logged-in character (for the own character page: the
--- account's characters in other guilds). Stays on this computer, never sent.
-local function RememberSelf()
-  local db = ns.DB()
-  local me = ns.PlayerName()
-  if not db or not me then return end
-  local className, classFile = UnitClass("player")
-  local raceName, raceFile = UnitRace("player")
-  local guild = IsInGuild() and GetGuildInfo("player") or nil
-  db.ownChars = db.ownChars or {}
-  local key = ns.Names.Key(me)
-  db.ownChars[key] = ns.Family.OwnRecord(db.ownChars[key], { name = me, classFile = classFile, className = className,
-    level = UnitLevel("player"), raceFile = raceFile, raceName = raceName, female = UnitSex("player") == 3,
-    guild = guild, guildKey = guild and ns.GuildKey() or nil }, ns.Now())
-end
-ns.RememberSelf = RememberSelf
-
 local HANDLERS = {
   ADDON_LOADED = function(name)
     if name == ns.ADDON then
@@ -59,7 +42,6 @@ local HANDLERS = {
     ns.Harvest.RestoreSound() -- a run cut off by /reload or a crash left the sound effects off
     ns.Sync.Register()
     ns.Roster.Request(true)
-    ns.SafeCall(RememberSelf)
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
     ns.Sync.Start()
     ns.GameStats.Start()
@@ -78,12 +60,8 @@ local HANDLERS = {
     ns.Roster.Request(true)
     ns.Fire("GUILD")
     -- the guild name can arrive a moment later
-    C_Timer.After(2, function()
-      ns.SafeCall(RememberSelf)
-      ns.Fire("GUILD")
-    end)
+    C_Timer.After(2, function() ns.Fire("GUILD") end)
   end,
-  PLAYER_LEVEL_UP = function() C_Timer.After(1, function() ns.SafeCall(RememberSelf) end) end,
   GUILD_ROSTER_UPDATE = function() ns.Roster.ScheduleScan() end,
   GUILD_EVENT_LOG_UPDATE = function()
     ns.Roster.ScheduleScan()

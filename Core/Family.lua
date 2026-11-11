@@ -1,6 +1,7 @@
 -- Families (main and twinks) of guild members. Pure: takes and returns tables.
 -- Three sources, joined into groups:
---   * own characters: every character of the account that ran Guildy (GuildyDB.ownChars)
+--   * own characters: every character of the account that ran Guildy in a guild (GuildyDB.ownChars,
+--     a set of keys)
 --   * shared lists: Guildy users send their characters in the guild (FAM, Game/Sync.lua), kept as
 --     guild.families[ownerKey] = FamilyRec = { ts, chars = { "Name", ... } }
 --   * notes: a public or officer note naming another member with a twink word ("Twink von Ran Fred",
@@ -272,40 +273,3 @@ function Family.Mains(members, families, ownChars)
   end
   return mains
 end
-
--- What the account remembers about one of its characters (GuildyDB.ownChars[key]; older versions
--- stored just true). info = {name, classFile, className, level, raceFile, raceName, female, guild,
--- guildKey}; keeps known fields.
-function Family.OwnRecord(old, info, now)
-  local record = type(old) == "table" and old or {}
-  for _, field in ipairs({ "name", "classFile", "className", "level", "raceFile", "raceName", "guild", "guildKey" }) do
-    if info[field] ~= nil then record[field] = info[field] end
-  end
-  if info.female ~= nil then record.female = info.female end
-  if not info.guild then record.guild, record.guildKey = nil, nil end -- left the guild
-  record.seen = now
-  return record
-end
-
--- The account's other characters that are not in the given set (shown: {key = true}): those in
--- other guilds or without one. Only characters remembered with details. Highest level first.
--- daysOffline counts from their last login (now).
-function Family.OwnElsewhere(ownChars, shown, now)
-  local list = {}
-  for key, record in pairs(type(ownChars) == "table" and ownChars or {}) do
-    if type(record) == "table" and record.name and not shown[key] then
-      local name, guildName = record.name, record.guild
-      if ns.Anon and ns.Anon.on then name, guildName = ns.Anon.Name(name), ns.Anon.Guild(guildName) end
-      list[#list + 1] = { key = key, name = name, classFile = record.classFile, className = record.className,
-        level = record.level, raceFile = record.raceFile, raceName = record.raceName, female = record.female,
-        guildName = guildName, guildKey = record.guildKey, seen = record.seen, elsewhere = true,
-        daysOffline = (now and record.seen) and math.max(0, now - record.seen) / 86400 or nil }
-    end
-  end
-  table.sort(list, function(a, b)
-    if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) > (b.level or 0) end
-    return a.name < b.name
-  end)
-  return list
-end
-

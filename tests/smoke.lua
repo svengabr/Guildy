@@ -215,7 +215,7 @@ T.describe("Smoke", function()
     RunTimers(1)
     T.eq(taken, #ns.UI.SHOTS)
     T.eq(ns.UI.fromTimer, nil)
-    T.truthy(taken >= 20, "every tab, page and options tab")
+    T.truthy(taken >= 19, "every tab, page and options tab")
     T.eq(ns.UI.Current(), "overview") -- back where it started
     T.eq(ns.UI.Options():IsShown(), false)
     env.Screenshot = nil
@@ -447,21 +447,6 @@ T.describe("Smoke", function()
     ns.UI.ShowMember(member)
     T.truthy(ns.UI.MemberPage(), "page built")
     ns.UI.MemberPage():Render()
-    -- the account's characters in other guilds (account tab) and the page of one of them
-    local db = ns.DB()
-    db.ownChars = db.ownChars or {}
-    db.ownChars[member.key] = db.ownChars[member.key] or true
-    db.ownChars["drache"] = { name = "Drache", classFile = "WARLOCK", level = 3, raceFile = "Human", guild = "Katzen",
-      guildKey = "Katzen@Forever", seen = 0 }
-    db.guilds["Katzen@Forever"] = { members = { drache = { stats = {}, profs = {} } } }
-    ns.UI.MemberPage():Render()
-    -- and the page of that character, from its own guild's data
-    local elsewhere = ns.Family.OwnElsewhere(db.ownChars, { [member.key] = true }, 3600)
-    T.eq(elsewhere[1] and elsewhere[1].name, "Drache")
-    ns.UI.ShowMember(elsewhere[1], true)
-    T.eq(ns.UI.MemberPage().member.name, "Drache")
-    ns.UI.ShowMember(member, true) -- an own character in this guild, seen from the account
-    ns.UI.ShowMember(member)
     ns.UI.MemberMenu(member)
     ns.UI.CopyText(member.name)
     ns.UI.ConfirmRemove(member)
@@ -476,19 +461,16 @@ T.describe("Smoke", function()
     env.GetGuildInfo = myInfo
     ns.UI.SelectTab("members")
     ns.UI.SelectTab("chat")
-    -- account tab in the guild, then without a guild: only the account tab, back to chat on joining
-    ns.UI.SelectTab("account")
-    T.eq(ns.UI.Current(), "account")
-    ns.UI.SelectTab("chat")
+    -- without a guild: only the communities, back to chat on joining
     env.IsInGuild = function() return false end
     ns.Fire("GUILD")
-    T.eq(ns.UI.Current(), "account")
+    T.eq(ns.UI.Current(), "communities")
     ns.UI.SelectTab("members")
-    T.eq(ns.UI.Current(), "account")
+    T.eq(ns.UI.Current(), "communities")
     ns.UI.Hide()
     T.eq(ns.UI.IsShown(), false) -- closing closes Blizzard's window
     env.CommunitiesFrame:Show()
-    T.eq(ns.UI.Current(), "account")
+    T.eq(ns.UI.Current(), "communities")
     env.IsInGuild = function() return true end
     ns.Fire("GUILD")
     T.eq(ns.UI.Current(), "chat")

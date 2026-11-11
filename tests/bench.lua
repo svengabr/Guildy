@@ -216,7 +216,7 @@ local function Run()
   end)
   messages[#messages] = nil
   Step("chat: roster update", function() ns.Fire("ROSTER") end)
-  for _, key in ipairs({ "members", "overview", "fame", "professions", "info", "ranks", "account", "communities" }) do
+  for _, key in ipairs({ "members", "overview", "fame", "professions", "info", "ranks", "communities" }) do
     Step(key .. ": first show", function() ns.UI.SelectTab(key) end)
     if ns.UI.Current() == key then
       Step(key .. ": roster update", function() ns.Fire("ROSTER") end)

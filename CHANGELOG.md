@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- The account view is gone: the side tab with all your characters and their professions had nothing to
+  do with the guild, and addons made for it do that better. Twinks inside the guild stay as they are
+  (family on the character page, folding in the member list, the shared activity score).
+- Without a guild Guildy shows your communities.
+- Guildy no longer remembers class, level, race and guild of your characters, only their names for the
+  twinks; what it had stored is removed.
+
 ## 1.4.0
 
 - Overview tab: a second view for the endgame, with a switch "Levelling | Endgame" in the toolbar. Guildy

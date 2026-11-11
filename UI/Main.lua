@@ -30,7 +30,7 @@ local placingHost  -- Guildy itself is moving Blizzard's window (its hooks ignor
 local hostGeometry -- Blizzard's window's anchors and size before Guildy moved it
 local returnTab    -- side tab on Blizzard's own window back to Guildy (UI.ShowBlizzard)
 local lastTab -- session only, on purpose not in GuildyDB
-local noGuild, forcedAccount -- without a guild only the side tabs (account, communities; UpdateGuildState)
+local noGuild, forcedCommunities -- without a guild only the communities (UpdateGuildState)
 
 local page    -- a page shown instead of a tab (UI.ShowPage); kept while the window is closed, so
               -- opening it again in this session comes back to the page
@@ -40,7 +40,7 @@ local page    -- a page shown instead of a tab (UI.ShowPage); kept while the win
 UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 1130, 560, 1600, 1000
 
 -- Tab modules call this at load time; builder(panel) returns a view with Refresh(event) and optional
--- OnShow() / OnHide(). side: no button in the bottom row (reached by a side tab, the account)
+-- OnShow() / OnHide(). side: no button in the bottom row (reached by a side tab, the communities)
 -- label: the key of the tab's name (the text is read when the window is built, in the language then in force)
 function UI.RegisterTab(key, order, label, builder, side)
   local tab = { key = key, order = order, label = label, builder = builder, side = side }
@@ -321,8 +321,8 @@ local function Build()
   end
 
   -- side tabs outside the right edge, exactly like Blizzard's profession window: Guildy with the guild
-  -- emblem, the account, the communities.
-  -- back from the account to the guild tab used last
+  -- emblem, the communities.
+  -- back from the communities to the guild tab used last
   frame.GuildTab = SideTab(frame, W.LOGO, ns.L.ICON_GUILD, function() UI.SelectTab(UI.lastGuildTab or "chat") end)
   frame.GuildTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
   frame.GuildTab:SetChecked(true)
@@ -332,11 +332,6 @@ local function Build()
   UI.OptionalAction(frame.GuildTab, function()
     return UI.Action.SelectGuild(function() UI.SelectTab(UI.lastGuildTab or "chat") end)
   end)
-  -- the account under it: a group of characters (UI/TabAccount.lua)
-  local accountIcon = "Interface\\Icons\\INV_Misc_GroupNeedMore"
-  if not W.TextureExists(accountIcon) then accountIcon = "Interface\\Icons\\INV_Misc_Book_09" end
-  frame.AccountTab = SideTab(frame, accountIcon, ns.L.ICON_ACCOUNT, function() UI.SelectTab("account") end)
-  frame.AccountTab:SetChecked(false)
   -- the communities under it: Guildy covers Blizzard's guild window, which also held the player's
   -- communities, so they get Guildy's own view (UI/TabCommunities.lua)
   frame.CommunitiesTab = SideTab(frame, UI.CommunitiesIcon(), ns.L.ICON_COMMUNITIES, function() UI.SelectTab("communities") end)
@@ -434,7 +429,7 @@ function UI.Content()
 end
 
 function UI.SelectTab(key)
-  if noGuild and byKey.account and not (byKey[key] and byKey[key].side) then key = "account" end
+  if noGuild and byKey.communities and not (byKey[key] and byKey[key].side) then key = "communities" end
   local tab = byKey[key]
   if not tab or not frame then return end
   if page then
@@ -456,11 +451,10 @@ function UI.SelectTab(key)
   current = tab
   if not tab.side then UI.lastGuildTab = key end
   if frame.GuildTab then frame.GuildTab:SetChecked(not tab.side) end
-  if frame.AccountTab then frame.AccountTab:SetChecked(key == "account") end
   if frame.CommunitiesTab then frame.CommunitiesTab:SetChecked(key == "communities") end
   lastTab = key -- opening the window again in this session comes back here; a login or reload starts on chat
   tab.panel:Show()
-  -- a side tab (account) leaves no bottom tab selected
+  -- a side tab (communities) leaves no bottom tab selected
   if rawget(_G, "PanelTemplates_SetTab") then pcall(PanelTemplates_SetTab, frame, tab.index or 0) end
   if tab.view.OnShow then ns.Perf.Call("show", key, ns.SafeCall, tab.view.OnShow, tab.view) end
   if tab.view.Refresh then ns.Perf.Call("refresh", key, ns.SafeCall, tab.view.Refresh, tab.view) end
@@ -476,19 +470,17 @@ function UI.TabView(key)
   return tab and tab.view
 end
 
--- Without a guild only the account tab makes sense: the other tab buttons go away and the window
--- shows the account. Joining a guild brings them back (and the chat, when the account tab was forced).
+-- Without a guild only the communities make sense: the other tab buttons go away and the window
+-- shows the communities. Joining a guild brings them back (and the chat, when the communities were forced).
 local function LayoutTabs()
-  -- side tabs: guild, account, communities; without a guild the account in the guild tab's place
+  -- side tabs: guild, communities; without a guild the communities in the guild tab's place
   frame.GuildTab:SetShown(not noGuild)
-  frame.AccountTab:ClearAllPoints()
-  if noGuild then
-    frame.AccountTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
-  else
-    frame.AccountTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -8)
-  end
   frame.CommunitiesTab:ClearAllPoints()
-  frame.CommunitiesTab:SetPoint("TOPLEFT", frame.AccountTab, "BOTTOMLEFT", 0, -8)
+  if noGuild then
+    frame.CommunitiesTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
+  else
+    frame.CommunitiesTab:SetPoint("TOPLEFT", frame.GuildTab, "BOTTOMLEFT", 0, -8)
+  end
   -- bottom row: hidden without a guild
   for i, tab in ipairs(tabs) do
     local button = tab.button
@@ -514,10 +506,10 @@ local function UpdateGuildState()
   LayoutTabs()
   if not frame:IsShown() then return end
   if noGuild and not (current and current.side) then
-    forcedAccount = true
-    UI.SelectTab("account")
-  elseif was and not noGuild and forcedAccount then
-    forcedAccount = nil
+    forcedCommunities = true
+    UI.SelectTab("communities")
+  elseif was and not noGuild and forcedCommunities then
+    forcedCommunities = nil
     UI.SelectTab("chat")
   end
 end
@@ -547,8 +539,8 @@ local function Embed()
   PlaceHost()
 end
 
--- Fills Guildy's window when Blizzard's window shows: the tab or page of this session, the account
--- without a guild
+-- Fills Guildy's window when Blizzard's window shows: the tab or page of this session, the
+-- communities without a guild
 local function Open()
   if not frame then Build() end
   if returnTab then returnTab:Hide() end
@@ -561,10 +553,9 @@ local function Open()
   noGuild = not IsInGuild()
   LayoutTabs()
   if noGuild then
-    -- the side tabs work without a guild: the communities stay, everything else becomes the account
-    local keep = lastTab == "communities" and "communities" or "account"
-    forcedAccount = UI.Current() ~= keep or forcedAccount
-    UI.SelectTab(keep)
+    -- only the communities work without a guild
+    forcedCommunities = UI.Current() ~= "communities" or forcedCommunities
+    UI.SelectTab("communities")
     return
   end
   -- back to where the window was left in this session: the open page (character page) or the tab

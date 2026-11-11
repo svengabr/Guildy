@@ -1,4 +1,4 @@
--- Communities view (side tab under the account): the player's communities on the left with lines that
+-- Communities view (side tab under the guild): the player's communities on the left with lines that
 -- came in unseen, the chat of the selected one in the middle (channel switch, history, timeline, input,
 -- the same column as the guild chat) and its members on the right, online first. Guildy covers
 -- Blizzard's guild window, whose communities part does not work under it, so the communities live

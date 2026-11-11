@@ -15,4 +15,8 @@ T.describe("Store.Init", function()
     db.settings.statMouseover = false
     T.eq(Store.Init(db).settings.statMouseover, false)
   end)
+  T.it("keeps only the names of the own characters", function()
+    local db = Store.Init({ ownChars = { drache = { name = "Drache", level = 3, guild = "Katzen" }, old = true } })
+    T.eq(db.ownChars, { drache = true, old = true })
+  end)
 end)

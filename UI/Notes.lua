@@ -89,7 +89,7 @@ end
 
 -- Whether the player may change one of m's notes at all
 local function CanEdit(m)
-  if not (m and not m.elsewhere and m.guid) then return false end
+  if not (m and m.guid) then return false end
   local can = ns.Roster.Can()
   return (can.editPublic or can.editOfficer or (ns.Roster.Me and ns.Roster.Me() == m)) and true or false
 end
@@ -225,7 +225,7 @@ end
 -- Lays the pick button over owner (a frame showing member m) while the mouse is on it.
 -- forward: the click goes on to owner afterwards; hint: owner's tooltip hint.
 local function LayPick(owner, m, forward, hint)
-  if InCombatLockdown() or not (m and m.guid and not m.elsewhere) then return end
+  if InCombatLockdown() or not (m and m.guid) then return end
   local host = Host()
   if not (host and host:IsShown() and GuildSelected()) then return end
   local p = Pick()
@@ -483,7 +483,7 @@ local function Dock()
   docked = true
   local width = detail:GetWidth() or 212
   local x = left - width - PANEL_GAP
-  -- no room on the left: right of Guildy's window, past its side tabs (guild, account) outside its edge
+  -- no room on the left: right of Guildy's window, past its side tabs (guild, communities) outside its edge
   if x < 0 then x = right + SIDE_TABS end
   detail:SetIgnoreParentAlpha(true)
   detail:ClearAllPoints()

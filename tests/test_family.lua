@@ -82,29 +82,4 @@ T.describe("Family notes", function()
     T.eq(mains["ran fred"], "ran fred")
     T.eq(mains["solo"], nil)
   end)
-  T.it("remembers the own characters with their details", function()
-    local r = Family.OwnRecord(true, { name = "Drache", classFile = "WARLOCK", level = 3, raceFile = "Human",
-      female = false, guild = "Katzen" }, 100)
-    T.eq(r.name, "Drache")
-    T.eq(r.guild, "Katzen")
-    T.eq(r.female, false)
-    r = Family.OwnRecord(r, { name = "Drache", level = 4 }, 200)
-    T.eq(r.level, 4)
-    T.eq(r.classFile, "WARLOCK")
-    T.eq(r.guild, nil) -- left the guild
-    T.eq(r.seen, 200)
-  end)
-  T.it("lists the own characters outside the shown ones", function()
-    local own = {
-      ["ran fred"] = { name = "Ran Fred", level = 33, guild = "Murloc Mafia" },
-      ["drache"] = { name = "Drache", level = 3, guild = "Katzen" },
-      ["old"] = true, -- remembered by an older version, no details
-      ["solo"] = { name = "Solo", level = 20 },
-    }
-    local list = Family.OwnElsewhere(own, { ["ran fred"] = true })
-    T.eq(#list, 2)
-    T.eq(list[1].name, "Solo")
-    T.eq(list[2].guildName, "Katzen")
-    T.truthy(list[2].elsewhere)
-  end)
 end)

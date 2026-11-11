@@ -46,7 +46,6 @@ UI.SHOTS = {
   { "09-professions", Tab("professions") },
   { "10-info", Tab("info") },
   { "11-ranks", Tab("ranks") },
-  { "12-account", Tab("account") },
   { "13-communities", Tab("communities") },
   { "14-character", function()
     UI.HideOptions()

@@ -33,6 +33,11 @@ function Store.Init(db)
     db.settings.mouseoverDefaultOn = true
   end
   if type(db.guilds) ~= "table" then db.guilds = {} end
+  -- the account view is gone: of the own characters only the names are kept (twinks in the guild,
+  -- Core/Family.lua), not class, level, race and guild of each
+  if type(db.ownChars) == "table" then
+    for key in pairs(db.ownChars) do db.ownChars[key] = true end
+  end
   return db
 end
 

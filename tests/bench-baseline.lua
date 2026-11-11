@@ -19,8 +19,6 @@ return {
     { name = "info: roster update", ms = 0.023, calls = 33, widgets = 0, kb = 3 },
     { name = "ranks: first show", ms = 5.029, calls = 17584, widgets = 3858, kb = 11875 },
     { name = "ranks: roster update", ms = 0.976, calls = 2582, widgets = 0, kb = 85 },
-    { name = "account: first show", ms = 1.045, calls = 2594, widgets = 623, kb = 1927 },
-    { name = "account: roster update", ms = 0.136, calls = 248, widgets = 0, kb = 12 },
     { name = "communities: first show", ms = 0.208, calls = 299, widgets = 80, kb = 257 },
     { name = "communities: roster update", ms = 0.027, calls = 45, widgets = 0, kb = 2 },
     { name = "chat: show again", ms = 5.187, calls = 2012, widgets = 0, kb = 2072 },

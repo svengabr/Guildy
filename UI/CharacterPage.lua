@@ -25,18 +25,11 @@ local page
 
 -- Race, gender and the race icon of a member from the game (known once the client saw the character)
 local function RaceInfo(m)
-  local localizedRace, englishRace, female
-  if m.raceFile then
-    -- the account's own characters outside the guild: remembered at their login
-    localizedRace, englishRace, female = m.raceName, m.raceFile, m.female and true or false
-  else
-    local getInfo = rawget(_G, "GetPlayerInfoByGUID")
-    if not getInfo or not m.guid or m.guid == "" then return nil end
-    local ok, sex
-    ok, _, _, localizedRace, englishRace, sex = pcall(getInfo, m.guid)
-    if not ok or not englishRace then return nil end
-    female = sex == 3
-  end
+  local getInfo = rawget(_G, "GetPlayerInfoByGUID")
+  if not getInfo or not m.guid or m.guid == "" then return nil end
+  local ok, _, _, localizedRace, englishRace, sex = pcall(getInfo, m.guid)
+  if not ok or not englishRace then return nil end
+  local female = sex == 3
   local race = RACE_ICON[englishRace]
   local icon = race and ("Interface\\Icons\\Achievement_Character_" .. race .. "_" .. (female and "Female" or "Male"))
   return { race = localizedRace, female = female, icon = icon and W.TextureExists(icon) and icon or nil }
@@ -148,21 +141,8 @@ local function Medals(entries, key)
   return list, first and ns.L["FAME_TITLE_" .. first.key] or nil
 end
 
--- The stored record of a character: the current guild's, or for the account's characters in other
--- guilds the one Guildy keeps for that guild
-local function RecordOf(m)
-  if m.elsewhere then
-    local db = ns.DB()
-    -- remembered before the guild key was stored: built like ns.GuildKey()
-    local guildKey = m.guildKey or (m.guildName and (m.guildName .. "@" .. (ns.Try(rawget(_G, "GetNormalizedRealmName")) or "?")))
-    local guild = guildKey and db and db.guilds and db.guilds[guildKey]
-    return guild and type(guild.members) == "table" and guild.members[m.key] or nil
-  end
-  return ns.TradeSkill.Record(m)
-end
-
 local function ProfList(m)
-  local record = RecordOf(m)
+  local record = ns.TradeSkill.Record(m)
   local list = {}
   for _, skillLine in ipairs(ns.Professions.ORDER) do
     local prof = record and record.profs[skillLine]
@@ -209,19 +189,9 @@ local function FamilyCard(parent)
     for _, edge in ipairs(self.Edges) do edge:SetColorTexture(r, g, b, a) end
   end
   function card:RestEdge()
-    if self.active then self:SetEdge(1, 0.82, 0, 1) else self:SetEdge(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.45) end
+    self:SetEdge(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.45)
   end
   card:RestEdge()
-  card.ActiveTint = card:CreateTexture(nil, "BACKGROUND", nil, 2)
-  card.ActiveTint:SetAllPoints()
-  card.ActiveTint:SetColorTexture(1, 0.82, 0, 0.08)
-  card.ActiveTint:Hide()
-  -- the character the page or tab is about, in a list that stays the same while navigating
-  function card:SetActive(on)
-    self.active = on and true or nil
-    self.ActiveTint:SetShown(self.active == true)
-    self:RestEdge()
-  end
   card.Stripe = card:CreateTexture(nil, "ARTWORK")
   card.Stripe:SetPoint("TOPLEFT", 1, -1)
   card.Stripe:SetPoint("BOTTOMLEFT", 1, 1)
@@ -247,53 +217,29 @@ local function FamilyCard(parent)
   card.Profs:SetPoint("RIGHT", -6, 0)
   card.Profs:SetWordWrap(false)
   card:SetScript("OnClick", function(self, button)
-    if self.elsewhere then
-      if button ~= "RightButton" then UI.ShowMember(self.elsewhere, true) end
-      return
-    end
     if not self.member then return end
     if button == "RightButton" then
       UI.MemberMenu(self.member, self)
-    elseif self.account and not IsShiftKeyDown() then
-      UI.ShowMember(self.member, true) -- from the account: stay in the account view
     else
       UI.MemberClick(self.member)
     end
   end)
   card:SetScript("OnEnter", function(self)
     self:SetEdge(1, 0.82, 0, 0.9)
-    if self.member then
-      UI.MemberTooltip(self, self.member)
-    elseif self.elsewhere then
-      local e = self.elsewhere
-      GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-      GameTooltip:SetText(W.ClassName(e.name, e.classFile))
-      GameTooltip:AddLine(e.guildName and ns.L.FAMILY_OTHER_GUILD:format(e.guildName) or ns.L.FAMILY_NO_GUILD, 1, 1, 1)
-      GameTooltip:AddLine(ns.L.FAMILY_ELSEWHERE_TIP, 0.6, 0.6, 0.6, true)
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(ns.L.FAMILY_OPEN_HINT, 0.6, 0.6, 0.6, true)
-      GameTooltip:Show()
-    end
+    if self.member then UI.MemberTooltip(self, self.member) end
   end)
   card:SetScript("OnLeave", function(self)
     self:RestEdge()
     GameTooltip:Hide()
   end)
   function card:SetMember(m)
-    -- the account's own characters outside this guild: no roster member, no menu
-    self.member = not m.elsewhere and m or nil
-    self.elsewhere = m.elsewhere and m or nil
+    self.member = m
     self.Portrait:SetMember(m)
     local r, g, b = W.ClassColor(m.classFile)
     self.Stripe:SetColorTexture(r or 0.6, g or 0.6, b or 0.6, 0.9)
     SetClassIcon(self.Class, m.classFile)
     self.Name:SetText(W.ClassName(m.name, m.classFile))
-    if m.elsewhere then
-      -- the guild tag green like in Blizzard's tooltips
-      self.Sub:SetText(m.guildName and ("|cff40ff40<" .. m.guildName .. ">|r") or ns.L.FAMILY_NO_GUILD)
-    else
-      self.Sub:SetText(ns.Roster.LastOnlineText(m))
-    end
+    self.Sub:SetText(ns.Roster.LastOnlineText(m))
     local parts = {}
     for _, p in ipairs(ProfList(m)) do
       if #parts < 3 then
@@ -480,20 +426,15 @@ local function Build()
     if info then ident[#ident + 1] = info.female and L.FEMALE or L.MALE end
     ident[#ident + 1] = m.className or ""
     hero.Ident:SetText(ClassIconString(m.classFile) .. table.concat(ident, ns.L.SEP))
-    if m.elsewhere then
-      hero.Where:SetText((m.guildName and ("|cff40ff40<" .. m.guildName .. ">|r") or L.FAMILY_NO_GUILD) .. ns.L.SEP ..
-        L.LAST_LOGIN:format(ns.Roster.LastOnlineText(m)))
-    else
-      hero.Where:SetText((m.rank or "") .. (m.zone and m.zone ~= "" and (ns.L.SEP .. m.zone) or "") .. ns.L.SEP ..
-        (m.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(m)))
-    end
+    hero.Where:SetText((m.rank or "") .. (m.zone and m.zone ~= "" and (ns.L.SEP .. m.zone) or "") .. ns.L.SEP ..
+      (m.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(m)))
 
     local notes = {}
     if m.note and m.note ~= "" then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.NOTE, "|r" .. m.note) end
     if can.viewOfficer and m.officerNote and m.officerNote ~= "" then
       notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.OFFICER_NOTE, "|r" .. m.officerNote)
     end
-    local guildy = not m.elsewhere and UI.GuildyVersionText and UI.GuildyVersionText(m)
+    local guildy = UI.GuildyVersionText and UI.GuildyVersionText(m)
     if guildy then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.COL_GUILDY, "|r" .. guildy) end
     hero.Notes:SetText(table.concat(notes, "\n"))
     hero.Notes:ClearAllPoints()
@@ -519,11 +460,10 @@ local function Build()
       end
     end
 
-    -- the account's characters in other guilds: no rank, no notes, nothing to do from here
-    local officer = not m.elsewhere and can.remove
+    local officer = can.remove
     hero.OfficerLabel:SetShown(officer)
     hero.Remove:SetShown(officer and can.remove)
-    hero.Remove:SetEnabled(not m.elsewhere and ns.Roster.Rights(m).remove or false)
+    hero.Remove:SetEnabled(ns.Roster.Rights(m).remove or false)
     local y = 10
     if officer then
       hero.Remove:ClearAllPoints()
@@ -536,8 +476,6 @@ local function Build()
     hero.Whisper:SetPoint("BOTTOMRIGHT", hero, "BOTTOM", -3, y)
     hero.Invite:ClearAllPoints()
     hero.Invite:SetPoint("BOTTOMLEFT", hero, "BOTTOM", 3, y)
-    hero.Whisper:SetShown(not m.elsewhere)
-    hero.Invite:SetShown(not m.elsewhere)
     hero.Whisper:SetEnabled(m.online or false)
     hero.Invite:SetEnabled(m.online or false)
     UI.Notes.Show(m)
@@ -547,17 +485,6 @@ local function Build()
     local guild, db = ns.GuildData(), ns.DB()
     local members = ns.Roster.Members()
     local list = ns.Family.Of(m.key, members, guild and guild.families, db and db.ownChars)
-    -- opened from the account tab (or a character outside this guild): the family is the whole
-    -- account, the characters in this guild as members with a menu
-    local account = (self.account or m.elsewhere) and db and db.ownChars and true or false
-    family.Title:SetText(account and L.ACCOUNT_OTHERS or L.FAMILY)
-    family.Empty:SetText(account and L.ACCOUNT_OTHERS_EMPTY or L.FAMILY_EMPTY)
-    if account then
-      list = {}
-      for _, other in ipairs(ns.Family.OwnElsewhere(db.ownChars, {}, ns.Now())) do
-        list[#list + 1] = ns.Roster.Find(other.key) or other
-      end
-    end
     local width = (right:GetWidth() or 600) - 24
     local cardW = math.floor((width - (FAMILY_COLS - 1) * 6) / FAMILY_COLS)
     local maxCards = FAMILY_COLS * FAMILY_ROWS
@@ -568,8 +495,6 @@ local function Build()
         card:SetWidth(cardW)
         card:SetPoint("TOPLEFT", 12 + ((i - 1) % FAMILY_COLS) * (cardW + 6), -30 - math.floor((i - 1) / FAMILY_COLS) * (CARD_H + 6))
         card:SetMember(other)
-        card.account = account
-        card:SetActive(account and other.key == m.key)
         card:Show()
       else
         card:Hide()
@@ -580,15 +505,14 @@ local function Build()
     local rows = math.min(FAMILY_ROWS, math.ceil(#list / FAMILY_COLS))
     family:SetHeight(#list == 0 and 66 or (36 + rows * (CARD_H + 6) + (#list > maxCards and 12 or 0)))
     if #list > 0 then
-      -- in account mode the page's character is one of the cards already
-      local levels, profsSeen, count = account and 0 or (m.level or 0), {}, 0
+      local levels, profsSeen, count = m.level or 0, {}, 0
       for _, p in ipairs(ProfList(m)) do profsSeen[p.skillLine] = true end
       for _, other in ipairs(list) do
         levels = levels + (other.level or 0)
         for _, p in ipairs(ProfList(other)) do profsSeen[p.skillLine] = true end
       end
       for _ in pairs(profsSeen) do count = count + 1 end
-      family.Note:SetText(L.FAMILY_SUMMARY:format(#list + (account and 0 or 1), levels, count))
+      family.Note:SetText(L.FAMILY_SUMMARY:format(#list + 1, levels, count))
     else
       family.Note:SetText("")
     end
@@ -597,7 +521,7 @@ local function Build()
   function page:RenderStats(m, entries)
     local S = ns.Stats
     local guild = ns.GuildData()
-    local record = m.elsewhere and RecordOf(m) or (guild and guild.members[m.key])
+    local record = guild and guild.members[m.key]
     local rec = record and record.stats
     local t = self.Tiles
     local function Fill(tile, id)
@@ -709,7 +633,7 @@ local function Build()
   end
 
   function page:Render()
-    local m = self.member and not self.member.elsewhere and ns.Roster.Find(self.member.key) or self.member
+    local m = self.member and ns.Roster.Find(self.member.key) or self.member
     self.member = m
     if not m then return end
     local entries = ns.GameStats.Entries()
@@ -732,13 +656,11 @@ local function Build()
 end
 
 -- Open the character page of roster member m (left click on a member anywhere)
--- account: opened from the account tab; the family shows the whole account then
-function UI.ShowMember(m, account)
+function UI.ShowMember(m)
   if not m then return end
   if not page then Build() end
   if not page:IsShown() then page.backTab = UI.Current() end
   page.member = m
-  page.account = account and true or nil
   UI.ShowPage(page)
   page:Render()
 end
@@ -747,8 +669,5 @@ function UI.MemberPage()
   return page
 end
 
--- Building blocks the account tab shares (UI/TabAccount.lua)
-UI.CharParts = {
-  Portrait = Portrait, Section = Section, FamilyCard = FamilyCard, SetClassIcon = SetClassIcon,
-  ProfList = ProfList, RecordOf = RecordOf, Number = Number, CARD_H = CARD_H, ClassIconString = ClassIconString,
-}
+-- Building blocks the communities view shares (UI/TabCommunities.lua)
+UI.CharParts = { Portrait = Portrait }

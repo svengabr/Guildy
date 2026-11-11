@@ -78,18 +78,16 @@ Title and description per image (CurseForge allows 255 characters per descriptio
 12. `media/gallery/14-character.jpg`
    - Title: Character page
    - Description: A member's statistics, dungeon collection and professions, with their twinks once Guildy knows them.
-13. `media/gallery/13-account.jpg`
-   - Title: Account
-   - Description: Your own characters and all their professions together, one tile per profession.
-14. `media/gallery/15-options-members.jpg`
+13. `media/gallery/15-options-members.jpg`
    - Title: Options: Members
    - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: the columns of the member list and how it tells online from offline.
-15. `media/gallery/16-options-hall-of-fame.jpg`
+14. `media/gallery/16-options-hall-of-fame.jpg`
    - Title: Options: Hall of Fame
    - Description: Pick which tiles and title cards each Hall of Fame page shows, in which order. Any statistic Guildy tracks can be a tile.
 
 The pictures made up to 1.2.0 (`00-guildy`, `09-professions-leatherworking`, `12-sync` and the old look of the
 others) are gone from the repository. Remove them from the CurseForge gallery when uploading the new ones.
+The account view left Guildy after 1.4.0: remove `13-account` from the CurseForge gallery too.
 
 ## Links
 
