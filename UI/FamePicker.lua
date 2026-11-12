@@ -1,7 +1,7 @@
 -- One tile or one title card of a Hall of Fame page, changed where it stands: while the tab is
 -- customized, a click on a tile opens this small list right under it (UI/TabFame.lua). A click on an
 -- entry puts it in the tile's place; the buttons above the list move the tile or take it away. Opened
--- from "Add a statistic" / "Add a title" of the box, a click adds at the end.
+-- from the + of the box, a click adds at the end.
 -- What a page shows is the player's own: settings.fameTiles[page.key] and settings.fameCards[page.key].
 local _, ns = ...
 local W = ns.Widgets
@@ -177,6 +177,17 @@ function P.Remove()
   Save(page, kind, list)
 end
 
+-- Takes the tile or title card at a place away, whatever is open (the x of its handle)
+function P.RemoveAt(pageKey, kind, index)
+  local page, row = PageOf(pageKey), KINDS[kind]
+  if not row then return end
+  local list = row.list(page)
+  if not list[index] or #list <= 1 then return end
+  table.remove(list, index)
+  P.Hide()
+  Save(page, row, list)
+end
+
 local function Build()
   local L = ns.L
   window = W.Box(UIParent, 0.05, 0.96)
@@ -299,7 +310,7 @@ function P.Hide()
   state = nil
   if window then window:Hide() end
   local view = UI.TabView("fame")
-  if view and view.LayoutHandles then view:LayoutHandles() end -- (no tile is marked as open any more)
+  if view and view.board then view.board:LayoutParts() end -- (no tile is marked as open any more)
 end
 
 -- The tab shows a page (nil: none to change tiles on): a list open for another one closes

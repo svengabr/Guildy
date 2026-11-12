@@ -9,19 +9,26 @@
 --     grow = function(px) make the window taller (lower for a negative px) end })
 --   board.Content                      parent of every box
 --   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } },
---     action = { text, onClick }, bare = true })
---   action: a button of its own on the box while customizing. bare: the box keeps its look while
---   customizing (no name across it, a lighter shade), for a box whose parts are changed one by one.
+--     parts = function(o) return { part, ... } end, canAdd = function() ... end, onAdd = function(anchor) ... end })
 --   board:Controls(page, presets)      "Customize" (and the presets) into a page's toolbar
 --   board:Apply()                      places the boxes; board.placed[key] = item for those that show
+--   board:LayoutParts()                the handles over the parts anew (a tab whose parts changed)
 --
 -- A box reads its own options from box.opts (the item's o; an option is on unless it is false).
--- In edit mode every box is covered by a handle: drag it to move the box, drag its corner to size it
--- (the boxes in its way move down, and every box moves up into room that got free),
--- "Options" has its options, the x removes it. Every free place among the boxes carries a "+", and a
--- bar at the bottom of the tab adds below everything: a click lists the boxes that are not on the tab,
--- and the one under the mouse shows as it will look, right at the free place, or over the lower part
--- of the tab when it is to go below.
+--
+-- Customizing looks and works the same for every box of every tab:
+--   * The box keeps its look, a little darker, under a strip with its name. Drag it anywhere to move it,
+--     drag its corner to size it (the boxes in its way move down, every box moves up into room that
+--     got free). The x in the strip removes it.
+--   * The parts of a box (tiles, title cards, the headings of its columns) each carry a handle: its x
+--     takes the part away, a click on it changes it where the box has something to choose from.
+--     A part is { frame, option = key } for one that an option of the box switches, or
+--     { frame, onClick = function(handle) end, onRemove = function() end or nil, open = true or nil }.
+--   * The + in the strip adds a part: the ones that are switched off, or what onAdd offers.
+--   * "Options" in the strip has what is no part (how a chart draws).
+--   * Every free place among the boxes carries a "+", and a bar at the bottom of the tab adds below
+--     everything: a click lists the boxes that are not on the tab, and the one under the mouse shows as
+--     it will look, right at the free place, or over the lower part of the tab when it is to go below.
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -30,6 +37,7 @@ local G = ns.Grid
 local MIN_ROW = 30   -- px a row is tall at least: lower than that the tab scrolls
 local BAR = 14       -- room for the scroll bar while there is something to scroll
 local ADD_H = 30     -- the bar "add a box below" at the bottom of the tab in edit mode
+local STRIP = 24     -- the strip with its name and buttons on top of every box in edit mode
 
 function UI.Board(parent, opts)
   local L = ns.L
@@ -188,6 +196,7 @@ function UI.Board(parent, opts)
     self.slotCount = count
     if drag then drag.cell = nil end -- placed anew under a drag: its next step moves the boxes again
     self.Empty:SetShown(#layout == 0 and not self.editing)
+    self:LayoutParts()
   end
   board:SetScript("OnSizeChanged", function() board:Apply() end)
 
@@ -279,14 +288,127 @@ function UI.Board(parent, opts)
     return false
   end
 
+  -- The parts a box names (def.parts) for the options it stands with
+  local function PartSpecs(key, o)
+    local def = board.defs[key]
+    return def.parts and def.parts(o or {}) or {}
+  end
+
+  -- The options of a box that switch one of its parts ({ option = true }): those are taken away at the
+  -- part and brought back with the +, the others stand under "Options"
+  local function PartOptions(key)
+    local set = {}
+    for _, spec in ipairs(PartSpecs(key, {})) do
+      if spec.option then set[spec.option] = true end
+    end
+    return set
+  end
+
+  -- "Options" of a box: what it can be switched in that is no part of it
   function board:OptionItems(key)
     local def, item = self.defs[key], self.placed[key]
+    local parts = PartOptions(key)
     local items = { { text = def.name, isTitle = true } }
     for _, option in ipairs(def.options or {}) do
-      items[#items + 1] = { text = option[2], checked = not (item and item.o and item.o[option[1]] == false),
-        onClick = function() board:Toggle(key, option[1]) end }
+      if not parts[option[1]] then
+        items[#items + 1] = { text = option[2], checked = not (item and item.o and item.o[option[1]] == false),
+          onClick = function() board:Toggle(key, option[1]) end }
+      end
     end
     return items
+  end
+
+  -- The + of a box: its parts that are switched off
+  function board:AddItems(key)
+    local def, item = self.defs[key], self.placed[key]
+    local parts = PartOptions(key)
+    local items = { { text = def.name, isTitle = true } }
+    for _, option in ipairs(def.options or {}) do
+      if parts[option[1]] and item and item.o and item.o[option[1]] == false then
+        items[#items + 1] = { text = option[2], onClick = function() board:Toggle(key, option[1]) end }
+      end
+    end
+    return items
+  end
+
+  -- Whether the + of a box has something to add
+  function board:CanAdd(key)
+    local def = self.defs[key]
+    if def.canAdd then return def.canAdd() == true end
+    return #self:AddItems(key) > 1
+  end
+
+  -- The handles over the parts of every box: where its parts are, with an x on those that can go
+  local partHandles = {}
+  local function PartHandle(key, index)
+    local list = partHandles[key]
+    if list[index] then return list[index] end
+    local cover = board.defs[key].Cover
+    local handle = W.Handle(cover, function(self) if self.spec and self.spec.onRemove then self.spec.onRemove() end end)
+    handle:SetFrameLevel((cover:GetFrameLevel() or 1) + 2)
+    handle.Mark = handle:CreateTexture(nil, "BORDER") -- under the part whose list is open
+    handle.Mark:SetPoint("BOTTOMLEFT", 4, 2)
+    handle.Mark:SetPoint("BOTTOMRIGHT", -4, 2)
+    handle.Mark:SetHeight(2)
+    handle.Mark:SetColorTexture(1, 0.82, 0, 0.9)
+    -- a click changes the part (where there is something to choose), dragging moves its box
+    handle:SetScript("OnMouseDown", function(self, mouse)
+      if mouse ~= "LeftButton" then return end
+      self.downX, self.downY = GetCursorPosition()
+      board:Start("move", key)
+    end)
+    handle:SetScript("OnMouseUp", function(self, mouse)
+      if mouse ~= "LeftButton" or not self.downX then return end
+      local x, y = GetCursorPosition()
+      local still = math.abs(x - self.downX) < 6 and math.abs(y - self.downY) < 6
+      self.downX = nil
+      if still and self.spec and self.spec.onClick then self.spec.onClick(self) end
+    end)
+    list[index] = handle
+    return handle
+  end
+
+  function board:LayoutParts()
+    for _, key in ipairs(self.order) do
+      local def, item = self.defs[key], self.placed[key]
+      local list = partHandles[key] or {}
+      partHandles[key] = list
+      local count = 0
+      if self.editing and def.Cover and item and not (self.preview and self.preview.k == key) then
+        for _, spec in ipairs(PartSpecs(key, item.o)) do
+          local part = spec
+          if spec.option then
+            -- a part an option switches: there while the option is on, its x switches it off
+            part = not (item.o and item.o[spec.option] == false)
+              and { frame = spec.frame, onRemove = function() board:Toggle(key, spec.option) end } or nil
+          end
+          if part then
+            count = count + 1
+            local handle = PartHandle(key, count)
+            handle.spec = part
+            handle:ClearAllPoints()
+            handle:SetPoint("TOPLEFT", part.frame, "TOPLEFT", -2, 2)
+            handle:SetPoint("BOTTOMRIGHT", part.frame, "BOTTOMRIGHT", 2, -2)
+            handle.Remove:SetShown(part.onRemove ~= nil)
+            handle.Mark:SetShown(part.open == true)
+            handle:Show()
+          end
+        end
+        def.Cover.Add:SetShown(self:CanAdd(key))
+        def.Cover.Gear:SetShown(#self:OptionItems(key) > 1)
+        def.Cover.Gear:ClearAllPoints()
+        def.Cover.Gear:SetPoint("RIGHT", def.Cover.Add:IsShown() and def.Cover.Add or def.Cover.Remove, "LEFT", -4, 0)
+      end
+      for index = count + 1, #list do list[index]:Hide() end
+      list.count = count
+    end
+  end
+
+  -- The handles that show over the parts of a box
+  function board:Parts(key)
+    local shown, list = {}, partHandles[key] or {}
+    for index = 1, list.count or 0 do shown[index] = list[index] end
+    return shown
   end
 
   -- Moving and sizing, as it happens: the box itself follows the mouse, a gold field marks the cells it
@@ -408,50 +530,63 @@ function UI.Board(parent, opts)
     Drop()
   end
 
+  -- What every box carries while customizing: a light shade, and on top a strip with its name and,
+  -- from the right, the x that removes it, the + that adds a part and "Options"
   local function Cover(key)
     local def = board.defs[key]
     if def.Cover then return end
     local cover = CreateFrame("Button", nil, def.box)
     cover:SetAllPoints()
-    cover:SetFrameLevel((def.box:GetFrameLevel() or 1) + 40)
+    local level = (def.box:GetFrameLevel() or 1) + 40
+    cover:SetFrameLevel(level)
     cover.Shade = cover:CreateTexture(nil, "BACKGROUND")
     cover.Shade:SetAllPoints()
-    cover.Shade:SetColorTexture(0, 0, 0, def.bare and 0.3 or 0.6)
-    cover.Name = W.Text(cover, "GameFontNormal", def.name)
-    cover.Name:SetPoint("CENTER", 0, 6)
-    cover.Hint = W.Text(cover, "GameFontDisableSmall", L.BOARD_DRAG)
-    cover.Hint:SetPoint("TOP", cover.Name, "BOTTOM", 0, -4)
-    cover.Name:SetShown(not def.bare)
-    cover.Hint:SetShown(not def.bare)
+    cover.Shade:SetColorTexture(0, 0, 0, 0.3)
     cover:SetScript("OnMouseDown", function(_, button)
       if button == "LeftButton" then board:Start("move", key) end
     end)
     cover:EnableMouseWheel(true)
     cover:SetScript("OnMouseWheel", Wheel)
-    cover.Remove = W.Button(cover, "x", function() board:Remove(key) end, 24, { small = true, pad = 10 })
-    cover.Remove:SetPoint("TOPRIGHT", -4, -4)
+    -- (the strip takes no clicks itself: dragging it moves the box like dragging anything else of it)
+    cover.Strip = CreateFrame("Frame", nil, cover)
+    cover.Strip:SetPoint("TOPLEFT", 0, 0)
+    cover.Strip:SetPoint("TOPRIGHT", 0, 0)
+    cover.Strip:SetHeight(STRIP)
+    cover.Strip:SetFrameLevel(level + 4)
+    cover.Strip.Fill = cover.Strip:CreateTexture(nil, "BACKGROUND")
+    cover.Strip.Fill:SetAllPoints()
+    cover.Strip.Fill:SetColorTexture(0.07, 0.05, 0.03, 0.88)
+    cover.Strip.Line = cover.Strip:CreateTexture(nil, "BORDER")
+    cover.Strip.Line:SetPoint("BOTTOMLEFT")
+    cover.Strip.Line:SetPoint("BOTTOMRIGHT")
+    cover.Strip.Line:SetHeight(1)
+    cover.Strip.Line:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.7)
+    cover.Remove = W.Button(cover.Strip, "x", function() board:Remove(key) end, 24, { small = true, pad = 10 })
+    cover.Remove:SetPoint("RIGHT", -2, 0)
     W.Tooltip(cover.Remove, L.BOARD_REMOVE)
-    if def.options then
-      cover.Gear = W.MenuButton(cover, L.BOARD_OPTIONS, function() return board:OptionItems(key) end, 90, 160)
-      cover.Gear:SetPoint("RIGHT", cover.Remove, "LEFT", -4, 0)
-    end
-    if def.action then
-      cover.Action = W.Button(cover, def.action.text, def.action.onClick, 90, { small = true, fit = { def.action.text } })
-      cover.Action:SetPoint("RIGHT", cover.Gear or cover.Remove, "LEFT", -4, 0)
-    end
+    cover.Add = W.Button(cover.Strip, "+", function(self)
+      if def.onAdd then return def.onAdd(self) end
+      W.OpenMenu(self, board:AddItems(key), 180)
+    end, 24, { small = true, pad = 10 })
+    cover.Add:SetPoint("RIGHT", cover.Remove, "LEFT", -4, 0)
+    W.Tooltip(cover.Add, L.BOARD_ADD)
+    cover.Gear = W.MenuButton(cover.Strip, L.BOARD_OPTIONS, function() return board:OptionItems(key) end, 90, 160)
+    cover.Gear:SetPoint("RIGHT", cover.Add, "LEFT", -4, 0)
+    cover.Name = W.Text(cover.Strip, "GameFontNormalSmall", def.name)
+    cover.Name:SetPoint("LEFT", 8, 0)
+    cover.Name:SetPoint("RIGHT", cover.Gear, "LEFT", -6, 0)
+    cover.Name:SetJustifyH("LEFT")
+    cover.Name:SetWordWrap(false)
     cover.Grip = CreateFrame("Button", nil, cover)
     cover.Grip:SetSize(20, 20)
     cover.Grip:SetPoint("BOTTOMRIGHT", -2, 2)
+    cover.Grip:SetFrameLevel(level + 6)
     cover.Grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     cover.Grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     cover.Grip:SetScript("OnMouseDown", function(_, button)
       if button == "LeftButton" then board:Start("size", key) end
     end)
     W.Tooltip(cover.Grip, L.BOARD_SIZE)
-    -- (its buttons lie over what a tab puts on the cover itself)
-    for _, control in ipairs({ cover.Remove, cover.Grip, def.options and cover.Gear or false, def.action and cover.Action or false }) do
-      if control then control:SetFrameLevel((cover:GetFrameLevel() or 1) + 6) end
-    end
     def.Cover = cover
   end
 
@@ -617,8 +752,7 @@ function UI.Board(parent, opts)
       StopDrag()
       ClosePicker()
     end
-    if self.Edit then self.Edit:SetText(on and L.BOARD_DONE or L.BOARD_EDIT) end
-    if self.Presets then self.Presets:SetShown(self.editing) end
+    if self.Tools then self.Tools:Set(self.editing) end
     self:Apply()
   end
   board:SetScript("OnHide", function()
@@ -626,27 +760,23 @@ function UI.Board(parent, opts)
     ClosePicker()
   end)
 
-  -- "Customize" at the right end of a page's toolbar, and the presets while customizing.
+  -- "Customize" at the right end of a page's toolbar, and the presets while customizing (W.EditTools).
   -- presets: { { name, layout or nil for the default, what else it does (a function) or nil } }
   function board:Controls(page, presets)
-    self.Edit = page:Right(W.Button(page.Bar, L.BOARD_EDIT, function()
+    self.Tools = W.EditTools(page, function()
       board:SetEditing(not board.editing)
       opts.onChange()
-    end, 80, { small = true, fit = { L.BOARD_EDIT, L.BOARD_DONE } }))
-    W.Tooltip(self.Edit, L.BOARD_EDIT, L.BOARD_EDIT_TIP)
-    if presets then
-      self.Presets = page:Right(W.MenuButton(page.Bar, L.BOARD_PRESET, function()
-        local items = {}
-        for _, preset in ipairs(presets) do
-          items[#items + 1] = { text = preset[1], onClick = function()
-            if preset[3] then preset[3]() end
-            board:Preset(preset[2])
-          end }
-        end
-        return items
-      end, 90, 160))
-      self.Presets:Hide()
-    end
+    end, presets and function()
+      local items = {}
+      for _, preset in ipairs(presets) do
+        items[#items + 1] = { text = preset[1], onClick = function()
+          if preset[3] then preset[3]() end
+          board:Preset(preset[2])
+        end }
+      end
+      return items
+    end or nil, L.BOARD_EDIT_TIP)
+    self.Edit, self.Presets = self.Tools.Edit, self.Tools.Presets
   end
 
   return board

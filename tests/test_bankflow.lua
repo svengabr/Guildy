@@ -329,16 +329,45 @@ T.describe("Guild bank", function()
     local view = ns.UI.TabView("bank")
     local board = view.board
     board:Preset(nil)
-    local items = board:OptionItems("ledger")
-    T.eq(#items, 4) -- its name and three columns
-    T.eq(items[3].checked, true)
+    -- while customizing, the heading of every column that can go carries a handle with an x
+    local was = board.editing
+    board:SetEditing(true)
+    local cover = board.defs.ledger.Cover
+    T.eq(cover.Name:GetText(), ns.L.BANK_LEDGER)
+    local parts = board:Parts("ledger")
+    T.eq(#parts, 3)
+    T.eq(parts[2].Remove:IsShown(), true)
+    T.eq(cover.Add:IsShown(), false) -- nothing is switched off: nothing to add
+    T.eq(cover.Gear:IsShown(), false) -- and the ledger has no options that are no column
+    T.eq(#board:OptionItems("ledger"), 1)
+    T.eq(#board:AddItems("ledger"), 1)
     T.eq(view.Head.Tab:IsShown(), true)
-    items[3].onClick()
+    parts[2].Remove:GetScript("OnClick")(parts[2].Remove)
     T.eq(board.placed.ledger.o, { tab = false })
     T.eq(view.Head.Tab:IsShown(), false)
     T.eq(view.List.rows[1].Tab:IsShown(), false)
     T.eq(view.List.rows[1].After:IsShown(), true)
-    T.eq(board:OptionItems("ledger")[3].checked, false)
+    T.eq(#board:Parts("ledger"), 2)
+    -- the + of the box brings it back
+    T.eq(cover.Add:IsShown(), true)
+    local hidden = board:AddItems("ledger")
+    T.eq({ #hidden, hidden[1].isTitle, hidden[2].text }, { 2, true, ns.L.BANK_COL_TAB })
+    hidden[2].onClick()
+    T.eq(board.placed.ledger.o, nil)
+    T.eq(#board:Parts("ledger"), 3)
+    T.eq(cover.Add:IsShown(), false)
+    -- what is no part stays under "Options": how the chart draws
+    local chart = board.defs.chart.Cover
+    T.eq(chart.Gear:IsShown(), true)
+    T.eq(chart.Add:IsShown(), false)
+    T.eq(#board:OptionItems("chart"), 3)
+    T.eq(#board:Parts("chart"), 0)
+    -- the total has neither parts nor options: its strip has the x alone
+    T.eq({ board.defs.total.Cover.Gear:IsShown(), board.defs.total.Cover.Add:IsShown() }, { false, false })
+    board:SetEditing(false)
+    T.eq(#board:Parts("ledger"), 0)
+    board:SetEditing(was)
+    board:Toggle("ledger", "tab")
     -- without two columns it stands on six cells instead of eight
     board:Toggle("ledger", "after")
     local layout = ns.Settings().bank.layout

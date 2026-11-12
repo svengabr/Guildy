@@ -2,9 +2,11 @@
 -- level and profession only come as drill-downs from the overview.
 -- Twinks hang under their main (or fold into it, Core/Family.lua).
 -- A click on a member opens the character page (UI/CharacterPage.lua), a right click the member menu.
--- "Customize" turns the headings into handles: drag one to move its column, drag its right edge for
--- the width, its x hides it, and "Columns" brings hidden ones back (Core/Columns.lua has the rules;
--- settings.memberOrder, memberWidths and memberColumns hold the player's choice).
+-- "Customize" turns the headings into handles, the same as the parts of a box on the other tabs
+-- (UI/Board.lua): the x of a heading hides its column, the + at the end of the headings brings hidden
+-- ones back. Here a heading is dragged too: sideways to move its column, at its right edge for the
+-- width (Core/Columns.lua has the rules; settings.memberOrder, memberWidths and memberColumns hold
+-- the player's choice).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -191,9 +193,10 @@ local function Build(panel)
   view.FoldCheck = Check(L.FOLD_TWINKS, view.NoOfficerNoteCheck.Label, function(self) view.fold = self:GetChecked() or nil; view:Refresh() end)
 
   -- the columns are arranged at their headings (see below)
-  view.Edit = page:Right(W.Button(bar, L.BOARD_EDIT, function() view:SetEditing(not view.editing) end, 80,
-    { small = true, fit = { L.BOARD_EDIT, L.BOARD_DONE } }))
-  W.Tooltip(view.Edit, L.BOARD_EDIT, L.MEMBERS_EDIT_TIP)
+  view.Tools = W.EditTools(page, function() view:SetEditing(not view.editing) end, function()
+    return { { text = L.OPTIONS_RESTORE, onClick = function() view:ResetColumns() end } }
+  end, L.MEMBERS_EDIT_TIP)
+  view.Edit = view.Tools.Edit
   view.Reset = W.Button(bar, L.RESET, function()
     view.filter, view.noNote, view.noOfficerNote = {}, nil, nil
     search:SetText("")
@@ -203,10 +206,6 @@ local function Build(panel)
     view:Refresh()
   end, 70, { small = true })
   page:Right(view.Reset)
-  -- while customizing, in the place of "Reset": the columns there are, ticked when they show
-  view.ColumnsMenu = W.MenuButton(bar, L.MEMBERS_COLUMNS, function() return view:ColumnItems() end, 90, 220)
-  view.ColumnsMenu:SetPoint("RIGHT", view.Edit, "LEFT", -6, 0)
-  view.ColumnsMenu:Hide()
 
   -- header -------------------------------------------------------------------------------------
   -- the list box fills the body like every view's boxes; the column header is its first row
@@ -281,28 +280,13 @@ local function Build(panel)
   local function Handle(def)
     local button = view.Headers[def.key]
     if handles[def.key] then return handles[def.key] end
-    local handle = CreateFrame("Button", nil, button)
-    handle:SetAllPoints()
+    local handle = W.Handle(button, not def.fixed and function() view:ToggleColumn(def.key) end or nil)
+    handle:SetPoint("TOPLEFT", -3, 0)
+    handle:SetPoint("BOTTOMRIGHT", 1, 0)
     handle:SetFrameLevel((button:GetFrameLevel() or 1) + 5)
-    handle.Fill = handle:CreateTexture(nil, "BACKGROUND")
-    handle.Fill:SetPoint("TOPLEFT", -3, 0)
-    handle.Fill:SetPoint("BOTTOMRIGHT", 1, 0)
-    handle.Fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.14)
-    handle:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     handle:SetScript("OnMouseDown", function(_, mouse)
       if mouse == "LeftButton" then view:StartDrag("move", def.key) end
     end)
-    W.Tooltip(handle, L["COL_" .. def.key:upper()], def.fixed and L.MEMBERS_DRAG_FIXED or L.MEMBERS_DRAG)
-    if not def.fixed then
-      handle.Remove = CreateFrame("Button", nil, handle)
-      handle.Remove:SetSize(14, 16)
-      handle.Remove:SetPoint("RIGHT", -6, 0)
-      handle.Remove.Text = W.Text(handle.Remove, "GameFontNormalSmall", "x")
-      handle.Remove.Text:SetPoint("CENTER", 0, 1)
-      handle.Remove:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-      handle.Remove:SetScript("OnClick", function() view:ToggleColumn(def.key) end)
-      W.Tooltip(handle.Remove, L.MEMBERS_HIDE)
-    end
     -- the right edge: drag it for the width
     handle.Grip = CreateFrame("Button", nil, handle)
     handle.Grip:SetSize(8, 20)
@@ -319,6 +303,11 @@ local function Build(panel)
     handles[def.key] = handle
     return handle
   end
+  -- the + at the end of the headings: the hidden columns
+  view.AddColumn = W.Button(header, "+", function(self) W.OpenMenu(self, view:ColumnItems(), 180) end, 24, { small = true, pad = 10 })
+  view.AddColumn:SetPoint("RIGHT", header, "RIGHT", 0, 0)
+  W.Tooltip(view.AddColumn, L.BOARD_ADD)
+  view.AddColumn:Hide()
 
   function view:LayoutColumns()
     -- (self.trial: the columns as they would be while a heading is dragged)
@@ -358,13 +347,22 @@ local function Build(panel)
       if self.editing then
         local handle = Handle(column.def)
         handle:Show()
-        if not column.def.fixed then handle.Remove:SetShown(column.last or column.width >= X_FROM) end
+        if handle.Remove then handle.Remove:SetShown(column.last or column.width >= X_FROM) end
         handle.Grip:SetShown(not column.last) -- (the last one reaches to the edge anyway)
       elseif handles[column.key] then
         handles[column.key]:Hide()
       end
     end
     for _, row in pairs(self.List.rows) do PlaceCells(row) end
+  end
+
+  -- The columns that are hidden and could show
+  function view:HiddenColumns()
+    local keys = {}
+    for _, key in ipairs(UI.MEMBER_COLUMNS) do
+      if ColumnOff(key) and (key ~= "officerNote" or self.viewOfficer) then keys[#keys + 1] = key end
+    end
+    return keys
   end
 
   -- Moving a column and changing its width, as it happens: the heading follows the mouse, a gold field
@@ -465,26 +463,34 @@ local function Build(panel)
     self:Refresh()
   end
 
+  -- The menu of the +: the hidden columns, a click shows one again
   function view:ColumnItems()
     local items = { { text = L.MEMBERS_COLUMNS, isTitle = true } }
-    for _, key in ipairs(UI.MEMBER_COLUMNS) do
-      if key ~= "officerNote" or self.viewOfficer then
-        items[#items + 1] = { text = L["COL_" .. key:upper()], checked = not ColumnOff(key),
-          onClick = function() view:ToggleColumn(key) end }
-      end
+    for _, key in ipairs(self:HiddenColumns()) do
+      items[#items + 1] = { text = L["COL_" .. key:upper()], onClick = function() view:ToggleColumn(key) end }
     end
-    items[#items + 1] = { text = L.OPTIONS_RESTORE, onClick = function() view:ResetColumns() end }
     return items
+  end
+
+  -- the filters that make room for the line of help while customizing
+  local function Checks()
+    return { view.OnlineCheck, view.NoNoteCheck, view.NoOfficerNoteCheck, view.FoldCheck }
   end
 
   function view:SetEditing(on)
     self.editing = on and true or false
     if not self.editing and drag then self:Drop(true) end
-    self.Edit:SetText(self.editing and L.BOARD_DONE or L.BOARD_EDIT)
+    self.Tools:Set(self.editing)
     self.Reset:SetShown(not self.editing)
-    self.ColumnsMenu:SetShown(self.editing)
     self.Summary:ClearAllPoints()
-    self.Summary:SetPoint("RIGHT", self.editing and self.ColumnsMenu or self.Reset, "LEFT", -10, 0)
+    if self.editing then
+      self.Summary:SetPoint("LEFT", self.RankButton, "RIGHT", 12, 0)
+      self.Summary:SetPoint("RIGHT", self.Tools, "LEFT", -12, 0)
+    else
+      self.Summary:SetPoint("RIGHT", self.Reset, "LEFT", -10, 0)
+    end
+    self.Summary:SetJustifyH(self.editing and "LEFT" or "RIGHT")
+    self.Summary:SetWordWrap(false)
     self:Refresh()
   end
 
@@ -600,10 +606,20 @@ local function Build(panel)
     self:LayoutColumns()
     -- twinks under their main, or every character on its own (settings.memberTwinks, the options)
     self.flat = ns.Settings().memberTwinks == false
-    self.FoldCheck:SetShown(not self.flat)
-    self.FoldCheck.Label:SetShown(not self.flat)
-    self.NoOfficerNoteCheck:SetShown(self.viewOfficer)
-    self.NoOfficerNoteCheck.Label:SetShown(self.viewOfficer)
+    local filters = not self.editing -- (while customizing their place has the line of help)
+    for _, check in ipairs(Checks()) do
+      check:SetShown(filters)
+      check.Label:SetShown(filters)
+    end
+    self.AddColumn:SetShown(self.editing == true and #self:HiddenColumns() > 0)
+    if self.flat then
+      self.FoldCheck:Hide()
+      self.FoldCheck.Label:Hide()
+    end
+    if not self.viewOfficer then
+      self.NoOfficerNoteCheck:Hide()
+      self.NoOfficerNoteCheck.Label:Hide()
+    end
     if not self.viewOfficer then self.noOfficerNote = nil; self.NoOfficerNoteCheck:SetChecked(false) end
     self.FoldCheck:ClearAllPoints()
     self.FoldCheck:SetPoint("LEFT", self.viewOfficer and self.NoOfficerNoteCheck.Label or self.NoNoteCheck.Label, "RIGHT", 6, 0)
@@ -690,12 +706,12 @@ local function Build(panel)
     if self.filter.scoreBucket then summary = L["SCORE_" .. self.filter.scoreBucket] .. ns.L.SEP .. summary end
     if self.filter.ilvl then summary = L.ILVL .. " " .. self.filter.ilvl .. ns.L.SEP .. summary end
     if self.filter.raidKill then summary = RaidTitle(self.filter.raidKill) .. ns.L.SEP .. summary end
-    self.Summary:SetText(summary)
+    self.Summary:SetText(self.editing and L.MEMBERS_HINT or summary)
     -- at a narrow window a long language fills the row with the filters: then only the numbers
     local last = (self.FoldCheck.Label:IsShown() and self.FoldCheck.Label)
       or (self.viewOfficer and self.NoOfficerNoteCheck.Label) or self.NoNoteCheck.Label
     local right, filters = self.Summary:GetRight(), last:GetRight()
-    if right and filters and right - (self.Summary:GetStringWidth() or 0) < filters + 8 then
+    if not self.editing and right and filters and right - (self.Summary:GetStringWidth() or 0) < filters + 8 then
       self.Summary:SetText(#kept .. " / " .. #members)
     end
     self.NoNoteCheck.Label:SetText(L.NO_NOTE .. " |cffffd100" .. noNote .. "|r")

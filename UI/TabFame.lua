@@ -272,8 +272,8 @@ local function Build(panel)
     view:Refresh()
   end)
   shell:Left(view.Pages)
-  -- right side: period dropdown (all time / this month / last month) and the button to all
-  -- statistics (back to the pages in the detail view); both always in the same place
+  -- right side, left of "Customize": period dropdown (all time / this month / last month) and the
+  -- button to all statistics (back to the pages in the detail view)
   local PERIODS = { { value = "all", text = L.FAME_ALL }, { value = "month", text = L.FAME_MONTH },
     { value = "last", text = L.FAME_LAST } }
   view.Period = W.MenuButton(toolbar, L.FAME_ALL, function()
@@ -315,13 +315,14 @@ local function Build(panel)
     grow = function(delta) return UI.GrowWindow(delta) end,
   })
   view.board = grid
+  -- "Customize" at the right end of the toolbar, as on every tab; its preset brings the page back to
+  -- what Guildy ships: boxes, tiles and title cards
+  grid:Controls(shell, { { L.OPTIONS_RESTORE, nil, function() UI.FamePicker.Restore(Page(view.page).key) end } })
   view.AllButton = W.Button(toolbar, L.FAME_ALL_STATS, function()
     if view.mode == "detail" then view:ShowHome() else view:ShowDetail(view.detailStat or 107) end
   end, 170, { small = true })
   shell:Right(view.AllButton)
   shell:Right(view.Period)
-  -- left of them "Customize", and its presets while customizing
-  grid:Controls(shell, { { L.OPTIONS_RESTORE, nil, function() UI.FamePicker.Restore(Page(view.page).key) end } })
   shell:Fill(view.Fresh)
 
   -- home: totals, cards, page box -----------------------------------------------------------------
@@ -716,80 +717,48 @@ local function Build(panel)
   view.DungeonEmpty:SetPoint("TOPLEFT", 12, -70)
 
   -- every box of the board: what it is, the size a new one gets and the smallest it works at (in cells)
-  -- The tiles and title cards are changed one by one while customizing: a click on one opens the list
-  -- of what can stand in its place right under it, the button of the box adds one at the end.
+  -- The tiles and title cards are parts of their boxes: while customizing, each carries a handle
+  -- (UI/Board.lua). A click on one opens the list of what can stand in its place right under it, its x
+  -- takes it away, the + of the box adds one at the end.
   local PARTS = { tiles = view.Tiles, cards = view.Cards }
   local function AnchorOf(kind)
     return function(index)
       if index then return PARTS[kind][index] end
-      return grid.defs[kind].Cover.Action
+      return grid.defs[kind].Cover.Add
     end
   end
   function view:EditPart(kind, index)
     UI.FamePicker.Open(Page(self.page).key, kind, index, AnchorOf(kind))
-    if self.LayoutHandles then self:LayoutHandles() end -- (the mark under the one that is open)
+    grid:LayoutParts() -- (the mark under the one that is open)
   end
-  local function Add(kind, text)
-    return { text = text, onClick = function() view:EditPart(kind, nil) end }
-  end
-  grid:Add("tiles", tilesBox, { name = L.OPTIONS_KIND_TILES, about = L.FAME_ABOUT_TILES, size = { 12, 2 }, min = { 4, 2 },
-    action = Add("tiles", L.OPTIONS_TILES_MORE), bare = true })
-  grid:Add("cards", cardsBox, { name = L.OPTIONS_KIND_CARDS, about = L.FAME_ABOUT_CARDS, size = { 12, 3 }, min = { 4, 2 },
-    action = Add("cards", L.OPTIONS_CARDS_MORE), bare = true })
-
-  -- a handle over every tile and card while customizing: a click changes it, dragging moves its box
-  local handles = { tiles = {}, cards = {} }
-  view.PartHandles = handles
-  local function PartHandle(kind, index)
-    local handle = handles[kind][index]
-    if handle then return handle end
-    local cover = grid.defs[kind].Cover
-    handle = CreateFrame("Button", nil, cover)
-    handle:SetFrameLevel((cover:GetFrameLevel() or 1) + 2)
-    handle:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-    handle.Edge = handle:CreateTexture(nil, "BORDER")
-    handle.Edge:SetPoint("BOTTOMLEFT", 6, 4)
-    handle.Edge:SetPoint("BOTTOMRIGHT", -6, 4)
-    handle.Edge:SetHeight(2)
-    handle.Edge:SetColorTexture(1, 0.82, 0, 0.9)
-    handle.Edge:Hide() -- (shows under the one whose list is open)
-    handle:SetScript("OnMouseDown", function(self, mouse)
-      if mouse ~= "LeftButton" then return end
-      self.downX, self.downY = GetCursorPosition()
-      grid:Start("move", kind)
-    end)
-    handle:SetScript("OnMouseUp", function(self, mouse)
-      if mouse ~= "LeftButton" or not self.downX then return end
-      local x, y = GetCursorPosition()
-      local still = math.abs(x - self.downX) < 6 and math.abs(y - self.downY) < 6
-      self.downX = nil
-      if still then view:EditPart(kind, index) end -- (else the box was dragged)
-    end)
-    W.Tooltip(handle, L[kind == "tiles" and "OPTIONS_KIND_TILES" or "OPTIONS_KIND_CARDS"], L.FAME_PART_TIP)
-    handles[kind][index] = handle
-    return handle
-  end
-  function view:LayoutHandles()
-    local open = UI.FamePicker.State()
-    for kind, parts in pairs(PARTS) do
-      local editing = grid.editing and grid.placed[kind] ~= nil and grid.defs[kind].Cover ~= nil
-      local shown = 0
-      for index, part in ipairs(parts) do
-        if editing and part:IsShown() then
-          shown = shown + 1
-          local handle = PartHandle(kind, index)
-          handle:ClearAllPoints()
-          handle:SetAllPoints(part)
-          handle.Edge:SetShown(open ~= nil and open.kind == kind and open.index == index)
-          handle:Show()
-        elseif handles[kind][index] then
-          handles[kind][index]:Hide()
+  local function Parts(kind)
+    return function()
+      local pageKey = Page(view.page).key
+      local open = UI.FamePicker.State()
+      local count = #UI.FamePicker.List(pageKey, kind)
+      local parts = {}
+      for index, frame in ipairs(PARTS[kind]) do
+        if index <= count and frame:IsShown() then
+          parts[#parts + 1] = { frame = frame,
+            open = open ~= nil and open.kind == kind and open.index == index,
+            onClick = function() view:EditPart(kind, index) end,
+            -- (a row keeps its last one)
+            onRemove = count > 1 and function() UI.FamePicker.RemoveAt(pageKey, kind, index) end or nil }
         end
       end
-      -- a full row has no room for another one
-      if editing then grid.defs[kind].Cover.Action:SetEnabled(not UI.FamePicker.Full(Page(self.page).key, kind)) end
+      return parts
     end
   end
+  local function Row(kind)
+    return { parts = Parts(kind),
+      canAdd = function() return not UI.FamePicker.Full(Page(view.page).key, kind) end,
+      onAdd = function() view:EditPart(kind, nil) end }
+  end
+  local tileRow, cardRow = Row("tiles"), Row("cards")
+  grid:Add("tiles", tilesBox, { name = L.OPTIONS_KIND_TILES, about = L.FAME_ABOUT_TILES, size = { 12, 2 }, min = { 4, 2 },
+    parts = tileRow.parts, canAdd = tileRow.canAdd, onAdd = tileRow.onAdd })
+  grid:Add("cards", cardsBox, { name = L.OPTIONS_KIND_CARDS, about = L.FAME_ABOUT_CARDS, size = { 12, 3 }, min = { 4, 2 },
+    parts = cardRow.parts, canAdd = cardRow.canAdd, onAdd = cardRow.onAdd })
   grid:Add("gear", gear, { name = L.FAME_GEAR, about = L.FAME_ABOUT_GEAR, size = { 12, 6 }, min = { 7, 3 } })
   grid:Add("income", view.Income, { name = L.FAME_INCOME, about = L.FAME_ABOUT_INCOME, size = { 6, 3 }, min = { 4, 3 } })
   grid:Add("spending", view.Spending, { name = L.FAME_SPENDING, about = L.FAME_ABOUT_SPENDING, size = { 6, 3 }, min = { 4, 3 } })
@@ -1333,7 +1302,7 @@ local function Build(panel)
     if placed.dungeons then self:RefreshDungeons(entries) end
     if placed.reputation then self:RefreshReputation(entries) end
     if placed.pvp then self:RefreshPvp(entries) end
-    self:LayoutHandles()
+    grid:LayoutParts() -- (the tiles and title cards that show now)
   end
 
   function view:RefreshDetail(entries)
@@ -1393,7 +1362,8 @@ local function Build(panel)
       counts[src] = (counts[src] or 0) + 1
     end
     self.freshText = L.FAME_FRESH:format(#entries, #ns.Roster.Members(), counts.self + counts.relay, counts.seen)
-    self.Fresh:SetText(self.freshText)
+    -- (while customizing, the same line as on every tab: what dragging, x and + do)
+    self.Fresh:SetText(grid.editing and self.mode ~= "detail" and L.BOARD_HINT or self.freshText)
     local inDetail = self.mode == "detail"
     -- the boxes are arranged on the pages, not among all statistics
     if inDetail and grid.editing then grid:SetEditing(false) end

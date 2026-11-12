@@ -702,7 +702,8 @@ local function Build(panel)
   view.Empty:SetJustifyH("CENTER")
 
   -- every box of the board: what it is, the size a new one gets and the smallest it works at (in cells),
-  -- and what can be switched off in it
+  -- what can be switched off in it, and which of that is a part with a handle of its own (a tile, the
+  -- heading of a column) while customizing
   local function On(o, key) return o[key] ~= false and 1 or 0 end
   view.More = UI.BankWidgets(holder, view)
   board:Add("total", total, { name = L.BANK_TOTAL, about = L.BANK_ABOUT_TOTAL, size = { 3, 4 }, min = { 3, 4 } })
@@ -715,17 +716,33 @@ local function Build(panel)
       local side = On(o, "tab") + On(o, "after")
       return { 5 + On(o, "when") + side, 3 }
     end,
-    options = { { "when", L.BANK_COL_WHEN }, { "tab", L.BANK_COL_TAB }, { "after", L.BANK_COL_AFTER } } })
+    options = { { "when", L.BANK_COL_WHEN }, { "tab", L.BANK_COL_TAB }, { "after", L.BANK_COL_AFTER } },
+    parts = function()
+      return { { frame = view.Head.When, option = "when" }, { frame = view.Head.Tab, option = "tab" },
+        { frame = view.Head.After, option = "after" } }
+    end })
   board:Add("tiles", view.More.tiles, { name = L.BANK_TILES, about = L.BANK_ABOUT_TILES, size = { 12, 2 },
     min = function(o)
       local count = On(o, "gold") + On(o, "paid") + On(o, "taken") + On(o, "repairs") + On(o, "slots")
       return { math.max(3, math.ceil(count * 1.6)), 2 }
     end,
     options = { { "gold", L.BANK_GOLD }, { "paid", L.BANK_SUM_PAID }, { "taken", L.BANK_SUM_TAKEN },
-      { "repairs", L.BANK_SUM_REPAIRS }, { "slots", L.BANK_TABS_HINT } } })
+      { "repairs", L.BANK_SUM_REPAIRS }, { "slots", L.BANK_TABS_HINT } },
+    parts = function()
+      local parts = {}
+      for _, key in ipairs({ "gold", "paid", "taken", "repairs", "slots" }) do
+        parts[#parts + 1] = { frame = view.More.tiles.Tiles[key], option = key }
+      end
+      return parts
+    end })
   board:Add("balance", view.More.balance, { name = L.BANK_BALANCE, about = L.BANK_ABOUT_BALANCE, size = { 8, 6 },
     min = function(o) return { 5 + On(o, "rank") + On(o, "items") + On(o, "last"), 4 } end,
-    options = { { "rank", L.COL_RANK }, { "items", L.BANK_ITEMS }, { "last", L.BANK_COL_LAST } } })
+    options = { { "rank", L.COL_RANK }, { "items", L.BANK_ITEMS }, { "last", L.BANK_COL_LAST } },
+    parts = function()
+      local heads = view.More.balance.Heads
+      return { { frame = heads.rankIndex, option = "rank" }, { frame = heads.itemsIn, option = "items" },
+        { frame = heads.last, option = "last" } }
+    end })
   board:Add("detail", view.More.detail, { name = L.BANK_DETAIL, about = L.BANK_ABOUT_DETAIL, size = { 4, 6 }, min = { 4, 4 } })
   board:Add("largest", view.More.largest, { name = L.BANK_LARGEST, about = L.BANK_ABOUT_LARGEST, size = { 4, 4 }, min = { 3, 3 } })
   board:Add("givers", view.More.givers, { name = L.BANK_GIVERS, about = L.BANK_ABOUT_GIVERS, size = { 4, 4 }, min = { 3, 3 } })
@@ -753,7 +770,7 @@ local function Build(panel)
     self.Only:SetShown(self.filter.who ~= nil)
     if self.filter.who then self.Only:SetText(L.BANK_ONLY:format(ns.Anon.Name(self.filter.whoName))) end
     self.Status:ClearAllPoints()
-    self.Status:SetPoint("RIGHT", editing and board.Presets or board.Edit, "LEFT", -12, 0)
+    self.Status:SetPoint("RIGHT", board.Tools, "LEFT", -12, 0)
     self.Status:SetPoint("LEFT", self.Period, "RIGHT", 12, 0)
     self.Status:SetText(editing and L.BOARD_HINT
       or known and L.BANK_STATUS:format(Ago(bank.at), Who(bank.by)) or L.BANK_STATUS_NONE)

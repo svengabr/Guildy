@@ -1103,28 +1103,30 @@ T.describe("Hall of Fame", function()
     end
     local all = Shown()
     T.truthy(all:find("^level name rank "), all)
-    T.eq(view.ColumnsMenu:IsShown(), false)
+    T.eq(view.AddColumn:IsShown(), false)
     -- "Customize": a handle over every heading, "Columns" in the place of "Reset"
     view.Edit:GetScript("OnClick")(view.Edit)
     T.eq(view.editing, true)
     T.eq(view.Edit:GetText(), ns.L.BOARD_DONE)
-    T.eq(view.ColumnsMenu:IsShown(), true)
+    T.eq(view.Tools.Presets:IsShown(), true)
     T.eq(view.Reset:IsShown(), false)
+    T.eq(view.OnlineCheck:IsShown(), false) -- the filters make room for the line of help
+    T.eq(view.Summary:GetText(), ns.L.MEMBERS_HINT)
+    T.eq(view.AddColumn:IsShown(), false) -- nothing is hidden: nothing to add
     T.eq(view.Handles.rank:IsShown(), true)
-    T.eq(rawget(view.Handles.level, "Remove"), nil) -- level and name always stay
-    T.eq(rawget(view.Handles.name, "Remove"), nil)
+    T.eq(view.Handles.level.Remove, false) -- level and name always stay
+    T.eq(view.Handles.name.Remove, false)
     -- the x of a heading hides its column, the menu brings it back
     local remove = view.Handles.rank.Remove
     remove:GetScript("OnClick")(remove)
     T.eq(settings.memberColumns, { rank = false })
     T.eq(view.Headers.rank:IsShown(), false)
     T.eq(Shown():find("rank", 1, true), nil)
+    T.eq(view.AddColumn:IsShown(), true)
     local items = view:ColumnItems()
-    T.eq(items[1].isTitle, true)
-    T.eq(items[2].text, ns.L.COL_RANK)
-    T.eq(items[2].checked, false)
-    T.eq(items[3].checked, true)
+    T.eq({ #items, items[1].isTitle, items[2].text }, { 2, true, ns.L.COL_RANK })
     items[2].onClick()
+    T.eq(view.AddColumn:IsShown(), false)
     T.eq(settings.memberColumns, nil)
     T.eq(view.Headers.rank:IsShown(), true)
     view:ToggleColumn("name") -- not one of those that can go
@@ -1193,15 +1195,16 @@ T.describe("Hall of Fame", function()
     T.eq(Shown(), all)
     T.eq(view.Handles.rank:IsShown(), false)
     T.eq(view.Reset:IsShown(), true)
+    T.eq(view.OnlineCheck:IsShown(), true)
+    T.truthy(view.Summary:GetText() ~= ns.L.MEMBERS_HINT, "the count again")
     view:StartDrag("move", "zone") -- nothing to drag outside customizing
     view:Track()
     T.eq(settings.memberOrder, nil)
-    -- "Restore defaults" in the menu: Guildy's columns
+    -- "Restore defaults" under the presets: Guildy's columns
     settings.memberOrder, settings.memberColumns = { "note", "level" }, { zone = false }
     view:Refresh()
     T.truthy(Shown():find("^note level name"), Shown())
-    items = view:ColumnItems()
-    items[#items].onClick()
+    view:ResetColumns()
     T.eq({ settings.memberOrder, settings.memberWidths, settings.memberColumns }, {})
     T.eq(Shown(), all)
     -- leaving the tab ends customizing
@@ -1227,18 +1230,24 @@ T.describe("Hall of Fame", function()
     board:SetEditing(true)
     view:Refresh()
     -- a handle over every tile and title card that shows, none over the tables
-    T.eq(#view.PartHandles.tiles, #page.headline)
-    T.eq(#view.PartHandles.cards, ns.Stats.MAX_CARDS)
-    T.eq(view.PartHandles.tiles[1]:IsShown(), true)
-    T.eq(board.defs.tiles.Cover.Name:IsShown(), false) -- the tiles keep their look
-    T.eq(board.defs.gear.Cover.Name:IsShown(), true)
-    T.eq(rawget(board.defs.gear.Cover, "Action"), nil)
+    T.eq(#board:Parts("tiles"), #page.headline)
+    T.eq(#board:Parts("cards"), ns.Stats.MAX_CARDS)
+    T.eq(#board:Parts("gear"), 0)
+    T.eq(board:Parts("tiles")[1]:IsShown(), true)
+    T.eq(board:Parts("tiles")[1].Remove:IsShown(), true)
+    -- every box under the same strip; both rows are full: no + on them
+    T.eq(board.defs.tiles.Cover.Name:GetText(), ns.L.OPTIONS_KIND_TILES)
+    T.eq(board.defs.gear.Cover.Name:GetText(), ns.L.FAME_GEAR)
+    T.eq({ board.defs.tiles.Cover.Add:IsShown(), board.defs.cards.Cover.Add:IsShown(), board.defs.gear.Cover.Add:IsShown() },
+      { false, false, false })
+    T.eq(board.defs.tiles.Cover.Gear:IsShown(), false)
+    T.eq(view.Fresh:GetText(), ns.L.BOARD_HINT)
     T.eq(picker.State(), nil)
     -- a click on the second tile: the list for that one, and only what the row does not show yet
     local x, y = 300, 300
     env.GetCursorPosition = function() return x, y end
     env.IsMouseButtonDown = function() return false end
-    local handle = view.PartHandles.tiles[2]
+    local handle = board:Parts("tiles")[2]
     handle:GetScript("OnMouseDown")(handle, "LeftButton")
     handle:GetScript("OnMouseUp")(handle, "LeftButton")
     board:Track() -- (the mouse let go without moving: the box stays, nothing is stored)
@@ -1247,8 +1256,8 @@ T.describe("Hall of Fame", function()
     T.eq(window:IsShown(), true)
     T.eq(window.Title:GetText(), ns.UI.Fame.TileName(b))
     T.eq(settings.fameLayout, nil)
-    T.eq(handle.Edge:IsShown(), true)
-    T.eq(view.PartHandles.tiles[1].Edge:IsShown(), false)
+    T.eq(handle.Mark:IsShown(), true)
+    T.eq(board:Parts("tiles")[1].Mark:IsShown(), false)
     local items = picker.Items()
     T.truthy(#items > 20, "every other statistic")
     for _, item in ipairs(items) do T.truthy(item.id ~= a and item.id ~= b, "not one that shows already") end
@@ -1276,7 +1285,7 @@ T.describe("Hall of Fame", function()
     T.eq(settings.fameTiles.general[1], chosen)
     T.eq(settings.fameTiles.general[2], a)
     T.eq(picker.State().index, 1)
-    T.eq(view.PartHandles.tiles[1].Edge:IsShown(), true)
+    T.eq(board:Parts("tiles")[1].Mark:IsShown(), true)
     picker.Move(-1)
     T.eq(settings.fameTiles.general[1], chosen)
     -- the search narrows the list
@@ -1295,9 +1304,9 @@ T.describe("Hall of Fame", function()
     view:EditPart("tiles", 1)
     T.eq(picker.State(), nil)
     -- the button of the box adds one at the end, as long as the row has room
-    local action = board.defs.tiles.Cover.Action
-    T.eq(action:GetText(), ns.L.OPTIONS_TILES_MORE)
-    action:GetScript("OnClick")(action)
+    local add = board.defs.tiles.Cover.Add
+    T.eq(add:IsShown(), true)
+    add:GetScript("OnClick")(add)
     T.eq(picker.State().index, nil)
     T.eq(window.Title:GetText(), ns.L.OPTIONS_TILES_MORE)
     T.eq(window.Left:IsShown(), false)
@@ -1309,11 +1318,19 @@ T.describe("Hall of Fame", function()
     -- a row keeps its last tile
     settings.fameTiles = { general = { b } }
     view:Refresh()
-    T.eq(view.PartHandles.tiles[2]:IsShown(), false)
+    T.eq(#board:Parts("tiles"), 1)
+    T.eq(board:Parts("tiles")[1].Remove:IsShown(), false)
     view:EditPart("tiles", 1)
     picker.Remove()
     T.eq(settings.fameTiles.general, { b })
     picker.Hide()
+    -- the x of a handle takes that one away without opening anything
+    settings.fameTiles = { general = { a, b } }
+    view:Refresh()
+    local x2 = board:Parts("tiles")[2].Remove
+    x2:GetScript("OnClick")(x2)
+    T.eq(settings.fameTiles.general, { a })
+    T.eq(picker.State(), nil)
     -- the title cards the same way, also with a title of another page
     view:EditPart("cards", 1)
     T.eq(window.Title:GetText(), ns.L["FAME_TITLE_" .. page.titles[1].key])
@@ -1343,7 +1360,8 @@ T.describe("Hall of Fame", function()
     board.Edit:GetScript("OnClick")(board.Edit)
     T.eq(board.editing, false)
     T.eq(picker.State(), nil)
-    T.eq(view.PartHandles.tiles[1]:IsShown(), false)
+    T.eq(#board:Parts("tiles"), 0)
+    T.truthy(view.Fresh:GetText() ~= ns.L.BOARD_HINT, "the count of members again")
     board:SetEditing(true)
     view:Refresh()
     view:EditPart("cards", 1)

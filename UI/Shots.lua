@@ -205,9 +205,11 @@ UI.BANK_SHOTS = {
     local row = board:PickRows()[2]
     if row then row:GetScript("OnEnter")(row) end
   end) },
+  -- a column taken away at its heading: the + of the box brings it back
   { "bank-07-box-options", Bank(nil, true, function(_, board)
-    local gear = board.defs.ledger.Cover and board.defs.ledger.Cover.Gear
-    if gear then gear:GetScript("OnClick")(gear) end
+    board:Toggle("ledger", "tab")
+    local add = board.defs.ledger.Cover and board.defs.ledger.Cover.Add
+    if add then add:GetScript("OnClick")(add) end
   end) },
   { "bank-08-members", Bank(UI.BANK_PRESETS.members, false, function(view)
     local row = view.More.balance.List.rows[1]

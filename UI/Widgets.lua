@@ -152,6 +152,60 @@ function W.Button(parent, text, onClick, width, opts)
   return button
 end
 
+-- A handle over something that is changed while a tab is customized (a tile, a title card, the heading
+-- of a column): a gold tint, lighter under the mouse, and an x at its right edge that takes the thing
+-- away (handle.Remove; onRemove(handle), nil for a handle that never has one). The same everywhere.
+function W.Handle(parent, onRemove)
+  local handle = CreateFrame("Button", nil, parent)
+  handle.Fill = handle:CreateTexture(nil, "BACKGROUND")
+  handle.Fill:SetAllPoints()
+  handle.Fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.14)
+  handle:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+  handle.Remove = false
+  if onRemove then
+    local remove = CreateFrame("Button", nil, handle)
+    remove:SetSize(14, 16)
+    remove:SetPoint("RIGHT", -3, 0) -- (at its middle: the top of a tile lies under the strip of its box)
+    remove.Text = W.Text(remove, "GameFontNormalSmall", "x")
+    remove.Text:SetPoint("CENTER", 0, 1)
+    remove:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    remove:SetScript("OnClick", function() onRemove(handle) end)
+    W.Tooltip(remove, ns.L.BOARD_REMOVE)
+    handle.Remove = remove
+  end
+  return handle
+end
+
+-- The two controls of an edit mode at the right end of a page's toolbar, the same on every tab:
+-- "Customize" / "Done", and left of it "Preset" while customizing (presets() gives its menu items).
+-- Returns the frame that holds them (tools.Edit, tools.Presets, tools:Set(editing)); it is as wide as
+-- what shows, so what stands left of it in the toolbar moves up.
+function W.EditTools(page, onToggle, presets, tip)
+  local L = ns.L
+  local tools = CreateFrame("Frame", nil, page.Bar)
+  tools:SetHeight(22)
+  tools.Edit = W.Button(tools, L.BOARD_EDIT, onToggle, 80, { small = true, fit = { L.BOARD_EDIT, L.BOARD_DONE } })
+  tools.Edit:SetPoint("RIGHT", 0, 0)
+  W.Tooltip(tools.Edit, L.BOARD_EDIT, tip)
+  if presets then
+    tools.Presets = W.MenuButton(tools, L.BOARD_PRESET, presets, 90, 160)
+    tools.Presets:SetPoint("RIGHT", tools.Edit, "LEFT", -6, 0)
+    tools.Presets:Hide()
+  end
+  function tools:Set(editing)
+    self.Edit:SetText(editing and L.BOARD_DONE or L.BOARD_EDIT)
+    local width = self.Edit:GetWidth() or 80
+    if presets then
+      self.Presets:SetShown(editing == true)
+      if editing then width = width + 6 + (self.Presets:GetWidth() or 90) end
+    end
+    self:SetWidth(width)
+  end
+  tools:Set(false)
+  page:Right(tools)
+  return tools
+end
+
 function W.Tooltip(frame, title, text)
   frame:SetScript("OnEnter", function(self)
     if self.sideTab then -- side tabs: beside the tab
