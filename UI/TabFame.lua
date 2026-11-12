@@ -272,8 +272,8 @@ local function Build(panel)
     view:Refresh()
   end)
   shell:Left(view.Pages)
-  -- right side, left of "Customize": period dropdown (all time / this month / last month) and the
-  -- button to all statistics (back to the pages in the detail view)
+  -- right side: period dropdown (all time / this month / last month) and the button to all
+  -- statistics (back to the pages in the detail view); both always in the same place
   local PERIODS = { { value = "all", text = L.FAME_ALL }, { value = "month", text = L.FAME_MONTH },
     { value = "last", text = L.FAME_LAST } }
   view.Period = W.MenuButton(toolbar, L.FAME_ALL, function()
@@ -315,8 +315,8 @@ local function Build(panel)
     grow = function(delta) return UI.GrowWindow(delta) end,
   })
   view.board = grid
-  -- "Customize" at the right end of the toolbar, as on every tab; its preset brings the page back to
-  -- what Guildy ships: boxes, tiles and title cards
+  -- "Customize" in the title bar, as on every tab; its preset brings the page back to what Guildy
+  -- ships: boxes, tiles and title cards
   grid:Controls(shell, { { L.OPTIONS_RESTORE, nil, function() UI.FamePicker.Restore(Page(view.page).key) end } })
   view.AllButton = W.Button(toolbar, L.FAME_ALL_STATS, function()
     if view.mode == "detail" then view:ShowHome() else view:ShowDetail(view.detailStat or 107) end

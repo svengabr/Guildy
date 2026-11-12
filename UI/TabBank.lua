@@ -770,7 +770,7 @@ local function Build(panel)
     self.Only:SetShown(self.filter.who ~= nil)
     if self.filter.who then self.Only:SetText(L.BANK_ONLY:format(ns.Anon.Name(self.filter.whoName))) end
     self.Status:ClearAllPoints()
-    self.Status:SetPoint("RIGHT", board.Tools, "LEFT", -12, 0)
+    self.Status:SetPoint("RIGHT", self.Status:GetParent(), "RIGHT", -2, 0)
     self.Status:SetPoint("LEFT", self.Period, "RIGHT", 12, 0)
     self.Status:SetText(editing and L.BOARD_HINT
       or known and L.BANK_STATUS:format(Ago(bank.at), Who(bank.by)) or L.BANK_STATUS_NONE)

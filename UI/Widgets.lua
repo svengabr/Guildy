@@ -176,14 +176,21 @@ function W.Handle(parent, onRemove)
   return handle
 end
 
--- The two controls of an edit mode at the right end of a page's toolbar, the same on every tab:
--- "Customize" / "Done", and left of it "Preset" while customizing (presets() gives its menu items).
--- Returns the frame that holds them (tools.Edit, tools.Presets, tools:Set(editing)); it is as wide as
--- what shows, so what stands left of it in the toolbar moves up.
+-- The two controls of an edit mode, the same on every tab: "Customize" / "Done", and left of it
+-- "Preset" while customizing (presets() gives its menu items). They stand in the window's title bar,
+-- left of the cog, so the toolbar of the tab keeps its room; they belong to the page, so they show
+-- with their tab only. Returns the frame that holds them (tools.Edit, tools.Presets, tools:Set(editing)).
 function W.EditTools(page, onToggle, presets, tip)
   local L = ns.L
   local tools = CreateFrame("Frame", nil, page.Bar)
   tools:SetHeight(22)
+  local cog = ns.UI and ns.UI.frame and ns.UI.frame.OptionsButton
+  if cog then
+    tools:SetPoint("RIGHT", cog, "LEFT", -8, 0)
+    tools:SetFrameLevel(cog:GetFrameLevel() or 1) -- on the title bar's level, like the cog
+  else
+    page:Right(tools) -- (no window around the page: at the right end of its toolbar)
+  end
   tools.Edit = W.Button(tools, L.BOARD_EDIT, onToggle, 80, { small = true, fit = { L.BOARD_EDIT, L.BOARD_DONE } })
   tools.Edit:SetPoint("RIGHT", 0, 0)
   W.Tooltip(tools.Edit, L.BOARD_EDIT, tip)
@@ -202,7 +209,6 @@ function W.EditTools(page, onToggle, presets, tip)
     self:SetWidth(width)
   end
   tools:Set(false)
-  page:Right(tools)
   return tools
 end
 

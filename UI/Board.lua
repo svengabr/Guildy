@@ -11,7 +11,7 @@
 --   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } },
 --     parts = function(o) return { part, ... } end, canAdd = function() ... end, onAdd = function(anchor) ... end,
 --     bare = true })   bare: a box without a title row of its own (a row of tiles)
---   board:Controls(page, presets)      "Customize" (and the presets) into a page's toolbar
+--   board:Controls(page, presets)      "Customize" (and the presets) into the title bar, for this page
 --   board:Apply()                      places the boxes; board.placed[key] = item for those that show
 --   board:LayoutParts()                the handles over the parts anew (a tab whose parts changed)
 --
@@ -784,7 +784,7 @@ function UI.Board(parent, opts)
     ClosePicker()
   end)
 
-  -- "Customize" at the right end of a page's toolbar, and the presets while customizing (W.EditTools).
+  -- "Customize" in the title bar while the page shows, and the presets while customizing (W.EditTools).
   -- presets: { { name, layout or nil for the default, what else it does (a function) or nil } }
   function board:Controls(page, presets)
     self.Tools = W.EditTools(page, function()

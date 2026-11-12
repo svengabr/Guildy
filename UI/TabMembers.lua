@@ -485,7 +485,7 @@ local function Build(panel)
     self.Summary:ClearAllPoints()
     if self.editing then
       self.Summary:SetPoint("LEFT", self.RankButton, "RIGHT", 12, 0)
-      self.Summary:SetPoint("RIGHT", self.Tools, "LEFT", -12, 0)
+      self.Summary:SetPoint("RIGHT", bar, "RIGHT", -2, 0)
     else
       self.Summary:SetPoint("RIGHT", self.Reset, "LEFT", -10, 0)
     end
