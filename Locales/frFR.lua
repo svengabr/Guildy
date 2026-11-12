@@ -687,4 +687,6 @@ ns.LocaleTables.frFR = {
   OPTIONS_COLUMNS_TIP = "Les colonnes de la liste, leur ordre et leur largeur se règlent dans l'onglet Membres lui-même, avec « Personnaliser ».",
   BOARD_ADD = "Ajouter",
   MEMBERS_HINT = "Glissez un en-tête pour déplacer sa colonne · son bord droit change la largeur · x la masque · + en réaffiche une",
+  MEMBER_FORGET_PROFS = "Oublier les métiers et les relire",
+  MEMBER_FORGOT_PROFS = "Ce que Guildy savait des métiers de %s est oublié. La prochaine lecture les relit.",
 }

@@ -687,4 +687,6 @@ ns.LocaleTables.esES = {
   OPTIONS_COLUMNS_TIP = "Qué columnas muestra la lista, en qué orden y con qué ancho, se ajusta en la propia pestaña Miembros con «Personalizar».",
   BOARD_ADD = "Añadir",
   MEMBERS_HINT = "Arrastra un encabezado para mover su columna · su borde derecho cambia el ancho · x la oculta · + muestra una oculta",
+  MEMBER_FORGET_PROFS = "Descartar profesiones y leerlas de nuevo",
+  MEMBER_FORGOT_PROFS = "Se descartó lo que Guildy sabía de las profesiones de %s. El próximo escaneo las lee de nuevo.",
 }

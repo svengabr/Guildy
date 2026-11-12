@@ -110,6 +110,15 @@ end
 -- link the player clicked (Blizzard opens their recipe book read-only)
 local scanTarget
 local pendingLink -- {guid, skillLine, at} of the last clicked profession link
+-- A window opened by a clicked link shows the book that was open before until the answer for the new
+-- one arrives (found 2026-11-12: members got the professions and recipes of whoever was read before
+-- them, and as the newest data those pushed their real professions out). So what a link's window shows
+-- only counts when it is the profession the link asked for (expectedSkill) and not, recipe for
+-- recipe, the book just read from another member (lastBook).
+local expectedSkill
+local lastBook -- { key, skillLine, rank, recipes, at } of the last book read from another member
+local rejected -- the scan in progress showed a book that is not the target's
+local SAME_BOOK_MIN, SAME_BOOK_SECONDS = 6, 120
 
 local function IsOwnChar(m)
   local db = ns.DB()
@@ -128,6 +137,20 @@ local function StoreOwn(skillLine, rank, max, recipes)
   end
   if not member then return end
   if recipes then table.sort(recipes) end
+  if scanTarget then
+    -- the book that was open before, still showing in the window of the link just clicked
+    if expectedSkill and skillLine ~= expectedSkill then
+      rejected = true
+      return
+    end
+    local last = lastBook
+    if recipes and last and last.key ~= scanTarget.key and last.skillLine == skillLine and last.rank == rank
+      and #recipes >= SAME_BOOK_MIN and GetTime() - last.at < SAME_BOOK_SECONDS and SameList(last.recipes, recipes) then
+      rejected = true
+      return
+    end
+    if recipes then lastBook = { key = scanTarget.key, skillLine = skillLine, rank = rank, recipes = recipes, at = GetTime() } end
+  end
   local existing = member.profs[skillLine]
   if existing and existing.rank == rank and existing.max == max and (recipes == nil or SameList(existing.recipes, recipes)) then
     return
@@ -149,6 +172,24 @@ function TradeSkill.OnLinkClicked(link)
   if parsed and parsed.guid then pendingLink = { guid = parsed.guid, skillLine = parsed.skillLine, at = GetTime() } end
 end
 
+-- Forgets what Guildy knows of a member's professions, so the next reading starts from nothing: for a
+-- member whose professions are wrong (an older Guildy stored the book of another member on them).
+-- Everything read or received before this moment stays out (Professions.Merge); the marks "does not
+-- have it" and "does not answer" go too, so the next run asks for every profession again.
+function TradeSkill.Forget(m)
+  local guild = ns.GuildData()
+  local member = guild and m and guild.members[m.key]
+  if not member then return false end
+  for skillLine, rec in pairs(member.profs or {}) do
+    if rec.src ~= "note" then member.profs[skillLine] = nil end
+  end
+  member.profsCleared = ns.Now()
+  if type(guild.absent) == "table" then guild.absent[m.key] = nil end
+  if type(guild.silent) == "table" then guild.silent[m.key] = nil end
+  ns.Fire("PROFS")
+  return true
+end
+
 -- TRADE_SKILL_CLOSE: a later own window must not be taken for the linked one
 function TradeSkill.OnClose()
   pendingLink = nil
@@ -156,7 +197,7 @@ end
 
 -- Decides whose window is open. Returns false when it should not be scanned at all.
 local function ResolveTarget()
-  scanTarget = nil
+  scanTarget, expectedSkill = nil, nil
   local isLinked, linkedName
   local linkedFn = (C_TradeSkillUI and rawget(C_TradeSkillUI, "IsTradeSkillLinked")) or rawget(_G, "IsTradeSkillLinked")
   if linkedFn then
@@ -165,10 +206,16 @@ local function ResolveTarget()
   local pending = pendingLink and GetTime() - pendingLink.at < 30 and pendingLink or nil
   if linkedFn and not isLinked then return true end -- own window (the client says so)
   if not linkedFn and not pending then return true end -- no way to tell: only a clicked link counts as foreign
-  local m = (pending and ns.Roster.FindByGuid(pending.guid))
-    or (type(linkedName) == "string" and not ns.IsSecret(linkedName) and ns.Roster.Find(linkedName)) or nil
+  local clicked = pending and ns.Roster.FindByGuid(pending.guid) or nil
+  local named = type(linkedName) == "string" and not ns.IsSecret(linkedName) and ns.Roster.Find(linkedName) or nil
+  -- the window names someone else than the link that was clicked: it still shows the book before
+  if clicked and named and clicked.key ~= named.key then return false end
+  local m = clicked or named
   if not m then return false end -- someone outside the guild
-  if not IsOwnChar(m) then scanTarget = m end
+  if not IsOwnChar(m) then
+    scanTarget = m
+    if clicked then expectedSkill = pending.skillLine end
+  end
   return true
 end
 
@@ -231,6 +278,7 @@ end
 -- The open profession window (legacy trade skill frame, craft frame, or the C_TradeSkillUI one)
 function TradeSkill.ScanOpen()
   TradeSkill.lastScan = { path = "none" }
+  rejected = false
   if C_TradeSkillUI and C_TradeSkillUI.IsNPCCrafting and ns.Try(C_TradeSkillUI.IsNPCCrafting) then return end
   if ns.Try(rawget(_G, "IsTradeSkillGuild")) then return end
   if not ResolveTarget() then
@@ -293,6 +341,7 @@ function TradeSkill.ScanOpen()
     if skillLine and #recipes > 0 then StoreOwn(skillLine, info.skillLevel, info.maxSkillLevel, recipes) end
   end
   TradeSkill.lastScan.target = scanTarget and scanTarget.name or "own"
+  TradeSkill.lastScan.stale = rejected or nil -- (not the target's book: no answer to whoever asked)
   TradeSkill.lastScan.at = GetTime()
   if ns.Harvest then
     if scanTarget then ns.Harvest.OnScanned(TradeSkill.lastScan) else ns.Harvest.OnOwnWindow() end

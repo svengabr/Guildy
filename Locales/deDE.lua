@@ -687,4 +687,6 @@ ns.LocaleTables.deDE = {
   OPTIONS_COLUMNS_TIP = "Welche Spalten die Liste zeigt, in welcher Reihenfolge und wie breit, stellst du im Mitglieder-Tab selbst über „Anpassen“ ein.",
   BOARD_ADD = "Hinzufügen",
   MEMBERS_HINT = "Überschrift ziehen verschiebt die Spalte · ihr rechter Rand ändert die Breite · x blendet aus · + blendet wieder ein",
+  MEMBER_FORGET_PROFS = "Berufe verwerfen und neu lesen",
+  MEMBER_FORGOT_PROFS = "Guildys Wissen über die Berufe von %s ist verworfen. Der nächste Scan liest sie neu.",
 }

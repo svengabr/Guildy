@@ -64,6 +64,55 @@ T.describe("Smoke", function()
     T.eq(guild.members["makira farron"].profs[171].rank, 40)
     ns.TradeSkill.ProfDump()
     ns.TradeSkill.OnClose()
+    -- A window opened by a link shows the book that was open before until the new one arrives. That
+    -- book is nobody else's: not when it is another profession than the link asked for ...
+    local au, makira = guild.members["au tsch"], guild.members["makira farron"]
+    local book = { 21, 22, 23, 24, 25, 26, 27 }
+    env.C_TradeSkillUI.GetAllRecipeIDs = function() return book end
+    env.C_TradeSkillUI.GetRecipeInfo = function(id) return { learned = true, icon = 5000 + id } end
+    env.C_TradeSkillUI.GetBaseProfessionInfo = function() return { professionID = 197, skillLevel = 210, maxSkillLevel = 225 } end
+    ns.TradeSkill.OnLinkClicked("trade:Player-1-02:2259:171") -- Makira's alchemy, the window still shows tailoring
+    ns.TradeSkill.ScanOpen()
+    T.eq(makira.profs[197], nil)
+    T.eq(ns.TradeSkill.lastScan.stale, true)
+    T.eq(makira.profs[171].rank, 40) -- what was known of her stays
+    -- ... and not when it is, recipe for recipe, the book just read from another member
+    ns.TradeSkill.OnClose()
+    ns.TradeSkill.OnLinkClicked("trade:Player-1-03:3908:197") -- Au's tailoring: read
+    ns.TradeSkill.ScanOpen()
+    T.eq(au.profs[197].recipes, book)
+    T.eq(ns.TradeSkill.lastScan.stale, nil)
+    ns.TradeSkill.OnClose()
+    ns.TradeSkill.OnLinkClicked("trade:Player-1-02:3908:197") -- Makira's tailoring: the window still shows Au's
+    ns.TradeSkill.ScanOpen()
+    T.eq(makira.profs[197], nil)
+    T.eq(ns.TradeSkill.lastScan.stale, true)
+    -- her own book arrives: read
+    book = { 21, 22, 23, 24, 25, 26 }
+    env.C_TradeSkillUI.GetBaseProfessionInfo = function() return { professionID = 197, skillLevel = 180, maxSkillLevel = 225 } end
+    ns.TradeSkill.ScanOpen()
+    T.eq(makira.profs[197].rank, 180)
+    T.eq(ns.TradeSkill.lastScan.stale, nil)
+    -- the window names its owner, and it is not who the link was for: nothing is read
+    ns.TradeSkill.OnClose()
+    env.C_TradeSkillUI.IsTradeSkillLinked = function() return true, "Au-Tsch" end
+    env.C_TradeSkillUI.GetBaseProfessionInfo = function() return { professionID = 171, skillLevel = 77, maxSkillLevel = 150 } end
+    ns.TradeSkill.OnLinkClicked("trade:Player-1-02:2259:171")
+    ns.TradeSkill.ScanOpen()
+    T.eq(makira.profs[171].rank, 40)
+    T.eq(au.profs[171].rank, 99)
+    T.truthy(tostring(ns.TradeSkill.lastScan.path):find("outside", 1, true), "not scanned")
+    ns.TradeSkill.OnClose()
+    -- wrong professions are thrown away by hand; nothing read or received before comes back
+    local before = ns.Now()
+    T.eq(ns.TradeSkill.Forget(ns.Roster.Find("Makira Farron")), true)
+    T.eq(next(makira.profs), nil)
+    T.eq(makira.profsCleared, before)
+    T.eq(ns.Professions.Merge(makira, 197, ns.Professions.ValidateRecord({ ts = before, src = "relay", rank = 300, max = 300 }), {}), false)
+    T.eq(ns.Professions.Merge(makira, 197, ns.Professions.ValidateRecord({ ts = before + 5, src = "relay", rank = 180, max = 225 }), {}), true)
+    T.eq(makira.profs[197].rank, 180)
+    makira.profs[197], makira.profsCleared = nil, nil
+    T.eq(ns.TradeSkill.Forget({ key = "nobody here" }), false)
     env.C_TradeSkillUI = nil
     local opened
     env.SetItemRef = function(link) opened = link end

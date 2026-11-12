@@ -226,6 +226,7 @@ end
 -- no skill) or nil (not ours / data still loading)
 local function Verdict(entry, startedAt, scan)
   if not (scan and scan.at and scan.at >= startedAt and scan.target == entry.member.name) then return nil end
+  if scan.stale then return nil end -- the window still showed the book of the member before
   if scan.skillLine == entry.skillLine and (scan.recipes or 0) > 0 then return "found" end
   if not scan.rank or scan.rank == 0 then return "absent" end
   return nil -- has the profession, recipes not loaded yet: wait for the next scan or the timeout

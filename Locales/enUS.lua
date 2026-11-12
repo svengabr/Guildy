@@ -688,4 +688,6 @@ ns.LocaleTables.enUS = {
   OPTIONS_COLUMNS_TIP = "Which columns the list shows, in which order and how wide, you set on the Members tab itself with \"Customize\".",
   BOARD_ADD = "Add",
   MEMBERS_HINT = "Drag a heading to move its column · its right edge changes the width · x hides it · + shows a hidden one",
+  MEMBER_FORGET_PROFS = "Discard professions and read anew",
+  MEMBER_FORGOT_PROFS = "Discarded what Guildy knew of %s's professions. The next scan reads them anew.",
 }

@@ -81,6 +81,8 @@ function Professions.Merge(member, skillLine, incoming, ctx)
   if type(incoming) ~= "table" or not Professions.SKILL_LINES[skillLine] then return false end
   ctx = ctx or {}
   if ctx.isOwnChar and incoming.src ~= "scan" then return false end
+  -- the member's professions were thrown away by hand (TradeSkill.Forget): nothing older comes back
+  if type(member.profsCleared) == "number" and incoming.ts <= member.profsCleared then return false end
   member.profs = member.profs or {}
   local existing = member.profs[skillLine]
   if existing then

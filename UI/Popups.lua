@@ -83,6 +83,10 @@ function UI.MemberMenu(m, anchor)
     { text = L.GROUP_INVITE, onClick = function() R.GroupInvite(m) end, disabled = not m.online },
     { text = L.COPY_NAME, onClick = function() UI.CopyText(m.name) end },
   }
+  -- professions that are wrong: thrown away, the next reading starts from nothing
+  items[#items + 1] = { text = L.MEMBER_FORGET_PROFS, onClick = function()
+    if ns.TradeSkill.Forget(m) then ns.Print(L.MEMBER_FORGOT_PROFS:format(m.name)) end
+  end }
   local rights = R.Rights(m)
   -- rank and notes: Blizzard's own member panel beside the character page (UI/Notes.lua)
   if can.editPublic or can.editOfficer then

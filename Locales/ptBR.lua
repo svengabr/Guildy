@@ -687,4 +687,6 @@ ns.LocaleTables.ptBR = {
   OPTIONS_COLUMNS_TIP = "Quais colunas a lista mostra, em que ordem e com que largura, você ajusta na própria aba Membros com \"Personalizar\".",
   BOARD_ADD = "Adicionar",
   MEMBERS_HINT = "Arraste um cabeçalho para mover a coluna · a borda direita muda a largura · x oculta · + mostra uma oculta",
+  MEMBER_FORGET_PROFS = "Descartar profissões e ler de novo",
+  MEMBER_FORGOT_PROFS = "O que o Guildy sabia das profissões de %s foi descartado. A próxima leitura as lê de novo.",
 }
