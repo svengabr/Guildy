@@ -22,7 +22,7 @@ is the guild's real data. For pictures taken by hand, `/guildy shots backdrop` a
 python media/gallery/collect.py "<WoW folder>/_forever_/Screenshots"
 ```
 
-copies that run to `src/` as `01-chat.jpg` … `20-overview-endgame.jpg` (the list is in `UI/Shots.lua`).
+copies that run to `src/` as `01-chat.jpg` … `23-bank-overview.jpg` (the list is in `UI/Shots.lua`).
 
 ## Pictures in every language
 

@@ -31,6 +31,9 @@ PICTURES = [
     ("14-character", "14-character"),
     ("15-options-members", "17-options-members"),
     ("16-options-hall-of-fame", "18-fame-customize"),
+    ("17-bank", "22-bank"),
+    ("18-bank-overview", "23-bank-overview"),
+    ("19-members-customize", "21-members-customize"),
 ]
 
 

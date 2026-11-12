@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.6.0
+
+- New tab: Bank. Guildy reads the guild bank whenever you stand at a banker (gold, tabs, the money log
+  and the log of every tab) and keeps what it read, so the ledger goes back further than the game's
+  own. Everyone in the guild who uses Guildy sees the same: readings are shared like the professions.
+  The tab shows the gold over 7, 30 or 90 days with marks at unusual movements, the ledger with filters,
+  who gives and who takes, the largest deposits and withdrawals, the tabs and your own access.
+- At a banker Guildy opens on the Bank tab by itself; the Bank options switch that off.
+- Customize: Bank, Hall of Fame and Members are yours to arrange, with the same handles everywhere. The
+  button stands in the title bar. Boxes are dragged to move them and sized at their corner, the x removes
+  one, the + adds one, and the window grows with what you add instead of scrolling.
+- Hall of Fame: each page has its own layout, and every box can stand on every page. A click on a single
+  tile or title card while customizing changes that one. The options tab for the Hall of Fame is gone.
+- Members: drag a heading to move its column, drag its right edge for the width, hide and show columns
+  at the headings. The column checkboxes left the options.
+- General options: a slider for the size of the window and its texts.
+- Fixed: scanning the professions could store the recipe book of the member read before on the next
+  member, whose real professions then disappeared and never came back. Guildy now only takes a book
+  that belongs to the member it asked. Because wrong and right books cannot be told apart afterwards,
+  everything read from other members' books is thrown away once with this version: start a scan on the
+  Professions tab to read it anew. Until then the lists are thinner. What members share of themselves
+  stays. Books read by members with an older Guildy are no longer accepted, so ask your guild to update.
+- A right click on a member has "Discard professions and read anew" for a single member whose
+  professions are wrong.
+
 ## 1.5.0
 
 - The account view is gone: the side tab with all your characters and their professions had nothing to

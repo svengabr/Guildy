@@ -191,6 +191,11 @@ local function OpenPicker(_, board)
   if slot then board:Pick(slot) end
 end
 
+-- The Bank tab belongs to the gallery too: with the made-up bank, as Guildy ships the tab and as the
+-- overview preset shows it (before the endgame view, which stays the last picture of the run)
+table.insert(UI.SHOTS, #UI.SHOTS, { "22-bank", Bank(nil) })
+table.insert(UI.SHOTS, #UI.SHOTS, { "23-bank-overview", Bank(UI.BANK_PRESETS.overview) })
+
 UI.BANK_SHOTS = {
   { "bank-01-ledger", Bank(nil) },
   { "bank-02-seven-days", Bank(nil, false, nil, { days = 7 }) },
