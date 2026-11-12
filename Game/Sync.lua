@@ -61,7 +61,15 @@ function Sync.ToggleDebug()
     local bank = guild and ns.Bank.Digest(guild.bank)
     ns.Print(("sync: Guildy %s, bank known: %s, messages waiting: %d"):format(ns.Version(),
       bank and (bank.n .. " entries") or "nothing", #queue))
+    if Sync.lastBlocked then ns.Print("sync: the game last stopped an addon here: " .. Sync.lastBlocked) end
   end
+end
+
+-- The game stopped an addon from doing something ("Interface action failed because of an AddOn"): the
+-- last one is remembered and named by /guildy sync, so it shows whether Guildy was the addon
+function Sync.OnBlocked(kind, addon, func)
+  Sync.lastBlocked = ("%s: %s in %s"):format(kind, tostring(func), tostring(addon))
+  Debug("the game stopped an addon: %s", Sync.lastBlocked)
 end
 
 -- Sends one part. Returns false when the game refused it for now (its limit): it is to be sent again.
@@ -72,7 +80,9 @@ local function RawSend(text)
   if not ok or type(result) ~= "number" then return true end -- (older clients return nothing or true)
   local codes = rawget(_G, "Enum") and Enum.SendAddonMessageResult or {}
   if result ~= 0 then Debug("the game answered %s to a part", tostring(result)) end
-  return not (result == (codes.AddonMessageThrottle or 3) or result == (codes.ChannelThrottle or 8))
+  -- its limit, or addon messages are locked for the moment: later again. Anything else will not get better.
+  return not (result == (codes.AddonMessageThrottle or 3) or result == (codes.ChannelThrottle or 8)
+    or (codes.AddOnMessageLockdown ~= nil and result == codes.AddOnMessageLockdown))
 end
 
 local function Pump()

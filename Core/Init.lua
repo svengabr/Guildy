@@ -81,6 +81,9 @@ local HANDLERS = {
   CHAT_MSG_SAY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_PARTY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_ADDON = function(...) ns.Sync.OnAddonMessage(...) end,
+  -- "Interface action failed because of an AddOn": which addon and which function (shown by /guildy sync)
+  ADDON_ACTION_BLOCKED = function(addon, func) ns.Sync.OnBlocked("blocked", addon, func) end,
+  ADDON_ACTION_FORBIDDEN = function(addon, func) ns.Sync.OnBlocked("forbidden", addon, func) end,
   -- the guild bank answers only while its window is open at a banker (Game/Bank.lua)
   PLAYER_INTERACTION_MANAGER_FRAME_SHOW = function(kind) ns.GameBank.OnInteraction(kind, true) end,
   PLAYER_INTERACTION_MANAGER_FRAME_HIDE = function(kind) ns.GameBank.OnInteraction(kind, false) end,
