@@ -84,6 +84,15 @@ Title and description per image (CurseForge allows 255 characters per descriptio
 14. `media/gallery/16-options-hall-of-fame.jpg`
    - Title: Options: Hall of Fame
    - Description: Pick which tiles and title cards each Hall of Fame page shows, in which order. Any statistic Guildy tracks can be a tile.
+15. `media/gallery/17-bank.jpg`
+   - Title: Bank
+   - Description: New in 1.6: Guildy reads the guild bank at a banker and keeps it. Gold over time with marks at unusual movements, the ledger of gold and items, the tabs and your own access. Shared with everyone in the guild who uses Guildy.
+16. `media/gallery/18-bank-overview.jpg`
+   - Title: Bank: Overview
+   - Description: The same bank arranged as an overview: the figures of the period in a row, the gold chart, the largest depositors, the ledger and the tabs. With "Customize" every box can be moved, sized, removed or added.
+17. `media/gallery/19-members-customize.jpg`
+   - Title: Members: Customize
+   - Description: "Customize" in the title bar turns the headings of the member list into handles: drag one to move its column, drag its right edge for the width, the x hides a column, the + brings a hidden one back.
 
 The pictures made up to 1.2.0 (`00-guildy`, `09-professions-leatherworking`, `12-sync` and the old look of the
 others) are gone from the repository. Remove them from the CurseForge gallery when uploading the new ones.
