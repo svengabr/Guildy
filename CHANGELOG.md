@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1
+
+- Fixed: a member who knew nothing of the guild bank yet never got it from the others. Guildy now offers
+  the bank to everyone who has the Bank tab, also to members still on 1.6.0.
+
 ## 1.6.0
 
 - New tab: Bank. Guildy reads the guild bank whenever you stand at a banker (gold, tabs, the money log

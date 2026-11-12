@@ -102,7 +102,9 @@ end
 function Sync.SendSummary()
   local guild = ns.GuildData()
   if guild then
-    Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild), b = ns.Bank.Digest(guild.bank) })
+    -- (b also when nothing of the bank is known yet: "I can take it", so someone offers it)
+    Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild),
+      b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 } })
   end
 end
 
@@ -205,10 +207,14 @@ local function OnSummary(data, sender)
       end)
     end
   end
-  -- the guild bank: one offer for all of it (an older Guildy sends no b and could not use it)
+  -- the guild bank: one offer for all of it. A Guildy before 1.6.0 sends no b and could not use it;
+  -- 1.6.0 itself sent no b while it knew nothing of the bank, which is when it needs the offer most
+  -- (found 2026-11-12: a member who installed 1.6.0 never got the bank), so its version counts too.
   local myBank = ns.Bank.Digest(guild.bank)
-  if type(data.b) == "table" and ns.Bank.Newer(myBank, data.b) then
-    local theirBank, before = tonumber(data.b.ts) or 0, bankMessages
+  local theirDigest = type(data.b) == "table" and data.b
+    or (Sync.KnowsBank(Sync.UserVersion(sender)) and {} or nil)
+  if theirDigest and ns.Bank.Newer(myBank, theirDigest) then
+    local theirBank, before = tonumber(theirDigest.ts) or 0, bankMessages
     C_Timer.After(6 + math.random() * 10, function()
       if bankMessages > before and seenBank >= myBank.at then return end -- someone else sent it meanwhile
       Sync.ShareBank(theirBank)
@@ -273,6 +279,11 @@ function Sync.ReadsLinksRight(version)
   if version == "dev" then return true end
   local order = type(version) == "string" and Proto.CompareVersions(version, Sync.LINKS_SINCE)
   return order ~= nil and order ~= false and order >= 0
+end
+
+-- Whether a Guildy of that version takes the guild bank (the Bank tab came with 1.6.0 as well)
+function Sync.KnowsBank(version)
+  return Sync.ReadsLinksRight(version)
 end
 
 local function OnProfessions(data, sender)

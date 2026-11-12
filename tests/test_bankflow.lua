@@ -480,6 +480,27 @@ T.describe("Guild bank", function()
     end
     RunTimers()
     T.eq(#Messages("BANK"), 1)
+    -- 1.6.0 said nothing of the bank while it knew nothing: it gets the offer all the same; an older
+    -- Guildy, which has no Bank tab, gets none
+    sent = {}
+    for _, part in ipairs(P.Chunk("s3", P.Encode("SUM", { d = {} }, "1.6.0"))) do
+      Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch")
+    end
+    RunTimers()
+    T.eq(#Messages("BANK"), 1)
+    sent = {}
+    for _, part in ipairs(P.Chunk("s4", P.Encode("SUM", { d = {} }, "1.5.0"))) do
+      Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch")
+    end
+    RunTimers()
+    T.eq(#Messages("BANK"), 0)
+    -- and who knows nothing says so from now on
+    local known = ns.GuildData().bank
+    ns.GuildData().bank = nil
+    sent = {}
+    ns.Sync.SendSummary()
+    T.eq(Messages("SUM")[1].b, { at = 0, ts = 0, n = 0 })
+    ns.GuildData().bank = known
     -- someone who knows as much gets no offer
     sent = {}
     local digest = ns.Bank.Digest(ns.GuildData().bank)
