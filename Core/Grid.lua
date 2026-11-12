@@ -158,6 +158,48 @@ function Grid.Compact(layout, first)
   return out
 end
 
+-- A box dragged sideways within its row (from: where it stood, item: where the mouse has it now, same
+-- y): it changes places with the neighbours whose middle its own middle has passed, which slide to the
+-- side it came from; a neighbour it only touches so far keeps it out. Returns the layout to try (not
+-- compacted yet) and the item where it comes to stand. Dragged up or down, nothing is done here: the
+-- boxes then make room downwards (Grid.Compact).
+function Grid.Shift(layout, from, item)
+  local trial = {}
+  local dir = item.x > from.x and 1 or item.x < from.x and -1 or 0
+  local to = { k = item.k, x = item.x, y = item.y, w = item.w, h = item.h, o = item.o }
+  local swapped, blocked
+  for i, other in ipairs(layout) do
+    trial[i] = other
+    local beside = other.k ~= item.k and other.y < from.y + from.h and from.y < other.y + other.h and not Overlap(other, from)
+    -- in its way: touched now, or lying between where it stood and where it is
+    local reached = beside and ((dir > 0 and other.x >= from.x + from.w and other.x < item.x + item.w)
+      or (dir < 0 and other.x + other.w <= from.x and other.x + other.w > item.x))
+    if dir ~= 0 and item.y == from.y and reached then
+      -- (at the edge of the grid it cannot go further: there it has passed what it reached)
+      local passed = (item.x + item.w / 2 - other.x - other.w / 2) * dir >= 0
+        or (dir < 0 and item.x == 0) or (dir > 0 and item.x + item.w == Grid.COLS)
+      local slid = other.x - dir * item.w
+      if passed and slid >= 0 and slid + other.w <= Grid.COLS then
+        trial[i] = { k = other.k, x = slid, y = other.y, w = other.w, h = other.h, o = other.o }
+        local stand = dir > 0 and other.x + other.w - item.w or other.x
+        swapped = swapped and (dir > 0 and max(swapped, stand) or min(swapped, stand)) or stand
+      else
+        local stop = dir > 0 and other.x - item.w or other.x + other.w
+        blocked = blocked and (dir > 0 and min(blocked, stop) or max(blocked, stop)) or stop
+      end
+    end
+  end
+  if swapped then
+    to.x = swapped
+  elseif blocked then
+    to.x = max(0, min(Grid.COLS - to.w, dir > 0 and min(to.x, blocked) or max(to.x, blocked)))
+  end
+  for i, other in ipairs(trial) do
+    if other.k == item.k then trial[i] = to end
+  end
+  return trial, to
+end
+
 function Grid.Copy(layout)
   local out = {}
   for i, item in ipairs(layout) do

@@ -77,6 +77,39 @@ T.describe("Grid", function()
     T.eq(board[1].y, 0)
   end)
 
+  T.it("lets a box dragged sideways change places with its neighbours in the row", function()
+    local row = { { k = "a", x = 0, y = 0, w = 4, h = 4 }, { k = "b", x = 4, y = 0, w = 3, h = 4 },
+      { k = "c", x = 7, y = 0, w = 5, h = 4 }, { k = "d", x = 0, y = 4, w = 12, h = 4 } }
+    local function Drag(key, x, y)
+      local from
+      for _, item in ipairs(row) do
+        if item.k == key then from = item end
+      end
+      local trial, to = Grid.Shift(row, from, { k = key, x = x, y = y or from.y, w = from.w, h = from.h })
+      local out = {}
+      for _, item in ipairs(Grid.Compact(trial, key)) do out[item.k] = item.x .. "," .. item.y end
+      return out, to.x
+    end
+    local same = { a = "0,0", b = "4,0", c = "7,0", d = "0,4" }
+    -- a little to the right: the neighbour keeps it out, nothing moves
+    T.eq({ Drag("a", 1) }, { same, 0 })
+    -- its middle past the neighbour's: they change places
+    T.eq({ Drag("a", 2) }, { same, 0 })
+    T.eq({ Drag("a", 4) }, { { b = "0,0", a = "3,0", c = "7,0", d = "0,4" }, 3 })
+    -- far to the right, past both: it stands at the end of the row
+    T.eq({ Drag("a", 8) }, { { b = "0,0", c = "3,0", a = "8,0", d = "0,4" }, 8 })
+    -- and the other way round
+    T.eq({ Drag("c", 5) }, { same, 7 })
+    T.eq({ Drag("c", 3) }, { { a = "0,0", c = "4,0", b = "9,0", d = "0,4" }, 4 })
+    T.eq({ Drag("c", 0) }, { { c = "0,0", a = "5,0", b = "9,0", d = "0,4" }, 0 })
+    T.eq({ Drag("b", 5) }, { same, 4 })
+    -- dragged down as well: no changing of places, the box below makes room
+    T.eq((Drag("a", 4, 6)), { b = "4,0", c = "7,0", d = "0,4", a = "4,8" })
+    -- the layout given stays as it was
+    T.eq(row[1].x, 0)
+    T.eq(row[2].x, 4)
+  end)
+
   T.it("takes a saved layout only as far as it makes sense", function()
     T.eq(Grid.Clean(nil, Least), nil)
     T.eq(Grid.Clean("x", Least), nil)

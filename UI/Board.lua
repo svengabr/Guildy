@@ -310,15 +310,11 @@ function UI.Board(parent, opts)
     board.Ghost:Hide()
     local done = drag
     drag = nil
-    if not (done and done.ok and done.item) then
+    if not (done and done.ok and done.item and done.result) then
       board:Apply() -- every box back to where it stands
       return
     end
-    local layout = done.layout
-    for i, item in ipairs(layout) do
-      if item.k == done.item.k then layout[i] = done.item end
-    end
-    Changed(layout, done.item.k)
+    Changed(done.result, done.item.k) -- what the tab showed while the box was held
   end
 
   -- The layout as it would be if the mouse let go now (while a box is dragged), else nil
@@ -347,13 +343,18 @@ function UI.Board(parent, opts)
       item.w = math.max(least[1], math.min(G.COLS - item.x, from.w + dx))
       item.h = math.max(least[2], math.min(math.max(from.h, rows - item.y), from.h + dy))
     end
-    drag.item, drag.ok = item, true
-    -- another cell than before: the other boxes take the places they would have
+    -- another cell than before: the other boxes take the places they would have. Sideways within its
+    -- row the box changes places with its neighbours (Grid.Shift); up and down the others make room.
     local cell = item.x .. "," .. item.y .. "," .. item.w .. "," .. item.h
     if cell ~= drag.cell then
       drag.cell = cell
       local trial = {}
-      for i, other in ipairs(drag.layout) do trial[i] = other.k == item.k and item or other end
+      if drag.kind == "move" then
+        trial, item = G.Shift(drag.layout, from, item)
+      else
+        for i, other in ipairs(drag.layout) do trial[i] = other.k == item.k and item or other end
+      end
+      drag.item, drag.ok = item, true
       drag.result = G.Compact(trial, item.k)
       for _, placed in ipairs(drag.result) do
         if placed.k == item.k then
