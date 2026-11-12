@@ -11,8 +11,10 @@
 --
 -- A box reads its own options from box.opts (the item's o; an option is on unless it is false).
 -- In edit mode every box is covered by a handle: drag it to move the box, drag its corner to size it,
--- the cog has its options, the x removes it. Every free place carries a "+": a click lists the boxes
--- that are not on the tab, and the one under the mouse shows right there, as it will look.
+-- "Options" has its options, the x removes it. Every free place among the boxes carries a "+", and a
+-- bar at the bottom of the tab, always in view, adds below everything: a click lists the boxes that
+-- are not on the tab, and the one under the mouse shows right there, as it will look. While
+-- customizing, the mouse wheel scrolls the tab wherever the mouse is (not the lists under the handles).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -21,6 +23,7 @@ local G = ns.Grid
 local MIN_ROW = 36   -- px a row is tall at least
 local TAIL = 4       -- free rows under the last box in edit mode: room for anything
 local BAR = 14       -- room for the scroll bar while there is something to scroll
+local ADD_H = 30     -- the bar "add a box below" at the bottom of the tab in edit mode
 
 function UI.Board(parent, opts)
   local L = ns.L
@@ -74,15 +77,53 @@ function UI.Board(parent, opts)
   local slots, picker = {}, nil
   local Slot, ClosePicker
 
+  -- The mouse wheel anywhere on the tab while customizing: scrolls the tab
+  local function Wheel(_, delta)
+    local scroll = board.Scroll
+    if not (scroll.GetVerticalScroll and scroll.GetVerticalScrollRange) then return end
+    local range = scroll:GetVerticalScrollRange() or 0
+    local to = (scroll:GetVerticalScroll() or 0) - delta * (board.ch or MIN_ROW) * 2
+    scroll:SetVerticalScroll(math.max(0, math.min(range, to)))
+  end
+
+  -- to the end of the tab, where a box added below stands (the range is known a frame later)
+  local function ScrollToEnd()
+    local scroll = board.Scroll
+    local function Go()
+      if scroll.SetVerticalScroll and scroll.GetVerticalScrollRange then scroll:SetVerticalScroll(scroll:GetVerticalScrollRange() or 0) end
+    end
+    Go()
+    C_Timer.After(0, Go)
+  end
+
+  -- the bar at the bottom of the tab in edit mode: add a box below everything
+  board.AddBar = CreateFrame("Button", nil, board)
+  board.AddBar:SetPoint("BOTTOMLEFT", 0, 0)
+  board.AddBar:SetPoint("BOTTOMRIGHT", 0, 0)
+  board.AddBar:SetHeight(ADD_H - 4)
+  board.AddBar.Fill = board.AddBar:CreateTexture(nil, "BACKGROUND")
+  board.AddBar.Fill:SetAllPoints()
+  board.AddBar.Fill:SetColorTexture(W.GOLD[1] * 0.25, W.GOLD[2] * 0.25, W.GOLD[3] * 0.25, 0.95)
+  board.AddBar.Edge = board.AddBar:CreateTexture(nil, "BORDER")
+  board.AddBar.Edge:SetPoint("TOPLEFT")
+  board.AddBar.Edge:SetPoint("TOPRIGHT")
+  board.AddBar.Edge:SetHeight(1)
+  board.AddBar.Edge:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.6)
+  board.AddBar:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+  board.AddBar.Label = W.Text(board.AddBar, "GameFontNormalSmall", "+  " .. L.BOARD_SLOT_BELOW)
+  board.AddBar.Label:SetPoint("CENTER")
+  board.AddBar:SetScript("OnClick", function(self) board:Pick(self) end)
+  board.AddBar:Hide()
+
   function board:Apply()
     local layout = self:Layout()
     local base = math.max(G.PAGE, G.Rows(layout))
     local rows = base + (self.editing and TAIL or 0)
-    local cw, ch, scrolls = Cells(rows)
+    local cw, ch, scrolls = Cells(rows + (self.editing and 1 or 0))
     self.cw, self.ch = cw, ch
     self.Scroll:ClearAllPoints()
     self.Scroll:SetPoint("TOPLEFT", 0, 0)
-    self.Scroll:SetPoint("BOTTOMRIGHT", scrolls and -BAR or 0, 0)
+    self.Scroll:SetPoint("BOTTOMRIGHT", scrolls and -BAR or 0, self.editing and ADD_H or 0)
     content:SetSize(math.max(1, G.COLS * cw - W.GAP), math.max(1, rows * ch - W.GAP))
     local bar = self.Scroll.ScrollBar
     if type(bar) == "table" and bar.SetShown then bar:SetShown(scrolls) end
@@ -112,17 +153,17 @@ function UI.Board(parent, opts)
     -- the free places
     local count = 0
     if self.editing then
-      local gaps = G.Gaps(layout, base, 3, 3)
-      gaps[#gaps + 1] = { x = 0, y = base, w = G.COLS, h = TAIL, tail = true }
-      for _, gap in ipairs(gaps) do
+      for _, gap in ipairs(G.Gaps(layout, base, 3, 3)) do
         count = count + 1
         local slot = Slot(count)
         slot.gap = gap
         Put(slot, gap, cw, ch)
-        slot:SetShown(not (preview and self.pickGap == gap))
-        slot.Label:SetText(gap.tail and L.BOARD_SLOT_BELOW or L.BOARD_SLOT)
+        slot:SetShown(not (preview and self.pickGap and self.pickGap.x == gap.x and self.pickGap.y == gap.y))
       end
+      -- under everything there is always room: the bar at the bottom of the tab adds there
+      self.AddBar.gap = { x = 0, y = base, w = G.COLS, h = TAIL, tail = true }
     end
+    self.AddBar:SetShown(self.editing == true)
     for index = count + 1, #slots do slots[index]:Hide() end
     self.slotCount = count
     self.Empty:SetShown(#layout == 0 and not self.editing)
@@ -174,8 +215,10 @@ function UI.Board(parent, opts)
       return false
     end
     local layout = self:Layout()
+    local below = item.y >= G.Rows(layout)
     layout[#layout + 1] = item
     Changed(layout)
+    if below then ScrollToEnd() end
     return true
   end
 
@@ -297,6 +340,8 @@ function UI.Board(parent, opts)
     cover:SetScript("OnMouseDown", function(_, button)
       if button == "LeftButton" then board:Start("move", key) end
     end)
+    cover:EnableMouseWheel(true)
+    cover:SetScript("OnMouseWheel", Wheel)
     cover.Remove = W.Button(cover, "x", function() board:Remove(key) end, 24, { small = true, pad = 10 })
     cover.Remove:SetPoint("TOPRIGHT", -4, -4)
     W.Tooltip(cover.Remove, L.BOARD_REMOVE)
@@ -335,9 +380,11 @@ function UI.Board(parent, opts)
     slot:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     slot.Plus = W.Text(slot, "GameFontNormalHuge", "+")
     slot.Plus:SetPoint("CENTER", 0, 8)
-    slot.Label = W.Text(slot, "GameFontDisableSmall")
+    slot.Label = W.Text(slot, "GameFontDisableSmall", L.BOARD_SLOT)
     slot.Label:SetPoint("TOP", slot.Plus, "BOTTOM", 0, -2)
     slot:SetScript("OnClick", function(self) board:Pick(self) end)
+    slot:EnableMouseWheel(true)
+    slot:SetScript("OnMouseWheel", Wheel)
     slots[index] = slot
     return slot
   end
@@ -385,9 +432,12 @@ function UI.Board(parent, opts)
     row.About:SetJustifyV("TOP")
     row.About:SetHeight(24)
     row:SetScript("OnEnter", function(self)
-      board.preview = board:Candidate(self.key, board.pickGap)
+      local item, fits = board:Candidate(self.key, board.pickGap)
+      board.preview = item
       board:Apply()
       opts.onChange()
+      -- a box that goes below everything: bring that end of the tab into view
+      if item and (not fits or (board.pickGap and board.pickGap.tail)) then ScrollToEnd() end
     end)
     row:SetScript("OnLeave", function()
       if not board.preview then return end
@@ -438,9 +488,11 @@ function UI.Board(parent, opts)
     frame.None:SetShown(#offers == 0)
     frame:SetHeight(math.max(64, 38 + #offers * PICK_ROW))
     frame:ClearAllPoints()
-    -- beside the place where there is room, else over its right part
+    -- over the bar at the bottom; beside a free place where there is room, else over its right part
     local right, width = slot:GetRight(), board:GetRight()
-    if right and width and width - right >= 340 then
+    if slot == self.AddBar then
+      frame:SetPoint("BOTTOMRIGHT", slot, "TOPRIGHT", -BAR, 6)
+    elseif right and width and width - right >= 340 then
       frame:SetPoint("TOPLEFT", slot, "TOPRIGHT", 6, 0)
     elseif slot.gap.x > 3 then
       frame:SetPoint("TOPRIGHT", slot, "TOPLEFT", -6, 0)

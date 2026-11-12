@@ -226,11 +226,12 @@ T.describe("Guild bank", function()
     T.eq(board.Edit:GetText(), ns.L.BOARD_DONE)
     T.eq(board.Presets:IsShown(), true)
     T.eq(board.defs.ledger.Cover:IsShown(), true)
-    -- the tab is full: the one free place is the row under everything, and anything fits there
-    local slots = board:Slots()
-    T.eq(#slots, 1)
-    T.eq(slots[1].gap.tail, true)
-    slots[1]:GetScript("OnClick")(slots[1])
+    -- the tab is full: no free place among the boxes. The bar at the bottom adds below everything,
+    -- where anything fits
+    T.eq(#board:Slots(), 0)
+    T.eq(board.AddBar:IsShown(), true)
+    T.eq(board.AddBar.gap.tail, true)
+    board.AddBar:GetScript("OnClick")(board.AddBar)
     T.eq(#board:PickRows(), 5)
     -- the box under the mouse shows where it will stand, filled, and goes when the mouse leaves
     local row = Row("balance")
@@ -249,8 +250,8 @@ T.describe("Guild bank", function()
     board.defs.access.Cover.Remove:GetScript("OnClick")(board.defs.access.Cover.Remove)
     T.eq(Has("access"), false)
     T.eq(view.Access:IsShown(), false)
-    slots = board:Slots()
-    T.eq(#slots, 3) -- that place, the room beside the member table, and the row under everything
+    local slots = board:Slots()
+    T.eq(#slots, 2) -- that place and the room beside the member table
     T.eq(slots[1].gap, { x = 0, y = 7, w = 3, h = 5 })
     T.eq(board:Offers(slots[1].gap), { { key = "access", fits = true }, { key = "largest", fits = true },
       { key = "givers", fits = true }, { key = "tiles", fits = false }, { key = "detail", fits = false } })
@@ -370,11 +371,12 @@ T.describe("Guild bank", function()
     for _, key in ipairs({ "tiles", "chart", "givers", "ledger", "tabs" }) do board:Remove(key) end
     T.eq(ns.Settings().bank.layout, {})
     T.eq(board.Empty:IsShown(), false)
-    T.eq(#board:Slots(), 2)
+    T.eq(#board:Slots(), 1) -- the whole page is one free place
     board.Edit:GetScript("OnClick")(board.Edit)
     T.eq(board.editing, false)
     T.eq(board.Empty:IsShown(), true)
     T.eq(#board:Slots(), 0)
+    T.eq(board.AddBar:IsShown(), false)
     -- back to the ledger: nothing is stored for what Guildy ships
     board:Preset(nil)
     T.eq(ns.Settings().bank, nil)
@@ -687,6 +689,53 @@ T.describe("Guild bank opens Guildy", function()
     other.RunTimers()
     T.eq(other.ns.UI.IsShown(), false)
     T.eq(#other.ns.GuildData().bank.logs.money, 3)
+    T.eq(other.errors, {})
+  end)
+end)
+
+-- /guildy shots bank: the Bank tab in every state, with a made-up bank that is not kept
+T.describe("Pictures of the Bank tab", function()
+  T.it("walks through its states and leaves bank, layout and settings as they were", function()
+    local other = dofile(T.testsDir .. "/wow.lua")(T, { setup = Setup })
+    local UI = other.ns.UI
+    other.Fire("ADDON_LOADED", "Guildy")
+    other.Fire("PLAYER_LOGIN")
+    other.Fire("GUILD_ROSTER_UPDATE")
+    other.RunTimers()
+    other.env.CommunitiesFrame:Show()
+    local taken, seen = 0, {}
+    other.env.Screenshot = function()
+      taken = taken + 1
+      local view = UI.TabView("bank")
+      seen[taken] = { boxes = 0, editing = view.board.editing, entries = #view.List.items, picker = #view.board:PickRows(),
+        preview = view.board.preview ~= nil }
+      for _ in pairs(view.board.placed) do seen[taken].boxes = seen[taken].boxes + 1 end
+    end
+    UI.SelectTab("members")
+    other.env.SlashCmdList.GUILDY("shots bank")
+    other.RunTimers(1)
+    T.eq(taken, #UI.BANK_SHOTS)
+    T.eq(taken, 16)
+    T.truthy(seen[1].entries > 30 and seen[1].boxes == 5, "the made-up bank in the ledger")
+    T.eq(seen[3].entries < seen[1].entries, true)       -- one member only
+    T.eq(seen[4].editing, true)
+    T.truthy(seen[5].picker >= 5, "the picker is open")
+    T.eq(seen[6].preview, true)
+    T.eq(seen[6].boxes, 5)                               -- four and the one shown at the free place
+    T.eq(seen[8].boxes, 3)
+    T.eq(seen[11].boxes, 7)
+    T.eq(seen[14].entries, 0)                            -- nothing read
+    T.eq(seen[15].boxes, 0)
+    -- afterwards: no made-up bank, no layout of the run, back on the tab it started on
+    T.eq(UI.bankShot, nil)
+    T.eq(other.ns.GuildData().bank, nil)
+    T.eq(other.ns.Settings().bank, nil)
+    T.eq(UI.Current(), "members")
+    T.eq(UI.TabView("bank").board.editing, false)
+    T.eq(#UI.TabView("bank").List.items, 0)
+    -- the list of the gallery pictures is as it was: collect.py tells the two lists apart by their names
+    for _, shot in ipairs(UI.SHOTS) do T.truthy(shot[1]:match("^%d%d%-"), shot[1]) end
+    for _, shot in ipairs(UI.BANK_SHOTS) do T.truthy(shot[1]:match("^bank%-%d%d%-[a-z%-]+$"), shot[1]) end
     T.eq(other.errors, {})
   end)
 end)

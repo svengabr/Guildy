@@ -196,6 +196,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.UI.ToggleShotNames()
   elseif msg == "shots all" then
     ns.UI.TakeAllShots()
+  elseif msg == "shots bank" then
+    ns.UI.TakeBankShots()
   elseif msg == "shots stop" then
     ns.UI.StopShots()
   elseif msg == "shots" then

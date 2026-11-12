@@ -21,16 +21,19 @@ SRC = os.path.join(HERE, "src")
 GAP = 6  # seconds: pictures of one run are two seconds apart; a longer pause ends the run
 
 
-def shot_names():
+def shot_names(bank=False):
+    """The pictures of /guildy shots, or of /guildy shots bank."""
     lua = open(os.path.join(ROOT, "UI", "Shots.lua"), encoding="utf-8").read()
-    return re.findall(r'^\s*\{ "(\d\d-[a-z-]+)",', lua, re.M)
+    return re.findall(r'^\s*\{ "(%s\d\d-[a-z-]+)",' % ("bank-" if bank else ""), lua, re.M)
 
 
 def main():
     folder = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("GUILDY_SCREENSHOTS")
     if not folder or not os.path.isdir(folder):
         sys.exit("Give the game's Screenshots folder as argument (or in GUILDY_SCREENSHOTS).")
-    names = shot_names()
+    bank = len(sys.argv) > 2 and sys.argv[2] == "bank"
+    names = shot_names(bank)
+    target_dir = os.path.join(SRC, "bank") if bank else SRC
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith((".jpg", ".png", ".tga"))]
     files.sort(key=os.path.getmtime)
     # the newest run: from the last picture back while the pictures follow each other closely
@@ -43,9 +46,9 @@ def main():
         sys.exit("The newest run has %d pictures, /guildy shots takes %d. Nothing copied.\n"
                  "Run /guildy shots again and take no other screenshot right before or after it."
                  % (len(run), len(names)))
-    os.makedirs(SRC, exist_ok=True)
+    os.makedirs(target_dir, exist_ok=True)
     for name, path in zip(names, run):
-        target = os.path.join(SRC, name + os.path.splitext(path)[1].lower())
+        target = os.path.join(target_dir, name + os.path.splitext(path)[1].lower())
         shutil.copy2(path, target)
         print("%s  <-  %s" % (os.path.relpath(target, ROOT), os.path.basename(path)))
 

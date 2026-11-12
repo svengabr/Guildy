@@ -53,7 +53,7 @@ end
 
 -- The days the tab looks back: the chart, the sums and the lists per member
 function UI.BankDays()
-  local days = UI.BankSetting("days")
+  local days = UI.bankShot and UI.bankShot.days or UI.BankSetting("days")
   return (type(days) == "number" and days >= 1 and days <= MAX_DAYS) and days or 30
 end
 
@@ -394,8 +394,18 @@ local function Build(panel)
 
   -- the board the boxes stand on, with its edit mode (UI/Board.lua)
   local board = UI.Board(panel, {
-    load = function() return UI.BankSetting("layout") end,
-    save = function(layout) UI.SetBankSetting("layout", layout) end,
+    -- (UI.bankShot: the pictures of /guildy shots bank bring their own layout and keep nothing, UI/Shots.lua)
+    load = function()
+      if UI.bankShot then return UI.bankShot.layout end
+      return UI.BankSetting("layout")
+    end,
+    save = function(layout)
+      if UI.bankShot then
+        UI.bankShot.layout = layout
+      else
+        UI.SetBankSetting("layout", layout)
+      end
+    end,
     default = function() return UI.BANK_PRESETS.ledger end,
     onChange = function() view:Refresh() end,
   })
@@ -713,10 +723,13 @@ local function Build(panel)
     local guild = ns.GuildData()
     -- (looking at the tab stores nothing: no bank table before the first reading)
     local bank = guild and type(guild.bank) == "table" and B.Get(guild) or nil
+    local shot = UI.bankShot
+    if shot then bank = not shot.empty and shot.bank or nil end
     self.bank = bank
     local known = bank ~= nil and bank.at ~= nil
     local now, days = ns.Now(), UI.BankDays()
     local mine = ns.GameBank.Mine()
+    if shot then mine = not shot.empty and shot.mine or nil end
     local editing = board.editing == true
     local ctx = { bank = bank, known = known, now = now, days = days }
 
