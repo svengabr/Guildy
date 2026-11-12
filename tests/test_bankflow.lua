@@ -280,14 +280,23 @@ T.describe("Guild bank", function()
     board:Track()
     T.eq(board.placed.givers.h, 5)
     T.eq(board.Ghost:IsShown(), false)
-    -- drag it onto another box: it stays where it was
+    -- drag the row of figures from the bottom to the very top: everything else makes room
+    T.eq(board.placed.tiles.y, 18)
+    T.eq(board.placed.total.y, 0)
     down, x, y = true, 100, 100
-    board:Start("move", "givers")
-    y = 100 + 4 * board.ch
+    board:Start("move", "tiles")
+    y = 100 + 30 * board.ch
     board:Track()
+    T.eq(board.Ghost:IsShown(), true)
     down = false
     board:Track()
-    T.eq(board.placed.givers.y, 7)
+    T.eq(board.placed.tiles.y, 0)
+    T.eq({ board.placed.total.y, board.placed.chart.y, board.placed.tabs.y, board.placed.ledger.y }, { 2, 2, 6, 6 })
+    T.eq(board.placed.balance.y, 14)
+    T.eq(board:Rows(), 20)
+    -- taken away again: they all move back up
+    board:Remove("tiles")
+    T.eq({ board.placed.total.y, board.placed.ledger.y, board.placed.balance.y }, { 0, 4, 12 })
     -- never smaller than it works at
     down, x, y = true, 100, 100
     board:Start("size", "givers")

@@ -1,7 +1,8 @@
 -- The grid a tab's boxes stand on (UI/Board.lua), pure. A layout is a list of
 --   { k = box, x, y, w, h, o = { option = value } or nil }
 -- in cells: x and y from the top left corner counted from 0, Grid.COLS cells wide, as many rows down
--- as the boxes need (the tab scrolls). Boxes never overlap.
+-- as the boxes need. Boxes never overlap: a box put where others stand takes the place and they move
+-- down, and every box moves up as far as there is room (Grid.Compact).
 local _, ns = ...
 
 local Grid = {}
@@ -125,6 +126,33 @@ function Grid.Clean(saved, least)
     end
   end
   return layout
+end
+
+-- The layout with every box moved up as far as it goes, in their order from the top; a box standing
+-- on another moves down below it. `first`: the box that was just placed, which keeps its place among
+-- those in the same row (the others make room for it).
+function Grid.Compact(layout, first)
+  local order = Grid.Copy(layout)
+  table.sort(order, function(a, b)
+    if a.y ~= b.y then return a.y < b.y end
+    if (a.k == first) ~= (b.k == first) then return a.k == first end
+    if a.x ~= b.x then return a.x < b.x end
+    return a.k < b.k
+  end)
+  local out = {}
+  local function Free(item, y)
+    local at = { k = item.k, x = item.x, y = y, w = item.w, h = item.h }
+    for _, other in ipairs(out) do
+      if Overlap(other, at) then return false end
+    end
+    return true
+  end
+  for _, item in ipairs(order) do
+    while item.y > 0 and Free(item, item.y - 1) do item.y = item.y - 1 end
+    while not Free(item, item.y) and item.y + item.h < Grid.MAX_ROWS do item.y = item.y + 1 end
+    out[#out + 1] = item
+  end
+  return out
 end
 
 function Grid.Copy(layout)

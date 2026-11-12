@@ -13,7 +13,8 @@
 --   board:Apply()                      places the boxes; board.placed[key] = item for those that show
 --
 -- A box reads its own options from box.opts (the item's o; an option is on unless it is false).
--- In edit mode every box is covered by a handle: drag it to move the box, drag its corner to size it,
+-- In edit mode every box is covered by a handle: drag it to move the box, drag its corner to size it
+-- (the boxes in its way move down, and every box moves up into room that got free),
 -- "Options" has its options, the x removes it. Every free place among the boxes carries a "+", and a
 -- bar at the bottom of the tab adds below everything: a click lists the boxes that are not on the tab,
 -- and the one under the mouse shows as it will look, right at the free place, or over the lower part
@@ -196,11 +197,12 @@ function UI.Board(parent, opts)
     if rows ~= before and opts.grow and self.ch then opts.grow((rows - before) * self.ch) end
   end
 
-  local function Changed(layout)
+  -- layout: nil for the default; first: the box that was just placed (the others make room for it)
+  local function Changed(layout, first)
     local before = board:Rows()
     board.preview, board.pickGap = nil, nil
     ClosePicker()
-    opts.save(layout)
+    opts.save(layout and G.Compact(layout, first) or nil)
     board:RowsChanged(before)
     board:Apply()
     opts.onChange()
@@ -245,7 +247,7 @@ function UI.Board(parent, opts)
     local layout = self:Layout()
     local below = item.y >= G.Rows(layout)
     layout[#layout + 1] = item
-    Changed(layout)
+    Changed(layout, key)
     if below then ScrollToEnd() end
     return true
   end
@@ -265,12 +267,8 @@ function UI.Board(parent, opts)
         local least = Least(key, o)
         local grown = { k = key, x = item.x, y = item.y, w = math.max(item.w, least[1]), h = math.max(item.h, least[2]), o = next(o) and o or nil }
         grown.x = math.min(grown.x, G.COLS - grown.w)
-        if not G.Fits(layout, grown) then
-          ns.Print(L.BOARD_FULL)
-          return false
-        end
-        layout[i] = grown
-        Changed(layout)
+        layout[i] = grown -- a box that needs more room for it takes it: the others move
+        Changed(layout, key)
         return true
       end
     end
@@ -287,7 +285,8 @@ function UI.Board(parent, opts)
     return items
   end
 
-  -- Moving and sizing: the box follows the mouse as an outline on the grid, green where it may stand
+  -- Moving and sizing: the box follows the mouse as an outline on the grid. It may stand anywhere:
+  -- what is in its way moves down when it is let go.
   board.Ghost = CreateFrame("Frame", nil, content)
   board.Ghost:SetFrameLevel((content:GetFrameLevel() or 1) + 80)
   board.Ghost.Fill = board.Ghost:CreateTexture(nil, "OVERLAY")
@@ -305,7 +304,7 @@ function UI.Board(parent, opts)
     for i, item in ipairs(layout) do
       if item.k == done.item.k then layout[i] = done.item end
     end
-    Changed(layout)
+    Changed(layout, done.item.k)
   end
 
   function board:Track()
@@ -318,18 +317,19 @@ function UI.Board(parent, opts)
     local from = drag.from
     local least = Least(from.k, from.o)
     local item = { k = from.k, x = from.x, y = from.y, w = from.w, h = from.h, o = from.o }
-    -- within the rows there are: more of them come with a box added below (the bar at the bottom)
+    -- within the rows that show: what it pushes down adds rows by itself
     local rows = math.max(G.PAGE, G.Rows(drag.layout))
     if drag.kind == "move" then
       item.x = math.max(0, math.min(G.COLS - item.w, from.x + dx))
       item.y = math.max(0, math.min(rows - item.h, from.y + dy))
     else
       item.w = math.max(least[1], math.min(G.COLS - item.x, from.w + dx))
-      item.h = math.max(least[2], math.min(rows - item.y, from.h + dy))
+      item.h = math.max(least[2], math.min(math.max(from.h, rows - item.y), from.h + dy))
     end
-    drag.item, drag.ok = item, G.Fits(drag.layout, item)
+    drag.item, drag.ok = item, true
     Put(self.Ghost, item, self.cw, self.ch)
-    if drag.ok then self.Ghost.Fill:SetColorTexture(0.25, 0.88, 0.25, 0.28) else self.Ghost.Fill:SetColorTexture(1, 0.35, 0.29, 0.28) end
+    -- gold where other boxes will have to make room, green where the place is free
+    if G.Fits(drag.layout, item) then self.Ghost.Fill:SetColorTexture(0.25, 0.88, 0.25, 0.28) else self.Ghost.Fill:SetColorTexture(1, 0.82, 0, 0.3) end
     self.Ghost:Show()
   end
 

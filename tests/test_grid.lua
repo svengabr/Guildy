@@ -36,6 +36,33 @@ T.describe("Grid", function()
     T.eq(two, { { x = 0, y = 0, w = 3, h = 12 }, { x = 9, y = 0, w = 3, h = 12 } })
   end)
 
+  T.it("makes room for a box put where others stand, and closes the room that got free", function()
+    local function Places(list)
+      local out = {}
+      for _, item in ipairs(list) do out[item.k] = item.x .. "," .. item.y end
+      return out
+    end
+    local board = { { k = "a", x = 0, y = 0, w = 3, h = 4 }, { k = "b", x = 3, y = 0, w = 9, h = 4 },
+      { k = "c", x = 0, y = 4, w = 12, h = 6 }, { k = "t", x = 0, y = 10, w = 12, h = 2 } }
+    T.eq(Places(Grid.Compact(board)), { a = "0,0", b = "3,0", c = "0,4", t = "0,10" }) -- nothing to do
+    -- the row at the bottom dragged to the top: everything else moves down by its height
+    board[4].y = 0
+    T.eq(Places(Grid.Compact(board, "t")), { t = "0,0", a = "0,2", b = "3,2", c = "0,6" })
+    -- dragged into the middle: what stands there and below moves down
+    board[4].y = 4
+    T.eq(Places(Grid.Compact(board, "t")), { a = "0,0", b = "3,0", t = "0,4", c = "0,6" })
+    -- a box taken away: what stood below it moves up; what has a box above it stays
+    T.eq(Places(Grid.Compact({ board[2], board[3] })), { b = "3,0", c = "0,4" })
+    T.eq(Places(Grid.Compact({ board[1], board[3] })), { a = "0,0", c = "0,4" })
+    T.eq(Places(Grid.Compact({ board[3] })), { c = "0,0" })
+    -- a box made wider takes the room: its neighbour moves below it
+    T.eq(Places(Grid.Compact({ { k = "a", x = 0, y = 0, w = 6, h = 4 }, board[2] }, "a")), { a = "0,0", b = "3,4" })
+    -- the options of a box come along, and the layout given stays as it was
+    local kept = Grid.Compact({ { k = "a", x = 0, y = 5, w = 3, h = 3, o = { rank = false } } })
+    T.eq(kept, { { k = "a", x = 0, y = 0, w = 3, h = 3, o = { rank = false } } })
+    T.eq(board[1].y, 0)
+  end)
+
   T.it("takes a saved layout only as far as it makes sense", function()
     T.eq(Grid.Clean(nil, Least), nil)
     T.eq(Grid.Clean("x", Least), nil)
