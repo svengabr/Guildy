@@ -1,8 +1,9 @@
 -- Bank tab: what Guildy users read of the guild bank at a banker (Game/Bank.lua, Core/Bank.lua), the
--- same for everyone in the guild. Its boxes stand on a board (UI/BankBoard.lua): the gold with the
+-- same for everyone in the guild. Its boxes stand on a board (UI/Board.lua): the gold with the
 -- sums of the chosen days, the tabs, what the player may still take today, the gold over time, the
 -- ledger (every movement of gold and items, newest first), and more from UI/BankWidgets.lua. Which
--- boxes show, where and how large is the player's choice, made right on the tab ("Customize").
+-- boxes show, where, how large and with which columns is the player's choice, made right on the tab
+-- ("Customize").
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -244,7 +245,7 @@ local function Chart(parent)
       local dayWidth = width / days
       for day, sums in pairs(chart.days) do
         local bar = self.Bars[day]
-        if bar and most > 0 then
+        if bar and most > 0 and (self.opts or {}).bars ~= false then
           local x = width - (day + 1) * dayWidth
           if sums.plus > 0 then
             bar.plus:ClearAllPoints()
@@ -286,7 +287,7 @@ local function Chart(parent)
       self.Now:SetPoint("LEFT", plot, "BOTTOMRIGHT", 8, Y(bank.money) + 5)
       self.Now:SetText(Money(bank.money))
       -- the movements that stand out: above the line, a row higher where two stand close together
-      if UI.BankSetting("marks") ~= false then
+      if (self.opts or {}).marks ~= false then
         -- "Name +10 g" above its step with a thin stem down to it, a row higher where two steps
         -- stand close together. Where the plot ends above: beside the step, left of its rise.
         local lastX, row
@@ -391,23 +392,22 @@ local function Build(panel)
   W.Tooltip(view.Only, L.BANK_ONLY_TIP)
   view.Only:Hide()
 
-  -- edit mode: boxes are added, removed, moved and sized on the board (UI/BankBoard.lua)
-  view.Edit = page:Right(W.Button(page.Bar, L.BANK_EDIT, function()
-    view.board:SetEditing(not view.board.editing)
-    view:Refresh()
-  end, 80, { small = true, fit = { L.BANK_EDIT, L.BANK_EDIT_DONE } }))
-  W.Tooltip(view.Edit, L.BANK_EDIT, L.BANK_EDIT_TIP)
-  view.Add = page:Right(W.MenuButton(page.Bar, L.BANK_EDIT_ADD, function() return view:AddItems() end, 120, 200))
-  view.Preset = page:Right(W.MenuButton(page.Bar, L.BANK_EDIT_PRESET, function() return view:PresetItems() end, 90, 160))
+  -- the board the boxes stand on, with its edit mode (UI/Board.lua)
+  local board = UI.Board(panel, {
+    load = function() return UI.BankSetting("layout") end,
+    save = function(layout) UI.SetBankSetting("layout", layout) end,
+    default = function() return UI.BANK_PRESETS.ledger end,
+    onChange = function() view:Refresh() end,
+  })
+  view.board = board
+  board:Controls(page, { { L.BANK_LEDGER }, { L.TAB_MEMBERS, UI.BANK_PRESETS.members }, { L.TAB_OVERVIEW, UI.BANK_PRESETS.overview } })
   view.Status = W.Text(page.Bar, "GameFontDisableSmall")
   view.Status:SetJustifyH("RIGHT")
   view.Status:SetWordWrap(false)
-
-  local board = UI.BankBoard(panel, function() view:Refresh() end)
-  view.board = board
+  local holder = board.Content
 
   -- the gold and the sums of the chosen days
-  local total = W.Box(board)
+  local total = W.Box(holder)
   view.Total = total
   local totalTitle = W.Text(total, "GameFontNormal", L.BANK_TOTAL)
   totalTitle:SetPoint("TOPLEFT", 10, -8)
@@ -427,7 +427,7 @@ local function Build(panel)
   end
 
   -- the tabs and how full they are, below them what the next one costs
-  local tabs = W.Box(board)
+  local tabs = W.Box(holder)
   view.TabsBox = tabs
   local tabsTitle = W.Text(tabs, "GameFontNormal", L.BANK_TABS)
   tabsTitle:SetPoint("TOPLEFT", 10, -8)
@@ -475,7 +475,7 @@ local function Build(panel)
   view.Cost:SetJustifyH("RIGHT")
 
   -- what this character may still take today, as read at the banker
-  local access = W.Box(board)
+  local access = W.Box(holder)
   view.Access = access
   local accessTitle = W.Text(access, "GameFontNormal", L.BANK_ACCESS)
   accessTitle:SetPoint("TOPLEFT", 10, -8)
@@ -508,7 +508,7 @@ local function Build(panel)
   end
 
   -- the gold over time; a click on a mark picks its member
-  view.Chart = Chart(board)
+  view.Chart = Chart(holder)
   view.Chart.OnPick = function(step)
     if not step.w then return end
     view.filter.who, view.filter.whoName = ns.Names.Key(step.w), step.w
@@ -517,7 +517,7 @@ local function Build(panel)
   end
 
   -- the ledger
-  local book = W.Box(board)
+  local book = W.Box(holder)
   view.Book = book
   local bookTitle = W.Text(book, "GameFontNormal", L.BANK_LEDGER)
   bookTitle:SetPoint("TOPLEFT", 10, -8)
@@ -528,64 +528,74 @@ local function Build(panel)
   bookHint:SetPoint("RIGHT", view.Count, "LEFT", -8, 0)
   bookHint:SetWordWrap(false)
 
-  -- columns: x from the left, or from the right edge of a row when negative
-  local COLS = { when = 4, who = 84, action = 236, what = 356, tab = -236, after = -4 }
+  -- columns: "when", "tab" and "gold after" can be switched off in the box's options (edit mode), which
+  -- lets the ledger stand in a narrower place
   local TAB_W, AFTER_W = 126, 100
-  local function Place(text, parent, key, dx)
-    local x = COLS[key]
-    if x >= 0 then
-      text:SetPoint("LEFT", parent, "LEFT", x + (dx or 0), 0)
-    elseif key == "tab" then
-      text:SetPoint("LEFT", parent, "RIGHT", x + (dx or 0), 0)
-    else
-      text:SetPoint("RIGHT", parent, "RIGHT", x + (dx or 0), 0)
+  local function Cols()
+    local o = book.opts or {}
+    local c, x, r = {}, 4, -4
+    if o.when ~= false then c.when, x = x, x + 80 end
+    c.who, c.action, c.what = x, x + 152, x + 272
+    if o.after ~= false then c.after, r = r, r - AFTER_W - 6 end
+    if o.tab ~= false then c.tab, r = r, r - TAB_W - 6 end
+    c.right = r
+    return c
+  end
+  -- places the cells of a row (or the headings) for the columns that show
+  local function Arrange(owner, p)
+    local c = Cols()
+    local function Side(region, side, x, width)
+      region:ClearAllPoints()
+      region:SetPoint(side, owner, side, x, 0)
+      region:SetWidth(width)
     end
+    p.When:SetShown(c.when ~= nil)
+    if c.when then Side(p.When, "LEFT", c.when, 74) end
+    Side(p.Who, "LEFT", c.who, 146)
+    Side(p.Action, "LEFT", c.action, 114)
+    p.Tab:SetShown(c.tab ~= nil)
+    if c.tab then Side(p.Tab, "RIGHT", c.tab, TAB_W) end
+    p.After:SetShown(c.after ~= nil)
+    if c.after then Side(p.After, "RIGHT", c.after, AFTER_W) end
+    return c
   end
   local head = CreateFrame("Frame", nil, book)
   head:SetPoint("TOPLEFT", 8, -28)
   head:SetPoint("RIGHT", -28, 0)
   head:SetHeight(16)
-  for key, label in pairs({ when = L.BANK_COL_WHEN, who = L.BANK_COL_WHO, action = L.BANK_COL_ACTION,
-    what = L.BANK_COL_WHAT, tab = L.BANK_COL_TAB, after = L.BANK_COL_AFTER }) do
-    local text = W.Text(head, "GameFontDisableSmall", label)
-    Place(text, head, key)
+  view.Head = {}
+  for key, label in pairs({ When = L.BANK_COL_WHEN, Who = L.BANK_COL_WHO, Action = L.BANK_COL_ACTION,
+    What = L.BANK_COL_WHAT, Tab = L.BANK_COL_TAB, After = L.BANK_COL_AFTER }) do
+    view.Head[key] = W.Text(head, "GameFontDisableSmall", label)
+    view.Head[key]:SetWordWrap(false)
+  end
+  view.Head.After:SetJustifyH("RIGHT")
+  function view:ArrangeHead()
+    local c = Arrange(head, self.Head)
+    self.Head.What:ClearAllPoints()
+    self.Head.What:SetPoint("LEFT", head, "LEFT", c.what, 0)
   end
 
   view.List = W.ScrollList(book, ROW, function(row)
     row.When = W.Text(row, "GameFontDisableSmall")
-    Place(row.When, row, "when")
     row.Who = W.Text(row, "GameFontHighlightSmall")
-    Place(row.Who, row, "who")
-    row.Who:SetWidth(COLS.action - COLS.who - 6)
     row.Who:SetWordWrap(false)
     row.Action = W.Text(row, "GameFontHighlightSmall")
-    Place(row.Action, row, "action")
-    row.Action:SetWidth(COLS.what - COLS.action - 6)
     row.Action:SetWordWrap(false)
     row.Icon = row:CreateTexture(nil, "ARTWORK")
     row.Icon:SetSize(ROW - 4, ROW - 4)
-    Place(row.Icon, row, "what")
     row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.What = W.Text(row, "GameFontHighlightSmall")
     row.What:SetWordWrap(false)
     row.Tab = W.Text(row, "GameFontDisableSmall")
-    Place(row.Tab, row, "tab")
-    row.Tab:SetWidth(TAB_W)
     row.Tab:SetWordWrap(false)
     row.After = W.Text(row, "GameFontNormalSmall")
-    Place(row.After, row, "after")
-    row.After:SetWidth(AFTER_W)
     row.After:SetJustifyH("RIGHT")
     -- a gap spans the row from the name column on
     row.Gap = W.Text(row, "GameFontHighlightSmall")
-    Place(row.Gap, row, "who")
-    row.Gap:SetPoint("RIGHT", -4, 0)
     row.Gap:SetWordWrap(false)
     -- a click on the name lists only that member (and shows them in the box of one member's movements)
     row.Pick = CreateFrame("Button", nil, row)
-    row.Pick:SetPoint("TOPLEFT", COLS.who, 0)
-    row.Pick:SetPoint("BOTTOMLEFT", COLS.who, 0)
-    row.Pick:SetWidth(COLS.action - COLS.who - 6)
     row.Pick:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     row.Pick:SetScript("OnClick", function()
       local e = row.entry
@@ -596,8 +606,6 @@ local function Build(panel)
     end)
     -- the item's tooltip over its icon and name
     row.Hover = CreateFrame("Frame", nil, row)
-    row.Hover:SetPoint("TOPLEFT", COLS.what, 0)
-    row.Hover:SetPoint("BOTTOMRIGHT", COLS.tab - 6, 0)
     row.Hover:EnableMouse(true)
     row.Hover:SetScript("OnEnter", function(self)
       local e = row.entry
@@ -608,35 +616,51 @@ local function Build(panel)
     row.Hover:SetScript("OnLeave", function() GameTooltip:Hide() end)
   end, function(row, item)
     local e, bank = item.e, view.bank
+    local c = Arrange(row, row)
     row.entry = e
     row.When:SetText(Ago(e.ts))
     local gap = e.k == "gap"
     row.Gap:SetShown(gap)
-    for _, key in ipairs({ "Who", "Action", "Icon", "What", "Tab", "After", "Pick", "Hover" }) do row[key]:SetShown(not gap) end
     if gap then
+      for _, key in ipairs({ "Who", "Action", "Icon", "What", "Tab", "After", "Pick", "Hover" }) do row[key]:Hide() end
+      row.Gap:ClearAllPoints()
+      row.Gap:SetPoint("LEFT", row, "LEFT", c.who, 0)
+      row.Gap:SetPoint("RIGHT", row, "RIGHT", -4, 0)
       row.Gap:SetText(ORANGE .. L.BANK_GAP:format(B.LOG_LIMIT) .. "|r")
       return
     end
-    row.Who:SetText(Who(e.w))
-    row.Pick:SetShown(e.w ~= nil)
     local money = item.log == B.MONEY
+    row.Who:Show()
+    row.Who:SetText(Who(e.w))
+    row.Pick:ClearAllPoints()
+    row.Pick:SetPoint("TOPLEFT", c.who, 0)
+    row.Pick:SetPoint("BOTTOMLEFT", c.who, 0)
+    row.Pick:SetWidth(146)
+    row.Pick:SetShown(e.w ~= nil)
     local sign = GREY .. ">|r "
     if (money and B.PLUS[e.k]) or (not money and e.k == "deposit") then
       sign = GREEN .. "+|r "
     elseif (money and B.MINUS[e.k]) or (not money and e.k == "withdraw") then
       sign = RED .. "-|r "
     end
+    row.Action:Show()
     row.Action:SetText(sign .. Verb(e.k))
-    row.What:ClearAllPoints()
+    row.Icon:ClearAllPoints()
+    row.Icon:SetPoint("LEFT", row, "LEFT", c.what, 0)
     row.Icon:SetShown(not money)
+    row.Hover:ClearAllPoints()
+    row.Hover:SetPoint("TOPLEFT", c.what, 0)
+    row.Hover:SetPoint("BOTTOMRIGHT", c.right, 0)
     row.Hover:SetShown(not money)
+    row.What:Show()
+    row.What:ClearAllPoints()
+    row.What:SetPoint("LEFT", row, "LEFT", c.what + (money and 0 or ROW + 2), 0)
+    row.What:SetPoint("RIGHT", row, "RIGHT", c.right, 0)
     if money then
-      Place(row.What, row, "what")
       row.What:SetText(Money(e.c))
       row.Tab:SetText("|cffc9a34a" .. L.BANK_GOLD .. "|r")
       row.After:SetText(item.after and Money(item.after) or "")
     else
-      Place(row.What, row, "what", ROW + 2)
       row.Icon:SetTexture(ItemIcon(e.id))
       row.What:SetText(ItemText(e) .. "  |cffffd100x " .. (e.n or 1) .. "|r")
       local name = TabName(bank, e.a)
@@ -644,7 +668,6 @@ local function Build(panel)
       row.Tab:SetText(name)
       row.After:SetText("")
     end
-    row.What:SetPoint("RIGHT", row, "RIGHT", COLS.tab - 6, 0)
   end)
   view.List:SetPoint("TOPLEFT", 8, -46)
   view.List:SetPoint("BOTTOMRIGHT", -28, 8)
@@ -653,39 +676,34 @@ local function Build(panel)
   view.Empty:SetPoint("RIGHT", -24, 0)
   view.Empty:SetJustifyH("CENTER")
 
-  -- every box on the board: the size a new one gets and the smallest it works at, in cells
-  view.More = UI.BankWidgets(board, view)
-  board:Add("total", total, L.BANK_TOTAL, { 3, 4 }, { 3, 4 })
-  board:Add("tabs", tabs, L.BANK_TABS, { 3, 4 }, { 3, 3 })
-  board:Add("access", access, L.BANK_ACCESS, { 3, 4 }, { 3, 3 })
-  board:Add("chart", view.Chart, L.BANK_CHART, { 8, 4 }, { 4, 3 })
-  board:Add("ledger", book, L.BANK_LEDGER, { 9, 6 }, { 8, 3 })
-  board:Add("tiles", view.More.tiles, L.BANK_TILES, { 12, 2 }, { 8, 2 })
-  board:Add("balance", view.More.balance, L.BANK_BALANCE, { 8, 6 }, { 8, 4 })
-  board:Add("detail", view.More.detail, L.BANK_DETAIL, { 4, 6 }, { 4, 4 })
-  board:Add("largest", view.More.largest, L.BANK_LARGEST, { 4, 4 }, { 3, 3 })
-  board:Add("givers", view.More.givers, L.BANK_GIVERS, { 4, 4 }, { 3, 3 })
-
-  -- the boxes that are not on the board
-  function view:AddItems()
-    local items = {}
-    for _, key in ipairs(board.order) do
-      if not board.placed[key] then
-        items[#items + 1] = { text = board.defs[key].name, onClick = function() board:Insert(key) end }
-      end
-    end
-    if #items == 0 then items[1] = { text = L.BANK_EDIT_ALL, disabled = true } end
-    return items
-  end
-
-  function view:PresetItems()
-    local names = { ledger = L.BANK_LEDGER, members = L.TAB_MEMBERS, overview = L.TAB_OVERVIEW }
-    local items = {}
-    for _, name in ipairs(UI.BANK_PRESET_ORDER) do
-      items[#items + 1] = { text = names[name], onClick = function() board:Preset(name) end }
-    end
-    return items
-  end
+  -- every box of the board: what it is, the size a new one gets and the smallest it works at (in cells),
+  -- and what can be switched off in it
+  local function On(o, key) return o[key] ~= false and 1 or 0 end
+  view.More = UI.BankWidgets(holder, view)
+  board:Add("total", total, { name = L.BANK_TOTAL, about = L.BANK_ABOUT_TOTAL, size = { 3, 4 }, min = { 3, 4 } })
+  board:Add("tabs", tabs, { name = L.BANK_TABS, about = L.BANK_ABOUT_TABS, size = { 3, 4 }, min = { 3, 3 } })
+  board:Add("access", access, { name = L.BANK_ACCESS, about = L.BANK_ABOUT_ACCESS, size = { 3, 4 }, min = { 3, 3 } })
+  board:Add("chart", view.Chart, { name = L.BANK_CHART, about = L.BANK_ABOUT_CHART, size = { 8, 4 }, min = { 4, 3 },
+    options = { { "marks", L.OPTIONS_BANK_MARKS_HEAD }, { "bars", L.BANK_OPT_BARS } } })
+  board:Add("ledger", book, { name = L.BANK_LEDGER, about = L.BANK_ABOUT_LEDGER, size = { 9, 6 },
+    min = function(o)
+      local side = On(o, "tab") + On(o, "after")
+      return { 5 + On(o, "when") + side, 3 }
+    end,
+    options = { { "when", L.BANK_COL_WHEN }, { "tab", L.BANK_COL_TAB }, { "after", L.BANK_COL_AFTER } } })
+  board:Add("tiles", view.More.tiles, { name = L.BANK_TILES, about = L.BANK_ABOUT_TILES, size = { 12, 2 },
+    min = function(o)
+      local count = On(o, "gold") + On(o, "paid") + On(o, "taken") + On(o, "repairs") + On(o, "slots")
+      return { math.max(3, math.ceil(count * 1.6)), 2 }
+    end,
+    options = { { "gold", L.BANK_GOLD }, { "paid", L.BANK_SUM_PAID }, { "taken", L.BANK_SUM_TAKEN },
+      { "repairs", L.BANK_SUM_REPAIRS }, { "slots", L.BANK_TABS_HINT } } })
+  board:Add("balance", view.More.balance, { name = L.BANK_BALANCE, about = L.BANK_ABOUT_BALANCE, size = { 8, 6 },
+    min = function(o) return { 5 + On(o, "rank") + On(o, "items") + On(o, "last"), 4 } end,
+    options = { { "rank", L.COL_RANK }, { "items", L.BANK_ITEMS }, { "last", L.BANK_COL_LAST } } })
+  board:Add("detail", view.More.detail, { name = L.BANK_DETAIL, about = L.BANK_ABOUT_DETAIL, size = { 4, 6 }, min = { 4, 4 } })
+  board:Add("largest", view.More.largest, { name = L.BANK_LARGEST, about = L.BANK_ABOUT_LARGEST, size = { 4, 4 }, min = { 3, 3 } })
+  board:Add("givers", view.More.givers, { name = L.BANK_GIVERS, about = L.BANK_ABOUT_GIVERS, size = { 4, 4 }, min = { 3, 3 } })
 
   function view:OnHide()
     if board.editing then board:SetEditing(false) end
@@ -704,15 +722,12 @@ local function Build(panel)
 
     -- toolbar
     self.Period:SetValue(days)
-    self.Edit:SetText(editing and L.BANK_EDIT_DONE or L.BANK_EDIT)
-    self.Add:SetShown(editing)
-    self.Preset:SetShown(editing)
     self.Only:SetShown(self.filter.who ~= nil)
     if self.filter.who then self.Only:SetText(L.BANK_ONLY:format(ns.Anon.Name(self.filter.whoName))) end
     self.Status:ClearAllPoints()
-    self.Status:SetPoint("RIGHT", editing and self.Preset or self.Edit, "LEFT", -12, 0)
+    self.Status:SetPoint("RIGHT", editing and board.Presets or board.Edit, "LEFT", -12, 0)
     self.Status:SetPoint("LEFT", self.Only, self.filter.who and "RIGHT" or "LEFT", 12, 0)
-    self.Status:SetText(editing and L.BANK_EDIT_HINT
+    self.Status:SetText(editing and L.BOARD_HINT
       or known and L.BANK_STATUS:format(Ago(bank.at), Who(bank.by)) or L.BANK_STATUS_NONE)
 
     -- the tabs: the list in their box and the buttons in the toolbar
@@ -817,6 +832,7 @@ local function Build(panel)
 
     if placed.ledger then
       local ledger = known and B.Ledger(bank, self.filter) or {}
+      self:ArrangeHead()
       self.List:SetItems(ledger)
       self.Count:SetText(L.BANK_ENTRIES:format(#ledger))
       self.Empty:SetShown(#ledger == 0)

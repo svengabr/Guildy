@@ -168,11 +168,8 @@ T.describe("Guild bank", function()
     T.eq(errors, {})
   end)
 
-  T.it("marks large movements in the chart as the options say and looks back the chosen days", function()
+  T.it("marks large movements in the chart and looks back the chosen days", function()
     local view = ns.UI.TabView("bank")
-    ns.UI.ShowOptions("bank")
-    local panel = ns.UI.Options().Panels.bank
-    T.eq(panel.Marks:GetChecked(), true)
     local function Marks()
       local shown = 0
       for _, mark in ipairs(view.Chart.Marks) do
@@ -189,11 +186,14 @@ T.describe("Guild bank", function()
     ns.UI.SetBankSetting("share", 0.005) -- the repair in between never counts
     view:Refresh()
     T.eq(Marks(), 2)
-    panel.Marks:SetChecked(false)
-    panel.Marks:GetScript("OnClick")(panel.Marks)
+    -- the chart's own option switches them off
+    T.eq(view.board:Toggle("chart", "marks"), true)
+    T.eq(view.Chart.opts, { marks = false })
     T.eq(Marks(), 0)
-    ns.UI.SetBankSetting("marks", nil)
+    T.eq(view.board:Toggle("chart", "marks"), true)
+    T.eq(Marks(), 2)
     ns.UI.SetBankSetting("share", nil)
+    ns.UI.SetBankSetting("layout", nil)
     T.eq(ns.Settings().bank, nil) -- nothing differs from what Guildy ships: nothing is stored
     -- the days: chosen in the toolbar, for every box
     T.eq(view.Period.buttons[1].value, 7)
@@ -203,43 +203,76 @@ T.describe("Guild bank", function()
     T.eq(view.SumsLabel:GetText(), ns.L.BANK_WEEK:format(7))
     view.Period.buttons[2]:GetScript("OnClick")(view.Period.buttons[2])
     T.eq(ns.UI.BankSetting("days"), nil)
-    ns.UI.HideOptions()
     T.eq(errors, {})
   end)
 
-  T.it("adds, removes, moves and sizes its boxes in edit mode", function()
+  T.it("adds boxes at the free places, with a preview, and removes, moves and sizes them", function()
     local view = ns.UI.TabView("bank")
     local board = view.board
     local function Has(key) return board.placed[key] ~= nil end
+    local function Row(key)
+      for _, row in ipairs(board:PickRows()) do
+        if row.key == key then return row end
+      end
+    end
+    view.pick, view.pickName = nil, nil -- (an earlier click on a name in the ledger picked someone)
     -- the ledger preset to start with
     T.eq(Has("ledger") and Has("chart") and Has("total") and Has("tabs") and Has("access"), true)
     T.eq(Has("balance"), false)
     T.eq(view.More.balance:IsShown(), false)
-    T.eq(view.Add:IsShown(), false)
-    view.Edit:GetScript("OnClick")(view.Edit)
+    T.eq(#board:Slots(), 0)
+    board.Edit:GetScript("OnClick")(board.Edit)
     T.eq(board.editing, true)
-    T.eq(view.Add:IsShown(), true)
-    T.eq(view.Edit:GetText(), ns.L.BANK_EDIT_DONE)
+    T.eq(board.Edit:GetText(), ns.L.BOARD_DONE)
+    T.eq(board.Presets:IsShown(), true)
     T.eq(board.defs.ledger.Cover:IsShown(), true)
-    -- every box that is not on the board is on offer; the board is full
-    local offered = {}
-    for _, item in ipairs(view:AddItems()) do offered[#offered + 1] = item.text end
-    T.eq(#offered, 5)
-    T.eq(board:Insert("givers"), false)
-    -- remove one: its room is free for another
+    -- the tab is full: the one free place is the row under everything, and anything fits there
+    local slots = board:Slots()
+    T.eq(#slots, 1)
+    T.eq(slots[1].gap.tail, true)
+    slots[1]:GetScript("OnClick")(slots[1])
+    T.eq(#board:PickRows(), 5)
+    -- the box under the mouse shows where it will stand, filled, and goes when the mouse leaves
+    local row = Row("balance")
+    row:GetScript("OnEnter")(row)
+    T.eq(Has("balance"), true)
+    T.eq(view.More.balance:IsShown(), true)
+    T.eq(#view.More.balance.List.items, 4)
+    T.eq(ns.Settings().bank, nil)
+    row:GetScript("OnLeave")(row)
+    T.eq(Has("balance"), false)
+    -- a click puts it there
+    row:GetScript("OnClick")(row)
+    T.eq(board.placed.balance, { k = "balance", x = 0, y = 12, w = 8, h = 6 })
+    T.eq(#board:PickRows(), 0)
+    -- a box removed leaves a free place among the others; only what fits it stands first
     board.defs.access.Cover.Remove:GetScript("OnClick")(board.defs.access.Cover.Remove)
     T.eq(Has("access"), false)
     T.eq(view.Access:IsShown(), false)
-    T.eq(board:Insert("givers"), true)
-    T.eq(board.placed.givers, { k = "givers", x = 0, y = 7, w = 3, h = 3 }) -- at its smallest: more does not fit
-    T.eq(view.More.givers:IsShown(), true)
+    slots = board:Slots()
+    T.eq(#slots, 3) -- that place, the room beside the member table, and the row under everything
+    T.eq(slots[1].gap, { x = 0, y = 7, w = 3, h = 5 })
+    T.eq(board:Offers(slots[1].gap), { { key = "access", fits = true }, { key = "largest", fits = true },
+      { key = "givers", fits = true }, { key = "tiles", fits = false }, { key = "detail", fits = false } })
+    slots[1]:GetScript("OnClick")(slots[1])
+    row = Row("givers")
+    row:GetScript("OnEnter")(row)
+    row:GetScript("OnClick")(row)
+    T.eq(board.placed.givers, { k = "givers", x = 0, y = 7, w = 3, h = 4 })
     T.eq(#view.More.givers.List.items, 1) -- Makira paid in
-    -- drag its corner: two rows taller (the stubbed board is 100 wide and high: 9 px a cell)
+    -- a box too large for a place goes under everything instead
+    slots = board:Slots()
+    slots[1]:GetScript("OnClick")(slots[1])
+    row = Row("tiles")
+    T.truthy(row.About:GetText():find("8 x 2", 1, true), row.About:GetText())
+    row:GetScript("OnClick")(row)
+    T.eq(board.placed.tiles, { k = "tiles", x = 0, y = 18, w = 12, h = 2 })
+    -- drag a corner: one row taller
     local x, y, down = 100, 100, true
     env.GetCursorPosition = function() return x, y end
     env.IsMouseButtonDown = function() return down end
     board:Start("size", "givers")
-    y = 100 - 2 * 9
+    y = 100 - board.ch
     board:Track()
     T.eq(board.Ghost:IsShown(), true)
     down = false
@@ -249,7 +282,7 @@ T.describe("Guild bank", function()
     -- drag it onto another box: it stays where it was
     down, x, y = true, 100, 100
     board:Start("move", "givers")
-    y = 100 + 4 * 9
+    y = 100 + 4 * board.ch
     board:Track()
     down = false
     board:Track()
@@ -257,16 +290,61 @@ T.describe("Guild bank", function()
     -- never smaller than it works at
     down, x, y = true, 100, 100
     board:Start("size", "givers")
-    x, y = 0, 300
+    x, y = 0, 900
     board:Track()
     down = false
     board:Track()
     T.eq({ board.placed.givers.w, board.placed.givers.h }, { 3, 3 })
-    -- a preset: the members
-    local presets = view:PresetItems()
-    T.eq(#presets, 3)
-    view.pick, view.pickName = nil, nil -- (an earlier click on a name in the ledger picked someone)
-    presets[2].onClick()
+    env.GetCursorPosition = function() return 100, 100 end
+    env.IsMouseButtonDown = function() return false end
+    T.eq(errors, {})
+  end)
+
+  T.it("makes boxes narrower by switching columns off", function()
+    local view = ns.UI.TabView("bank")
+    local board = view.board
+    board:Preset(nil)
+    local items = board:OptionItems("ledger")
+    T.eq(#items, 4) -- its name and three columns
+    T.eq(items[3].checked, true)
+    T.eq(view.Head.Tab:IsShown(), true)
+    items[3].onClick()
+    T.eq(board.placed.ledger.o, { tab = false })
+    T.eq(view.Head.Tab:IsShown(), false)
+    T.eq(view.List.rows[1].Tab:IsShown(), false)
+    T.eq(view.List.rows[1].After:IsShown(), true)
+    T.eq(board:OptionItems("ledger")[3].checked, false)
+    -- without two columns it stands on six cells instead of eight
+    board:Toggle("ledger", "after")
+    local layout = ns.Settings().bank.layout
+    for _, item in ipairs(layout) do
+      if item.k == "ledger" then item.w = 6 end
+    end
+    board:Apply()
+    T.eq(board.placed.ledger.w, 6)
+    -- switching one on again makes it a cell wider, as there is room
+    T.eq(board:Toggle("ledger", "after"), true)
+    T.eq(board.placed.ledger.w, 7)
+    T.eq(board.placed.ledger.o, { tab = false })
+    -- the member table and the figures likewise
+    board:Preset(ns.UI.BANK_PRESETS.overview)
+    board:Toggle("tiles", "repairs")
+    T.eq(view.More.tiles.Tiles.repairs:IsShown(), false)
+    T.eq(view.More.tiles.Tiles.gold:IsShown(), true)
+    board:Preset(ns.UI.BANK_PRESETS.members)
+    T.eq(view.More.balance.Heads.rankIndex:IsShown(), true)
+    board:Toggle("balance", "rank")
+    T.eq(view.More.balance.Heads.rankIndex:IsShown(), false)
+    T.eq(view.More.balance.List.rows[1].Cells.rankIndex:IsShown(), false)
+    T.eq(errors, {})
+  end)
+
+  T.it("shows the members, their movements and the figures from the presets", function()
+    local view = ns.UI.TabView("bank")
+    local board = view.board
+    local function Has(key) return board.placed[key] ~= nil end
+    view.pick, view.pickName = nil, nil
+    board:Preset(ns.UI.BANK_PRESETS.members)
     T.eq(Has("balance") and Has("detail") and Has("largest"), true)
     T.eq(Has("ledger"), false)
     T.eq(#view.More.balance.List.items, 4)
@@ -279,28 +357,29 @@ T.describe("Guild bank", function()
     T.truthy(#view.More.detail.List.items >= 1, "the member's movements")
     -- a click on a heading sorts
     local heads = view.More.balance.Heads
-    heads[1]:GetScript("OnClick")(heads[1])
+    heads.name:GetScript("OnClick")(heads.name)
     T.eq(view.More.balance.sort, "name")
     T.eq(view.More.balance.List.items[1].name, "Au Tsch")
     T.eq(#view.More.largest.List.items, 3)
     -- the overview, with the figures in a row
-    presets[3].onClick()
+    board:Preset(ns.UI.BANK_PRESETS.overview)
     T.eq(Has("tiles") and Has("givers") and Has("ledger"), true)
-    T.truthy(view.More.tiles.Tiles[1].Value:GetText():find("1,234", 1, true) or view.More.tiles.Tiles[1].Value:GetText():find("1234", 1, true),
-      view.More.tiles.Tiles[1].Value:GetText())
-    -- everything removed: a hint instead of an empty tab
+    local gold = view.More.tiles.Tiles.gold.Value:GetText()
+    T.truthy(gold:find("1,234", 1, true) or gold:find("1234", 1, true), gold)
+    -- everything removed: free places while customizing, a hint afterwards
     for _, key in ipairs({ "tiles", "chart", "givers", "ledger", "tabs" }) do board:Remove(key) end
     T.eq(ns.Settings().bank.layout, {})
-    T.eq(board.Empty:IsShown(), true)
-    -- back to the ledger: nothing is stored for what Guildy ships
-    presets[1].onClick()
-    T.eq(ns.Settings().bank, nil)
-    view.Edit:GetScript("OnClick")(view.Edit)
+    T.eq(board.Empty:IsShown(), false)
+    T.eq(#board:Slots(), 2)
+    board.Edit:GetScript("OnClick")(board.Edit)
     T.eq(board.editing, false)
+    T.eq(board.Empty:IsShown(), true)
+    T.eq(#board:Slots(), 0)
+    -- back to the ledger: nothing is stored for what Guildy ships
+    board:Preset(nil)
+    T.eq(ns.Settings().bank, nil)
     T.eq(board.defs.ledger.Cover:IsShown(), false)
     T.eq(#view.List.items, 6)
-    env.GetCursorPosition = function() return 100, 100 end
-    env.IsMouseButtonDown = function() return false end
     T.eq(errors, {})
   end)
 

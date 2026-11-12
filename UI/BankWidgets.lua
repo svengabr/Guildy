@@ -1,4 +1,4 @@
--- More boxes for the board of the Bank tab (UI/BankBoard.lua, UI/TabBank.lua), all from the stored
+-- More boxes for the board of the Bank tab (UI/Board.lua, UI/TabBank.lua), all from the stored
 -- logs: the figures in a row, what every member gave and took, one member's movements, the largest
 -- withdrawals and the largest depositors. Each has Fill(ctx) with ctx = { bank, known, now, days }.
 local _, ns = ...
@@ -41,20 +41,27 @@ function UI.BankWidgets(parent, view)
     return GREY .. ">|r "
   end
 
-  -- figures in a row -------------------------------------------------------------------------------
+  -- figures in a row: each can be switched off in the box's options ----------------------------------
   local tiles = CreateFrame("Frame", nil, parent)
+  local TILES = { "gold", "paid", "taken", "repairs", "slots" }
   tiles.Tiles = {}
-  for i = 1, 5 do
+  for _, key in ipairs(TILES) do
     local tile = W.Box(tiles)
     tile.Value = W.Text(tile, "GameFontNormalHuge")
     tile.Value:SetPoint("CENTER", 0, 9)
     tile.Label = W.Text(tile, "GameFontDisableSmall")
     tile.Label:SetPoint("CENTER", 0, -16)
-    tiles.Tiles[i] = tile
+    tiles.Tiles[key] = tile
   end
   local function PlaceTiles()
-    local each = math.max(1, ((tiles:GetWidth() or 0) - 4 * W.GAP) / 5)
-    for i, tile in ipairs(tiles.Tiles) do
+    local shown = {}
+    for _, key in ipairs(TILES) do
+      local on = (tiles.opts or {})[key] ~= false
+      tiles.Tiles[key]:SetShown(on)
+      if on then shown[#shown + 1] = tiles.Tiles[key] end
+    end
+    local each = math.max(1, ((tiles:GetWidth() or 0) - (#shown - 1) * W.GAP) / math.max(1, #shown))
+    for i, tile in ipairs(shown) do
       tile:ClearAllPoints()
       tile:SetPoint("TOPLEFT", (i - 1) * (each + W.GAP), 0)
       tile:SetPoint("BOTTOM", 0, 0)
@@ -62,27 +69,27 @@ function UI.BankWidgets(parent, view)
     end
   end
   tiles:SetScript("OnSizeChanged", PlaceTiles)
-  PlaceTiles()
   function tiles:Fill(ctx)
+    PlaceTiles()
     local none = GREY .. "?|r"
     local sums = ctx.known and B.Sums(ctx.bank, ctx.now, ctx.days)
     local used, room, tabs = 0, 0, 0
     if ctx.known then used, room, tabs = B.Slots(ctx.bank) end
     local values = {
-      { ctx.known and ctx.bank.money and H.Money(ctx.bank.money) or none, L.BANK_CHART },
-      { sums and (GREEN .. "+" .. H.Money(sums.paid) .. "|r") or none, L.BANK_TILE_PAID:format(ctx.days) },
-      { sums and (RED .. "-" .. H.Money(sums.taken) .. "|r") or none, L.BANK_TILE_TAKEN:format(ctx.days) },
-      { sums and (RED .. "-" .. H.Money(sums.repairs) .. "|r") or none, L.BANK_TILE_REPAIRS:format(ctx.days) },
-      { ctx.known and (used .. GREY .. " / " .. room .. "|r") or none, L.BANK_TILE_SLOTS:format(tabs) },
+      gold = { ctx.known and ctx.bank.money and H.Money(ctx.bank.money) or none, L.BANK_CHART },
+      paid = { sums and (GREEN .. "+" .. H.Money(sums.paid) .. "|r") or none, L.BANK_TILE_PAID:format(ctx.days) },
+      taken = { sums and (RED .. "-" .. H.Money(sums.taken) .. "|r") or none, L.BANK_TILE_TAKEN:format(ctx.days) },
+      repairs = { sums and (RED .. "-" .. H.Money(sums.repairs) .. "|r") or none, L.BANK_TILE_REPAIRS:format(ctx.days) },
+      slots = { ctx.known and (used .. GREY .. " / " .. room .. "|r") or none, L.BANK_TILE_SLOTS:format(tabs) },
     }
-    for i, tile in ipairs(self.Tiles) do
-      tile.Value:SetText(values[i][1])
-      tile.Label:SetText(values[i][2])
+    for key, tile in pairs(self.Tiles) do
+      tile.Value:SetText(values[key][1])
+      tile.Label:SetText(values[key][2])
     end
   end
   widgets.tiles = tiles
 
-  -- who gives, who takes ---------------------------------------------------------------------------
+  -- who gives, who takes: rank, items and "last" can be switched off in the box's options -----------
   local balance = W.Box(parent)
   local balanceTitle = W.Text(balance, "GameFontNormal", L.BANK_BALANCE)
   balanceTitle:SetPoint("TOPLEFT", 10, -8)
@@ -93,58 +100,81 @@ function UI.BankWidgets(parent, view)
   balanceHint:SetPoint("RIGHT", balance.Count, "LEFT", -8, 0)
   balanceHint:SetWordWrap(false)
   balance.sort, balance.desc = "net", true
-  -- key, heading, side, x, width
-  local COLS = {
-    { "name", L.COL_NAME, "LEFT", 4, 140 }, { "rankIndex", L.COL_RANK, "LEFT", 146, 80 },
-    { "paid", L.BANK_COL_PAID, "RIGHT", -362, 84 }, { "taken", L.BANK_COL_TAKEN, "RIGHT", -274, 84 },
-    { "net", L.BANK_COL_NET, "RIGHT", -176, 94 }, { "itemsIn", L.BANK_COL_IN, "RIGHT", -122, 50 },
-    { "itemsOut", "-", "RIGHT", -78, 40 }, { "last", L.BANK_COL_LAST, "RIGHT", -4, 70 },
-  }
-  local NET_X, NET_HALF = -223, 44
-  local function Place(region, parentFrame, col)
-    region:SetPoint(col[3], parentFrame, col[3], col[4], 0)
-    region:SetWidth(col[5])
+  local KEYS = { "name", "rankIndex", "paid", "taken", "net", "itemsIn", "itemsOut", "last" }
+  local HEADS = { name = L.COL_NAME, rankIndex = L.COL_RANK, paid = L.BANK_COL_PAID, taken = L.BANK_COL_TAKEN,
+    net = L.BANK_COL_NET, itemsIn = L.BANK_COL_IN, itemsOut = "-", last = L.BANK_COL_LAST }
+  local NET_HALF = 44
+  -- where each column stands: { side, x, width }; the right ones are counted in from the right edge
+  local function Cols()
+    local o = balance.opts or {}
+    local c = { name = { "LEFT", 4, 140 } }
+    if o.rank ~= false then c.rankIndex = { "LEFT", 146, 80 } end
+    local r = -4
+    local function Right(key, width)
+      c[key] = { "RIGHT", r, width }
+      r = r - width - 4
+    end
+    if o.last ~= false then Right("last", 70) end
+    if o.items ~= false then
+      Right("itemsOut", 40)
+      Right("itemsIn", 50)
+    end
+    Right("net", 94)
+    Right("taken", 84)
+    Right("paid", 84)
+    c.netX = c.net[2] - 47
+    return c
+  end
+  local function Arrange(owner, cells, c)
+    for _, key in ipairs(KEYS) do
+      local cell, col = cells[key], c[key]
+      if cell then
+        cell:SetShown(col ~= nil)
+        if col then
+          cell:ClearAllPoints()
+          cell:SetPoint(col[1], owner, col[1], col[2], 0)
+          cell:SetWidth(col[3])
+        end
+      end
+    end
   end
   local head = CreateFrame("Frame", nil, balance)
   head:SetPoint("TOPLEFT", 8, -28)
   head:SetPoint("RIGHT", -28, 0)
   head:SetHeight(16)
   balance.Heads = {}
-  for i, col in ipairs(COLS) do
+  for _, key in ipairs(KEYS) do
     local button = CreateFrame("Button", nil, head)
     button:SetHeight(16)
-    Place(button, head, col)
-    button.Text = W.Text(button, "GameFontDisableSmall", col[2])
+    button.Text = W.Text(button, "GameFontDisableSmall", HEADS[key])
     button.Text:SetAllPoints()
-    button.Text:SetJustifyH(col[1] == "net" and "CENTER" or col[3])
+    button.Text:SetJustifyH(key == "net" and "CENTER" or (key == "name" or key == "rankIndex") and "LEFT" or "RIGHT")
     button:SetScript("OnClick", function()
-      if balance.sort == col[1] then
+      if balance.sort == key then
         balance.desc = not balance.desc
       else
-        balance.sort, balance.desc = col[1], col[1] ~= "name" and col[1] ~= "rankIndex"
+        balance.sort, balance.desc = key, key ~= "name" and key ~= "rankIndex"
       end
       view:Refresh()
     end)
-    balance.Heads[i] = button
+    balance.Heads[key] = button
   end
   balance.List = W.ScrollList(balance, ROW, function(row)
     row.Picked = row:CreateTexture(nil, "BORDER")
     row.Picked:SetAllPoints()
     row.Picked:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.28)
     row.Cells = {}
-    for _, col in ipairs(COLS) do
-      if col[1] ~= "net" then
-        local cell = W.Text(row, col[1] == "rankIndex" and "GameFontDisableSmall" or "GameFontHighlightSmall")
-        Place(cell, row, col)
-        cell:SetJustifyH(col[3])
+    for _, key in ipairs(KEYS) do
+      if key ~= "net" then
+        local cell = W.Text(row, key == "rankIndex" and "GameFontDisableSmall" or "GameFontHighlightSmall")
+        cell:SetJustifyH((key == "name" or key == "rankIndex") and "LEFT" or "RIGHT")
         cell:SetWordWrap(false)
-        row.Cells[col[1]] = cell
+        row.Cells[key] = cell
       end
     end
     row.Mid = row:CreateTexture(nil, "ARTWORK")
     row.Mid:SetColorTexture(0.43, 0.41, 0.35, 1)
     row.Mid:SetSize(1, ROW - 4)
-    row.Mid:SetPoint("CENTER", row, "RIGHT", NET_X, 0)
     row.Bar = row:CreateTexture(nil, "ARTWORK")
     row.Bar:SetHeight(ROW - 10)
     row.Click = CreateFrame("Button", nil, row)
@@ -157,6 +187,8 @@ function UI.BankWidgets(parent, view)
       view:Refresh()
     end)
   end, function(row, m)
+    local c = balance.cols
+    Arrange(row, row.Cells, c)
     row.member = m
     row.Picked:SetShown(view.pick == m.key)
     local none = GREY .. "-|r"
@@ -167,14 +199,16 @@ function UI.BankWidgets(parent, view)
     row.Cells.itemsIn:SetText(m.itemsIn > 0 and (GREEN .. "+" .. m.itemsIn .. "|r") or none)
     row.Cells.itemsOut:SetText(m.itemsOut > 0 and (RED .. "-" .. m.itemsOut .. "|r") or none)
     row.Cells.last:SetText(GREY .. H.Ago(m.last) .. "|r")
+    row.Mid:ClearAllPoints()
+    row.Mid:SetPoint("CENTER", row, "RIGHT", c.netX, 0)
     local peak = balance.peak or 0
     row.Bar:SetShown(m.net ~= 0 and peak > 0)
     row.Bar:ClearAllPoints()
     if m.net >= 0 then
-      row.Bar:SetPoint("LEFT", row, "RIGHT", NET_X, 0)
+      row.Bar:SetPoint("LEFT", row, "RIGHT", c.netX, 0)
       row.Bar:SetColorTexture(0.25, 0.88, 0.25, 0.8)
     else
-      row.Bar:SetPoint("RIGHT", row, "RIGHT", NET_X, 0)
+      row.Bar:SetPoint("RIGHT", row, "RIGHT", c.netX, 0)
       row.Bar:SetColorTexture(1, 0.35, 0.29, 0.85)
     end
     row.Bar:SetWidth(math.max(1, NET_HALF * math.abs(m.net) / math.max(1, peak)))
@@ -184,6 +218,8 @@ function UI.BankWidgets(parent, view)
   balance.Empty = W.Text(balance, "GameFontDisable", L.BANK_BALANCE_NONE)
   balance.Empty:SetPoint("TOPLEFT", 12, -52)
   function balance:Fill(ctx)
+    self.cols = Cols()
+    Arrange(head, self.Heads, self.cols)
     local list = ctx.known and B.Balance(ctx.bank, ctx.now, ctx.days) or {}
     local peak = 0
     for _, m in ipairs(list) do

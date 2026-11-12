@@ -38,7 +38,9 @@ local page    -- a page shown instead of a tab (UI.ShowPage); kept while the win
 
 -- overview needs ~520 px height; the Hall of Fame's dungeon table needs ~1130 px width for all 32
 -- dungeons and raids at 26 px each (UI/TabFame.lua)
-UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 1130, 560, 1600, 1000
+-- no fixed upper limit: the window may be as large as the screen (the grip stops there, UI/Widgets.lua),
+-- which gives the boards of the tabs more room on a large monitor
+UI.MIN_W, UI.MIN_H, UI.MAX_W, UI.MAX_H = 1130, 560, 4000, 2400
 
 -- Tab modules call this at load time; builder(panel) returns a view with Refresh(event) and optional
 -- OnShow() / OnHide(). side: no button in the bottom row (reached by a side tab, the communities)

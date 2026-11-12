@@ -420,13 +420,8 @@ local function BuildBank(panel)
 
   local marksHead = W.Text(panel, "GameFontNormal", L.OPTIONS_BANK_MARKS_HEAD)
   marksHead:SetPoint("TOPLEFT", openTip, "BOTTOMLEFT", -28, -20)
-  panel.Marks = Check(panel, L.OPTIONS_BANK_MARKS, function(self)
-    UI.SetBankSetting("marks", Off(self))
-    RefreshTab("bank")
-  end)
-  panel.Marks:SetPoint("TOPLEFT", marksHead, "BOTTOMLEFT", 2, -8)
   local shareLabel = W.Text(panel, "GameFontHighlightSmall", L.OPTIONS_BANK_SHARE)
-  shareLabel:SetPoint("TOPLEFT", panel.Marks, "BOTTOMLEFT", 4, -10)
+  shareLabel:SetPoint("TOPLEFT", marksHead, "BOTTOMLEFT", 4, -12)
   local shares = {}
   for i, share in ipairs(UI.BANK_SHARES) do shares[i] = { value = share, text = math.floor(share * 100 + 0.5) .. "%" } end
   panel.Share = W.Segmented(panel, shares, function(value)
@@ -438,14 +433,13 @@ local function BuildBank(panel)
   marksTip:SetPoint("TOPLEFT", shareLabel, "BOTTOMLEFT", 0, -14)
   marksTip:SetPoint("RIGHT", -12, 0)
 
-  -- which boxes the tab shows, where and how large, is set on the tab itself (UI/BankBoard.lua)
+  -- which boxes the tab shows, where and how large, is set on the tab itself (UI/Board.lua)
   local tip = W.Text(panel, "GameFontDisableSmall", L.OPTIONS_BANK_TIP)
   tip:SetPoint("TOPLEFT", marksTip, "BOTTOMLEFT", 0, -22)
   tip:SetPoint("RIGHT", -12, 0)
 
   function panel:Refresh()
     self.Open:SetChecked(ns.Settings().bankOpen ~= false)
-    self.Marks:SetChecked(UI.BankSetting("marks") ~= false)
     self.Share:SetValue(UI.BankSetting("share") or 0.25)
   end
 end

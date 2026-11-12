@@ -324,37 +324,6 @@ T.describe("Bank per member", function()
   end)
 end)
 
-T.describe("Bank grid", function()
-  local layout = { { k = "a", x = 0, y = 0, w = 3, h = 4 }, { k = "b", x = 3, y = 0, w = 9, h = 12 } }
-  local mins = { a = { 3, 3 }, b = { 4, 3 }, c = { 3, 3 } }
-
-  T.it("lets a box stand only inside the grid and on no other", function()
-    T.eq(Bank.GridFits(layout, { k = "c", x = 0, y = 4, w = 3, h = 8 }), true)
-    T.eq(Bank.GridFits(layout, { k = "c", x = 0, y = 3, w = 3, h = 3 }), false)
-    T.eq(Bank.GridFits(layout, { k = "c", x = 0, y = 4, w = 4, h = 3 }), false)
-    T.eq(Bank.GridFits(layout, { k = "c", x = 0, y = 10, w = 3, h = 3 }), false)
-    T.eq(Bank.GridFits(layout, { k = "c", x = -1, y = 4, w = 3, h = 3 }), false)
-    T.eq(Bank.GridFits(layout, { k = "a", x = 0, y = 1, w = 3, h = 4 }), true) -- its own place is no obstacle
-  end)
-
-  T.it("finds the first free spot for a new box, smaller if it must", function()
-    T.eq(Bank.GridSpot(layout, "c", 3, 5, 3, 3), { k = "c", x = 0, y = 4, w = 3, h = 5 })
-    T.eq(Bank.GridSpot(layout, "c", 4, 5, 3, 3), { k = "c", x = 0, y = 4, w = 3, h = 3 })
-    T.eq(Bank.GridSpot({ { k = "b", x = 0, y = 0, w = 12, h = 12 } }, "c", 3, 3, 3, 3), nil)
-    T.eq(Bank.GridSpot({}, "c", 3, 3, 3, 3), { k = "c", x = 0, y = 0, w = 3, h = 3 })
-  end)
-
-  T.it("takes a saved layout only as far as it makes sense", function()
-    T.eq(Bank.GridClean(nil, mins), nil)
-    T.eq(Bank.GridClean("x", mins), nil)
-    T.eq(Bank.GridClean({}, mins), {})
-    T.eq(Bank.GridClean(layout, mins), layout)
-    T.eq(Bank.GridClean({ layout[1], { k = "gone", x = 5, y = 0, w = 3, h = 3 }, { k = "a", x = 6, y = 6, w = 3, h = 3 },
-      { k = "b", x = 2, y = 0, w = 9, h = 12 }, { k = "c", x = 0, y = 4, w = 2, h = 3 }, "junk",
-      { k = "c", x = 0.5, y = 4, w = 3, h = 30 } }, mins), { layout[1] })
-  end)
-end)
-
 T.describe("Bank sharing", function()
   local function Sample()
     local bank = Bank.Get({})

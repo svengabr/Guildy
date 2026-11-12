@@ -38,6 +38,7 @@ Core\Search.lua
 Core\Protocol.lua
 Core\Manage.lua
 Core\Bank.lua
+Core\Grid.lua
 Core\Stats.lua
 Core\Family.lua
 Core\Activity.lua
@@ -55,6 +56,7 @@ Game\Stats.lua
 Game\Activity.lua
 UI\Widgets.lua
 UI\Main.lua
+UI\Board.lua
 UI\Popups.lua
 UI\CharacterPage.lua
 UI\Commands.lua
@@ -69,7 +71,6 @@ UI\TabProfessions.lua
 UI\TabInfo.lua
 UI\TabRanks.lua
 UI\TabBank.lua
-UI\BankBoard.lua
 UI\BankWidgets.lua
 UI\TabCommunities.lua
 UI\Options.lua
