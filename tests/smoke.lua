@@ -229,6 +229,7 @@ T.describe("Smoke", function()
     env.CommunitiesFrame:Show()
     ns.UI.SelectTab("fame")
     local view = ns.UI.TabView("fame")
+    view.board:SetSize(1100, 520) -- a window with room for every card
     for _, page in ipairs(ns.Stats.PAGES) do
       view.page, view.mode = page.key, "home"
       view:Refresh()
@@ -1023,7 +1024,7 @@ T.describe("Hall of Fame", function()
     T.eq(errors, {})
   end)
 
-  T.it("customizes the member list style and the Hall of Fame tiles in the options", function()
+  T.it("customizes the member list style in the options", function()
     env.CommunitiesFrame:Show()
     ns.UI.SelectTab("members")
     local members = ns.UI.TabView("members")
@@ -1038,21 +1039,17 @@ T.describe("Hall of Fame", function()
     ns.UI.ToggleOptions()
     local options = ns.UI.Options()
     T.truthy(options and options:IsShown(), "options open")
-    for _, key in ipairs({ "general", "chat", "members", "fame", "professions" }) do options:Select(key) end
-    -- members: a column switched off leaves the list, twinks stand on their own; chat: no icons
+    for _, key in ipairs({ "general", "chat", "members", "professions", "bank" }) do options:Select(key) end
+    -- the Hall of Fame has no tab of its own any more: asked for, the options open where they were
+    T.eq(options.Panels.fame, nil)
+    ns.UI.ShowOptions("fame")
+    T.eq(options.selected, "bank")
+    -- members: twinks stand on their own; chat: no icons
     local lists = options.Panels.members
     local function Toggle(check, on)
       check:SetChecked(on)
       check:GetScript("OnClick")(check)
     end
-    for _, check in ipairs(lists.Columns) do
-      Toggle(check, false)
-      T.eq(ns.Settings().memberColumns[check.key], false)
-      T.eq(members.Headers[check.key]:IsShown(), false)
-      Toggle(check, true)
-      T.eq(ns.Settings().memberColumns[check.key], nil)
-    end
-    T.truthy(members.Headers.rank:IsShown(), "rank column back")
     Toggle(lists.Twinks, false)
     T.eq(ns.Settings().memberTwinks, false)
     for _, row in ipairs(members.List.rows) do
@@ -1089,13 +1086,156 @@ T.describe("Hall of Fame", function()
       T.eq(Headers() > 0, card.style == "sections")
     end
     ns.Settings().memberStyle = nil
+    ns.UI.ToggleOptions()
+    T.eq(options:IsShown(), false)
+    T.eq(errors, {})
+  end)
+
+  T.it("arranges the columns of the member list at their headings", function()
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("members")
+    local view = ns.UI.TabView("members")
+    local settings = ns.Settings()
+    local function Shown()
+      local keys = {}
+      for _, column in ipairs(view.shown) do keys[#keys + 1] = column.key end
+      return table.concat(keys, " ")
+    end
+    local all = Shown()
+    T.truthy(all:find("^level name rank "), all)
+    T.eq(view.ColumnsMenu:IsShown(), false)
+    -- "Customize": a handle over every heading, "Columns" in the place of "Reset"
+    view.Edit:GetScript("OnClick")(view.Edit)
+    T.eq(view.editing, true)
+    T.eq(view.Edit:GetText(), ns.L.BOARD_DONE)
+    T.eq(view.ColumnsMenu:IsShown(), true)
+    T.eq(view.Reset:IsShown(), false)
+    T.eq(view.Handles.rank:IsShown(), true)
+    T.eq(rawget(view.Handles.level, "Remove"), nil) -- level and name always stay
+    T.eq(rawget(view.Handles.name, "Remove"), nil)
+    -- the x of a heading hides its column, the menu brings it back
+    local remove = view.Handles.rank.Remove
+    remove:GetScript("OnClick")(remove)
+    T.eq(settings.memberColumns, { rank = false })
+    T.eq(view.Headers.rank:IsShown(), false)
+    T.eq(Shown():find("rank", 1, true), nil)
+    local items = view:ColumnItems()
+    T.eq(items[1].isTitle, true)
+    T.eq(items[2].text, ns.L.COL_RANK)
+    T.eq(items[2].checked, false)
+    T.eq(items[3].checked, true)
+    items[2].onClick()
+    T.eq(settings.memberColumns, nil)
+    T.eq(view.Headers.rank:IsShown(), true)
+    view:ToggleColumn("name") -- not one of those that can go
+    T.eq(settings.memberColumns, nil)
+    -- drag a heading: the list shows the columns as they will be, nothing is stored until the mouse lets go
+    local x, down = 500, true
+    env.GetCursorPosition = function() return x, 300 end
+    env.IsMouseButtonDown = function() return down end
+    local zone
+    for _, column in ipairs(view.shown) do
+      if column.key == "zone" then zone = column end
+    end
+    view:StartDrag("move", "rank")
+    x = 500 + (zone.x + zone.width / 2 + 5) - (view.Headers.rank:GetWidth() / 2 + 229) -- its middle just past the zone's
+    view:Track()
+    T.eq(view.Marker:IsShown(), true)
+    T.truthy(Shown():find("zone rank", 1, true), Shown())
+    T.eq(settings.memberOrder, nil)
+    down = false
+    view:Track()
+    T.eq(view.Marker:IsShown(), false)
+    T.truthy(Shown():find("zone rank", 1, true), Shown())
+    T.eq(type(settings.memberOrder), "table")
+    T.eq(settings.memberWidths, nil)
+    -- and back to where it was: the order is Guildy's own again and nothing is stored
+    down, x = true, 500
+    local rank
+    for _, column in ipairs(view.shown) do
+      if column.key == "rank" then rank = column end
+    end
+    local middle = rank.x + rank.width / 2
+    view:StartDrag("move", "rank")
+    x = 500 - middle -- to the left edge: before everything
+    view:Track()
+    T.truthy(Shown():find("^rank level name"), Shown())
+    x = 500 - middle + 200 -- between the middles of the name and the item level
+    view:Track()
+    down = false
+    view:Track()
+    T.eq(Shown(), all)
+    T.eq(settings.memberOrder, nil)
+    -- drag the right edge of a heading: its width
+    down, x = true, 500
+    view:StartDrag("size", "rank")
+    x = 540
+    view:Track()
+    T.eq(view.Headers.rank:GetWidth(), 140)
+    T.eq(settings.memberWidths, nil)
+    down = false
+    view:Track()
+    T.eq(settings.memberWidths, { rank = 140 })
+    down, x = true, 500
+    view:StartDrag("size", "rank")
+    x = 100
+    view:Track()
+    down = false
+    view:Track()
+    T.eq(settings.memberWidths, { rank = ns.Columns.MIN_WIDTH })
+    -- a drag that customizing ends with is taken back
+    down, x = true, 500
+    view:StartDrag("move", "zone")
+    x = 0
+    view:Track()
+    view:SetEditing(false)
+    T.eq(settings.memberOrder, nil)
+    T.eq(Shown(), all)
+    T.eq(view.Handles.rank:IsShown(), false)
+    T.eq(view.Reset:IsShown(), true)
+    view:StartDrag("move", "zone") -- nothing to drag outside customizing
+    view:Track()
+    T.eq(settings.memberOrder, nil)
+    -- "Restore defaults" in the menu: Guildy's columns
+    settings.memberOrder, settings.memberColumns = { "note", "level" }, { zone = false }
+    view:Refresh()
+    T.truthy(Shown():find("^note level name"), Shown())
+    items = view:ColumnItems()
+    items[#items].onClick()
+    T.eq({ settings.memberOrder, settings.memberWidths, settings.memberColumns }, {})
+    T.eq(Shown(), all)
+    -- leaving the tab ends customizing
+    view:SetEditing(true)
+    ns.UI.SelectTab("chat")
+    T.eq(view.editing, false)
+    env.GetCursorPosition, env.IsMouseButtonDown = nil, nil
+    T.eq(errors, {})
+  end)
+
+  T.it("chooses the tiles and title cards of a Hall of Fame page from its boxes", function()
+    env.CommunitiesFrame:Show()
+    ns.UI.SelectTab("fame")
+    local view = ns.UI.TabView("fame")
+    local board = view.board
+    board:SetSize(1100, 520)
+    view.page, view.mode = "general", "home"
+    view:Refresh()
+    board:SetEditing(true)
+    local action = board.defs.tiles.Cover.Action
+    T.eq(action:GetText(), ns.L.FAME_PICK)
+    T.eq(rawget(board.defs.gear.Cover, "Action"), nil)
+    action:GetScript("OnClick")(action)
+    local window, fame = ns.UI.FamePicker.Window()
+    T.eq(window:IsShown(), true)
+    T.eq(fame.page, "general")
+    T.eq(fame.kind, "tiles")
     -- the tile editor: remove, add at the end, move; a page keeps its last tile
-    local fame = options.Panels.fame
     local page = ns.Stats.PAGES[1]
     local a, b = page.headline[1], page.headline[2]
     fame:Remove(a)
     T.eq(#ns.Settings().fameTiles[page.key], #page.headline - 1)
     T.eq(ns.Settings().fameTiles[page.key][1], b)
+    T.eq(view.Tiles[1].id, b) -- the tab shows it at once
     fame:Add(a)
     T.eq(ns.Settings().fameTiles[page.key][#page.headline], a)
     T.eq(fame.selected, a)
@@ -1137,16 +1277,112 @@ T.describe("Hall of Fame", function()
     titleRow:GetScript("OnMouseUp")(titleRow)
     T.eq(#ns.Settings().fameCards[page.key], 3)
     T.eq(fame.kind, "cards")
-    ns.UI.SelectTab("fame")
+    -- another page of the tab: the window follows it
+    view.page = "pvp"
+    view:Refresh()
+    T.eq(fame.page, "pvp")
+    T.eq(window:IsShown(), true)
+    view.page = "general"
+    view:Refresh()
     -- restoring brings the page back to what Guildy ships
     fame:Restore()
     T.eq(ns.Settings().fameTiles[page.key], nil)
     T.eq(ns.Settings().fameCards[page.key], nil)
-    fame:SetKind("tiles")
-    ns.Settings().fameTiles = nil
+    ns.Settings().fameTiles, ns.Settings().fameCards = nil, nil
+    -- the window goes when customizing ends
+    board.Edit:GetScript("OnClick")(board.Edit)
+    T.eq(board.editing, false)
+    T.eq(window:IsShown(), false)
+    -- opened from the title cards it starts on them
+    board:SetEditing(true)
+    action = board.defs.cards.Cover.Action
+    action:GetScript("OnClick")(action)
+    T.eq(fame.kind, "cards")
+    ns.UI.SelectTab("chat")
+    T.eq(window:IsShown(), false)
+    T.eq(board.editing, false)
+    T.eq(errors, {})
+  end)
+
+  T.it("keeps the boxes of every Hall of Fame page on a board of its own", function()
+    env.CommunitiesFrame:Show()
     ns.UI.SelectTab("fame")
-    ns.UI.ToggleOptions()
-    T.eq(options:IsShown(), false)
+    local view = ns.UI.TabView("fame")
+    local board = view.board
+    board:SetSize(1100, 520)
+    local function Placed()
+      local keys = {}
+      for key in pairs(board.placed) do keys[#keys + 1] = key end
+      table.sort(keys)
+      return table.concat(keys, " ")
+    end
+    -- each page as Guildy ships it
+    local shipped = { general = "cards gear tiles", economy = "cards economy income spending tiles",
+      dungeons = "cards dungeons tiles", reputation = "cards reputation tiles", pvp = "cards pvp tiles" }
+    for _, page in ipairs(ns.Stats.PAGES) do
+      view.page, view.mode = page.key, "home"
+      view:Refresh()
+      T.eq(Placed(), shipped[page.key], page.key)
+      T.eq(board:Rows(), 12, page.key)
+      T.eq(#ns.Grid.Clean(ns.UI.FAME_LAYOUTS[page.key], function(key) return board.defs[key] and board.defs[key].min end),
+        #ns.UI.FAME_LAYOUTS[page.key], page.key)
+    end
+    T.eq(ns.Settings().fameLayout, nil)
+    T.eq(view.Gear:IsShown(), false)
+    T.eq(view.Pvp:IsShown(), true)
+    -- the tiles fill their box side by side
+    T.eq(view.TilesBox:GetWidth(), 1100)
+    local tiles = #ns.Stats.PAGES[5].headline
+    T.eq(math.floor(view.Tiles[1]:GetWidth() + 0.5), math.floor((1100 - 8 * (tiles - 1)) / tiles + 0.5))
+    T.eq(view.Tiles[1]:GetHeight(), view.TilesBox:GetHeight())
+    -- customizing the PvP page: the equipment table added below, the title cards taken away
+    board:SetEditing(true)
+    T.eq(board.Presets:IsShown(), true)
+    T.eq(board:Insert("gear", board.AddBar.gap), true)
+    T.eq(board.placed.gear, { k = "gear", x = 0, y = 12, w = 12, h = 6 })
+    T.eq(view.Gear:IsShown(), true)
+    board:Remove("cards")
+    T.eq(Placed(), "gear pvp tiles")
+    T.eq(board.placed.pvp.y, 2) -- what stood below moved up
+    T.eq(view.CardsBox:IsShown(), false)
+    local saved = ns.Settings().fameLayout
+    T.eq(#saved.pvp, 3)
+    T.eq(saved.general, nil)
+    -- the other pages stand as they were
+    view.page = "general"
+    view:Refresh()
+    T.eq(Placed(), shipped.general)
+    T.eq(board.editing, true)
+    -- all statistics are no place for boxes: customizing ends there, and its button goes
+    view:ShowDetail(107)
+    T.eq(board.editing, false)
+    T.eq(board.Edit:IsShown(), false)
+    T.eq(board:IsShown(), false)
+    view:ShowHome()
+    T.eq(board.Edit:IsShown(), true)
+    T.eq(board:IsShown(), true)
+    -- "Restore defaults" under the presets: the page as Guildy ships it, and nothing stored
+    view.page = "pvp"
+    view:Refresh()
+    T.eq(Placed(), "gear pvp tiles")
+    board:Preset(nil)
+    T.eq(Placed(), shipped.pvp)
+    T.eq(ns.Settings().fameLayout, nil)
+    -- resetting everything in the options takes the layouts along
+    ns.Settings().fameLayout = { general = { { k = "tiles", x = 0, y = 0, w = 12, h = 2 } } }
+    ns.Settings().memberOrder, ns.Settings().memberWidths = { "note" }, { rank = 150 }
+    view.page = "general"
+    view:Refresh()
+    T.eq(Placed(), "tiles")
+    ns.UI.ShowOptions("general")
+    local reset = ns.UI.Options().Panels.general.ResetAll
+    reset:GetScript("OnClick")(reset)
+    T.eq({ ns.Settings().fameLayout, ns.Settings().memberOrder, ns.Settings().memberWidths }, {})
+    T.eq(Placed(), shipped.general)
+    ns.UI.HideOptions()
+    view.page = ns.Stats.PAGES[1].key
+    view:Refresh()
+    ns.UI.SelectTab("chat")
     T.eq(errors, {})
   end)
 end)

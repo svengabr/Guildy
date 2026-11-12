@@ -9,6 +9,7 @@ local UI = ns.UI
 local function Tab(key)
   return function()
     UI.HideOptions()
+    UI.FamePicker.Hide()
     UI.SelectTab(key)
   end
 end
@@ -55,11 +56,23 @@ UI.SHOTS = {
   { "15-options-general", Options("general", "members") }, -- where a member's tooltip stands
   { "16-options-chat", Options("chat", "chat") },
   { "17-options-members", Options("members", "members") },
-  { "18-options-fame", function()
-    Fame("general")() -- the page the options open on
-    UI.ShowOptions("fame")
+  -- customizing a Hall of Fame page, with the window that chooses its tiles and title cards
+  { "18-fame-customize", function()
+    Fame("general")()
+    local view = UI.TabView("fame")
+    if not view then return end
+    view.board:SetEditing(true)
+    view:Refresh()
+    UI.FamePicker.Show("general", "tiles")
   end },
   { "19-options-professions", Options("professions", "professions") },
+  -- the member list while its columns are arranged at their headings
+  { "21-members-customize", function()
+    UI.HideOptions()
+    UI.SelectTab("members")
+    local view = UI.TabView("members")
+    if view then view:SetEditing(true) end
+  end },
   -- the endgame view of the overview, whatever the guild and the setting say (the run takes it back)
   { "20-overview-endgame", function()
     UI.HideOptions()
@@ -337,6 +350,11 @@ function UI.TakeShots(onDone, shots)
     UI.HideOptions()
     UI.SetShotPhase(nil)
     UI.EndBankShots()
+    -- (no tab stays in its edit mode)
+    UI.FamePicker.Hide()
+    local fame, members = UI.TabView("fame"), UI.TabView("members")
+    if fame and fame.board.editing then fame.board:SetEditing(false) end
+    if members and members.editing then members:SetEditing(false) end
     if not hadBackdrop then Backdrop(false) end
     if not wasAnonymous then Anonymous(false) end
     if back then UI.SelectTab(back) end

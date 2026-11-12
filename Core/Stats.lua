@@ -245,8 +245,8 @@ Stats.PAGES = {
   } },
 }
 
--- The tiles and title cards on top of a page are the player's choice (settings.fameTiles[page.key]
--- and settings.fameCards[page.key], Guildy's options)
+-- The tiles and title cards of a page are the player's choice (settings.fameTiles[page.key]
+-- and settings.fameCards[page.key], UI/FamePicker.lua)
 Stats.MAX_TILES = 7
 Stats.MAX_CARDS = 8
 

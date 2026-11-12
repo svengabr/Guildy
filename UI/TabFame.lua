@@ -3,6 +3,9 @@
 -- a period switch (all time / this month / last month). A click on a total, a card, a gold source or
 -- a dungeon opens the detail view: every tracked statistic in a tree on the left, the guild ranking of
 -- the chosen one on the right.
+-- The boxes of a page stand on a board (UI/Board.lua): each page has its own layout
+-- (settings.fameLayout[page.key]), and every box can stand on every page. Which tiles and title cards
+-- a page shows is chosen from those two boxes while customizing (UI/FamePicker.lua).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -221,7 +224,7 @@ local function ShortDate(ts)
   return date(ns.L.DATE_SHORT, ts)
 end
 
--- The tiles of a page: the player's choice from Guildy's options, else the page's default
+-- The tiles of a page: the player's choice (UI/FamePicker.lua), else the page's default
 local function Headline(page)
   local chosen = ns.Settings().fameTiles
   return S.Headline(page, type(chosen) == "table" and chosen[page.key] or nil)
@@ -233,6 +236,21 @@ local function Page(key)
   end
   return S.PAGES[1]
 end
+
+-- The boxes of each page as Guildy ships them: { box, x, y, w, h } on the board's twelve columns
+local function Boxes(...)
+  local layout = {}
+  for i, it in ipairs({ ... }) do layout[i] = { k = it[1], x = it[2], y = it[3], w = it[4], h = it[5] } end
+  return layout
+end
+UI.FAME_LAYOUTS = {
+  general = Boxes({ "tiles", 0, 0, 12, 2 }, { "cards", 0, 2, 12, 3 }, { "gear", 0, 5, 12, 7 }),
+  economy = Boxes({ "tiles", 0, 0, 12, 2 }, { "cards", 0, 2, 12, 3 }, { "income", 0, 5, 6, 3 },
+    { "spending", 6, 5, 6, 3 }, { "economy", 0, 8, 12, 4 }),
+  dungeons = Boxes({ "tiles", 0, 0, 12, 2 }, { "cards", 0, 2, 12, 2 }, { "dungeons", 0, 4, 12, 8 }),
+  reputation = Boxes({ "tiles", 0, 0, 12, 2 }, { "cards", 0, 2, 12, 2 }, { "reputation", 0, 4, 12, 8 }),
+  pvp = Boxes({ "tiles", 0, 0, 12, 2 }, { "cards", 0, 2, 12, 2 }, { "pvp", 0, 4, 12, 8 }),
+}
 
 -- for the raids of the overview (UI/OverviewEndgame.lua)
 UI.DungeonIcon, UI.DungeonTitle, UI.Number = DungeonIcon, DungeonTitle, Number
@@ -280,23 +298,43 @@ local function Build(panel)
       if option.value == value then self:SetText(L.LABEL_VALUE:format(L.FAME_PERIOD, option.text)) end
     end
   end
+  -- the board the boxes of a page stand on, with its edit mode (UI/Board.lua); a layout per page
+  local grid = UI.Board(panel, {
+    load = function()
+      local saved = ns.Settings().fameLayout
+      return type(saved) == "table" and saved[Page(view.page).key] or nil
+    end,
+    save = function(layout)
+      local settings = ns.Settings()
+      if type(settings.fameLayout) ~= "table" then settings.fameLayout = {} end
+      settings.fameLayout[Page(view.page).key] = layout
+      if next(settings.fameLayout) == nil then settings.fameLayout = nil end
+    end,
+    default = function() return UI.FAME_LAYOUTS[Page(view.page).key] end,
+    onChange = function() view:Refresh() end,
+    grow = function(delta) return UI.GrowWindow(delta) end,
+  })
+  view.board = grid
   view.AllButton = W.Button(toolbar, L.FAME_ALL_STATS, function()
     if view.mode == "detail" then view:ShowHome() else view:ShowDetail(view.detailStat or 107) end
   end, 170, { small = true })
   shell:Right(view.AllButton)
   shell:Right(view.Period)
+  -- left of them "Customize", and its presets while customizing
+  grid:Controls(shell, { { L.OPTIONS_RESTORE } })
   shell:Fill(view.Fresh)
 
   -- home: totals, cards, page box -----------------------------------------------------------------
-  local home = CreateFrame("Frame", nil, panel)
-  home:SetPoint("TOPLEFT", 0, 0)
-  home:SetPoint("BOTTOMRIGHT", 0, 0)
-  view.Home = home
+  local home = grid.Content
+  view.Home = grid
 
+  -- the tiles and the title cards each fill a box of their own without a frame around them
+  local tilesBox = CreateFrame("Frame", nil, home)
+  local cardsBox = CreateFrame("Frame", nil, home)
+  view.TilesBox, view.CardsBox = tilesBox, cardsBox
   view.Tiles = {}
-  for i = 1, 7 do
-    local tile = W.Box(home)
-    tile:SetHeight(64)
+  for i = 1, S.MAX_TILES do
+    local tile = W.Box(tilesBox)
     tile.Value = W.Text(tile, "GameFontNormalHuge")
     tile.Label = W.Text(tile, "GameFontDisableSmall")
     tile.Label:SetPoint("TOP", tile.Value, "BOTTOM", 0, -2)
@@ -314,9 +352,8 @@ local function Build(panel)
   end
 
   view.Cards = {}
-  for i = 1, 8 do
-    local card = W.Box(home)
-    card:SetHeight(48)
+  for i = 1, S.MAX_CARDS do
+    local card = W.Box(cardsBox)
     card.Icon = card:CreateTexture(nil, "ARTWORK")
     card.Icon:SetSize(36, 36)
     card.Icon:SetPoint("LEFT", 6, 0)
@@ -474,7 +511,12 @@ local function Build(panel)
   end
   view.Income = FlowBox("FAME_INCOME", S.INCOME)
   view.Spending = FlowBox("FAME_SPENDING", S.SPENDING)
-  view.FlowNote = W.Text(home, "GameFontDisableSmall", L.FAME_FLOW_NOTE)
+  -- (what Forever does not count, beside the heading of what was spent)
+  view.FlowNote = W.Text(view.Spending, "GameFontDisableSmall", L.FAME_FLOW_NOTE)
+  view.FlowNote:SetPoint("LEFT", view.Spending.Title, "RIGHT", 8, 0)
+  view.FlowNote:SetPoint("RIGHT", view.Spending.Total, "LEFT", -8, 0)
+  view.FlowNote:SetJustifyH("LEFT")
+  view.FlowNote:SetWordWrap(false)
   view.Economy = MemberTable(L.FAME_ECONOMY_TABLE, {
     { key = "name", weight = 3, text = L.COL_NAME },
     { key = "earned", weight = 2, text = L.FAME_EARNED, stat = 328 },
@@ -673,7 +715,28 @@ local function Build(panel)
   view.DungeonEmpty = W.Text(dungeons, "GameFontDisable", L.FAME_DUNGEONS_EMPTY)
   view.DungeonEmpty:SetPoint("TOPLEFT", 12, -70)
 
-  view.Empty = W.Text(home, "GameFontDisable", L.FAME_EMPTY)
+  -- every box of the board: what it is, the size a new one gets and the smallest it works at (in cells)
+  local function Choose(kind)
+    return { text = L.FAME_PICK, onClick = function() UI.FamePicker.Show(Page(view.page).key, kind) end }
+  end
+  grid:Add("tiles", tilesBox, { name = L.OPTIONS_KIND_TILES, about = L.FAME_ABOUT_TILES, size = { 12, 2 }, min = { 4, 2 },
+    action = Choose("tiles") })
+  grid:Add("cards", cardsBox, { name = L.OPTIONS_KIND_CARDS, about = L.FAME_ABOUT_CARDS, size = { 12, 3 }, min = { 4, 2 },
+    action = Choose("cards") })
+  grid:Add("gear", gear, { name = L.FAME_GEAR, about = L.FAME_ABOUT_GEAR, size = { 12, 6 }, min = { 7, 3 } })
+  grid:Add("income", view.Income, { name = L.FAME_INCOME, about = L.FAME_ABOUT_INCOME, size = { 6, 3 }, min = { 4, 3 } })
+  grid:Add("spending", view.Spending, { name = L.FAME_SPENDING, about = L.FAME_ABOUT_SPENDING, size = { 6, 3 }, min = { 4, 3 } })
+  grid:Add("economy", view.Economy, { name = L.FAME_ECONOMY_TABLE, about = L.FAME_ABOUT_ECONOMY, size = { 12, 5 }, min = { 7, 3 } })
+  grid:Add("dungeons", dungeons, { name = L.FAME_DUNGEONS, about = L.FAME_ABOUT_DUNGEONS, size = { 12, 6 }, min = { 9, 4 } })
+  grid:Add("reputation", view.Reputation, { name = L.FAME_REP_TABLE, about = L.FAME_ABOUT_REPUTATION, size = { 12, 5 }, min = { 7, 3 } })
+  grid:Add("pvp", view.Pvp, { name = L.FAME_PVP_TABLE, about = L.FAME_ABOUT_PVP, size = { 12, 5 }, min = { 8, 3 } })
+  local TABLES = { gear = gear, economy = view.Economy, reputation = view.Reputation, pvp = view.Pvp }
+
+  -- (a frame of its own: the text lies over the boxes)
+  local emptyLayer = CreateFrame("Frame", nil, grid)
+  emptyLayer:SetAllPoints()
+  emptyLayer:SetFrameLevel((grid:GetFrameLevel() or 1) + 30)
+  view.Empty = W.Text(emptyLayer, "GameFontDisable", L.FAME_EMPTY)
   view.Empty:SetPoint("CENTER", 0, 20)
   view.Empty:SetWidth(520)
   view.Empty:SetJustifyH("CENTER")
@@ -713,16 +776,16 @@ local function Build(panel)
   view.Tree:SetPoint("TOPLEFT", 8, -8)
   view.Tree:SetPoint("BOTTOMRIGHT", -28, 8)
 
-  local board = W.Box(detail)
-  board:SetPoint("TOPLEFT", tree, "TOPRIGHT", 8, 0)
-  board:SetPoint("BOTTOMRIGHT", 0, 0)
-  view.BoardTitle = W.Text(board, "GameFontNormalLarge")
+  local ranking = W.Box(detail)
+  ranking:SetPoint("TOPLEFT", tree, "TOPRIGHT", 8, 0)
+  ranking:SetPoint("BOTTOMRIGHT", 0, 0)
+  view.BoardTitle = W.Text(ranking, "GameFontNormalLarge")
   view.BoardTitle:SetPoint("TOPLEFT", 12, -10)
   view.BoardTitle:SetPoint("RIGHT", -12, 0)
   view.BoardTitle:SetWordWrap(false)
   view.BoardTiles = {}
   for i = 1, 3 do
-    local tile = W.Box(board, 0.12)
+    local tile = W.Box(ranking, 0.12)
     tile:SetHeight(52)
     tile.Value = W.Text(tile, "GameFontNormalLarge")
     tile.Value:SetPoint("TOP", 0, -8)
@@ -730,7 +793,7 @@ local function Build(panel)
     tile.Label:SetPoint("TOP", tile.Value, "BOTTOM", 0, -3)
     view.BoardTiles[i] = tile
   end
-  view.Board = W.ScrollList(board, 20, function(row)
+  view.Board = W.ScrollList(ranking, 20, function(row)
     row.Rank = W.Text(row, "GameFontDisableSmall")
     row.Rank:SetPoint("LEFT", 2, 0)
     row.Rank:SetWidth(22)
@@ -769,62 +832,69 @@ local function Build(panel)
   end)
   view.Board:SetPoint("TOPLEFT", 8, -104)
   view.Board:SetPoint("BOTTOMRIGHT", -28, 26)
-  view.BoardNote = W.Text(board, "GameFontDisableSmall")
+  view.BoardNote = W.Text(ranking, "GameFontDisableSmall")
   view.BoardNote:SetPoint("BOTTOMLEFT", 12, 8)
   view.BoardNote:SetPoint("RIGHT", -12, 0)
 
   -- layout ----------------------------------------------------------------------------------------
-  function view:Layout()
-    local width = panel:GetWidth() or 0
-    if width < 100 then return end
-    local gap = 8
-    local tiles = #Headline(Page(self.page))
-    local tileWidth = (width - gap * (tiles - 1)) / tiles
-    for i, tile in ipairs(self.Tiles) do
+  -- The tiles side by side, as tall as their box
+  function view:LayoutTiles()
+    local width, height = tilesBox:GetWidth() or 0, tilesBox:GetHeight() or 0
+    local shown = {}
+    for _, tile in ipairs(self.Tiles) do
+      if tile.id then shown[#shown + 1] = tile end
+    end
+    if width < 50 or #shown == 0 then return end
+    local gap = W.GAP
+    local tileWidth = (width - gap * (#shown - 1)) / #shown
+    for i, tile in ipairs(shown) do
       tile:ClearAllPoints()
-      tile:SetWidth(tileWidth)
-      tile:SetPoint("TOPLEFT", home, "TOPLEFT", (i - 1) * (tileWidth + gap), 0)
+      tile:SetPoint("TOPLEFT", tilesBox, "TOPLEFT", (i - 1) * (tileWidth + gap), 0)
+      tile:SetSize(tileWidth, math.max(1, height))
       PlaceTile(tile)
     end
-    local perRow = Page(self.page).cardColumns or 4
+  end
+
+  -- The title cards in as many rows as their box has room for (a card is 44 to 60 pixels tall, four in
+  -- a row where they fit); those the box has no room for are left out
+  local CARD_MIN, CARD_MAX, CARD_WIDTH = 44, 60, 150
+  function view:LayoutCards()
+    local width, height = cardsBox:GetWidth() or 0, cardsBox:GetHeight() or 0
+    local cards = {}
+    for _, card in ipairs(self.Cards) do
+      if card.stat then cards[#cards + 1] = card end
+    end
+    if width < 50 or #cards == 0 then return end
+    local gap = W.GAP
+    local rowsFit = math.max(1, math.floor((height + gap) / (CARD_MIN + gap)))
+    local most = math.max(1, math.floor((width + gap) / (CARD_WIDTH + gap)))
+    local perRow = math.max(1, math.min(most, math.max(math.min(#cards, 4), math.ceil(#cards / rowsFit))))
+    local shown = math.min(#cards, perRow * rowsFit)
+    local rows = math.ceil(shown / perRow)
     local cardWidth = (width - gap * (perRow - 1)) / perRow
-    for i, card in ipairs(self.Cards) do
+    local cardHeight = math.max(CARD_MIN, math.min(CARD_MAX, (height - gap * (rows - 1)) / rows))
+    for i, card in ipairs(cards) do
+      card:SetShown(i <= shown)
       card:ClearAllPoints()
-      card:SetWidth(cardWidth)
       local column, row = (i - 1) % perRow, math.floor((i - 1) / perRow)
-      card:SetPoint("TOPLEFT", home, "TOPLEFT", column * (cardWidth + gap), -72 - row * 56)
+      card:SetPoint("TOPLEFT", cardsBox, "TOPLEFT", column * (cardWidth + gap), -row * (cardHeight + gap))
+      card:SetSize(cardWidth, cardHeight)
     end
-    local shownCards = 0
-    for _, card in ipairs(self.Cards) do if card:IsShown() then shownCards = shownCards + 1 end end
-    local top = -72 - math.ceil(shownCards / perRow) * 56
-    for _, box in ipairs({ gear, dungeons, self.Reputation, self.Pvp }) do
-      box:ClearAllPoints()
-      box:SetPoint("TOPLEFT", home, "TOPLEFT", 0, top)
-      box:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", 0, 0)
-    end
-    local half = (width - gap) / 2
-    local flowHeight = 40 + #S.INCOME * 22
-    self.Income:ClearAllPoints()
-    self.Income:SetPoint("TOPLEFT", home, "TOPLEFT", 0, top)
-    self.Income:SetSize(half, flowHeight)
-    self.Spending:ClearAllPoints()
-    self.Spending:SetPoint("TOPLEFT", home, "TOPLEFT", half + gap, top)
-    self.Spending:SetSize(half, flowHeight)
-    self.FlowNote:ClearAllPoints()
-    self.FlowNote:SetPoint("TOPLEFT", self.Income, "BOTTOMLEFT", 4, -6)
-    self.Economy:ClearAllPoints()
-    self.Economy:SetPoint("TOPLEFT", home, "TOPLEFT", 0, top - flowHeight - 26)
-    self.Economy:SetPoint("BOTTOMRIGHT", home, "BOTTOMRIGHT", 0, 0)
-    gear:Columns()
-    self.Reputation:Columns()
-    self.Economy:Columns()
-    self.Pvp:Columns()
-    local boardWidth = board:GetWidth() or 0
+  end
+  tilesBox:SetScript("OnSizeChanged", function() view:LayoutTiles() end)
+  cardsBox:SetScript("OnSizeChanged", function() view:LayoutCards() end)
+
+  function view:Layout()
+    local gap = W.GAP
+    self:LayoutTiles()
+    self:LayoutCards()
+    for _, box in pairs(TABLES) do box:Columns() end
+    local boardWidth = ranking:GetWidth() or 0
     local boardTile = (boardWidth - 24 - gap * 2) / 3
     for i, tile in ipairs(self.BoardTiles) do
       tile:ClearAllPoints()
       tile:SetWidth(math.max(60, boardTile))
-      tile:SetPoint("TOPLEFT", board, "TOPLEFT", 12 + (i - 1) * (boardTile + gap), -40)
+      tile:SetPoint("TOPLEFT", ranking, "TOPLEFT", 12 + (i - 1) * (boardTile + gap), -40)
     end
   end
 
@@ -894,9 +964,9 @@ local function Build(panel)
           if month > 0 and month ~= total then trend = "|cff40e040+" .. Format(id, month) .. "|r " .. L.FAME_THIS_MONTH end
         end
         tile.Trend:SetText(trend)
-        PlaceTile(tile)
       end
     end
+    self:LayoutTiles()
   end
 
   function view:RefreshCards(entries, page)
@@ -925,7 +995,11 @@ local function Build(panel)
         card:Show()
       end
     end
-    for i = index + 1, #self.Cards do self.Cards[i]:Hide() end
+    for i = index + 1, #self.Cards do
+      self.Cards[i].stat = nil
+      self.Cards[i]:Hide()
+    end
+    self:LayoutCards()
   end
 
   function view:RefreshGear(entries)
@@ -1010,6 +1084,12 @@ local function Build(panel)
       total = total + values[i]
     end
     box.Total:SetText(total > 0 and Format(328, total) or "–")
+    local step = math.max(14, math.min(22, ((box:GetHeight() or 128) - 36) / #box.Rows))
+    for i, row in ipairs(box.Rows) do
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", 10, -32 - (i - 1) * step)
+      row:SetPoint("RIGHT", -10, 0)
+    end
     for i, row in ipairs(box.Rows) do
       local color = FLOW_COLORS[row.id] or { 1, 0.82, 0 }
       local pct = total > 0 and math.floor(values[i] / total * 100 + 0.5) or 0
@@ -1174,26 +1254,18 @@ local function Build(panel)
 
   function view:RefreshHome(entries)
     local page = Page(self.page)
-    self:RefreshTiles(entries, page)
-    self:RefreshCards(entries, page)
-    self.Gear:SetShown(page.gear == true)
-    self.Income:SetShown(page.flows == true)
-    self.Spending:SetShown(page.flows == true)
-    self.FlowNote:SetShown(page.flows == true)
-    self.Economy:SetShown(page.flows == true)
-    self.Dungeons:SetShown(page.dungeons == true)
-    self.Reputation:SetShown(page.reputation == true)
-    self.Pvp:SetShown(page.pvp == true)
-    self:Layout() -- the page box sits below the shown cards
-    if page.gear then self:RefreshGear(entries) end
-    if page.flows then
-      FillFlow(self.Income, entries, self.period)
-      FillFlow(self.Spending, entries, self.period)
-      self:RefreshEconomy(entries)
-    end
-    if page.dungeons then self:RefreshDungeons(entries) end
-    if page.reputation then self:RefreshReputation(entries) end
-    if page.pvp then self:RefreshPvp(entries) end
+    grid:Apply()
+    local placed = grid.placed -- the boxes this page shows
+    if placed.tiles then self:RefreshTiles(entries, page) end
+    if placed.cards then self:RefreshCards(entries, page) end
+    for _, box in pairs(TABLES) do box:Columns() end
+    if placed.gear then self:RefreshGear(entries) end
+    if placed.income then FillFlow(self.Income, entries, self.period) end
+    if placed.spending then FillFlow(self.Spending, entries, self.period) end
+    if placed.economy then self:RefreshEconomy(entries) end
+    if placed.dungeons then self:RefreshDungeons(entries) end
+    if placed.reputation then self:RefreshReputation(entries) end
+    if placed.pvp then self:RefreshPvp(entries) end
   end
 
   function view:RefreshDetail(entries)
@@ -1255,16 +1327,29 @@ local function Build(panel)
     self.freshText = L.FAME_FRESH:format(#entries, #ns.Roster.Members(), counts.self + counts.relay, counts.seen)
     self.Fresh:SetText(self.freshText)
     local inDetail = self.mode == "detail"
+    -- the boxes are arranged on the pages, not among all statistics
+    if inDetail and grid.editing then grid:SetEditing(false) end
+    grid.Edit:SetShown(not inDetail)
+    if self.gridPage ~= self.page then
+      self.gridPage = self.page
+      grid:Close() -- (the free places of the page before)
+    end
+    if grid.editing then UI.FamePicker.Follow(Page(self.page).key) else UI.FamePicker.Hide() end
     self.Home:SetShown(not inDetail)
     self.Detail:SetShown(inDetail)
     self.AllButton:SetText(inDetail and L.FAME_BACK or L.FAME_ALL_STATS)
-    self:Layout()
     if inDetail then
+      self:Layout()
       self:RefreshDetail(entries)
     else
-      self.Empty:SetShown(#entries == 0)
+      self.Empty:SetShown(#entries == 0 and not grid.editing)
       self:RefreshHome(entries)
     end
+  end
+
+  function view:OnHide()
+    if grid.editing then grid:SetEditing(false) end
+    UI.FamePicker.Hide()
   end
 
   function view:ShowDetail(id)

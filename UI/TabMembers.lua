@@ -2,6 +2,9 @@
 -- level and profession only come as drill-downs from the overview.
 -- Twinks hang under their main (or fold into it, Core/Family.lua).
 -- A click on a member opens the character page (UI/CharacterPage.lua), a right click the member menu.
+-- "Customize" turns the headings into handles: drag one to move its column, drag its right edge for
+-- the width, its x hides it, and "Columns" brings hidden ones back (Core/Columns.lua has the rules;
+-- settings.memberOrder, memberWidths and memberColumns hold the player's choice).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -9,8 +12,8 @@ local UI = ns.UI
 local ROW = 18
 local CLASSES = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }
 local COLUMNS = {
-  { key = "level", width = 34, desc = true },
-  { key = "name", width = 175 },
+  { key = "level", width = 34, desc = true, fixed = true },
+  { key = "name", width = 175, fixed = true },
   { key = "rank", width = 100 },
   { key = "ilvl", width = 44, desc = true },
   { key = "score", width = 40, desc = true }, -- the activity score of the player (Core/Activity.lua)
@@ -18,16 +21,21 @@ local COLUMNS = {
   { key = "lastOnline", width = 70 },
   { key = "guildy", width = 46, desc = true },
   { key = "note", width = 210 },
-  { key = "officerNote", width = 0 }, -- rest; only for those who may read officer notes
+  { key = "officerNote", width = 200 }, -- only for those who may read officer notes
 }
 local UNSORTED = { note = true, officerNote = true }
-local REST_WIDTH = 200 -- a rest column's width when another column follows it
--- The columns the player can hide (settings.memberColumns[key] = false, Guildy's options); level and
--- name always stay
+local X_FROM = 60 -- a heading at least this wide has room for its x while customizing
+-- The columns the player can hide (settings.memberColumns[key] = false); level and name always stay.
+-- The last column that shows reaches to the right edge, whatever its width.
 UI.MEMBER_COLUMNS = { "rank", "ilvl", "score", "zone", "lastOnline", "guildy", "note", "officerNote" }
 local function ColumnOff(key)
   local chosen = ns.Settings().memberColumns
   return type(chosen) == "table" and chosen[key] == false
+end
+-- The player's choice of columns: their order, their widths, the hidden ones
+local function SavedColumns()
+  local settings = ns.Settings()
+  return { order = settings.memberOrder, widths = settings.memberWidths, off = settings.memberColumns }
 end
 local DOT = "|TInterface\\AddOns\\Guildy\\Textures\\Dot:8:8:0:0:32:32:0:32:0:32:%d:%d:%d|t "
 
@@ -182,6 +190,10 @@ local function Build(panel)
   end)
   view.FoldCheck = Check(L.FOLD_TWINKS, view.NoOfficerNoteCheck.Label, function(self) view.fold = self:GetChecked() or nil; view:Refresh() end)
 
+  -- the columns are arranged at their headings (see below)
+  view.Edit = page:Right(W.Button(bar, L.BOARD_EDIT, function() view:SetEditing(not view.editing) end, 80,
+    { small = true, fit = { L.BOARD_EDIT, L.BOARD_DONE } }))
+  W.Tooltip(view.Edit, L.BOARD_EDIT, L.MEMBERS_EDIT_TIP)
   view.Reset = W.Button(bar, L.RESET, function()
     view.filter, view.noNote, view.noOfficerNote = {}, nil, nil
     search:SetText("")
@@ -191,6 +203,10 @@ local function Build(panel)
     view:Refresh()
   end, 70, { small = true })
   page:Right(view.Reset)
+  -- while customizing, in the place of "Reset": the columns there are, ticked when they show
+  view.ColumnsMenu = W.MenuButton(bar, L.MEMBERS_COLUMNS, function() return view:ColumnItems() end, 90, 220)
+  view.ColumnsMenu:SetPoint("RIGHT", view.Edit, "LEFT", -6, 0)
+  view.ColumnsMenu:Hide()
 
   -- header -------------------------------------------------------------------------------------
   -- the list box fills the body like every view's boxes; the column header is its first row
@@ -211,9 +227,12 @@ local function Build(panel)
     local button = CreateFrame("Button", nil, header)
     button:SetHeight(20)
     button:SetPoint("LEFT", x, 0)
-    if column.width > 0 then button:SetWidth(column.width) else button:SetPoint("RIGHT", header, "RIGHT", -26, 0) end
+    button:SetWidth(column.width)
     button.Text = W.Text(button, "GameFontNormalSmall", L["COL_" .. column.key:upper()])
     button.Text:SetPoint("LEFT", 0, 0)
+    button.Text:SetPoint("RIGHT", 0, 0)
+    button.Text:SetJustifyH("LEFT")
+    button.Text:SetWordWrap(false)
     button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     if not UNSORTED[column.key] then
       button:SetScript("OnClick", function()
@@ -221,15 +240,14 @@ local function Build(panel)
         view:Refresh()
       end)
     end
-    column.x = x
     x = x + column.width + 6
     view.Headers[column.key] = button
   end
 
-  -- The shown columns from the left, the last one up to the right edge. Hidden: those switched off in
-  -- the options, and the officer note for those who may not read it.
+  -- The shown columns from the left in the player's order and widths, the last one up to the right
+  -- edge. Hidden: those the player switched off, and the officer note for those who may not read it.
   local function PlaceCells(row)
-    for _, column in ipairs(COLUMNS) do
+    for _, column in ipairs(view.columns or {}) do
       local cell = row.Cells[column.key]
       cell:ClearAllPoints()
       if not column.hidden then
@@ -237,31 +255,95 @@ local function Build(panel)
         if column.last then
           cell:SetPoint("RIGHT", row, "RIGHT", -4, 0)
         else
-          cell:SetWidth(column.width > 0 and column.width or REST_WIDTH)
+          cell:SetWidth(column.width)
         end
       end
     end
   end
+
+  -- customizing: a handle over every heading -----------------------------------------------------
+  -- the field a dragged heading lands on
+  view.Marker = CreateFrame("Frame", nil, header)
+  view.Marker:SetFrameLevel((header:GetFrameLevel() or 1) + 2)
+  view.Marker.Fill = view.Marker:CreateTexture(nil, "BACKGROUND")
+  view.Marker.Fill:SetAllPoints()
+  view.Marker.Fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.22)
+  for _, edge in ipairs({ { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+    local line = view.Marker:CreateTexture(nil, "BORDER")
+    line:SetColorTexture(1, 0.82, 0, 0.9)
+    line:SetPoint(edge[1])
+    line:SetPoint(edge[2])
+    line:SetWidth(2)
+  end
+  view.Marker:Hide()
+
+  local handles = {}
+  local function Handle(def)
+    local button = view.Headers[def.key]
+    if handles[def.key] then return handles[def.key] end
+    local handle = CreateFrame("Button", nil, button)
+    handle:SetAllPoints()
+    handle:SetFrameLevel((button:GetFrameLevel() or 1) + 5)
+    handle.Fill = handle:CreateTexture(nil, "BACKGROUND")
+    handle.Fill:SetPoint("TOPLEFT", -3, 0)
+    handle.Fill:SetPoint("BOTTOMRIGHT", 1, 0)
+    handle.Fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.14)
+    handle:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    handle:SetScript("OnMouseDown", function(_, mouse)
+      if mouse == "LeftButton" then view:StartDrag("move", def.key) end
+    end)
+    W.Tooltip(handle, L["COL_" .. def.key:upper()], def.fixed and L.MEMBERS_DRAG_FIXED or L.MEMBERS_DRAG)
+    if not def.fixed then
+      handle.Remove = CreateFrame("Button", nil, handle)
+      handle.Remove:SetSize(14, 16)
+      handle.Remove:SetPoint("RIGHT", -6, 0)
+      handle.Remove.Text = W.Text(handle.Remove, "GameFontNormalSmall", "x")
+      handle.Remove.Text:SetPoint("CENTER", 0, 1)
+      handle.Remove:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+      handle.Remove:SetScript("OnClick", function() view:ToggleColumn(def.key) end)
+      W.Tooltip(handle.Remove, L.MEMBERS_HIDE)
+    end
+    -- the right edge: drag it for the width
+    handle.Grip = CreateFrame("Button", nil, handle)
+    handle.Grip:SetSize(8, 20)
+    handle.Grip:SetPoint("RIGHT", 5, 0)
+    handle.Grip.Line = handle.Grip:CreateTexture(nil, "ARTWORK")
+    handle.Grip.Line:SetSize(2, 14)
+    handle.Grip.Line:SetPoint("CENTER")
+    handle.Grip.Line:SetColorTexture(1, 0.82, 0, 0.8)
+    handle.Grip:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    handle.Grip:SetScript("OnMouseDown", function(_, mouse)
+      if mouse == "LeftButton" then view:StartDrag("size", def.key) end
+    end)
+    W.Tooltip(handle.Grip, L.MEMBERS_WIDTH)
+    handles[def.key] = handle
+    return handle
+  end
+
   function view:LayoutColumns()
-    local at, last, signature = 8, nil, ""
-    self.hidden = {}
-    for _, column in ipairs(COLUMNS) do
-      column.hidden = (column.key == "officerNote" and not self.viewOfficer) or ColumnOff(column.key)
-      -- the players of an activity bar are listed with their score, whatever the options say
+    -- (self.trial: the columns as they would be while a heading is dragged)
+    local list = ns.Columns.Arrange(COLUMNS, self.trial or SavedColumns(), function(key)
+      return key == "officerNote" and not self.viewOfficer
+    end)
+    local at, last, signature = 8, nil, self.editing and "edit," or ""
+    self.hidden, self.columns, self.shown = {}, list, {}
+    for _, column in ipairs(list) do
+      -- the players of an activity bar are listed with their score, whatever the player chose
       if column.key == "score" and self.filter.scoreBucket then column.hidden = false end
       column.last = false
       self.hidden[column.key] = column.hidden
       if not column.hidden then
         column.x = at
-        at = at + (column.width > 0 and column.width or REST_WIDTH) + 6
+        at = at + column.width + 6
         last = column
-        signature = signature .. column.key .. ","
+        self.shown[#self.shown + 1] = column
+        signature = signature .. column.key .. ":" .. column.width .. ","
       end
     end
     if last then last.last = true end
     if signature == self.columnSignature then return end
     self.columnSignature = signature
-    for _, column in ipairs(COLUMNS) do
+    for _, column in ipairs(list) do
       local button = self.Headers[column.key]
       button:SetShown(not column.hidden)
       button:ClearAllPoints()
@@ -270,11 +352,146 @@ local function Build(panel)
         if column.last then
           button:SetPoint("RIGHT", header, "RIGHT", -26, 0)
         else
-          button:SetWidth(column.width > 0 and column.width or REST_WIDTH)
+          button:SetWidth(column.width)
         end
+      end
+      if self.editing then
+        local handle = Handle(column.def)
+        handle:Show()
+        if not column.def.fixed then handle.Remove:SetShown(column.last or column.width >= X_FROM) end
+        handle.Grip:SetShown(not column.last) -- (the last one reaches to the edge anyway)
+      elseif handles[column.key] then
+        handles[column.key]:Hide()
       end
     end
     for _, row in pairs(self.List.rows) do PlaceCells(row) end
+  end
+
+  -- Moving a column and changing its width, as it happens: the heading follows the mouse, a gold field
+  -- marks where it lands, and the list shows the columns as they will be.
+  local drag
+  local function Cursor()
+    local scale = header:GetEffectiveScale() or 1
+    return (GetCursorPosition()) / (scale > 0 and scale or 1)
+  end
+
+  -- kind: "move" or "size"
+  function view:StartDrag(kind, key)
+    if not self.editing or drag then return end
+    local from
+    local shown = {}
+    for i, column in ipairs(self.shown) do
+      shown[i] = { key = column.key, x = column.x, width = column.width }
+      if column.key == key then from = shown[i] end
+    end
+    if not from then return end
+    local saved = SavedColumns()
+    local widths = {}
+    for name, width in pairs(type(saved.widths) == "table" and saved.widths or {}) do widths[name] = width end
+    drag = { kind = kind, key = key, at = Cursor(), from = from, shown = shown, widths = widths, off = saved.off,
+      order = ns.Columns.Order(COLUMNS, saved.order) }
+    header:SetScript("OnUpdate", function() view:Track() end)
+  end
+
+  function view:Track()
+    if not drag then return end
+    if not IsMouseButtonDown("LeftButton") then return self:Drop() end
+    local dx = Cursor() - drag.at
+    local button = self.Headers[drag.key]
+    if drag.kind == "move" then
+      local before = ns.Columns.Before(drag.shown, drag.key, drag.from.x + dx + drag.from.width / 2)
+      self.trial = { order = ns.Columns.Move(drag.order, drag.key, before), widths = drag.widths, off = drag.off }
+      self:LayoutColumns()
+      for _, column in ipairs(self.shown) do
+        if column.key == drag.key then
+          self.Marker:ClearAllPoints()
+          self.Marker:SetPoint("TOPLEFT", header, "TOPLEFT", column.x - 3, 0)
+          self.Marker:SetSize(column.last and drag.from.width or column.width, 20)
+        end
+      end
+      self.Marker:Show()
+      -- the heading in hand
+      button:ClearAllPoints()
+      button:SetPoint("LEFT", drag.from.x + dx, 0)
+      button:SetWidth(drag.from.width)
+    else
+      local widths = {}
+      for name, width in pairs(drag.widths) do widths[name] = width end
+      widths[drag.key] = drag.from.width + dx
+      self.trial = { order = drag.order, widths = widths, off = drag.off }
+      self:LayoutColumns()
+    end
+  end
+
+  function view:Drop(cancel)
+    header:SetScript("OnUpdate", nil)
+    self.Marker:Hide()
+    local trial = self.trial
+    drag, self.trial = nil, nil
+    if trial and not cancel then
+      local settings = ns.Settings()
+      settings.memberOrder = ns.Columns.Differs(COLUMNS, trial.order)
+      -- only the widths that differ from Guildy's own
+      local widths
+      for _, def in ipairs(COLUMNS) do
+        local width = ns.Columns.Width(def, trial.widths)
+        if width ~= def.width then
+          widths = widths or {}
+          widths[def.key] = width
+        end
+      end
+      settings.memberWidths = widths
+    end
+    self.columnSignature = nil -- (the heading in hand goes to its place)
+    self:Refresh()
+  end
+
+  -- Shows a hidden column, hides a shown one (level and name always stay)
+  function view:ToggleColumn(key)
+    local known = false
+    for _, name in ipairs(UI.MEMBER_COLUMNS) do known = known or name == key end
+    if not known then return end
+    local settings = ns.Settings()
+    local off = type(settings.memberColumns) == "table" and settings.memberColumns or {}
+    if off[key] == false then off[key] = nil else off[key] = false end
+    settings.memberColumns = next(off) ~= nil and off or nil
+    self:Refresh()
+  end
+
+  -- The columns as Guildy ships them: all of them, in its order and widths
+  function view:ResetColumns()
+    local settings = ns.Settings()
+    settings.memberOrder, settings.memberWidths, settings.memberColumns = nil, nil, nil
+    self:Refresh()
+  end
+
+  function view:ColumnItems()
+    local items = { { text = L.MEMBERS_COLUMNS, isTitle = true } }
+    for _, key in ipairs(UI.MEMBER_COLUMNS) do
+      if key ~= "officerNote" or self.viewOfficer then
+        items[#items + 1] = { text = L["COL_" .. key:upper()], checked = not ColumnOff(key),
+          onClick = function() view:ToggleColumn(key) end }
+      end
+    end
+    items[#items + 1] = { text = L.OPTIONS_RESTORE, onClick = function() view:ResetColumns() end }
+    return items
+  end
+
+  function view:SetEditing(on)
+    self.editing = on and true or false
+    if not self.editing and drag then self:Drop(true) end
+    self.Edit:SetText(self.editing and L.BOARD_DONE or L.BOARD_EDIT)
+    self.Reset:SetShown(not self.editing)
+    self.ColumnsMenu:SetShown(self.editing)
+    self.Summary:ClearAllPoints()
+    self.Summary:SetPoint("RIGHT", self.editing and self.ColumnsMenu or self.Reset, "LEFT", -10, 0)
+    self:Refresh()
+  end
+
+  view.Handles = handles
+
+  function view:OnHide()
+    if self.editing then self:SetEditing(false) end
   end
 
   view.List = W.ScrollList(listBox, ROW, function(row)
@@ -487,7 +704,7 @@ local function Build(panel)
     Label(self.ClassButton, L.FILTER_CLASS, self.filter.classFile and ClassLabel(self.filter.classFile))
     for key, button in pairs(self.Headers) do
       local text = L["COL_" .. key:upper()]
-      if key == self.sort then text = text .. (self.desc and " v" or " ^") end
+      if key == self.sort and not self.editing then text = text .. (self.desc and " v" or " ^") end
       button.Text:SetText(text)
     end
   end

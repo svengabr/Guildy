@@ -8,7 +8,8 @@
 --     onChange = function() fill the boxes that show end,
 --     grow = function(px) make the window taller (lower for a negative px) end })
 --   board.Content                      parent of every box
---   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } } })
+--   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } },
+--     action = { text, onClick } })   action: a button of its own on the box while customizing
 --   board:Controls(page, presets)      "Customize" (and the presets) into a page's toolbar
 --   board:Apply()                      places the boxes; board.placed[key] = item for those that show
 --
@@ -428,6 +429,10 @@ function UI.Board(parent, opts)
       cover.Gear = W.MenuButton(cover, L.BOARD_OPTIONS, function() return board:OptionItems(key) end, 90, 160)
       cover.Gear:SetPoint("RIGHT", cover.Remove, "LEFT", -4, 0)
     end
+    if def.action then
+      cover.Action = W.Button(cover, def.action.text, def.action.onClick, 90, { small = true, fit = { def.action.text } })
+      cover.Action:SetPoint("RIGHT", cover.Gear or cover.Remove, "LEFT", -4, 0)
+    end
     cover.Grip = CreateFrame("Button", nil, cover)
     cover.Grip:SetSize(20, 20)
     cover.Grip:SetPoint("BOTTOMRIGHT", -2, 2)
@@ -534,6 +539,11 @@ function UI.Board(parent, opts)
       board.preview = nil
       board:Apply()
     end
+  end
+
+  -- Closes the picker and takes back what it showed (a tab that changes what its boxes are)
+  function board:Close()
+    ClosePicker()
   end
 
   -- What the picker offers for a free place: { key, fits } with the boxes that fit it first

@@ -39,6 +39,7 @@ Core\Protocol.lua
 Core\Manage.lua
 Core\Bank.lua
 Core\Grid.lua
+Core\Columns.lua
 Core\Stats.lua
 Core\Family.lua
 Core\Activity.lua
@@ -66,6 +67,7 @@ UI\TabChat.lua
 UI\TabMembers.lua
 UI\TabOverview.lua
 UI\OverviewEndgame.lua
+UI\FamePicker.lua
 UI\TabFame.lua
 UI\TabProfessions.lua
 UI\TabInfo.lua
