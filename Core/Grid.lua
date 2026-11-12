@@ -128,13 +128,16 @@ function Grid.Clean(saved, least)
   return layout
 end
 
--- The layout with every box moved up as far as it goes, in their order from the top; a box standing
--- on another moves down below it. `first`: the box that was just placed, which keeps its place among
+-- The layout with every box moved up as far as it goes, in their order from the top (the order of their
+-- middles); a box standing on another moves down below it. `first`: the box that was just placed, which keeps its place among
 -- those in the same row (the others make room for it).
 function Grid.Compact(layout, first)
   local order = Grid.Copy(layout)
+  -- by their middles, not their top edges: a box dragged over another changes places with it when its
+  -- middle passes the other's, not as soon as it touches it or only once it reached its top edge
   table.sort(order, function(a, b)
-    if a.y ~= b.y then return a.y < b.y end
+    local p, q = a.y + a.h / 2, b.y + b.h / 2
+    if p ~= q then return p < q end
     if (a.k == first) ~= (b.k == first) then return a.k == first end
     if a.x ~= b.x then return a.x < b.x end
     return a.k < b.k

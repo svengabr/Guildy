@@ -51,6 +51,20 @@ T.describe("Grid", function()
     -- dragged into the middle: what stands there and below moves down
     board[4].y = 4
     T.eq(Places(Grid.Compact(board, "t")), { a = "0,0", b = "3,0", t = "0,4", c = "0,6" })
+    -- on its way up over the tall box it changes places only once its middle is above that one's
+    board[4].y = 8
+    T.eq(Places(Grid.Compact(board, "t")), { a = "0,0", b = "3,0", c = "0,4", t = "0,10" })
+    board[4].y = 7
+    T.eq(Places(Grid.Compact(board, "t")), { a = "0,0", b = "3,0", c = "0,4", t = "0,10" })
+    board[4].y = 6
+    T.eq(Places(Grid.Compact(board, "t")), { a = "0,0", b = "3,0", t = "0,4", c = "0,6" })
+    -- and one dragged down from the top lets the others up only then: nothing jumps before
+    local top = { { k = "t", x = 0, y = 0, w = 12, h = 2 }, { k = "c", x = 0, y = 2, w = 12, h = 6 } }
+    top[1].y = 3
+    T.eq(Places(Grid.Compact(top, "t")), { t = "0,0", c = "0,2" })
+    top[1].y = 5
+    T.eq(Places(Grid.Compact(top, "t")), { c = "0,0", t = "0,6" })
+    board[4].y = 4
     -- a box taken away: what stood below it moves up; what has a box above it stays
     T.eq(Places(Grid.Compact({ board[2], board[3] })), { b = "3,0", c = "0,4" })
     T.eq(Places(Grid.Compact({ board[1], board[3] })), { a = "0,0", c = "0,4" })
