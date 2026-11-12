@@ -434,7 +434,7 @@ local function Build(panel)
     view.Sums[key] = value
   end
 
-  -- the tabs and how full they are, below them what the next one costs
+  -- the tabs and how full they are, and what the next one costs
   local tabs = W.Box(holder)
   view.TabsBox = tabs
   local tabsTitle = W.Text(tabs, "GameFontNormal", L.BANK_TABS)
@@ -476,10 +476,9 @@ local function Build(panel)
   view.TabsEmpty = W.Text(tabs, "GameFontDisable", L.BANK_TABS_EMPTY)
   view.TabsEmpty:SetPoint("TOPLEFT", 12, -32)
   view.TabsEmpty:SetPoint("RIGHT", -12, 0)
-  view.CostLabel = W.Text(tabs, "GameFontDisableSmall")
-  view.CostLabel:SetPoint("BOTTOMLEFT", 12, 10)
+  -- what the next tab costs: in the title row (a line of its own below cost the list a tab's height)
   view.Cost = W.Text(tabs, "GameFontDisableSmall")
-  view.Cost:SetPoint("BOTTOMRIGHT", -12, 10)
+  view.Cost:SetPoint("TOPRIGHT", -10, -10)
   view.Cost:SetJustifyH("RIGHT")
 
   -- what this character may still take today, as read at the banker
@@ -811,16 +810,13 @@ local function Build(panel)
       local costShown = known and (bank.cost or 0) > 0
       self.Tabs:ClearAllPoints()
       self.Tabs:SetPoint("TOPLEFT", 6, -30)
-      self.Tabs:SetPoint("BOTTOMRIGHT", -26, costShown and 28 or 6)
+      self.Tabs:SetPoint("BOTTOMRIGHT", -26, 6)
       self.Tabs:SetItems(tabItems)
       self.TabsEmpty:SetShown(#tabItems == 0)
       self.TabsEmpty:SetText(known and L.BANK_TABS_NONE or L.BANK_TABS_EMPTY)
-      self.CostLabel:SetShown(costShown)
       self.Cost:SetShown(costShown)
-      if costShown then
-        self.CostLabel:SetText(L.BANK_TAB_COST:format(#tabItems + 1))
-        self.Cost:SetText(Money(bank.cost))
-      end
+      tabsHint:SetShown(not costShown)
+      if costShown then self.Cost:SetText(L.BANK_TAB_COST:format(#tabItems + 1) .. " " .. Money(bank.cost)) end
     end
 
     -- what the player may still take: from the own visit, never shared

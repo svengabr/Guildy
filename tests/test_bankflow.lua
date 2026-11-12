@@ -148,7 +148,7 @@ T.describe("Guild bank", function()
     view:Refresh()
     T.eq(ns.GuildData().bank.cost, 2500000)
     T.eq(view.Cost:IsShown(), true)
-    T.eq(view.CostLabel:GetText(), ns.L.BANK_TAB_COST:format(4))
+    T.truthy(view.Cost:GetText():find(ns.L.BANK_TAB_COST:format(4), 1, true), view.Cost:GetText())
     -- "All" and the three tabs; a click filters, the chosen one is the one that cannot be clicked
     T.eq(view.TabButtons[1]:GetText(), ns.L.BANK_TABS_ALL)
     T.eq(view.TabButtons[3]:GetText(), "Kräuter")
