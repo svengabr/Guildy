@@ -80,10 +80,10 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: A member's statistics, dungeon collection and professions, with their twinks once Guildy knows them.
 13. `media/gallery/15-options-members.jpg`
    - Title: Options: Members
-   - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: the columns of the member list and how it tells online from offline.
+   - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: how the member list tells online from offline, and whether twinks hang under their main.
 14. `media/gallery/16-options-hall-of-fame.jpg`
-   - Title: Options: Hall of Fame
-   - Description: Pick which tiles and title cards each Hall of Fame page shows, in which order. Any statistic Guildy tracks can be a tile.
+   - Title: Hall of Fame: Customize
+   - Description: Every Hall of Fame page is yours to arrange: move, size, add and remove its boxes. A click on a single tile or title card opens a list right under it to put another statistic or title in its place.
 15. `media/gallery/17-bank.jpg`
    - Title: Bank
    - Description: New in 1.6: Guildy reads the guild bank at a banker and keeps it. Gold over time with marks at unusual movements, the ledger of gold and items, the tabs and your own access. Shared with everyone in the guild who uses Guildy.
