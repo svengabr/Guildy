@@ -73,6 +73,9 @@ UI.SHOTS = {
     local view = UI.TabView("members")
     if view then view:SetEditing(true) end
   end },
+  -- the Bank tab with a made-up bank (see below): as Guildy ships it, and its overview preset
+  { "22-bank", function() UI.ShotBank(nil) end },
+  { "23-bank-overview", function() UI.ShotBank(UI.BANK_PRESETS.overview) end },
   -- the endgame view of the overview, whatever the guild and the setting say (the run takes it back)
   { "20-overview-endgame", function()
     UI.HideOptions()
@@ -191,10 +194,10 @@ local function OpenPicker(_, board)
   if slot then board:Pick(slot) end
 end
 
--- The Bank tab belongs to the gallery too: with the made-up bank, as Guildy ships the tab and as the
--- overview preset shows it (before the endgame view, which stays the last picture of the run)
-table.insert(UI.SHOTS, #UI.SHOTS, { "22-bank", Bank(nil) })
-table.insert(UI.SHOTS, #UI.SHOTS, { "23-bank-overview", Bank(UI.BANK_PRESETS.overview) })
+-- for the two pictures of the Bank tab in the gallery run (UI.SHOTS above)
+function UI.ShotBank(layout)
+  Bank(layout)()
+end
 
 UI.BANK_SHOTS = {
   { "bank-01-ledger", Bank(nil) },
