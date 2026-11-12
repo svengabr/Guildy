@@ -88,6 +88,7 @@ function Protocol.AddPart(assembler, sender, message, now)
   if not entry.parts[index] then
     entry.parts[index] = piece
     entry.count = entry.count + 1
+    entry.at = now -- (given up EXPIRE after its last part: a long message takes a while at one part a second)
   end
   if entry.count < total then return nil end
   assembler.pending[key] = nil

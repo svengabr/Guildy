@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.2
+
+- Fixed: much of what Guildy users share with each other never arrived. The game lets an addon send ten
+  messages in a row and then one a second, and drops the rest without a word; Guildy sent about three a
+  second. After a login, when a member who knows little is offered statistics, professions and the bank
+  at once, most of it was lost, the bank among it. Guildy now stays under the game's limit and sends
+  again what the game refuses. Sharing takes a little longer and arrives.
+- The guild bank goes ahead of statistics and professions in line.
+
 ## 1.6.1
 
 - Fixed: a member who knew nothing of the guild bank yet never got it from the others. Guildy now offers

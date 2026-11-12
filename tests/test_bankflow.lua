@@ -46,7 +46,17 @@ local world = dofile(T.testsDir .. "/wow.lua")(T, { setup = Setup })
 local env, ns, errors = world.env, world.ns, world.errors
 local Fire, RunTimers = world.Fire, world.RunTimers
 
+-- Time passes until everything that waited to be sent is out (Guildy sends ten messages, then one a second)
+local function SendAll()
+  for _ = 1, 200 do
+    if ns.Sync.Waiting() == 0 then return end
+    clock = clock + 20
+    ns.Sync.Pump()
+  end
+end
+
 local function Messages(kind)
+  SendAll()
   local P = ns.Protocol
   local assembler, found = P.NewAssembler(), {}
   for _, part in ipairs(sent) do
@@ -470,9 +480,13 @@ T.describe("Guild bank", function()
   T.it("tells the guild what it knows after login and offers it to who knows less", function()
     local summaries = Messages("SUM")
     T.truthy(#summaries >= 1, "a summary was sent")
+    SendAll()
+    clock = clock + 60
     sent = {}
     ns.Sync.SendSummary()
     T.eq(Messages("SUM")[1].b.n, 6)
+    SendAll()
+    clock = clock + 60
     sent = {}
     local P = ns.Protocol
     for _, part in ipairs(P.Chunk("s1", P.Encode("SUM", { d = {}, b = { at = 5, ts = 5, n = 0 } }, "1.6.0"))) do
@@ -482,12 +496,16 @@ T.describe("Guild bank", function()
     T.eq(#Messages("BANK"), 1)
     -- 1.6.0 said nothing of the bank while it knew nothing: it gets the offer all the same; an older
     -- Guildy, which has no Bank tab, gets none
+    SendAll()
+    clock = clock + 60
     sent = {}
     for _, part in ipairs(P.Chunk("s3", P.Encode("SUM", { d = {} }, "1.6.0"))) do
       Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch")
     end
     RunTimers()
     T.eq(#Messages("BANK"), 1)
+    SendAll()
+    clock = clock + 60
     sent = {}
     for _, part in ipairs(P.Chunk("s4", P.Encode("SUM", { d = {} }, "1.5.0"))) do
       Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch")
@@ -497,11 +515,15 @@ T.describe("Guild bank", function()
     -- and who knows nothing says so from now on
     local known = ns.GuildData().bank
     ns.GuildData().bank = nil
+    SendAll()
+    clock = clock + 60
     sent = {}
     ns.Sync.SendSummary()
     T.eq(Messages("SUM")[1].b, { at = 0, ts = 0, n = 0 })
     ns.GuildData().bank = known
     -- someone who knows as much gets no offer
+    SendAll()
+    clock = clock + 60
     sent = {}
     local digest = ns.Bank.Digest(ns.GuildData().bank)
     for _, part in ipairs(P.Chunk("s2", P.Encode("SUM", { d = {}, b = digest }, "1.6.0"))) do
@@ -509,6 +531,65 @@ T.describe("Guild bank", function()
     end
     RunTimers()
     T.eq(#Messages("BANK"), 0)
+    T.eq(errors, {})
+  end)
+
+  T.it("stays under the game's limit for addon messages and sends again what the game refuses", function()
+    SendAll()
+    clock = clock + 60
+    sent = {}
+    local refuse = false
+    local raw = env.C_ChatInfo.SendAddonMessage
+    env.C_ChatInfo.SendAddonMessage = function(prefix, text)
+      if refuse then return 3 end -- Enum.SendAddonMessageResult.AddonMessageThrottle
+      sent[#sent + 1] = text
+      return 0
+    end
+    -- twelve greetings at once: nine go out, the others wait for their second each
+    for _ = 1, 12 do ns.Sync.SendHello() end
+    T.eq(#sent, 9)
+    T.eq(ns.Sync.Waiting(), 3)
+    clock = clock + 1.2
+    ns.Sync.Pump()
+    T.eq(#sent, 10)
+    -- the game refuses one: it stays in line and goes out later, nothing is lost
+    clock = clock + 5
+    refuse = true
+    ns.Sync.Pump()
+    T.eq(#sent, 10)
+    T.eq(ns.Sync.Waiting(), 2)
+    refuse = false
+    clock = clock + 1 -- (after a refusal Guildy counts from nothing again)
+    ns.Sync.Pump()
+    T.eq(#sent, 10)
+    clock = clock + 3
+    ns.Sync.Pump()
+    T.eq(#sent, 12)
+    T.eq(ns.Sync.Waiting(), 0)
+    -- the bank goes ahead of what waits, behind a message that is already on its way
+    clock = clock + 60
+    sent = {}
+    for _ = 1, 9 do ns.Sync.SendHello() end
+    ns.Sync.SendSummary()
+    ns.Sync.SendSummary()
+    ns.Sync.ShareBank(nil)
+    T.eq(ns.Sync.Waiting(), 3)
+    local before = #sent
+    clock = clock + 3
+    ns.Sync.Pump()
+    local P, bankFirst = ns.Protocol, false
+    local assembler = P.NewAssembler()
+    for index = before + 1, #sent do
+      local payload = P.AddPart(assembler, "x", sent[index], 0)
+      local envelope = payload and P.Decode(payload)
+      if envelope then
+        bankFirst = envelope.t == "BANK"
+        break
+      end
+    end
+    T.eq(bankFirst, true)
+    env.C_ChatInfo.SendAddonMessage = raw
+    SendAll()
     T.eq(errors, {})
   end)
 

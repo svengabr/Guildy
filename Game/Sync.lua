@@ -20,8 +20,14 @@ local P, Proto = ns.Professions, ns.Protocol
 local Sync = {}
 ns.Sync = Sync
 
-local BYTES_PER_SECOND, BURST = 800, 2000
-local queue, budget, lastRefill, ticker = {}, BURST, nil, nil
+-- The game lets an addon send ten messages in a row and then one a second, per prefix; what goes
+-- beyond that it drops without a word, and a message that lost a part never arrives. Up to 1.6.1
+-- Guildy sent by bytes (about three parts a second), so after a login, when a member who knows little
+-- is offered statistics, professions and the bank at once, most of it was lost. Now it counts messages
+-- and stays under the game's limit, and what the game still refuses stays in the queue.
+local SEND_BURST, SEND_PER_SECOND = 9, 0.9
+local EXPIRE_ROOM = 45 -- parts a message can still send at that rate before its receivers give it up
+local queue, allowance, lastRefill, ticker = {}, SEND_BURST, nil, nil -- queue: { { parts, next = index } }
 local msgCounter = 0
 local assembler = Proto.NewAssembler()
 local limiter = Proto.NewLimiter(30, 10)
@@ -41,19 +47,31 @@ function Sync.Register()
   if register then pcall(register, Proto.PREFIX) end
 end
 
+-- Sends one part. Returns false when the game refused it for now (its limit): it is to be sent again.
 local function RawSend(text)
   local send = (C_ChatInfo and C_ChatInfo.SendAddonMessage) or rawget(_G, "SendAddonMessage")
-  if send then pcall(send, Proto.PREFIX, text, "GUILD") end
+  if not send then return true end
+  local ok, result = pcall(send, Proto.PREFIX, text, "GUILD")
+  if not ok or type(result) ~= "number" then return true end -- (older clients return nothing or true)
+  local codes = rawget(_G, "Enum") and Enum.SendAddonMessageResult or {}
+  return not (result == (codes.AddonMessageThrottle or 3) or result == (codes.ChannelThrottle or 8))
 end
 
 local function Pump()
   local now = GetTime()
-  budget = math.min(BURST, budget + (now - (lastRefill or now)) * BYTES_PER_SECOND)
+  allowance = math.min(SEND_BURST, allowance + (now - (lastRefill or now)) * SEND_PER_SECOND)
   lastRefill = now
-  while queue[1] and budget >= #queue[1] do
-    local text = table.remove(queue, 1)
-    budget = budget - #text
-    RawSend(text)
+  while queue[1] and allowance >= 1 do
+    local message = queue[1]
+    -- a long message only starts once it can be through before its receivers drop what they have of it
+    if message.next == 1 and #message.parts - allowance > EXPIRE_ROOM then break end
+    if not RawSend(message.parts[message.next]) then
+      allowance = 0 -- the game's own count is lower than ours: wait
+      break
+    end
+    allowance = allowance - 1
+    message.next = message.next + 1
+    if message.next > #message.parts then table.remove(queue, 1) end
   end
   if not queue[1] and ticker then
     ticker:Cancel()
@@ -61,11 +79,29 @@ local function Pump()
   end
 end
 
+-- How many messages wait to be sent (for /guildy debug and tests)
+function Sync.Waiting()
+  return #queue
+end
+
+-- Sends what waits as far as the game's limit allows now (the ticker does that; tests call it)
+function Sync.Pump()
+  Pump()
+end
+
 local function SendNow(kind, data)
   if not IsInGuild() then return end
   msgCounter = msgCounter + 1
   local msgId = string.format("%x", ns.Now() % 65536) .. msgCounter
-  for _, part in ipairs(Proto.Chunk(msgId, Proto.Encode(kind, data, ns.Version()))) do queue[#queue + 1] = part end
+  local message = { parts = Proto.Chunk(msgId, Proto.Encode(kind, data, ns.Version())), next = 1, kind = kind }
+  -- the bank is one small message a member waits for: ahead of the statistics and professions in line
+  -- (behind a message that is already on its way)
+  local at = #queue + 1
+  if kind == "BANK" or kind == "HI" then
+    at = 1
+    while queue[at] and (queue[at].next > 1 or queue[at].kind == "BANK" or queue[at].kind == "HI") do at = at + 1 end
+  end
+  table.insert(queue, at, message)
   Pump()
   if queue[1] and not ticker then ticker = C_Timer.NewTicker(0.25, Pump) end
 end
@@ -349,6 +385,11 @@ end
 local function SendHello(ask)
   lastHello = GetTime()
   Send("HI", { q = ask or nil })
+end
+
+-- "I use Guildy" to the guild now (tests)
+function Sync.SendHello()
+  SendHello()
 end
 
 -- Someone logged in and asks who else uses Guildy: answer once, after a random delay (a crowd of
