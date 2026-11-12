@@ -9,7 +9,8 @@
 --     grow = function(px) make the window taller (lower for a negative px) end })
 --   board.Content                      parent of every box
 --   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } },
---     parts = function(o) return { part, ... } end, canAdd = function() ... end, onAdd = function(anchor) ... end })
+--     parts = function(o) return { part, ... } end, canAdd = function() ... end, onAdd = function(anchor) ... end,
+--     bare = true })   bare: a box without a title row of its own (a row of tiles)
 --   board:Controls(page, presets)      "Customize" (and the presets) into a page's toolbar
 --   board:Apply()                      places the boxes; board.placed[key] = item for those that show
 --   board:LayoutParts()                the handles over the parts anew (a tab whose parts changed)
@@ -17,8 +18,9 @@
 -- A box reads its own options from box.opts (the item's o; an option is on unless it is false).
 --
 -- Customizing looks and works the same for every box of every tab:
---   * The box keeps its look, a little darker, and gives its top to a strip with its name (the box is
---     that much lower while customizing, so the strip covers nothing of it). Drag it anywhere to move it,
+--   * The box keeps its look, a little darker, under a strip with its name. The strip lies over the
+--     box's own title row, so the name stands there once; a box without a title row (bare) is that
+--     much lower while customizing and has the strip above it. Drag it anywhere to move it,
 --     drag its corner to size it (the boxes in its way move down, every box moves up into room that
 --     got free). The x in the strip removes it.
 --   * The parts of a box (tiles, title cards, the headings of its columns) each carry a handle: its x
@@ -91,9 +93,13 @@ function UI.Board(parent, opts)
     frame:SetSize(math.max(1, item.w * cw - W.GAP), math.max(1, item.h * ch - W.GAP))
   end
 
-  -- A box: while customizing its top belongs to the strip (see Cover), the box itself starts below it
+  -- A box. While customizing, one without a title row of its own starts below its strip (see Cover).
+  local function Inset(key)
+    local def = board.defs[key]
+    return board.editing and def and def.bare and STRIP or 0
+  end
   local function PutBox(box, item, cw, ch)
-    local top = board.editing and STRIP or 0
+    local top = Inset(item.k)
     box:ClearAllPoints()
     box:SetPoint("TOPLEFT", content, "TOPLEFT", item.x * cw, -item.y * ch - top)
     box:SetSize(math.max(1, item.w * cw - W.GAP), math.max(1, item.h * ch - W.GAP - top))
@@ -179,6 +185,7 @@ function UI.Board(parent, opts)
         def.raised = true
         def.box:SetFrameStrata("HIGH")
       end
+      at.k = preview.k
       PutBox(def.box, at, cw, ch)
       def.box:SetAlpha(below and 1 or 0.8)
       def.box:Show()
@@ -505,9 +512,9 @@ function UI.Board(parent, opts)
     local box = self.defs[from.k].box
     if drag.kind == "move" then
       box:ClearAllPoints()
-      box:SetPoint("TOPLEFT", content, "TOPLEFT", from.x * cw + (x - drag.x), -from.y * ch + (y - drag.y) - STRIP)
+      box:SetPoint("TOPLEFT", content, "TOPLEFT", from.x * cw + (x - drag.x), -from.y * ch + (y - drag.y) - Inset(from.k))
     else
-      PutBox(box, { x = from.x, y = (drag.lands or from).y, w = item.w, h = item.h }, cw, ch)
+      PutBox(box, { k = from.k, x = from.x, y = (drag.lands or from).y, w = item.w, h = item.h }, cw, ch)
     end
     self.Ghost:Show()
   end
@@ -556,11 +563,11 @@ function UI.Board(parent, opts)
     end)
     cover:EnableMouseWheel(true)
     cover:SetScript("OnMouseWheel", Wheel)
-    -- the strip stands on top of the box, in the room the box gives up while customizing (PutBox);
-    -- dragging it moves the box like dragging anything else of it
+    -- the strip: over the title row of the box, which it stands for while customizing; above a box
+    -- that has none, in the room that box gives up (PutBox). Dragging it moves the box.
     cover.Strip = CreateFrame("Button", nil, cover)
-    cover.Strip:SetPoint("BOTTOMLEFT", cover, "TOPLEFT", 0, 0)
-    cover.Strip:SetPoint("BOTTOMRIGHT", cover, "TOPRIGHT", 0, 0)
+    cover.Strip:SetPoint(def.bare and "BOTTOMLEFT" or "TOPLEFT", cover, "TOPLEFT", 0, 0)
+    cover.Strip:SetPoint(def.bare and "BOTTOMRIGHT" or "TOPRIGHT", cover, "TOPRIGHT", 0, 0)
     cover.Strip:SetHeight(STRIP)
     cover.Strip:SetFrameLevel(level + 4)
     cover.Strip:SetScript("OnMouseDown", function(_, button)
@@ -570,7 +577,7 @@ function UI.Board(parent, opts)
     cover.Strip:SetScript("OnMouseWheel", Wheel)
     cover.Strip.Fill = cover.Strip:CreateTexture(nil, "BACKGROUND")
     cover.Strip.Fill:SetAllPoints()
-    cover.Strip.Fill:SetColorTexture(W.GOLD[1] * 0.22, W.GOLD[2] * 0.22, W.GOLD[3] * 0.22, 0.96)
+    cover.Strip.Fill:SetColorTexture(W.GOLD[1] * 0.22, W.GOLD[2] * 0.22, W.GOLD[3] * 0.22, 1) -- (nothing shows through)
     for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", true }, { "TOPLEFT", "BOTTOMLEFT", false }, { "TOPRIGHT", "BOTTOMRIGHT", false } }) do
       local line = cover.Strip:CreateTexture(nil, "BORDER")
       line:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.6)

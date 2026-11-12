@@ -734,7 +734,7 @@ local function Build(panel)
         parts[#parts + 1] = { frame = view.More.tiles.Tiles[key], option = key }
       end
       return parts
-    end })
+    end, bare = true })
   board:Add("balance", view.More.balance, { name = L.BANK_BALANCE, about = L.BANK_ABOUT_BALANCE, size = { 8, 6 },
     min = function(o) return { 5 + On(o, "rank") + On(o, "items") + On(o, "last"), 4 } end,
     options = { { "rank", L.COL_RANK }, { "items", L.BANK_ITEMS }, { "last", L.BANK_COL_LAST } },
