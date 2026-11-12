@@ -489,6 +489,9 @@ function W.OpenMenu(anchor, items, width)
   end
   for i = #items + 1, #menu.buttons do menu.buttons[i]:Hide() end
   menu:SetSize(width, #items * MENU_ROW + 12)
+  -- as large as what it opens from (Guildy's window may have a size of its own, UI.SetScale)
+  local own, base = anchor.GetEffectiveScale and anchor:GetEffectiveScale(), UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+  if menu.SetScale and type(own) == "number" and type(base) == "number" and own > 0 and base > 0 then menu:SetScale(own / base) end
   menu:ClearAllPoints()
   menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
   catcher:Show()
@@ -605,6 +608,57 @@ function W.Segmented(parent, options, onSelect)
   return group
 end
 
+-- Horizontal slider without a Blizzard template, in the game's own slider art: the framed groove, the
+-- gold knob, and a gold fill from the left end up to the knob.
+-- onChange(value) while it is dragged, onDone(value) when the mouse lets go; slider:Set(value) moves it
+-- without calling either. Values are multiples of step.
+function W.Slider(parent, width, low, high, step, onChange, onDone)
+  local slider = CreateFrame("Slider", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  slider:SetSize(width, 17)
+  slider:SetOrientation("HORIZONTAL")
+  slider:SetMinMaxValues(low, high)
+  slider:SetValueStep(step)
+  if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
+  slider:EnableMouse(true)
+  if slider.SetBackdrop then
+    slider:SetBackdrop({
+      bgFile = "Interface\\Buttons\\UI-SliderBar-Background", edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+      tile = true, tileSize = 8, edgeSize = 8, insets = { left = 3, right = 3, top = 6, bottom = 6 },
+    })
+  end
+  slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+  local thumb = slider.GetThumbTexture and slider:GetThumbTexture()
+  if thumb and thumb.SetSize then thumb:SetSize(32, 32) end
+  if thumb and thumb.GetObjectType then
+    local fill = slider:CreateTexture(nil, "BORDER")
+    fill:SetPoint("LEFT", slider, "LEFT", 5, 0)
+    fill:SetPoint("RIGHT", thumb, "CENTER", 0, 0)
+    fill:SetHeight(5)
+    fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.75)
+  end
+  local function Snap(value)
+    if type(value) ~= "number" then return nil end
+    return math.max(low, math.min(high, math.floor(value / step + 0.5) * step))
+  end
+  function slider:Set(value)
+    self.setting = true
+    self.value = Snap(value)
+    self:SetValue(self.value or low)
+    self.setting = nil
+  end
+  slider:SetScript("OnValueChanged", function(self, value)
+    if self.setting then return end
+    value = Snap(value)
+    if not value or value == self.value then return end
+    self.value = value
+    if onChange then onChange(value) end
+  end)
+  slider:SetScript("OnMouseUp", function(self)
+    if onDone and self.value then onDone(self.value) end
+  end)
+  return slider
+end
+
 -- Grip in the bottom-right corner that resizes frame (SetResizable is set by the caller)
 function W.ResizeGrip(frame, onDone)
   local grip = CreateFrame("Button", nil, frame)
@@ -629,9 +683,12 @@ function W.ResizeGrip(frame, onDone)
     if not maxH or maxH <= 0 then maxH = math.huge end
     -- never larger than the screen (the side tabs need some room on the right). The screen, not the
     -- parent: Guildy's window is a child of Blizzard's much smaller guild window (UI/Main.lua)
+    -- in the frame's own units: it may be drawn larger or smaller than the screen's (UI.SetScale)
     local screenW, screenH = UIParent:GetWidth(), UIParent:GetHeight()
-    if screenW and screenW > 0 then maxW = math.min(maxW or math.huge, screenW - 80) end
-    if screenH and screenH > 0 then maxH = math.min(maxH or math.huge, screenH - 20) end
+    local own, base = frame:GetEffectiveScale(), UIParent:GetEffectiveScale()
+    local unit = (type(own) == "number" and type(base) == "number" and own > 0 and base > 0) and own / base or 1
+    if screenW and screenW > 0 then maxW = math.min(maxW or math.huge, (screenW - 80) / unit) end
+    if screenH and screenH > 0 then maxH = math.min(maxH or math.huge, (screenH - 20) / unit) end
     return minW or 0, minH or 0, math.max(minW or 0, maxW), math.max(minH or 0, maxH)
   end
   local function Stop()

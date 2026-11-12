@@ -133,6 +133,7 @@ local function AnchorTooltip(owner)
   local scale = target.GetEffectiveScale and UIParent.GetEffectiveScale and target:GetEffectiveScale()
   local base = scale and UIParent:GetEffectiveScale()
   local factor = (type(scale) == "number" and type(base) == "number" and base > 0) and scale / base or 1
+  y = y * factor -- the tooltip's units, not the window's (UI.SetScale)
   local gap = mode == "row" and 8 or 66
   GameTooltip:SetOwner(owner, "ANCHOR_NONE")
   if mode == "row" then

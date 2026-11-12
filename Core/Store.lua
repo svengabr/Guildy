@@ -1,6 +1,7 @@
 -- GuildyDB layout and access. Pure: takes and returns tables.
 --   GuildyDB = { version, settings = {...}, guilds = { [guildKey] = { members = { [nameKey] = MemberRec } } } }
 --   MemberRec = { name = "First Last", profs = { [skillLineID] = ProfRec } }
+--   A guild also holds bank = what was read of the guild bank (Core/Bank.lua).
 local _, ns = ...
 
 local Store = {}

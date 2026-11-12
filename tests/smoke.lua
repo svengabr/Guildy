@@ -82,7 +82,7 @@ T.describe("Smoke", function()
     env.CommunitiesFrame:Show() -- J opens Blizzard's guild window
     T.truthy(ns.UI.IsShown(), "Guildy shows inside Blizzard's guild window")
     T.eq(ns.UI.Current(), "chat")
-    for _, key in ipairs({ "members", "overview", "fame", "professions", "info", "ranks", "chat" }) do
+    for _, key in ipairs({ "members", "overview", "fame", "professions", "info", "ranks", "bank", "chat" }) do
       ns.UI.SelectTab(key)
       T.eq(ns.UI.Current(), key)
     end

@@ -109,6 +109,7 @@ return function(T, opts)
     ERR_GUILD_JOIN_S = "%s ist der Gilde beigetreten.",
     ACCEPT = "Annehmen", CANCEL = "Abbrechen", YES = "Ja", NO = "Nein",
   }
+  env.UIParent._shown = true -- the screen itself: what hangs on it is visible when shown
   env.CreateFrame = function(_, name, parent)
     local frame = Stub(name)
     frame._parent = parent

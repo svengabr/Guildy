@@ -81,6 +81,17 @@ local HANDLERS = {
   CHAT_MSG_SAY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_PARTY = function(text, sender, ...) ns.TradeSkill.OnChatMessage(text, sender, select(10, ...)) end,
   CHAT_MSG_ADDON = function(...) ns.Sync.OnAddonMessage(...) end,
+  -- the guild bank answers only while its window is open at a banker (Game/Bank.lua)
+  PLAYER_INTERACTION_MANAGER_FRAME_SHOW = function(kind) ns.GameBank.OnInteraction(kind, true) end,
+  PLAYER_INTERACTION_MANAGER_FRAME_HIDE = function(kind) ns.GameBank.OnInteraction(kind, false) end,
+  GUILDBANKFRAME_OPENED = function() ns.GameBank.OnOpened() end,
+  GUILDBANKFRAME_CLOSED = function() ns.GameBank.OnClosed() end,
+  GUILDBANK_UPDATE_TABS = function() ns.GameBank.OnTabsChanged() end,
+  GUILDBANKLOG_UPDATE = function() ns.GameBank.OnChanged() end,
+  GUILDBANKBAGSLOTS_CHANGED = function() ns.GameBank.OnSlotsChanged() end,
+  GUILDBANK_UPDATE_MONEY = function() ns.GameBank.OnMoneyChanged() end,
+  GUILDBANK_UPDATE_WITHDRAWMONEY = function() ns.GameBank.OnChanged() end,
+  GUILDBANK_UPDATE_TEXT = function() ns.GameBank.OnChanged() end,
   CLUB_MESSAGE_ADDED = function(clubId, streamId)
     if not ns.Communities.OnMessageAdded(clubId, streamId) then ns.Fire("CHAT") end
   end,
@@ -125,6 +136,7 @@ ns.Perf.Wrap(ns.Roster, "Scan", "scan", "roster")
 ns.Perf.Wrap(ns.TradeSkill, "ScanOpen", "scan", "profession window")
 ns.Perf.Wrap(ns.TradeSkill, "ScanSkills", "scan", "own skills")
 ns.Perf.Wrap(ns.GameStats, "UpdateOwn", "scan", "own statistics")
+ns.Perf.Wrap(ns.GameBank, "Read", "scan", "guild bank")
 ns.Perf.Wrap(ns.Chat, "History", "read", "chat history")
 ns.Perf.Wrap(ns.UI, "MemberTooltip", "tooltip", "member")
 
@@ -215,6 +227,18 @@ SlashCmdList.GUILDY = function(msg)
     ns.Harvest.ResetMarks()
   elseif msg == "statreset" then
     ns.GameStats.ResetWaits()
+  elseif msg == "bank reset" then
+    -- forgets what was read of the bank on this account (it comes back from the next reading or from the guild)
+    local guild = ns.GuildData()
+    if guild then guild.bank = nil end
+    ns.GameBank.OnClosed()
+    ns.Fire("BANK")
+    ns.Print("bank: stored data removed")
+  elseif msg == "bank" then
+    ns.GameBank.OnOpened() -- typed at the banker: start reading now, whatever the events did
+    ns.GameBank.OnChanged()
+    ns.GameBank.AskAgain()
+    for _, line in ipairs(ns.GameBank.Debug()) do ns.Print(line) end
   elseif msg == "activity" then
     ns.Print(ns.GameActivity.Report())
   elseif msg == "statmouse" then

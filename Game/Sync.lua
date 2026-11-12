@@ -5,6 +5,9 @@
 --   of one member, own or read nearby; older Guildy versions ignore both.
 --   SUM also carries f = {ownerKey = ts}, FAM {m = owner, f = FamilyRec} (Core/Family.lua): the characters
 --   a Guildy user has in the guild (main and twinks); sent only with settings.share, relayed like the rest.
+--   SUM also carries b = {at, ts, n} (Core/Bank.lua: newest reading, newest entry, entries), BANK {at, by,
+--   money, tabs, logs}: what was read of the guild bank at a banker. Whoever knows more than a summary
+--   says offers the entries after its newest one; a reading is shared right after it was taken.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
 --   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
@@ -25,6 +28,8 @@ local limiter = Proto.NewLimiter(30, 10)
 local seen = {}          -- nameKey -> newest ts seen on the channel (to skip duplicate offers)
 local seenStats = {}     -- same for statistics
 local seenFamilies = {}  -- same for families
+local seenBank, bankMessages = 0, 0 -- newest bank reading seen on the channel, how many of them
+local MAX_BYTES = 14000  -- a message of more parts than Protocol.MAX_PARTS is dropped by its receivers
 local warnedNewer = false
 local ownTimer
 local MAX_OFFERS = 25
@@ -96,7 +101,26 @@ end
 
 function Sync.SendSummary()
   local guild = ns.GuildData()
-  if guild then Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild) }) end
+  if guild then
+    Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild), b = ns.Bank.Digest(guild.bank) })
+  end
+end
+
+-- The guild bank as far as it is newer than `since` (a time, nil: all of it). Too much for one message:
+-- first without the tabs' contents, then fewer entries.
+function Sync.ShareBank(since)
+  local guild = ns.GuildData()
+  local bank = guild and guild.bank
+  if type(bank) ~= "table" or not bank.at then return end
+  bank = ns.Bank.Get(guild)
+  for _, try in ipairs({ { ns.Bank.WIRE_ENTRIES, true }, { ns.Bank.WIRE_ENTRIES, false }, { 80, false }, { 25, false } }) do
+    local data = ns.Bank.Excerpt(bank, since, try[1], try[2])
+    if #Proto.Encode("BANK", data, ns.Version()) <= MAX_BYTES then
+      Send("BANK", data)
+      seenBank, bankMessages = math.max(seenBank, bank.at), bankMessages + 1
+      return
+    end
+  end
 end
 
 -- The account's characters in this guild as the own family record (kept while they stay the same)
@@ -181,6 +205,15 @@ local function OnSummary(data, sender)
       end)
     end
   end
+  -- the guild bank: one offer for all of it (an older Guildy sends no b and could not use it)
+  local myBank = ns.Bank.Digest(guild.bank)
+  if type(data.b) == "table" and ns.Bank.Newer(myBank, data.b) then
+    local theirs, before = tonumber(data.b.ts) or 0, bankMessages
+    C_Timer.After(6 + math.random() * 10, function()
+      if bankMessages > before and seenBank >= myBank.at then return end -- someone else sent it meanwhile
+      Sync.ShareBank(theirs)
+    end)
+  end
   -- statistics the same way (an older Guildy sends no s: then offer nothing, it can't use them)
   if type(data.s) ~= "table" then return end
   local myStats = ns.Stats.Digest(guild)
@@ -220,6 +253,15 @@ local function OnFamily(data)
   local key = ns.Names.Key(data.m)
   seenFamilies[key] = math.max(seenFamilies[key] or 0, rec.ts)
   if ns.Family.Merge(guild, data.m, rec) then ns.Fire("FAMILY") end
+end
+
+local function OnBank(data, sender)
+  local guild = ns.GuildData()
+  if not guild then return end
+  local reading = ns.Bank.Validate(data, sender, ns.Now())
+  if not reading then return end
+  seenBank, bankMessages = math.max(seenBank, reading.at), bankMessages + 1
+  if ns.Bank.Apply(ns.Bank.Get(guild), reading) then ns.Fire("BANK") end
 end
 
 local function OnProfessions(data, sender)
@@ -295,7 +337,7 @@ local function OnHello(data)
   end)
 end
 
-local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, HI = OnHello }
+local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, BANK = OnBank, HI = OnHello }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)

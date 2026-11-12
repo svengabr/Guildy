@@ -192,6 +192,8 @@ end
 -- {macro = "/gdemote Name"}, plus optional before (right before the action) and after (once done).
 function UI.ShowOverlay(button, action, tooltip)
   if InCombatLockdown() or type(action) ~= "table" or not (action.click or action.macro) or not button:IsVisible() then return end
+  -- at the guild banker Guildy shows without Blizzard's window (UI.ShowAtBank): none of its buttons to click
+  if action.click and UI.AtBank and UI.AtBank() then return end
   local left, bottom = button:GetLeft(), button:GetBottom()
   if not left or not bottom then return end
   local o = Overlay()
@@ -230,7 +232,9 @@ function UI.SecureAction(button, getAction, tooltip, onPlainClick)
   button:HookScript("OnEnter", Lay)
   if button.HasScript and button:HasScript("OnClick") then
     button:SetScript("OnClick", function(self)
-      if onPlainClick and not InCombatLockdown() then
+      if UI.AtBank and UI.AtBank() and not InCombatLockdown() then
+        ns.Print(ns.L.OPEN_WITH_J)
+      elseif onPlainClick and not InCombatLockdown() then
         onPlainClick(self)
       else
         ns.Print(ns.L.NOT_IN_COMBAT)

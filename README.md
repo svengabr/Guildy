@@ -20,6 +20,7 @@ More screenshots are in the gallery on [CurseForge](https://www.curseforge.com/w
 | Professions | Who has which profession, with skill and recipes. The search answers "who can make Elixir of Lion's Strength?". |
 | Hall of Fame | Guild records from Forever's character statistics: kills, quests, deaths (including by Hogger), gold, dungeons, reputation and PvP. |
 | Ranks | Every rank with its members and permissions. The guild master edits them right there. |
+| Bank | The guild bank for everyone in the guild: gold over 30 days and a ledger of every deposit, withdrawal and repair, read whenever a Guildy user opens the bank at a guild banker. |
 | Info & log | Message of the day, guild information and the guild log. |
 | Communities | Your communities with their chat and members. Works without a guild too. |
 

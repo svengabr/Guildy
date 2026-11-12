@@ -31,6 +31,7 @@ local hostGeometry -- Blizzard's window's anchors and size before Guildy moved i
 local returnTab    -- side tab on Blizzard's own window back to Guildy (UI.ShowBlizzard)
 local lastTab -- session only, on purpose not in GuildyDB
 local noGuild, forcedCommunities -- without a guild only the communities (UpdateGuildState)
+local bankMode, tabBeforeBank    -- shown at the guild banker without Blizzard's window (UI.ShowAtBank)
 
 local page    -- a page shown instead of a tab (UI.ShowPage); kept while the window is closed, so
               -- opening it again in this session comes back to the page
@@ -63,6 +64,9 @@ local function PlaceHost()
   if not (host and frame) or blizzardMode then return end
   local left, top = frame:GetLeft(), frame:GetTop()
   if not (left and top) then return end
+  -- Guildy's corner is in its own units: with a size of its own (UI.SetScale) they differ from the host's
+  local scale = frame.GetScale and frame:GetScale()
+  if type(scale) == "number" and scale > 0 then left, top = left * scale, top * scale end
   placingHost = true
   host:ClearAllPoints()
   host:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
@@ -76,6 +80,45 @@ local function SavePosition()
   local point, _, relPoint, x, y = frame:GetPoint(1)
   settings.point = { point, relPoint, x, y }
   settings.width, settings.height = frame:GetWidth(), frame:GetHeight()
+end
+
+-- Size of the whole window, texts included ---------------------------------------------------------------
+-- Guildy's texts are the game's own small fonts in a layout made for them, so "larger text" is the
+-- window as a whole made larger (settings.scale, nil: as the game draws it). Only sizes at which the
+-- smallest window still fits the screen can be chosen (the slider in the options ends there).
+UI.SCALE_MIN, UI.SCALE_MAX, UI.SCALE_STEP = 0.8, 1.5, 0.02
+
+function UI.Scale()
+  local scale = ns.Settings().scale
+  if type(scale) ~= "number" or scale < 0.5 or scale > 2 then return 1 end
+  return scale
+end
+
+-- Screen units (UIParent's) per unit of Guildy's window at scale 1: its host may have a scale of its own
+local function HostScale()
+  local own = frame and frame.GetEffectiveScale and frame:GetEffectiveScale()
+  local set = frame and frame.GetScale and frame:GetScale()
+  local base = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()
+  if type(own) ~= "number" or type(set) ~= "number" or type(base) ~= "number" or set <= 0 or base <= 0 then return 1 end
+  return own / set / base
+end
+
+-- The largest scale at which the window at its smallest size still fits the screen (at least 1)
+function UI.MaxScale()
+  local screenW, screenH = UIParent:GetWidth(), UIParent:GetHeight()
+  if type(screenW) ~= "number" or type(screenH) ~= "number" then return 1 end
+  local host = HostScale()
+  return math.max(1, math.min((screenW - 80) / (UI.MIN_W * host), (screenH - 20) / (UI.MIN_H * host)))
+end
+
+-- The window no larger than the screen at the scale in force
+local function FitScreen()
+  local screenW, screenH = UIParent:GetWidth(), UIParent:GetHeight()
+  if type(screenW) ~= "number" or type(screenH) ~= "number" then return end
+  local unit = HostScale() * UI.Scale()
+  local maxW, maxH = math.max(UI.MIN_W, (screenW - 80) / unit), math.max(UI.MIN_H, (screenH - 20) / unit)
+  local width, height = frame:GetWidth(), frame:GetHeight()
+  if width > maxW or height > maxH then frame:SetSize(math.min(width, maxW), math.min(height, maxH)) end
 end
 
 local function ApplyBounds()
@@ -245,12 +288,14 @@ local function Build()
   -- a saved size outside the bounds (older versions, a jumped resize) comes back inside them
   frame:SetSize(math.min(UI.MAX_W, math.max(UI.MIN_W, settings.width or 1000)),
     math.min(UI.MAX_H, math.max(UI.MIN_H, settings.height or 600)))
+  if frame.SetScale then frame:SetScale(math.min(UI.Scale(), UI.MaxScale())) end
   local p = settings.point
   if type(p) == "table" and p[1] then
     frame:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
   else
     frame:SetPoint("CENTER", 0, 40)
   end
+  if UI.Scale() ~= 1 then FitScreen() end -- at the game's own size the window is as it always was
   -- strata and frame level come from Blizzard's window (UI.Embed); no SetToplevel: a click must never
   -- raise Guildy above the Blizzard frames it lays over its own controls
   frame:SetClampedToScreen(true)
@@ -283,6 +328,7 @@ local function Build()
   frame.Close = frame.CloseButton or rawget(_G, "GuildyFrameCloseButton")
   if type(frame.Close) == "table" and frame.Close.SetScript and UI.SecureAction then
     UI.SecureAction(frame.Close, function()
+      if bankMode then return nil end -- no Blizzard window to close: the click closes Guildy itself
       local host = Host()
       local close = host and (host.CloseButton or rawget(_G, "CommunitiesFrameCloseButton"))
       return close and { click = close } or nil
@@ -384,6 +430,7 @@ local function Build()
       tab.index = buttons
       tab.button = W.Tab(frame, buttons, ns.L[tab.label], function() UI.SelectTab(tab.key) end)
       UI.OptionalAction(tab.button, function()
+        if bankMode then return nil end -- no Blizzard window to pick the guild in
         return UI.Action.SelectGuild(function() UI.SelectTab(tab.key) end)
       end)
     end
@@ -399,6 +446,10 @@ local function Build()
   frame:SetScript("OnHide", function()
     if UI.HideOverlay then UI.HideOverlay() end
     if UI.HideOptions then UI.HideOptions() end -- the options are a window of their own (UI/Options.lua)
+    if bankMode then -- the next opening with J comes back to where the window was before the banker
+      bankMode = nil
+      lastTab = tabBeforeBank
+    end
     -- Blizzard's own window instead (UI.ShowBlizzard): its chat shows the same club stream Guildy
     -- focused, and unfocusing it here left Blizzard's chat empty. Told when Blizzard's window closes.
     if blizzardMode then return end
@@ -408,6 +459,27 @@ local function Build()
     if not page and current and current.view and current.view.OnShow then ns.SafeCall(current.view.OnShow, current.view) end
   end)
   UI.frame = frame
+end
+
+-- Sets the size of the window (nil or 1: as the game draws it); its top left corner stays where it is
+function UI.SetScale(scale)
+  if type(scale) ~= "number" or scale == 1 then scale = nil end
+  if scale then scale = math.min(scale, UI.MaxScale()) end
+  ns.Settings().scale = scale
+  if frame and frame.SetScale then
+    local was = frame:GetEffectiveScale()
+    local left, top = frame:GetLeft(), frame:GetTop()
+    frame:SetScale(UI.Scale())
+    local now = frame:GetEffectiveScale()
+    if left and top and type(was) == "number" and type(now) == "number" and now > 0 then
+      frame:ClearAllPoints()
+      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * was / now, top * was / now)
+    end
+    FitScreen()
+    SavePosition()
+    PlaceHost()
+  end
+  if UI.OptionsScaleChanged then UI.OptionsScaleChanged() end
 end
 
 -- A page shown in the content area instead of a tab (the character page). It hides the current tab
@@ -474,7 +546,8 @@ end
 -- shows the communities. Joining a guild brings them back (and the chat, when the communities were forced).
 local function LayoutTabs()
   -- side tabs: guild, communities; without a guild the communities in the guild tab's place
-  frame.GuildTab:SetShown(not noGuild)
+  frame.GuildTab:SetShown(not noGuild and not bankMode)
+  frame.CommunitiesTab:SetShown(not bankMode)
   frame.CommunitiesTab:ClearAllPoints()
   if noGuild then
     frame.CommunitiesTab:SetPoint("TOPLEFT", frame, "TOPRIGHT", 0, -60)
@@ -543,6 +616,10 @@ end
 -- communities without a guild
 local function Open()
   if not frame then Build() end
+  if bankMode then -- J at the banker: from here on the whole window
+    bankMode = nil
+    lastTab = "bank"
+  end
   if returnTab then returnTab:Hide() end
   Embed()
   if UI.Notes then ns.SafeCall(UI.Notes.Prepare) end
@@ -610,6 +687,42 @@ function UI.Show()
   else
     ns.Print(ns.L.OPEN_WITH_J)
   end
+end
+
+-- At the guild banker (Game/Bank.lua): Guildy on its Bank tab beside the bank, unless switched off
+-- (settings.bankOpen == false). Blizzard's guild window cannot be opened from addon code without
+-- tainting it, so here Guildy's window shows without it, as a window of its own; it closes with the
+-- bank. All tabs can be read; what works through Blizzard's own buttons (notes, inviting, editing
+-- texts: UI/Commands.lua) waits for the window opened with J, and the communities stay away. With the guild window already open, its Bank tab is selected.
+function UI.ShowAtBank()
+  if ns.Settings().bankOpen == false or not IsInGuild() or blizzardMode then return end
+  local host = Host()
+  if host and host:IsShown() then
+    if frame and frame:IsShown() then UI.SelectTab("bank") end
+    return
+  end
+  if InCombatLockdown() then return end
+  if not frame then Build() end
+  if not bankMode then tabBeforeBank = lastTab end
+  bankMode = true
+  if frame:GetParent() ~= UIParent then frame:SetParent(UIParent) end
+  frame:SetIgnoreParentAlpha(false)
+  frame:SetFrameStrata("MEDIUM")
+  frame:SetFrameLevel(5)
+  UpdateTitle()
+  frame:Show()
+  noGuild = false
+  LayoutTabs()
+  UI.SelectTab("bank")
+end
+
+-- The bank closed: Guildy with it, when the bank was what opened it
+function UI.HideAtBank()
+  if bankMode and frame then frame:Hide() end
+end
+
+function UI.AtBank()
+  return bankMode == true
 end
 
 -- Closes Blizzard's window and Guildy with it (Guildy's close button normally clicks Blizzard's own)
@@ -690,7 +803,7 @@ local function Refresh(event, ...)
   if not UI.IsShown() or not current or not current.view or not current.view.Refresh then return end
   ns.Perf.Call("refresh", current.key, ns.SafeCall, current.view.Refresh, current.view, event, ...)
 end
-for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", "USERS", "FAMILY", "GUILD", "COMMUNITY" }) do
+for _, event in ipairs({ "ROSTER", "PROFS", "CHAT", "INFO", "HARVEST", "STATS", "USERS", "FAMILY", "GUILD", "COMMUNITY", "BANK" }) do
   ns.On(event, function(...) Refresh(event, ...) end)
 end
 -- The mark on the communities side tab while a community has something new

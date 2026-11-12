@@ -479,6 +479,12 @@ local function Dock()
   if not (detail and guildy) then return end
   local left, top, right = guildy:GetLeft(), guildy:GetTop(), guildy:GetRight()
   if not (left and top and right) then return end
+  -- Guildy's edges in the panel's units: Guildy's window may have a size of its own (UI.SetScale)
+  local own, theirs = guildy.GetEffectiveScale and guildy:GetEffectiveScale(), detail.GetEffectiveScale and detail:GetEffectiveScale()
+  if type(own) == "number" and type(theirs) == "number" and theirs > 0 then
+    local factor = own / theirs
+    left, top, right = left * factor, top * factor, right * factor
+  end
   Save(detail)
   docked = true
   local width = detail:GetWidth() or 212

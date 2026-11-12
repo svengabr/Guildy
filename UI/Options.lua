@@ -96,6 +96,15 @@ function UI.OverviewPhaseItems()
   return items
 end
 
+local function Percent(scale)
+  return math.floor(scale * 100 + 0.5) .. "%"
+end
+
+-- the options are as large as the window they belong to
+function UI.OptionsScaleChanged()
+  if options and options.SetScale then options:SetScale(UI.Scale()) end
+end
+
 -- general ----------------------------------------------------------------------------------------------
 local function BuildGeneral(panel)
   local L = ns.L
@@ -145,18 +154,42 @@ local function BuildGeneral(panel)
   panel.Phase:SetPoint("TOP", phaseLabel, "TOP", 0, 6)
   W.Tooltip(panel.Phase, L.OPTIONS_PHASE, L.OPTIONS_PHASE_TIP)
 
+  -- how large the window and its texts are, under the overview choice and in line with it
+  local scaleLabel = W.Text(panel, "GameFontHighlightSmall", L.OPTIONS_SCALE)
+  scaleLabel:SetPoint("TOPLEFT", phaseLabel, "BOTTOMLEFT", 0, -24)
+  -- a slider up to the largest size that fits the screen. The size changes when the mouse lets go:
+  -- this window grows with Guildy's, and a slider that moves under the mouse cannot be dragged
+  panel.ScaleValue = W.Text(panel, "GameFontNormalSmall")
+  local largest = math.floor(UI.MaxScale() / UI.SCALE_STEP + 0.001) * UI.SCALE_STEP -- a whole step that still fits
+  panel.Scale = W.Slider(panel, 190, UI.SCALE_MIN, math.max(1, math.min(UI.SCALE_MAX, largest)), UI.SCALE_STEP,
+    function(value) panel.ScaleValue:SetText(Percent(value)) end,
+    function(value)
+      UI.SetScale(value)
+      panel:Refresh()
+    end)
+  panel.Scale:SetPoint("LEFT", panel.Tooltip, "LEFT", 0, 0)
+  panel.Scale:SetPoint("TOP", scaleLabel, "TOP", 0, 3)
+  panel.ScaleValue:SetPoint("LEFT", panel.Scale, "RIGHT", 12, 0)
+  local scaleTip = CreateFrame("Frame", nil, panel)
+  scaleTip:SetAllPoints(scaleLabel)
+  scaleTip:EnableMouse(true)
+  W.Tooltip(scaleTip, L.OPTIONS_SCALE, L.OPTIONS_SCALE_TIP)
+
   local blizzard = W.Button(panel, L.OPEN_BLIZZARD, function()
     options:Hide()
     UI.ShowBlizzard()
   end, 170, { small = true })
-  blizzard:SetPoint("TOPLEFT", phaseLabel, "BOTTOMLEFT", -2, -30)
+  blizzard:SetPoint("TOPLEFT", scaleLabel, "BOTTOMLEFT", -2, -30)
 
   -- everything this window changes back to what Guildy ships (sharing is not a look: it stays)
   local reset = W.Button(panel, L.OPTIONS_RESET_ALL, function()
     local settings = ns.Settings()
     settings.memberStyle, settings.fameTiles, settings.fameCards = nil, nil, nil
     settings.memberColumns, settings.memberTwinks, settings.chatProfs, settings.tooltipAnchor = nil, nil, nil, nil
-    settings.overviewPhase = nil
+    settings.overviewPhase, settings.bank, settings.bankOpen = nil, nil, nil
+    UI.SetScale(nil)
+    RefreshTab("bank")
+    if options.Panels.bank then options.Panels.bank:Refresh() end
     panel:Refresh()
     RefreshTab("overview")
     RefreshTab("members")
@@ -171,6 +204,8 @@ local function BuildGeneral(panel)
     self.Language:SetText(LanguageText(ns.Settings().language))
     local phase = ns.Settings().overviewPhase
     self.Phase:SetText(phase == "level" and L.PHASE_LEVEL or phase == "endgame" and L.PHASE_ENDGAME or L.OPTIONS_PHASE_AUTO)
+    self.Scale:Set(UI.Scale())
+    self.ScaleValue:SetText(Percent(UI.Scale()))
   end
 end
 
@@ -367,6 +402,51 @@ local function BuildChat(panel)
 
   function panel:Refresh()
     self.ChatProfs:SetChecked(ns.Settings().chatProfs ~= false)
+  end
+end
+
+-- bank ---------------------------------------------------------------------------------------------------
+-- Which boxes the Bank tab shows, how tall its chart is and which movements the chart marks
+-- (settings.bank, read by UI/TabBank.lua). The ledger is the tab itself and always shows.
+local function BuildBank(panel)
+  local L = ns.L
+  panel.Open = Check(panel, L.OPTIONS_BANK_OPEN, function(self)
+    ns.Settings().bankOpen = Off(self)
+  end)
+  panel.Open:SetPoint("TOPLEFT", 6, 0)
+  local openTip = W.Text(panel, "GameFontDisableSmall", L.OPTIONS_BANK_OPEN_TIP)
+  openTip:SetPoint("TOPLEFT", panel.Open, "BOTTOMLEFT", 26, -2)
+  openTip:SetPoint("RIGHT", -12, 0)
+
+  local marksHead = W.Text(panel, "GameFontNormal", L.OPTIONS_BANK_MARKS_HEAD)
+  marksHead:SetPoint("TOPLEFT", openTip, "BOTTOMLEFT", -28, -20)
+  panel.Marks = Check(panel, L.OPTIONS_BANK_MARKS, function(self)
+    UI.SetBankSetting("marks", Off(self))
+    RefreshTab("bank")
+  end)
+  panel.Marks:SetPoint("TOPLEFT", marksHead, "BOTTOMLEFT", 2, -8)
+  local shareLabel = W.Text(panel, "GameFontHighlightSmall", L.OPTIONS_BANK_SHARE)
+  shareLabel:SetPoint("TOPLEFT", panel.Marks, "BOTTOMLEFT", 4, -10)
+  local shares = {}
+  for i, share in ipairs(UI.BANK_SHARES) do shares[i] = { value = share, text = math.floor(share * 100 + 0.5) .. "%" } end
+  panel.Share = W.Segmented(panel, shares, function(value)
+    UI.SetBankSetting("share", value ~= 0.25 and value or nil)
+    RefreshTab("bank")
+  end)
+  panel.Share:SetPoint("LEFT", shareLabel, "RIGHT", 12, 0)
+  local marksTip = W.Text(panel, "GameFontDisableSmall", L.OPTIONS_BANK_MARKS_TIP)
+  marksTip:SetPoint("TOPLEFT", shareLabel, "BOTTOMLEFT", 0, -14)
+  marksTip:SetPoint("RIGHT", -12, 0)
+
+  -- which boxes the tab shows, where and how large, is set on the tab itself (UI/BankBoard.lua)
+  local tip = W.Text(panel, "GameFontDisableSmall", L.OPTIONS_BANK_TIP)
+  tip:SetPoint("TOPLEFT", marksTip, "BOTTOMLEFT", 0, -22)
+  tip:SetPoint("RIGHT", -12, 0)
+
+  function panel:Refresh()
+    self.Open:SetChecked(ns.Settings().bankOpen ~= false)
+    self.Marks:SetChecked(UI.BankSetting("marks") ~= false)
+    self.Share:SetValue(UI.BankSetting("share") or 0.25)
   end
 end
 
@@ -727,6 +807,7 @@ local function Build()
   options = CreateFrame("Frame", "GuildyOptions", UIParent, "ButtonFrameTemplate")
   options:Hide()
   options:SetSize(WIDTH, HEIGHT)
+  if options.SetScale then options:SetScale(UI.Scale()) end
   options:SetFrameStrata("DIALOG")
   if options.SetToplevel then options:SetToplevel(true) end
   options:EnableMouse(true)
@@ -779,7 +860,7 @@ local function Build()
     -- "General", then Guildy's own tabs in their order (those that have something to change)
     { "general", L.OPTIONS_GENERAL, BuildGeneral }, { "chat", L.TAB_CHAT, BuildChat },
     { "members", L.TAB_MEMBERS, BuildMembers }, { "fame", L.TAB_FAME, BuildFame },
-    { "professions", L.TAB_PROFESSIONS, BuildProfessions },
+    { "professions", L.TAB_PROFESSIONS, BuildProfessions }, { "bank", L.TAB_BANK, BuildBank },
   }) do
     local panel = CreateFrame("Frame", nil, body)
     panel:SetAllPoints()
