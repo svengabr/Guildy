@@ -284,12 +284,19 @@ T.describe("Guild bank", function()
     T.eq(board.placed.tiles.y, 18)
     T.eq(board.placed.total.y, 0)
     down, x, y = true, 100, 100
+    T.eq(board:Dragging(), nil)
     board:Start("move", "tiles")
     y = 100 + 30 * board.ch
     board:Track()
     T.eq(board.Ghost:IsShown(), true)
+    -- while it is still held, the tab already shows what letting go will do, and nothing is stored yet
+    local would = {}
+    for _, item in ipairs(board:Dragging()) do would[item.k] = item.y end
+    T.eq({ would.tiles, would.total, would.ledger, would.balance }, { 0, 2, 6, 14 })
+    T.eq(board.placed.tiles.y, 18)
     down = false
     board:Track()
+    T.eq(board:Dragging(), nil)
     T.eq(board.placed.tiles.y, 0)
     T.eq({ board.placed.total.y, board.placed.chart.y, board.placed.tabs.y, board.placed.ledger.y }, { 2, 2, 6, 6 })
     T.eq(board.placed.balance.y, 14)

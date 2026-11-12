@@ -183,6 +183,7 @@ function UI.Board(parent, opts)
     self.AddBar:SetShown(self.editing == true)
     for index = count + 1, #slots do slots[index]:Hide() end
     self.slotCount = count
+    if drag then drag.cell = nil end -- placed anew under a drag: its next step moves the boxes again
     self.Empty:SetShown(#layout == 0 and not self.editing)
   end
   board:SetScript("OnSizeChanged", function() board:Apply() end)
@@ -285,12 +286,22 @@ function UI.Board(parent, opts)
     return items
   end
 
-  -- Moving and sizing: the box follows the mouse as an outline on the grid. It may stand anywhere:
-  -- what is in its way moves down when it is let go.
+  -- Moving and sizing, as it happens: the box itself follows the mouse, a gold field marks the cells it
+  -- will land on, and the other boxes move out of its way right away (Grid.Compact), so what letting
+  -- go will do is on the tab before it is done.
   board.Ghost = CreateFrame("Frame", nil, content)
   board.Ghost:SetFrameLevel((content:GetFrameLevel() or 1) + 80)
-  board.Ghost.Fill = board.Ghost:CreateTexture(nil, "OVERLAY")
+  board.Ghost.Fill = board.Ghost:CreateTexture(nil, "BACKGROUND")
   board.Ghost.Fill:SetAllPoints()
+  board.Ghost.Fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.22)
+  for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", true }, { "BOTTOMLEFT", "BOTTOMRIGHT", true },
+    { "TOPLEFT", "BOTTOMLEFT", false }, { "TOPRIGHT", "BOTTOMRIGHT", false } }) do
+    local line = board.Ghost:CreateTexture(nil, "BORDER")
+    line:SetColorTexture(1, 0.82, 0, 0.9)
+    line:SetPoint(edge[1])
+    line:SetPoint(edge[2])
+    if edge[3] then line:SetHeight(2) else line:SetWidth(2) end
+  end
   board.Ghost:Hide()
   local drag
 
@@ -299,7 +310,10 @@ function UI.Board(parent, opts)
     board.Ghost:Hide()
     local done = drag
     drag = nil
-    if not (done and done.ok and done.item) then return end
+    if not (done and done.ok and done.item) then
+      board:Apply() -- every box back to where it stands
+      return
+    end
     local layout = done.layout
     for i, item in ipairs(layout) do
       if item.k == done.item.k then layout[i] = done.item end
@@ -307,13 +321,20 @@ function UI.Board(parent, opts)
     Changed(layout, done.item.k)
   end
 
+  -- The layout as it would be if the mouse let go now (while a box is dragged), else nil
+  function board:Dragging()
+    return drag and drag.result or nil
+  end
+
   function board:Track()
     if not drag then return end
     if not IsMouseButtonDown("LeftButton") then return Drop() end
     local scale = self:GetEffectiveScale() or 1
     local x, y = GetCursorPosition()
-    local dx = math.floor((x / scale - drag.x) / self.cw + 0.5)
-    local dy = math.floor((drag.y - y / scale) / self.ch + 0.5)
+    x, y = x / scale, y / scale
+    local cw, ch = self.cw, self.ch
+    local dx = math.floor((x - drag.x) / cw + 0.5)
+    local dy = math.floor((drag.y - y) / ch + 0.5)
     local from = drag.from
     local least = Least(from.k, from.o)
     local item = { k = from.k, x = from.x, y = from.y, w = from.w, h = from.h, o = from.o }
@@ -327,9 +348,30 @@ function UI.Board(parent, opts)
       item.h = math.max(least[2], math.min(math.max(from.h, rows - item.y), from.h + dy))
     end
     drag.item, drag.ok = item, true
-    Put(self.Ghost, item, self.cw, self.ch)
-    -- gold where other boxes will have to make room, green where the place is free
-    if G.Fits(drag.layout, item) then self.Ghost.Fill:SetColorTexture(0.25, 0.88, 0.25, 0.28) else self.Ghost.Fill:SetColorTexture(1, 0.82, 0, 0.3) end
+    -- another cell than before: the other boxes take the places they would have
+    local cell = item.x .. "," .. item.y .. "," .. item.w .. "," .. item.h
+    if cell ~= drag.cell then
+      drag.cell = cell
+      local trial = {}
+      for i, other in ipairs(drag.layout) do trial[i] = other.k == item.k and item or other end
+      drag.result = G.Compact(trial, item.k)
+      for _, placed in ipairs(drag.result) do
+        if placed.k == item.k then
+          Put(self.Ghost, placed, cw, ch)
+          drag.lands = placed
+        else
+          Put(self.defs[placed.k].box, placed, cw, ch)
+        end
+      end
+    end
+    -- the box itself: under the mouse while it is moved, in its new size while it is sized
+    local box = self.defs[from.k].box
+    if drag.kind == "move" then
+      box:ClearAllPoints()
+      box:SetPoint("TOPLEFT", content, "TOPLEFT", from.x * cw + (x - drag.x), -from.y * ch + (y - drag.y))
+    else
+      Put(box, { x = from.x, y = (drag.lands or from).y, w = item.w, h = item.h }, cw, ch)
+    end
     self.Ghost:Show()
   end
 
@@ -345,6 +387,12 @@ function UI.Board(parent, opts)
     local scale = self:GetEffectiveScale() or 1
     local x, y = GetCursorPosition()
     drag = { kind = kind, from = from, layout = layout, x = x / scale, y = y / scale }
+    -- the box in hand lies over the others; the free places are for adding, not for now
+    local def = self.defs[key]
+    def.raised = true
+    def.box:SetFrameStrata("HIGH")
+    def.box:SetAlpha(0.9)
+    for index = 1, self.slotCount or 0 do slots[index]:Hide() end
     self:SetScript("OnUpdate", function() board:Track() end)
   end
 
