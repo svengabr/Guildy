@@ -412,10 +412,12 @@ local function After(bank)
 end
 
 -- Every entry of every log, newest first. filter = { kind = "gold" | "items" | nil, tab = n | nil,
--- who = nameKey | nil }. Rows are { e = Entry, log = key, after = copper or nil }.
+-- who = nameKey | nil, since = ts | nil (nothing older) }. Rows are { e = Entry, log = key,
+-- after = copper or nil }.
 function Bank.Ledger(bank, filter)
   filter = filter or {}
   local after = After(bank)
+  local since = filter.since or 0
   local rows = {}
   for key, log in pairs(bank.logs) do
     local isMoney = key == Bank.MONEY
@@ -423,7 +425,8 @@ function Bank.Ledger(bank, filter)
       or (not isMoney and filter.kind ~= "gold" and (not filter.tab or tostring(filter.tab) == key))
     if shown then
       for index, e in ipairs(log) do
-        if e.k == "gap" then
+        if (e.ts or 0) < since then -- older than the days looked at
+        elseif e.k == "gap" then
           if not filter.who then rows[#rows + 1] = { e = e, log = key, index = index } end
         elseif not filter.who or (e.w and ns.Names.Key(e.w) == filter.who) then
           rows[#rows + 1] = { e = e, log = key, index = index, after = after[e] }

@@ -878,12 +878,17 @@ local function Build(panel)
     if placed.chart then self.Chart:Draw(known and bank or nil) end
 
     if placed.ledger then
+      -- the ledger looks back as far as everything else on the tab
+      self.filter.since = now - days * 86400
       local ledger = known and B.Ledger(bank, self.filter) or {}
       self:ArrangeHead()
       self.List:SetItems(ledger)
       self.Count:SetText(L.BANK_ENTRIES:format(#ledger))
       self.Empty:SetShown(#ledger == 0)
       local filtered = self.filter.kind or self.filter.tab or self.filter.who
+      if known and not filtered and #ledger == 0 then -- movements are known, only none in these days
+        for _, log in pairs(bank.logs) do filtered = filtered or #log > 0 end
+      end
       self.Empty:SetText(not known and L.BANK_EMPTY or filtered and L.BANK_NONE or L.BANK_NO_ENTRIES)
     end
 

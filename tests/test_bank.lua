@@ -201,6 +201,17 @@ T.describe("Bank views", function()
     T.eq(#Bank.Ledger(bank, { who = "ann bee" }), 3)
   end)
 
+  T.it("lists nothing older than the days looked at", function()
+    local bank = Sample()
+    local rows = Bank.Ledger(bank, { since = NOW - 24 * HOUR })
+    T.eq(#rows, 3)
+    for _, row in ipairs(rows) do T.truthy(row.e.ts >= NOW - 24 * HOUR) end
+    T.eq(#Bank.Ledger(bank, { since = NOW - 24 * HOUR, kind = "gold" }), 1)
+    T.eq(rows[#rows].after, 1000000) -- the gold after an entry is still counted from everything known
+    table.insert(bank.logs.money, 2, { k = "gap", ts = NOW - 31 * HOUR })
+    T.eq(#Bank.Ledger(bank, { since = NOW - 24 * HOUR }), 3) -- nor a gap older than that
+  end)
+
   T.it("stops the gold after an entry at a gap", function()
     local bank = Sample()
     table.insert(bank.logs.money, 2, { k = "gap", ts = NOW - 31 * HOUR })
