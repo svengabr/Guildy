@@ -11,7 +11,7 @@ local B = ns.Bank
 
 local MAX_DAYS = 90
 local ROW = 20
-local TAB_ROW = 34
+local TAB_ROW = 27
 local MAX_MARKS = 4
 local GREEN, RED, GREY, ORANGE = "|cff40e040", "|cffff5a4a", "|cff999999", "|cffd67a32"
 local COIN = {
@@ -24,8 +24,8 @@ local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 -- What the player chose for the tab ----------------------------------------------------------------------
 -- settings.bank.layout: the boxes on the board, nil: the first of these presets
 UI.BANK_PRESETS = {
-  ledger = { { k = "total", x = 0, y = 0, w = 3, h = 4 }, { k = "tabs", x = 0, y = 4, w = 3, h = 3 },
-    { k = "access", x = 0, y = 7, w = 3, h = 5 }, { k = "chart", x = 3, y = 0, w = 9, h = 4 },
+  ledger = { { k = "total", x = 0, y = 0, w = 3, h = 4 }, { k = "tabs", x = 0, y = 4, w = 3, h = 4 },
+    { k = "access", x = 0, y = 8, w = 3, h = 4 }, { k = "chart", x = 3, y = 0, w = 9, h = 4 },
     { k = "ledger", x = 3, y = 4, w = 9, h = 8 } },
   members = { { k = "balance", x = 0, y = 0, w = 8, h = 12 }, { k = "detail", x = 8, y = 0, w = 4, h = 7 },
     { k = "largest", x = 8, y = 7, w = 4, h = 5 } },
@@ -350,8 +350,8 @@ local function Build(panel)
   local page = W.Page(panel)
   panel = page.Body
 
-  -- toolbar: the days everything looks back, what the ledger lists (kind, tab, one member only);
-  -- right the way into edit mode and what the data is worth
+  -- toolbar: the days everything looks back; right the way into edit mode and what the data is worth.
+  -- What the ledger lists (kind, bank tab, one member only) is chosen in the ledger's own title row.
   page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.BANK_PERIOD), 2)
   local periods = {}
   for i, days in ipairs(UI.BANK_DAYS) do periods[i] = { value = days, text = L.BANK_DAYS:format(days) } end
@@ -366,11 +366,9 @@ local function Build(panel)
     view.filter.kind = value ~= "all" and value or nil
     view:Refresh()
   end)
-  page:Left(view.Kind, 16)
   view.Kind:SetValue("all")
   -- one button per bank tab, "All" first: built anew when the tabs change (their names are the guild's)
-  view.TabLabel = page:Left(W.Text(page.Bar, "GameFontNormalSmall", L.BANK_TAB), 16)
-  view.TabBar = page:Left(CreateFrame("Frame", nil, page.Bar), 8)
+  view.TabBar = CreateFrame("Frame", nil, page.Bar)
   view.TabBar:SetSize(1, 22)
   view.TabButtons = {}
   local function TabButton(position)
@@ -388,7 +386,6 @@ local function Build(panel)
     view.filter.who, view.filter.whoName = nil, nil
     view:Refresh()
   end, 60, { small = true, maxWidth = 200 })
-  page:Left(view.Only, 12)
   W.Tooltip(view.Only, L.BANK_ONLY_TIP)
   view.Only:Hide()
 
@@ -446,18 +443,18 @@ local function Build(panel)
   tabsHint:SetPoint("LEFT", tabsTitle, "RIGHT", 8, 0)
   view.Tabs = W.ScrollList(tabs, TAB_ROW, function(row)
     row.Icon = row:CreateTexture(nil, "ARTWORK")
-    row.Icon:SetSize(24, 24)
+    row.Icon:SetSize(20, 20)
     row.Icon:SetPoint("LEFT", 4, 0)
     row.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.Name = W.Text(row, "GameFontHighlightSmall")
-    row.Name:SetPoint("TOPLEFT", 36, -4)
+    row.Name:SetPoint("TOPLEFT", 32, -1)
     row.Name:SetPoint("RIGHT", -60, 0)
     row.Name:SetWordWrap(false)
     row.Count = W.Text(row, "GameFontNormalSmall")
-    row.Count:SetPoint("TOPRIGHT", -4, -4)
+    row.Count:SetPoint("TOPRIGHT", -4, -1)
     row.Count:SetJustifyH("RIGHT")
     row.Track = row:CreateTexture(nil, "BACKGROUND")
-    row.Track:SetPoint("TOPLEFT", 36, -21)
+    row.Track:SetPoint("TOPLEFT", 32, -17)
     row.Track:SetPoint("RIGHT", -4, 0)
     row.Track:SetHeight(5)
     row.Track:SetColorTexture(0.13, 0.11, 0.08, 1)
@@ -532,12 +529,30 @@ local function Build(panel)
   view.Book = book
   local bookTitle = W.Text(book, "GameFontNormal", L.BANK_LEDGER)
   bookTitle:SetPoint("TOPLEFT", 10, -8)
-  local bookHint = W.Text(book, "GameFontDisableSmall", L.BANK_LEDGER_HINT)
-  bookHint:SetPoint("LEFT", bookTitle, "RIGHT", 8, 0)
   view.Count = W.Text(book, "GameFontDisableSmall")
   view.Count:SetPoint("TOPRIGHT", -10, -10)
-  bookHint:SetPoint("RIGHT", view.Count, "LEFT", -8, 0)
-  bookHint:SetWordWrap(false)
+  -- what it lists, in its title row: the kind, the bank tab (a button each, or a menu where the ledger
+  -- is too narrow for them) and one member only
+  for _, control in ipairs({ view.Kind, view.TabBar, view.Only }) do control:SetParent(book) end
+  view.Kind:SetPoint("LEFT", bookTitle, "RIGHT", 14, 0)
+  view.TabBar:SetPoint("LEFT", view.Kind, "RIGHT", 12, 0)
+  view.TabMenu = W.MenuButton(book, L.BANK_TABS_ALL, function()
+    local items = { { text = L.BANK_TABS_ALL, checked = view.filter.tab == nil, onClick = function()
+      view.filter.tab = nil
+      view:Refresh()
+    end } }
+    for index = 1, B.MAX_TABS do
+      if view.bank and view.bank.tabs[index] then
+        items[#items + 1] = { text = TabName(view.bank, index), checked = view.filter.tab == index, onClick = function()
+          view.filter.tab = index
+          view:Refresh()
+        end }
+      end
+    end
+    return items
+  end, 110, 160)
+  view.TabMenu:SetPoint("LEFT", view.Kind, "RIGHT", 12, 0)
+  view.TabMenu:Hide()
 
   -- columns: "when", "tab" and "gold after" can be switched off in the box's options (edit mode), which
   -- lets the ledger stand in a narrower place
@@ -740,7 +755,7 @@ local function Build(panel)
     if self.filter.who then self.Only:SetText(L.BANK_ONLY:format(ns.Anon.Name(self.filter.whoName))) end
     self.Status:ClearAllPoints()
     self.Status:SetPoint("RIGHT", editing and board.Presets or board.Edit, "LEFT", -12, 0)
-    self.Status:SetPoint("LEFT", self.Only, self.filter.who and "RIGHT" or "LEFT", 12, 0)
+    self.Status:SetPoint("LEFT", self.Period, "RIGHT", 12, 0)
     self.Status:SetText(editing and L.BOARD_HINT
       or known and L.BANK_STATUS:format(Ago(bank.at), Who(bank.by)) or L.BANK_STATUS_NONE)
 
@@ -752,8 +767,6 @@ local function Build(panel)
       end
     end
     if self.filter.tab and not (known and bank.tabs[self.filter.tab]) then self.filter.tab = nil end
-    self.TabLabel:SetShown(#tabItems > 0)
-    self.TabBar:SetShown(#tabItems > 0)
     local x = 0
     for position = 0, #tabItems do
       local button = TabButton(position + 1)
@@ -771,6 +784,13 @@ local function Build(panel)
     end
     for position = #tabItems + 2, #self.TabButtons do self.TabButtons[position]:Hide() end
     self.TabBar:SetWidth(math.max(1, x))
+    -- a button per tab where the ledger is wide enough for them beside its title, the kinds and the count
+    local asMenu = #tabItems > 0 and x > (book:GetWidth() or 0) - 470
+    self.TabBar:SetShown(#tabItems > 0 and not asMenu)
+    self.TabMenu:SetShown(asMenu)
+    self.TabMenu:SetText(self.filter.tab and TabName(bank, self.filter.tab) or L.BANK_TABS_ALL)
+    self.Only:ClearAllPoints()
+    self.Only:SetPoint("LEFT", asMenu and self.TabMenu or (#tabItems > 0 and self.TabBar or self.Kind), "RIGHT", 10, 0)
 
     board:Apply()
     local placed = board.placed

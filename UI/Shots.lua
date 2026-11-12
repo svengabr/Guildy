@@ -159,6 +159,7 @@ local function Bank(layout, editing, after, extra)
     UI.SelectTab("bank")
     local view = UI.TabView("bank")
     if not (view and view.board) then return end
+    view.board:SetEditing(false) -- (closes the picker and what it showed of the picture before)
     local rows = view.board:Rows()
     UI.bankShot = { bank = bank, mine = mine, layout = layout }
     for key, value in pairs(extra or {}) do UI.bankShot[key] = value end
@@ -171,7 +172,7 @@ local function Bank(layout, editing, after, extra)
   end
 end
 
-local NO_ACCESS = Layout({ "total", 0, 0, 3, 4 }, { "tabs", 0, 4, 3, 3 }, { "chart", 3, 0, 9, 4 }, { "ledger", 3, 4, 9, 8 })
+local NO_ACCESS = Layout({ "total", 0, 0, 3, 4 }, { "tabs", 0, 4, 3, 4 }, { "chart", 3, 0, 9, 4 }, { "ledger", 3, 4, 9, 8 })
 local function OpenPicker(_, board)
   local slot = board:Slots()[1]
   if slot then board:Pick(slot) end
@@ -200,7 +201,7 @@ UI.BANK_SHOTS = {
     if row then row.Click:GetScript("OnClick")(row.Click) end
   end) },
   { "bank-09-overview", Bank(UI.BANK_PRESETS.overview) },
-  { "bank-10-compact", Bank(Layout({ "ledger", 0, 0, 6, 12, { tab = false, after = false } },
+  { "bank-10-compact", Bank(Layout({ "ledger", 0, 0, 6, 13, { tab = false, after = false } },
     { "balance", 6, 0, 6, 8, { rank = false, items = false } }, { "tiles", 6, 8, 6, 2, { repairs = false, slots = false } },
     { "givers", 6, 10, 3, 2 + 1 }, { "largest", 9, 10, 3, 3 })) },
   { "bank-11-tall", Bank(Layout({ "tiles", 0, 0, 12, 2 }, { "chart", 0, 2, 12, 4 }, { "ledger", 0, 6, 12, 6 },

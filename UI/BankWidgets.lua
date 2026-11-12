@@ -117,11 +117,11 @@ function UI.BankWidgets(parent, view)
     if o.last ~= false then Right("last", 70) end
     if o.items ~= false then
       Right("itemsOut", 40)
-      Right("itemsIn", 50)
+      Right("itemsIn", 68)
     end
     Right("net", 94)
-    Right("taken", 84)
-    Right("paid", 84)
+    Right("taken", 80)
+    Right("paid", 80)
     c.netX = c.net[2] - 47
     return c
   end

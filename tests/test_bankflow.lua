@@ -252,14 +252,14 @@ T.describe("Guild bank", function()
     T.eq(view.Access:IsShown(), false)
     local slots = board:Slots()
     T.eq(#slots, 2) -- that place and the room beside the member table
-    T.eq(slots[1].gap, { x = 0, y = 7, w = 3, h = 5 })
+    T.eq(slots[1].gap, { x = 0, y = 8, w = 3, h = 4 })
     T.eq(board:Offers(slots[1].gap), { { key = "access", fits = true }, { key = "largest", fits = true },
       { key = "givers", fits = true }, { key = "tiles", fits = false }, { key = "detail", fits = false } })
     slots[1]:GetScript("OnClick")(slots[1])
     row = Row("givers")
     row:GetScript("OnEnter")(row)
     row:GetScript("OnClick")(row)
-    T.eq(board.placed.givers, { k = "givers", x = 0, y = 7, w = 3, h = 4 })
+    T.eq(board.placed.givers, { k = "givers", x = 0, y = 8, w = 3, h = 4 })
     T.eq(#view.More.givers.List.items, 1) -- Makira paid in
     -- a box too large for a place goes under everything instead
     slots = board:Slots()
@@ -268,18 +268,26 @@ T.describe("Guild bank", function()
     T.truthy(row.About:GetText():find("8 x 2", 1, true), row.About:GetText())
     row:GetScript("OnClick")(row)
     T.eq(board.placed.tiles, { k = "tiles", x = 0, y = 18, w = 12, h = 2 })
-    -- drag a corner: one row taller
+    -- drag a corner: one cell wider (what stands there makes room)
     local x, y, down = 100, 100, true
     env.GetCursorPosition = function() return x, y end
     env.IsMouseButtonDown = function() return down end
     board:Start("size", "givers")
-    y = 100 - board.ch
+    x = 100 + board.cw
     board:Track()
     T.eq(board.Ghost:IsShown(), true)
     down = false
     board:Track()
-    T.eq(board.placed.givers.h, 5)
+    T.eq(board.placed.givers.w, 4)
     T.eq(board.Ghost:IsShown(), false)
+    -- and back: everything stands as before
+    down, x, y = true, 100, 100
+    board:Start("size", "givers")
+    x = 100 - board.cw
+    board:Track()
+    down = false
+    board:Track()
+    T.eq(board.placed.givers, { k = "givers", x = 0, y = 8, w = 3, h = 4 })
     -- drag the row of figures from the bottom to the very top: everything else makes room
     T.eq(board.placed.tiles.y, 18)
     T.eq(board.placed.total.y, 0)
