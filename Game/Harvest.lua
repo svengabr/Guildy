@@ -17,7 +17,7 @@ Harvest.ABSENT = 7 * 24 * 3600 -- "doesn't have it" is remembered this long
 Harvest.WAIT = 3               -- seconds until a look without any answer counts as "no answer"
 Harvest.MAX_PRIMARY = 2
 Harvest.PAUSE = 2              -- seconds between looks (the server slows down requests in quick succession)
-Harvest.DATA_VERSION = 4       -- bump to drop "absent"/"silent"/server marks made by older, faulty runs
+Harvest.DATA_VERSION = 5       -- bump to drop "absent"/"silent"/server marks made by older, faulty runs
                                -- (4: runs with Blizzard's window muted got only empty books)
 Harvest.SERVER_MISSES = 1      -- silent members of another server id before it is skipped for the run
 Harvest.SILENT = 3600          -- a member without any answer is left out this long (they may change servers)

@@ -367,6 +367,24 @@ T.describe("Smoke", function()
     T.eq(ns.Sync.UserVersion("Au Tsch"), "0.1.0")
     for _, part in ipairs(P.Chunk("h2", P.Encode("HI", {}))) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Xii-Lightspark") end
     T.eq(ns.Sync.UserVersion("Xii Lightspark"), "")
+    -- a book read through a link is only taken from a Guildy that reads them right (1.6.0 on); what a
+    -- member shares of themselves is taken from any version
+    T.eq(ns.Sync.ReadsLinksRight("1.5.9"), false)
+    T.eq(ns.Sync.ReadsLinksRight(""), false)
+    T.eq(ns.Sync.ReadsLinksRight(nil), false)
+    T.eq(ns.Sync.ReadsLinksRight("1.6.0"), true)
+    T.eq(ns.Sync.ReadsLinksRight("2.0"), true)
+    T.eq(ns.Sync.ReadsLinksRight("dev"), true)
+    local function Book(id, version, rank)
+      local book = P.Encode("PROF", { m = "Makira Farron", p = { ["164"] = { ts = 1800000000 + rank, src = "link", rank = rank } } }, version)
+      for _, part in ipairs(P.Chunk(id, book)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch") end
+      local rec = ns.GuildData().members["makira farron"]
+      return rec and rec.profs[164] and rec.profs[164].rank or nil
+    end
+    T.eq(Book("b1", "1.5.0", 111), nil)
+    T.eq(Book("b2", "1.6.0", 122), 122)
+    T.eq(Book("b3", "1.5.0", 133), 122)
+    ns.GuildData().members["makira farron"].profs[164] = nil
     -- families: a Guildy user shares their characters in the guild
     local fam = P.Encode("FAM", { m = "Makira Farron", f = { ts = 1800000000, c = { "Makira Farron", "Au Tsch" } } })
     for _, part in ipairs(P.Chunk("f1", fam)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Makira-Farron") end

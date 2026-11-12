@@ -8,6 +8,11 @@ local Store = {}
 ns.Store = Store
 
 Store.VERSION = 1
+-- Bump to throw away, once per guild, every profession that was read through a profession link
+-- (src "link"). 2: Guildy before 1.6.0 stored the book of the member read before on the next one
+-- (Game/TradeSkill.lua); such data is not told from good data, so all of it goes and is read anew.
+-- What members share of themselves and what the player's own characters know stays.
+Store.PROFS_VERSION = 2
 
 Store.DEFAULTS = {
   activityDays = 30,   -- census window in days; false = all members
@@ -49,7 +54,27 @@ function Store.Guild(db, guildKey)
     db.guilds[guildKey] = guild
   end
   if type(guild.members) ~= "table" then guild.members = {} end
+  if guild.profsVersion ~= Store.PROFS_VERSION then
+    Store.DropLinked(guild)
+    guild.profsVersion = Store.PROFS_VERSION
+  end
   return guild
+end
+
+-- Removes every profession record read through a profession link. Returns how many were removed.
+function Store.DropLinked(guild)
+  local removed = 0
+  for _, member in pairs(guild.members) do
+    if type(member) == "table" and type(member.profs) == "table" then
+      for skillLine, rec in pairs(member.profs) do
+        if type(rec) == "table" and rec.src == "link" then
+          member.profs[skillLine] = nil
+          removed = removed + 1
+        end
+      end
+    end
+  end
+  return removed
 end
 
 -- Member record by name (created on first use)

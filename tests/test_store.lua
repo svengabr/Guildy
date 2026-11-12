@@ -20,3 +20,27 @@ T.describe("Store.Init", function()
     T.eq(db.ownChars, { drache = true, old = true })
   end)
 end)
+
+T.describe("Store.Guild", function()
+  T.it("throws away once what was read through profession links", function()
+    local db = Store.Init(nil)
+    db.guilds.cats = { members = {
+      a = { name = "A", profs = { [171] = { ts = 5, src = "link", rank = 100 }, [197] = { ts = 6, src = "self", rank = 200 },
+        [186] = { ts = 1, src = "note" } } },
+      b = { name = "B", profs = { [164] = { ts = 7, src = "relay" }, [333] = { ts = 8, src = "link" } } },
+      c = { name = "C", profs = { [185] = { ts = 9, src = "scan" } } },
+    } }
+    local guild = Store.Guild(db, "cats")
+    T.eq(guild.members.a.profs[171], nil)
+    T.eq(guild.members.a.profs[197].rank, 200)
+    T.eq(guild.members.a.profs[186].src, "note")
+    T.eq(guild.members.b.profs, { [164] = { ts = 7, src = "relay" } })
+    T.eq(guild.members.c.profs[185].src, "scan")
+    T.eq(guild.profsVersion, Store.PROFS_VERSION)
+    -- only once: what is read afterwards stays
+    guild.members.a.profs[171] = { ts = 20, src = "link", rank = 120 }
+    T.eq(Store.Guild(db, "cats").members.a.profs[171].rank, 120)
+    -- a guild seen for the first time has nothing to throw away
+    T.eq(Store.Guild(db, "dogs").profsVersion, Store.PROFS_VERSION)
+  end)
+end)

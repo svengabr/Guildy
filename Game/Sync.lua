@@ -264,6 +264,17 @@ local function OnBank(data, sender)
   if ns.Bank.Apply(ns.Bank.Get(guild), reading) then ns.Fire("BANK") end
 end
 
+-- Books read through a profession link are only taken from a Guildy that reads them right: before
+-- 1.6.0 the book of the member read before was stored on the next one (Game/TradeSkill.lua), and such a
+-- Guildy would hand the wrong data back to everyone who threw it away (Core/Store.lua). What a member
+-- shares of themselves is taken from any version.
+Sync.LINKS_SINCE = "1.6.0"
+function Sync.ReadsLinksRight(version)
+  if version == "dev" then return true end
+  local order = type(version) == "string" and Proto.CompareVersions(version, Sync.LINKS_SINCE)
+  return order ~= nil and order ~= false and order >= 0
+end
+
 local function OnProfessions(data, sender)
   local guild = ns.GuildData()
   if not guild or type(data.m) ~= "string" or type(data.p) ~= "table" then return end
@@ -272,9 +283,11 @@ local function OnProfessions(data, sender)
   local fromSelf = ns.Names.Same(sender, data.m)
   local member = ns.Store.Member(guild, data.m)
   local changed = false
+  local linksRight = Sync.ReadsLinksRight(Sync.UserVersion(sender))
   for skillText, raw in pairs(data.p) do
     local skillLine = tonumber(skillText)
     local record = P.ValidateRecord(raw)
+    if record and not fromSelf and record.src == "link" and not linksRight then record = nil end
     if skillLine and record then
       if fromSelf then
         record.src = "self"
