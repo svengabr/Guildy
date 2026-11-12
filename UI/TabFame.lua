@@ -4,8 +4,8 @@
 -- a dungeon opens the detail view: every tracked statistic in a tree on the left, the guild ranking of
 -- the chosen one on the right.
 -- The boxes of a page stand on a board (UI/Board.lua): each page has its own layout
--- (settings.fameLayout[page.key]), and every box can stand on every page. Which tiles and title cards
--- a page shows is chosen from those two boxes while customizing (UI/FamePicker.lua).
+-- (settings.fameLayout[page.key]), and every box can stand on every page. While customizing, a click
+-- on a single tile or title card changes that one, right where it stands (UI/FamePicker.lua).
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -321,7 +321,7 @@ local function Build(panel)
   shell:Right(view.AllButton)
   shell:Right(view.Period)
   -- left of them "Customize", and its presets while customizing
-  grid:Controls(shell, { { L.OPTIONS_RESTORE } })
+  grid:Controls(shell, { { L.OPTIONS_RESTORE, nil, function() UI.FamePicker.Restore(Page(view.page).key) end } })
   shell:Fill(view.Fresh)
 
   -- home: totals, cards, page box -----------------------------------------------------------------
@@ -716,13 +716,80 @@ local function Build(panel)
   view.DungeonEmpty:SetPoint("TOPLEFT", 12, -70)
 
   -- every box of the board: what it is, the size a new one gets and the smallest it works at (in cells)
-  local function Choose(kind)
-    return { text = L.FAME_PICK, onClick = function() UI.FamePicker.Show(Page(view.page).key, kind) end }
+  -- The tiles and title cards are changed one by one while customizing: a click on one opens the list
+  -- of what can stand in its place right under it, the button of the box adds one at the end.
+  local PARTS = { tiles = view.Tiles, cards = view.Cards }
+  local function AnchorOf(kind)
+    return function(index)
+      if index then return PARTS[kind][index] end
+      return grid.defs[kind].Cover.Action
+    end
+  end
+  function view:EditPart(kind, index)
+    UI.FamePicker.Open(Page(self.page).key, kind, index, AnchorOf(kind))
+    if self.LayoutHandles then self:LayoutHandles() end -- (the mark under the one that is open)
+  end
+  local function Add(kind, text)
+    return { text = text, onClick = function() view:EditPart(kind, nil) end }
   end
   grid:Add("tiles", tilesBox, { name = L.OPTIONS_KIND_TILES, about = L.FAME_ABOUT_TILES, size = { 12, 2 }, min = { 4, 2 },
-    action = Choose("tiles") })
+    action = Add("tiles", L.OPTIONS_TILES_MORE), bare = true })
   grid:Add("cards", cardsBox, { name = L.OPTIONS_KIND_CARDS, about = L.FAME_ABOUT_CARDS, size = { 12, 3 }, min = { 4, 2 },
-    action = Choose("cards") })
+    action = Add("cards", L.OPTIONS_CARDS_MORE), bare = true })
+
+  -- a handle over every tile and card while customizing: a click changes it, dragging moves its box
+  local handles = { tiles = {}, cards = {} }
+  view.PartHandles = handles
+  local function PartHandle(kind, index)
+    local handle = handles[kind][index]
+    if handle then return handle end
+    local cover = grid.defs[kind].Cover
+    handle = CreateFrame("Button", nil, cover)
+    handle:SetFrameLevel((cover:GetFrameLevel() or 1) + 2)
+    handle:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    handle.Edge = handle:CreateTexture(nil, "BORDER")
+    handle.Edge:SetPoint("BOTTOMLEFT", 6, 4)
+    handle.Edge:SetPoint("BOTTOMRIGHT", -6, 4)
+    handle.Edge:SetHeight(2)
+    handle.Edge:SetColorTexture(1, 0.82, 0, 0.9)
+    handle.Edge:Hide() -- (shows under the one whose list is open)
+    handle:SetScript("OnMouseDown", function(self, mouse)
+      if mouse ~= "LeftButton" then return end
+      self.downX, self.downY = GetCursorPosition()
+      grid:Start("move", kind)
+    end)
+    handle:SetScript("OnMouseUp", function(self, mouse)
+      if mouse ~= "LeftButton" or not self.downX then return end
+      local x, y = GetCursorPosition()
+      local still = math.abs(x - self.downX) < 6 and math.abs(y - self.downY) < 6
+      self.downX = nil
+      if still then view:EditPart(kind, index) end -- (else the box was dragged)
+    end)
+    W.Tooltip(handle, L[kind == "tiles" and "OPTIONS_KIND_TILES" or "OPTIONS_KIND_CARDS"], L.FAME_PART_TIP)
+    handles[kind][index] = handle
+    return handle
+  end
+  function view:LayoutHandles()
+    local open = UI.FamePicker.State()
+    for kind, parts in pairs(PARTS) do
+      local editing = grid.editing and grid.placed[kind] ~= nil and grid.defs[kind].Cover ~= nil
+      local shown = 0
+      for index, part in ipairs(parts) do
+        if editing and part:IsShown() then
+          shown = shown + 1
+          local handle = PartHandle(kind, index)
+          handle:ClearAllPoints()
+          handle:SetAllPoints(part)
+          handle.Edge:SetShown(open ~= nil and open.kind == kind and open.index == index)
+          handle:Show()
+        elseif handles[kind][index] then
+          handles[kind][index]:Hide()
+        end
+      end
+      -- a full row has no room for another one
+      if editing then grid.defs[kind].Cover.Action:SetEnabled(not UI.FamePicker.Full(Page(self.page).key, kind)) end
+    end
+  end
   grid:Add("gear", gear, { name = L.FAME_GEAR, about = L.FAME_ABOUT_GEAR, size = { 12, 6 }, min = { 7, 3 } })
   grid:Add("income", view.Income, { name = L.FAME_INCOME, about = L.FAME_ABOUT_INCOME, size = { 6, 3 }, min = { 4, 3 } })
   grid:Add("spending", view.Spending, { name = L.FAME_SPENDING, about = L.FAME_ABOUT_SPENDING, size = { 6, 3 }, min = { 4, 3 } })
@@ -1266,6 +1333,7 @@ local function Build(panel)
     if placed.dungeons then self:RefreshDungeons(entries) end
     if placed.reputation then self:RefreshReputation(entries) end
     if placed.pvp then self:RefreshPvp(entries) end
+    self:LayoutHandles()
   end
 
   function view:RefreshDetail(entries)
@@ -1334,7 +1402,7 @@ local function Build(panel)
       self.gridPage = self.page
       grid:Close() -- (the free places of the page before)
     end
-    if grid.editing then UI.FamePicker.Follow(Page(self.page).key) else UI.FamePicker.Hide() end
+    if grid.editing and not inDetail then UI.FamePicker.Follow(Page(self.page).key) else UI.FamePicker.Hide() end
     self.Home:SetShown(not inDetail)
     self.Detail:SetShown(inDetail)
     self.AllButton:SetText(inDetail and L.FAME_BACK or L.FAME_ALL_STATS)

@@ -9,7 +9,9 @@
 --     grow = function(px) make the window taller (lower for a negative px) end })
 --   board.Content                      parent of every box
 --   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } },
---     action = { text, onClick } })   action: a button of its own on the box while customizing
+--     action = { text, onClick }, bare = true })
+--   action: a button of its own on the box while customizing. bare: the box keeps its look while
+--   customizing (no name across it, a lighter shade), for a box whose parts are changed one by one.
 --   board:Controls(page, presets)      "Customize" (and the presets) into a page's toolbar
 --   board:Apply()                      places the boxes; board.placed[key] = item for those that show
 --
@@ -311,8 +313,10 @@ function UI.Board(parent, opts)
     board.Ghost:Hide()
     local done = drag
     drag = nil
-    if not (done and done.ok and done.item and done.result) then
-      board:Apply() -- every box back to where it stands
+    local from, lands = done and done.from, done and done.lands
+    local same = from and lands and from.x == lands.x and from.y == lands.y and from.w == lands.w and from.h == lands.h
+    if not (done and done.ok and done.item and done.result) or same then
+      board:Apply() -- every box back to where it stands (a click that moved nothing stores nothing)
       return
     end
     Changed(done.result, done.item.k) -- what the tab showed while the box was held
@@ -412,11 +416,13 @@ function UI.Board(parent, opts)
     cover:SetFrameLevel((def.box:GetFrameLevel() or 1) + 40)
     cover.Shade = cover:CreateTexture(nil, "BACKGROUND")
     cover.Shade:SetAllPoints()
-    cover.Shade:SetColorTexture(0, 0, 0, 0.6)
+    cover.Shade:SetColorTexture(0, 0, 0, def.bare and 0.3 or 0.6)
     cover.Name = W.Text(cover, "GameFontNormal", def.name)
     cover.Name:SetPoint("CENTER", 0, 6)
     cover.Hint = W.Text(cover, "GameFontDisableSmall", L.BOARD_DRAG)
     cover.Hint:SetPoint("TOP", cover.Name, "BOTTOM", 0, -4)
+    cover.Name:SetShown(not def.bare)
+    cover.Hint:SetShown(not def.bare)
     cover:SetScript("OnMouseDown", function(_, button)
       if button == "LeftButton" then board:Start("move", key) end
     end)
@@ -442,6 +448,10 @@ function UI.Board(parent, opts)
       if button == "LeftButton" then board:Start("size", key) end
     end)
     W.Tooltip(cover.Grip, L.BOARD_SIZE)
+    -- (its buttons lie over what a tab puts on the cover itself)
+    for _, control in ipairs({ cover.Remove, cover.Grip, def.options and cover.Gear or false, def.action and cover.Action or false }) do
+      if control then control:SetFrameLevel((cover:GetFrameLevel() or 1) + 6) end
+    end
     def.Cover = cover
   end
 
@@ -617,7 +627,7 @@ function UI.Board(parent, opts)
   end)
 
   -- "Customize" at the right end of a page's toolbar, and the presets while customizing.
-  -- presets: { { name, layout or nil for the default } }
+  -- presets: { { name, layout or nil for the default, what else it does (a function) or nil } }
   function board:Controls(page, presets)
     self.Edit = page:Right(W.Button(page.Bar, L.BOARD_EDIT, function()
       board:SetEditing(not board.editing)
@@ -628,7 +638,10 @@ function UI.Board(parent, opts)
       self.Presets = page:Right(W.MenuButton(page.Bar, L.BOARD_PRESET, function()
         local items = {}
         for _, preset in ipairs(presets) do
-          items[#items + 1] = { text = preset[1], onClick = function() board:Preset(preset[2]) end }
+          items[#items + 1] = { text = preset[1], onClick = function()
+            if preset[3] then preset[3]() end
+            board:Preset(preset[2])
+          end }
         end
         return items
       end, 90, 160))

@@ -56,14 +56,14 @@ UI.SHOTS = {
   { "15-options-general", Options("general", "members") }, -- where a member's tooltip stands
   { "16-options-chat", Options("chat", "chat") },
   { "17-options-members", Options("members", "members") },
-  -- customizing a Hall of Fame page, with the window that chooses its tiles and title cards
+  -- customizing a Hall of Fame page, with the list that changes one of its tiles
   { "18-fame-customize", function()
     Fame("general")()
     local view = UI.TabView("fame")
     if not view then return end
     view.board:SetEditing(true)
     view:Refresh()
-    UI.FamePicker.Show("general", "tiles")
+    view:EditPart("tiles", 2)
   end },
   { "19-options-professions", Options("professions", "professions") },
   -- the member list while its columns are arranged at their headings

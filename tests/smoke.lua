@@ -1212,95 +1212,145 @@ T.describe("Hall of Fame", function()
     T.eq(errors, {})
   end)
 
-  T.it("chooses the tiles and title cards of a Hall of Fame page from its boxes", function()
+  T.it("changes a single tile or title card of a Hall of Fame page where it stands", function()
     env.CommunitiesFrame:Show()
     ns.UI.SelectTab("fame")
     local view = ns.UI.TabView("fame")
     local board = view.board
+    local picker = ns.UI.FamePicker
+    local settings = ns.Settings()
     board:SetSize(1100, 520)
     view.page, view.mode = "general", "home"
     view:Refresh()
-    board:SetEditing(true)
-    local action = board.defs.tiles.Cover.Action
-    T.eq(action:GetText(), ns.L.FAME_PICK)
-    T.eq(rawget(board.defs.gear.Cover, "Action"), nil)
-    action:GetScript("OnClick")(action)
-    local window, fame = ns.UI.FamePicker.Window()
-    T.eq(window:IsShown(), true)
-    T.eq(fame.page, "general")
-    T.eq(fame.kind, "tiles")
-    -- the tile editor: remove, add at the end, move; a page keeps its last tile
     local page = ns.Stats.PAGES[1]
     local a, b = page.headline[1], page.headline[2]
-    fame:Remove(a)
-    T.eq(#ns.Settings().fameTiles[page.key], #page.headline - 1)
-    T.eq(ns.Settings().fameTiles[page.key][1], b)
-    T.eq(view.Tiles[1].id, b) -- the tab shows it at once
-    fame:Add(a)
-    T.eq(ns.Settings().fameTiles[page.key][#page.headline], a)
-    T.eq(fame.selected, a)
-    fame:Move(a, -1)
-    T.eq(ns.Settings().fameTiles[page.key][#page.headline - 1], a)
-    -- a click on a free statistic's row adds it; none can be added to a full page
-    T.eq(#ns.Settings().fameTiles[page.key], ns.Stats.MAX_TILES)
-    fame:Add(347)
-    T.eq(#ns.Settings().fameTiles[page.key], ns.Stats.MAX_TILES)
-    ns.Settings().fameTiles = { [page.key] = { b } }
-    fame:Refresh()
-    fame:Remove(b)
-    T.eq(ns.Settings().fameTiles[page.key], { b })
-    local row = fame.List.rows[1]
+    board:SetEditing(true)
+    view:Refresh()
+    -- a handle over every tile and title card that shows, none over the tables
+    T.eq(#view.PartHandles.tiles, #page.headline)
+    T.eq(#view.PartHandles.cards, ns.Stats.MAX_CARDS)
+    T.eq(view.PartHandles.tiles[1]:IsShown(), true)
+    T.eq(board.defs.tiles.Cover.Name:IsShown(), false) -- the tiles keep their look
+    T.eq(board.defs.gear.Cover.Name:IsShown(), true)
+    T.eq(rawget(board.defs.gear.Cover, "Action"), nil)
+    T.eq(picker.State(), nil)
+    -- a click on the second tile: the list for that one, and only what the row does not show yet
+    local x, y = 300, 300
+    env.GetCursorPosition = function() return x, y end
+    env.IsMouseButtonDown = function() return false end
+    local handle = view.PartHandles.tiles[2]
+    handle:GetScript("OnMouseDown")(handle, "LeftButton")
+    handle:GetScript("OnMouseUp")(handle, "LeftButton")
+    board:Track() -- (the mouse let go without moving: the box stays, nothing is stored)
+    local open, window = picker.State()
+    T.eq({ open.page, open.kind, open.index }, { "general", "tiles", 2 })
+    T.eq(window:IsShown(), true)
+    T.eq(window.Title:GetText(), ns.UI.Fame.TileName(b))
+    T.eq(settings.fameLayout, nil)
+    T.eq(handle.Edge:IsShown(), true)
+    T.eq(view.PartHandles.tiles[1].Edge:IsShown(), false)
+    local items = picker.Items()
+    T.truthy(#items > 20, "every other statistic")
+    for _, item in ipairs(items) do T.truthy(item.id ~= a and item.id ~= b, "not one that shows already") end
+    -- an entry of the list takes the tile's place; the others stay where they are
+    T.eq(#window.List.items, #items)
+    local row = window.List.rows[1]
+    local chosen = row.id
     row:GetScript("OnMouseUp")(row)
-    T.eq(#ns.Settings().fameTiles[page.key], 2)
-    -- the search narrows both lists to what matches
-    local all = #fame.Lists.tiles.items
-    fame.query = "zzz no such statistic"
-    fame:Refresh()
-    T.eq(fame.Lists.tiles.rows[1]:IsShown(), false)
-    T.eq(fame.Lists.cards.rows[1]:IsShown(), false)
-    fame.query = ""
-    fame:Refresh()
-    T.truthy(all > 20 and #fame.Lists.tiles.items == all, "every statistic back without a search")
-    T.truthy(fame.Lists.tiles.rows[1]:IsShown(), "the first statistic in view")
-    T.eq(fame.Lists.tiles.rows[all], nil) -- a row out of view is not built
-    -- the title cards of the page the same way, also with a title of another page
-    fame:SetKind("cards")
-    fame:Remove(page.titles[1].key)
-    T.eq(ns.Settings().fameCards[page.key][1], page.titles[2].key)
-    ns.Settings().fameCards = { [page.key] = { page.titles[2].key } }
-    fame:Refresh()
-    fame:Add("GOLD")
-    T.eq(ns.Settings().fameCards[page.key], { page.titles[2].key, "GOLD" })
-    -- a click on a row of the title list adds to the title cards, whatever row was picked before
-    fame:SetKind("tiles")
-    local titleRow = fame.Lists.cards.rows[1]
-    titleRow:GetScript("OnMouseUp")(titleRow)
-    T.eq(#ns.Settings().fameCards[page.key], 3)
-    T.eq(fame.kind, "cards")
-    -- another page of the tab: the window follows it
+    T.eq(settings.fameTiles.general[2], chosen)
+    T.eq(settings.fameTiles.general[1], a)
+    T.eq(#settings.fameTiles.general, #page.headline)
+    T.eq(view.Tiles[2].id, chosen) -- the tab shows it at once
+    T.eq(picker.State(), nil)
+    T.eq(window:IsShown(), false)
+    -- dragging a tile moves its box and opens nothing
+    handle:GetScript("OnMouseDown")(handle, "LeftButton")
+    x = 340
+    handle:GetScript("OnMouseUp")(handle, "LeftButton")
+    board:Track()
+    T.eq(picker.State(), nil)
+    x = 300
+    -- move the tile, the list stays with it; the ends of the row have nowhere to go
+    view:EditPart("tiles", 2)
+    picker.Move(-1)
+    T.eq(settings.fameTiles.general[1], chosen)
+    T.eq(settings.fameTiles.general[2], a)
+    T.eq(picker.State().index, 1)
+    T.eq(view.PartHandles.tiles[1].Edge:IsShown(), true)
+    picker.Move(-1)
+    T.eq(settings.fameTiles.general[1], chosen)
+    -- the search narrows the list
+    window.Search:SetText("zzz no such statistic")
+    window.Search:GetScript("OnTextChanged")(window.Search)
+    T.eq(#picker.Items(), 0)
+    window.Search:SetText("")
+    window.Search:GetScript("OnTextChanged")(window.Search)
+    T.eq(#picker.Items(), #items)
+    -- take it away; a second click on the open tile closes its list
+    picker.Remove()
+    T.eq(#settings.fameTiles.general, #page.headline - 1)
+    T.eq(settings.fameTiles.general[1], a)
+    T.eq(picker.State(), nil)
+    view:EditPart("tiles", 1)
+    view:EditPart("tiles", 1)
+    T.eq(picker.State(), nil)
+    -- the button of the box adds one at the end, as long as the row has room
+    local action = board.defs.tiles.Cover.Action
+    T.eq(action:GetText(), ns.L.OPTIONS_TILES_MORE)
+    action:GetScript("OnClick")(action)
+    T.eq(picker.State().index, nil)
+    T.eq(window.Title:GetText(), ns.L.OPTIONS_TILES_MORE)
+    T.eq(window.Left:IsShown(), false)
+    picker.Choose(b)
+    T.eq(settings.fameTiles.general[#page.headline], b)
+    T.eq(picker.Full("general", "tiles"), true)
+    view:EditPart("tiles", nil)
+    T.eq(picker.State(), nil)
+    -- a row keeps its last tile
+    settings.fameTiles = { general = { b } }
+    view:Refresh()
+    T.eq(view.PartHandles.tiles[2]:IsShown(), false)
+    view:EditPart("tiles", 1)
+    picker.Remove()
+    T.eq(settings.fameTiles.general, { b })
+    picker.Hide()
+    -- the title cards the same way, also with a title of another page
+    view:EditPart("cards", 1)
+    T.eq(window.Title:GetText(), ns.L["FAME_TITLE_" .. page.titles[1].key])
+    picker.Choose("GOLD")
+    T.eq(settings.fameCards.general[1], "GOLD")
+    T.eq(settings.fameCards.general[2], page.titles[2].key)
+    T.eq(view.Cards[1].stat, 328)
+    picker.Choose("AUCTION") -- nothing is open: nothing happens
+    T.eq(settings.fameCards.general[1], "GOLD")
+    -- another page of the tab: a list open for this one closes
+    view:EditPart("cards", 2)
     view.page = "pvp"
     view:Refresh()
-    T.eq(fame.page, "pvp")
-    T.eq(window:IsShown(), true)
+    T.eq(picker.State(), nil)
+    T.eq(settings.fameCards.pvp, nil)
     view.page = "general"
     view:Refresh()
-    -- restoring brings the page back to what Guildy ships
-    fame:Restore()
-    T.eq(ns.Settings().fameTiles[page.key], nil)
-    T.eq(ns.Settings().fameCards[page.key], nil)
-    ns.Settings().fameTiles, ns.Settings().fameCards = nil, nil
-    -- the window goes when customizing ends
+    -- "Restore defaults" among the presets: tiles, title cards and boxes as Guildy ships them
+    local preset = board.Presets
+    T.eq(preset:IsShown(), true)
+    ns.UI.FamePicker.Restore("general")
+    T.eq({ settings.fameTiles, settings.fameCards }, {})
+    view:Refresh()
+    T.eq(view.Tiles[1].id, a)
+    -- the list goes when customizing ends, and so do the handles
+    view:EditPart("tiles", 3)
     board.Edit:GetScript("OnClick")(board.Edit)
     T.eq(board.editing, false)
-    T.eq(window:IsShown(), false)
-    -- opened from the title cards it starts on them
+    T.eq(picker.State(), nil)
+    T.eq(view.PartHandles.tiles[1]:IsShown(), false)
     board:SetEditing(true)
-    action = board.defs.cards.Cover.Action
-    action:GetScript("OnClick")(action)
-    T.eq(fame.kind, "cards")
+    view:Refresh()
+    view:EditPart("cards", 1)
     ns.UI.SelectTab("chat")
-    T.eq(window:IsShown(), false)
+    T.eq(picker.State(), nil)
     T.eq(board.editing, false)
+    env.GetCursorPosition, env.IsMouseButtonDown = nil, nil
     T.eq(errors, {})
   end)
 
