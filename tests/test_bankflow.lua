@@ -590,6 +590,25 @@ T.describe("Guild bank", function()
     T.eq(bankFirst, true)
     env.C_ChatInfo.SendAddonMessage = raw
     SendAll()
+    -- /guildy sync lists in the chat what is sent and received, until it is switched off
+    local lines = {}
+    local print0 = ns.Print
+    ns.Print = function(text) lines[#lines + 1] = text end
+    env.SlashCmdList.GUILDY("sync")
+    T.eq(ns.Sync.debug, true)
+    clock = clock + 60
+    for _, part in ipairs(P.Chunk("d1", P.Encode("SUM", { d = {}, b = { at = 0, ts = 0, n = 0 } }, "1.6.1"))) do
+      Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch")
+    end
+    RunTimers()
+    SendAll()
+    local all = table.concat(lines, " | ")
+    for _, expect in ipairs({ "summary from Au Tsch", "offering it in", "queued BANK", "sent BANK" }) do
+      T.truthy(all:find(expect, 1, true), expect .. " missing in: " .. all)
+    end
+    env.SlashCmdList.GUILDY("sync")
+    T.eq(ns.Sync.debug, false)
+    ns.Print = print0
     T.eq(errors, {})
   end)
 

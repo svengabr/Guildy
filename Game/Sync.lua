@@ -47,6 +47,23 @@ function Sync.Register()
   if register then pcall(register, Proto.PREFIX) end
 end
 
+-- /guildy sync: what is sent and received, line by line in the chat, until it is switched off again
+-- (for finding out why something does not arrive; nothing is stored)
+Sync.debug = false
+local function Debug(text, ...)
+  if Sync.debug then ns.Print("|cff8fb0ffsync|r " .. text:format(...)) end
+end
+function Sync.ToggleDebug()
+  Sync.debug = not Sync.debug
+  ns.Print("sync: " .. (Sync.debug and "on. Every message sent and received is listed here; /guildy sync switches it off." or "off"))
+  if Sync.debug then
+    local guild = ns.GuildData()
+    local bank = guild and ns.Bank.Digest(guild.bank)
+    ns.Print(("sync: Guildy %s, bank known: %s, messages waiting: %d"):format(ns.Version(),
+      bank and (bank.n .. " entries") or "nothing", #queue))
+  end
+end
+
 -- Sends one part. Returns false when the game refused it for now (its limit): it is to be sent again.
 local function RawSend(text)
   local send = (C_ChatInfo and C_ChatInfo.SendAddonMessage) or rawget(_G, "SendAddonMessage")
@@ -54,6 +71,7 @@ local function RawSend(text)
   local ok, result = pcall(send, Proto.PREFIX, text, "GUILD")
   if not ok or type(result) ~= "number" then return true end -- (older clients return nothing or true)
   local codes = rawget(_G, "Enum") and Enum.SendAddonMessageResult or {}
+  if result ~= 0 then Debug("the game answered %s to a part", tostring(result)) end
   return not (result == (codes.AddonMessageThrottle or 3) or result == (codes.ChannelThrottle or 8))
 end
 
@@ -71,7 +89,10 @@ local function Pump()
     end
     allowance = allowance - 1
     message.next = message.next + 1
-    if message.next > #message.parts then table.remove(queue, 1) end
+    if message.next > #message.parts then
+      table.remove(queue, 1)
+      Debug("sent %s (%d parts), %d messages still wait", message.kind, #message.parts, #queue)
+    end
   end
   if not queue[1] and ticker then
     ticker:Cancel()
@@ -102,6 +123,7 @@ local function SendNow(kind, data)
     while queue[at] and (queue[at].next > 1 or queue[at].kind == "BANK" or queue[at].kind == "HI") do at = at + 1 end
   end
   table.insert(queue, at, message)
+  Debug("queued %s: %d parts, place %d of %d", kind, #message.parts, at, #queue)
   Pump()
   if queue[1] and not ticker then ticker = C_Timer.NewTicker(0.25, Pump) end
 end
@@ -153,7 +175,9 @@ function Sync.ShareBank(since)
   bank = ns.Bank.Get(guild)
   for _, try in ipairs({ { ns.Bank.WIRE_ENTRIES, true }, { ns.Bank.WIRE_ENTRIES, false }, { 80, false }, { 25, false } }) do
     local data = ns.Bank.Excerpt(bank, since, try[1], try[2])
-    if #Proto.Encode("BANK", data, ns.Version()) <= MAX_BYTES then
+    local size = #Proto.Encode("BANK", data, ns.Version())
+    Debug("bank: %d bytes with %d entries at most%s", size, try[1], size > MAX_BYTES and ", too much" or "")
+    if size <= MAX_BYTES then
       Send("BANK", data)
       seenBank, bankMessages = math.max(seenBank, bank.at), bankMessages + 1
       return
@@ -249,12 +273,23 @@ local function OnSummary(data, sender)
   local myBank = ns.Bank.Digest(guild.bank)
   local theirDigest = type(data.b) == "table" and data.b
     or (Sync.KnowsBank(Sync.UserVersion(sender)) and {} or nil)
+  Debug("summary from %s (Guildy %s): bank %s; mine %s", sender, tostring(Sync.UserVersion(sender)),
+    type(data.b) == "table" and ("at " .. tostring(data.b.at) .. ", " .. tostring(data.b.n) .. " entries") or "not named",
+    myBank and (myBank.n .. " entries") or "nothing")
   if theirDigest and ns.Bank.Newer(myBank, theirDigest) then
     local theirBank, before = tonumber(theirDigest.ts) or 0, bankMessages
-    C_Timer.After(6 + math.random() * 10, function()
-      if bankMessages > before and seenBank >= myBank.at then return end -- someone else sent it meanwhile
+    local wait = 6 + math.random() * 10
+    Debug("bank: I know more than %s, offering it in %d s", sender, wait)
+    C_Timer.After(wait, function()
+      if bankMessages > before and seenBank >= myBank.at then -- someone else sent it meanwhile
+        Debug("bank: not sent, someone else shared it meanwhile")
+        return
+      end
       Sync.ShareBank(theirBank)
     end)
+  else
+    Debug("bank: no offer to %s (%s)", sender, not theirDigest and "their Guildy has no Bank tab"
+      or not myBank and "I know nothing of the bank" or "they know as much")
   end
   -- statistics the same way (an older Guildy sends no s: then offer nothing, it can't use them)
   if type(data.s) ~= "table" then return end
@@ -301,9 +336,14 @@ local function OnBank(data, sender)
   local guild = ns.GuildData()
   if not guild then return end
   local reading = ns.Bank.Validate(data, sender, ns.Now())
-  if not reading then return end
+  if not reading then
+    Debug("bank from %s: not usable", sender)
+    return
+  end
   seenBank, bankMessages = math.max(seenBank, reading.at), bankMessages + 1
-  if ns.Bank.Apply(ns.Bank.Get(guild), reading) then ns.Fire("BANK") end
+  local changed = ns.Bank.Apply(ns.Bank.Get(guild), reading)
+  Debug("bank from %s: %s", sender, changed and "taken in" or "nothing new in it")
+  if changed then ns.Fire("BANK") end
 end
 
 -- Books read through a profession link are only taken from a Guildy that reads them right: before
@@ -423,6 +463,7 @@ function Sync.OnAddonMessage(prefix, text, channel, sender)
   local name = ns.Names.Normalize(sender)
   ns.SafeCall(MarkUser, name, envelope.v)
   local handler = HANDLERS[envelope.t]
+  if envelope.t ~= "SUM" and envelope.t ~= "BANK" then Debug("received %s from %s", tostring(envelope.t), name) end
   if handler then ns.SafeCall(handler, envelope.d, name) end
 end
 

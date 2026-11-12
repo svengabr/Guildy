@@ -236,6 +236,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.GameBank.OnClosed()
     ns.Fire("BANK")
     ns.Print("bank: stored data removed")
+  elseif msg == "sync" then
+    ns.Sync.ToggleDebug()
   elseif msg == "bank" then
     ns.GameBank.OnOpened() -- typed at the banker: start reading now, whatever the events did
     ns.GameBank.OnChanged()
