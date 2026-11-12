@@ -710,8 +710,8 @@ local function Build(panel)
     -- at a narrow window a long language fills the row with the filters: then only the numbers
     local last = (self.FoldCheck.Label:IsShown() and self.FoldCheck.Label)
       or (self.viewOfficer and self.NoOfficerNoteCheck.Label) or self.NoNoteCheck.Label
-    local right, filters = self.Summary:GetRight(), last:GetRight()
-    if not self.editing and right and filters and right - (self.Summary:GetStringWidth() or 0) < filters + 8 then
+    local right, lastRight = self.Summary:GetRight(), last:GetRight()
+    if not self.editing and right and lastRight and right - (self.Summary:GetStringWidth() or 0) < lastRight + 8 then
       self.Summary:SetText(#kept .. " / " .. #members)
     end
     self.NoNoteCheck.Label:SetText(L.NO_NOTE .. " |cffffd100" .. noNote .. "|r")

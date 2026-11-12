@@ -208,10 +208,10 @@ local function OnSummary(data, sender)
   -- the guild bank: one offer for all of it (an older Guildy sends no b and could not use it)
   local myBank = ns.Bank.Digest(guild.bank)
   if type(data.b) == "table" and ns.Bank.Newer(myBank, data.b) then
-    local theirs, before = tonumber(data.b.ts) or 0, bankMessages
+    local theirBank, before = tonumber(data.b.ts) or 0, bankMessages
     C_Timer.After(6 + math.random() * 10, function()
       if bankMessages > before and seenBank >= myBank.at then return end -- someone else sent it meanwhile
-      Sync.ShareBank(theirs)
+      Sync.ShareBank(theirBank)
     end)
   end
   -- statistics the same way (an older Guildy sends no s: then offer nothing, it can't use them)

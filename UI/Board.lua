@@ -105,6 +105,7 @@ function UI.Board(parent, opts)
     box:SetSize(math.max(1, item.w * cw - W.GAP), math.max(1, item.h * ch - W.GAP - top))
   end
 
+  local drag -- the box that is being moved or sized (see Start)
   local slots, picker = {}, nil
   local Slot, ClosePicker
 
@@ -444,7 +445,6 @@ function UI.Board(parent, opts)
     if edge[3] then line:SetHeight(2) else line:SetWidth(2) end
   end
   board.Ghost:Hide()
-  local drag
 
   local function Drop()
     board:SetScript("OnUpdate", nil)

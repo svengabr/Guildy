@@ -813,16 +813,16 @@ local function Build(panel)
   view.Tree:SetPoint("TOPLEFT", 8, -8)
   view.Tree:SetPoint("BOTTOMRIGHT", -28, 8)
 
-  local ranking = W.Box(detail)
-  ranking:SetPoint("TOPLEFT", tree, "TOPRIGHT", 8, 0)
-  ranking:SetPoint("BOTTOMRIGHT", 0, 0)
-  view.BoardTitle = W.Text(ranking, "GameFontNormalLarge")
+  local rankBox = W.Box(detail)
+  rankBox:SetPoint("TOPLEFT", tree, "TOPRIGHT", 8, 0)
+  rankBox:SetPoint("BOTTOMRIGHT", 0, 0)
+  view.BoardTitle = W.Text(rankBox, "GameFontNormalLarge")
   view.BoardTitle:SetPoint("TOPLEFT", 12, -10)
   view.BoardTitle:SetPoint("RIGHT", -12, 0)
   view.BoardTitle:SetWordWrap(false)
   view.BoardTiles = {}
   for i = 1, 3 do
-    local tile = W.Box(ranking, 0.12)
+    local tile = W.Box(rankBox, 0.12)
     tile:SetHeight(52)
     tile.Value = W.Text(tile, "GameFontNormalLarge")
     tile.Value:SetPoint("TOP", 0, -8)
@@ -830,7 +830,7 @@ local function Build(panel)
     tile.Label:SetPoint("TOP", tile.Value, "BOTTOM", 0, -3)
     view.BoardTiles[i] = tile
   end
-  view.Board = W.ScrollList(ranking, 20, function(row)
+  view.Board = W.ScrollList(rankBox, 20, function(row)
     row.Rank = W.Text(row, "GameFontDisableSmall")
     row.Rank:SetPoint("LEFT", 2, 0)
     row.Rank:SetWidth(22)
@@ -869,7 +869,7 @@ local function Build(panel)
   end)
   view.Board:SetPoint("TOPLEFT", 8, -104)
   view.Board:SetPoint("BOTTOMRIGHT", -28, 26)
-  view.BoardNote = W.Text(ranking, "GameFontDisableSmall")
+  view.BoardNote = W.Text(rankBox, "GameFontDisableSmall")
   view.BoardNote:SetPoint("BOTTOMLEFT", 12, 8)
   view.BoardNote:SetPoint("RIGHT", -12, 0)
 
@@ -929,12 +929,12 @@ local function Build(panel)
     self:LayoutTiles()
     self:LayoutCards()
     for _, box in pairs(TABLES) do box:Columns() end
-    local boardWidth = ranking:GetWidth() or 0
+    local boardWidth = rankBox:GetWidth() or 0
     local boardTile = (boardWidth - 24 - gap * 2) / 3
     for i, tile in ipairs(self.BoardTiles) do
       tile:ClearAllPoints()
       tile:SetWidth(math.max(60, boardTile))
-      tile:SetPoint("TOPLEFT", ranking, "TOPLEFT", 12 + (i - 1) * (boardTile + gap), -40)
+      tile:SetPoint("TOPLEFT", rankBox, "TOPLEFT", 12 + (i - 1) * (boardTile + gap), -40)
     end
   end
 
