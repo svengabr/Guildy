@@ -484,6 +484,27 @@ function UI.SetScale(scale)
   if UI.OptionsScaleChanged then UI.OptionsScaleChanged() end
 end
 
+-- Makes the window taller or lower by delta (a board that needs more rows, UI/Board.lua): its top edge
+-- stays, it never leaves the screen and never gets lower than its smallest size. Returns what it changed by.
+function UI.GrowWindow(delta)
+  if not frame or type(delta) ~= "number" or delta == 0 then return 0 end
+  local screenH = UIParent:GetHeight()
+  local most = UI.MAX_H
+  if type(screenH) == "number" then most = math.max(UI.MIN_H, (screenH - 20) / (HostScale() * UI.Scale())) end
+  local was = frame:GetHeight()
+  local to = math.max(UI.MIN_H, math.min(most, was + delta))
+  if math.abs(to - was) < 0.5 then return 0 end
+  local left, top = frame:GetLeft(), frame:GetTop()
+  if left and top then
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+  end
+  frame:SetHeight(to)
+  SavePosition()
+  PlaceHost()
+  return to - was
+end
+
 -- A page shown in the content area instead of a tab (the character page). It hides the current tab
 -- and remembers it; selecting any tab hides the page again.
 function UI.ShowPage(newPage)

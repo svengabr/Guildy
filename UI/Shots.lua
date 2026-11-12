@@ -156,11 +156,13 @@ local function Bank(layout, editing, after, extra)
     UI.HideOptions()
     ns.Widgets.CloseMenu()
     local bank, mine = SampleBank()
-    UI.bankShot = { bank = bank, mine = mine, layout = layout }
-    for key, value in pairs(extra or {}) do UI.bankShot[key] = value end
     UI.SelectTab("bank")
     local view = UI.TabView("bank")
     if not (view and view.board) then return end
+    local rows = view.board:Rows()
+    UI.bankShot = { bank = bank, mine = mine, layout = layout }
+    for key, value in pairs(extra or {}) do UI.bankShot[key] = value end
+    view.board:RowsChanged(rows) -- a layout with more rows: the window as tall as it would be
     view.filter, view.pick, view.pickName = {}, nil, nil
     view.board:SetEditing(editing == true)
     if view.board.Scroll.SetVerticalScroll then view.board.Scroll:SetVerticalScroll(0) end
@@ -201,24 +203,20 @@ UI.BANK_SHOTS = {
   { "bank-10-compact", Bank(Layout({ "ledger", 0, 0, 6, 12, { tab = false, after = false } },
     { "balance", 6, 0, 6, 8, { rank = false, items = false } }, { "tiles", 6, 8, 6, 2, { repairs = false, slots = false } },
     { "givers", 6, 10, 3, 2 + 1 }, { "largest", 9, 10, 3, 3 })) },
-  { "bank-11-scroll-top", Bank(Layout({ "tiles", 0, 0, 12, 2 }, { "chart", 0, 2, 12, 4 }, { "ledger", 0, 6, 12, 6 },
-    { "balance", 0, 12, 8, 7 }, { "detail", 8, 12, 4, 7 }, { "givers", 0, 19, 6, 4 }, { "largest", 6, 19, 6, 4 })) },
-  { "bank-12-scroll-bottom", Bank(Layout({ "tiles", 0, 0, 12, 2 }, { "chart", 0, 2, 12, 4 }, { "ledger", 0, 6, 12, 6 },
-    { "balance", 0, 12, 8, 7 }, { "detail", 8, 12, 4, 7 }, { "givers", 0, 19, 6, 4 }, { "largest", 6, 19, 6, 4 }), false,
-    function(_, board)
-      local scroll = board.Scroll
-      if scroll.SetVerticalScroll and scroll.GetVerticalScrollRange then scroll:SetVerticalScroll(scroll:GetVerticalScrollRange() or 0) end
-    end) },
-  { "bank-13-edit-scrolled", Bank(Layout({ "tiles", 0, 0, 12, 2 }, { "chart", 0, 2, 8, 4 }, { "ledger", 0, 6, 12, 6 }), true) },
-  { "bank-14-nothing-read", Bank(nil, false, nil, { empty = true }) },
-  { "bank-15-no-boxes", Bank({}) },
-  { "bank-16-options", function()
+  { "bank-11-tall", Bank(Layout({ "tiles", 0, 0, 12, 2 }, { "chart", 0, 2, 12, 4 }, { "ledger", 0, 6, 12, 6 },
+    { "balance", 0, 12, 8, 6 }, { "detail", 8, 12, 4, 6 })) },
+  { "bank-12-edit-free-places", Bank(Layout({ "tiles", 0, 0, 12, 2 }, { "chart", 0, 2, 8, 4 }, { "ledger", 0, 6, 12, 6 }), true) },
+  { "bank-13-nothing-read", Bank(nil, false, nil, { empty = true }) },
+  { "bank-14-no-boxes", Bank({}) },
+  { "bank-15-options", function()
     Bank(nil)()
     UI.ShowOptions("bank")
   end },
 }
 
 -- The end of the bank pictures: the stored bank and the saved layout again
+local heightBefore -- the window's height before the bank pictures (a tall layout makes it taller)
+
 function UI.EndBankShots()
   if not UI.bankShot then return end
   UI.bankShot = nil
@@ -227,11 +225,14 @@ function UI.EndBankShots()
   if view and view.board then
     view.filter, view.pick, view.pickName = {}, nil, nil
     view.board:SetEditing(false)
-    if view.Refresh then view:Refresh() end
   end
+  if heightBefore and UI.frame then UI.GrowWindow(heightBefore - UI.frame:GetHeight()) end
+  heightBefore = nil
+  if view and view.Refresh then view:Refresh() end
 end
 
 function UI.TakeBankShots()
+  heightBefore = UI.frame and UI.frame:GetHeight() or nil
   return UI.TakeShots(nil, UI.BANK_SHOTS)
 end
 

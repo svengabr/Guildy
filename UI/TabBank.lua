@@ -408,6 +408,7 @@ local function Build(panel)
     end,
     default = function() return UI.BANK_PRESETS.ledger end,
     onChange = function() view:Refresh() end,
+    grow = function(delta) return UI.GrowWindow(delta) end,
   })
   view.board = board
   board:Controls(page, { { L.BANK_LEDGER }, { L.TAB_MEMBERS, UI.BANK_PRESETS.members }, { L.TAB_OVERVIEW, UI.BANK_PRESETS.overview } })

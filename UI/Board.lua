@@ -1,9 +1,12 @@
 -- A board: the boxes of a tab on a grid the player arranges (Core/Grid.lua has the rules). Twelve cells
--- wide, as many rows down as the boxes need: twelve rows fill the tab, more of them scroll.
+-- wide and twelve rows tall to start with. A box added below everything adds rows, and the window grows
+-- by them (opts.grow) so nothing has to scroll; taking the rows away gives the height back. Only where
+-- the screen has no more room the rows get lower, and at last the tab scrolls.
 --
 --   local board = UI.Board(parent, { load = function() return saved layout or nil end,
 --     save = function(layout or nil) end, default = function() return layout end,
---     onChange = function() fill the boxes that show end })
+--     onChange = function() fill the boxes that show end,
+--     grow = function(px) make the window taller (lower for a negative px) end })
 --   board.Content                      parent of every box
 --   board:Add(key, box, { name, about, size = { w, h }, min = { w, h } or function(o) ..., options = { { key, label } } })
 --   board:Controls(page, presets)      "Customize" (and the presets) into a page's toolbar
@@ -12,16 +15,15 @@
 -- A box reads its own options from box.opts (the item's o; an option is on unless it is false).
 -- In edit mode every box is covered by a handle: drag it to move the box, drag its corner to size it,
 -- "Options" has its options, the x removes it. Every free place among the boxes carries a "+", and a
--- bar at the bottom of the tab, always in view, adds below everything: a click lists the boxes that
--- are not on the tab, and the one under the mouse shows right there, as it will look. While
--- customizing, the mouse wheel scrolls the tab wherever the mouse is (not the lists under the handles).
+-- bar at the bottom of the tab adds below everything: a click lists the boxes that are not on the tab,
+-- and the one under the mouse shows as it will look, right at the free place, or over the lower part
+-- of the tab when it is to go below.
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
 local G = ns.Grid
 
-local MIN_ROW = 36   -- px a row is tall at least
-local TAIL = 4       -- free rows under the last box in edit mode: room for anything
+local MIN_ROW = 30   -- px a row is tall at least: lower than that the tab scrolls
 local BAR = 14       -- room for the scroll bar while there is something to scroll
 local ADD_H = 30     -- the bar "add a box below" at the bottom of the tab in edit mode
 
@@ -59,11 +61,13 @@ function UI.Board(parent, opts)
     return G.Clean(opts.load(), Least) or G.Copy(opts.default())
   end
 
-  -- width and height of a cell, and whether the boxes need more room than the tab has
+  -- width and height of a cell: the rows share the tab's height. Whether they got too low for that
+  -- and the tab scrolls instead.
   local function Cells(rows)
-    local height = (board:GetHeight() or 0) + W.GAP
-    local ch = math.max(MIN_ROW, height / G.PAGE)
-    local scrolls = rows * ch > height + 1
+    local height = (board:GetHeight() or 0) - (board.editing and ADD_H or 0) + W.GAP
+    local ch = height / rows
+    local scrolls = ch < MIN_ROW
+    if scrolls then ch = MIN_ROW end
     local width = (board:GetWidth() or 0) - (scrolls and BAR or 0) + W.GAP
     return width / G.COLS, ch, scrolls
   end
@@ -117,9 +121,9 @@ function UI.Board(parent, opts)
 
   function board:Apply()
     local layout = self:Layout()
-    local base = math.max(G.PAGE, G.Rows(layout))
-    local rows = base + (self.editing and TAIL or 0)
-    local cw, ch, scrolls = Cells(rows + (self.editing and 1 or 0))
+    local rows = math.max(G.PAGE, G.Rows(layout))
+    local base = rows
+    local cw, ch, scrolls = Cells(rows)
     self.cw, self.ch = cw, ch
     self.Scroll:ClearAllPoints()
     self.Scroll:SetPoint("TOPLEFT", 0, 0)
@@ -134,6 +138,10 @@ function UI.Board(parent, opts)
       def.box.opts = item.o or {}
       Put(def.box, item, cw, ch)
       def.box:SetAlpha(1)
+      if def.raised then
+        def.raised = nil
+        def.box:SetFrameStrata(self:GetFrameStrata())
+      end
       def.box:Show()
     end
     -- the box the picker is about to add: shown where it will stand
@@ -142,8 +150,16 @@ function UI.Board(parent, opts)
       local def = self.defs[preview.k]
       self.placed[preview.k] = preview
       def.box.opts = {}
-      Put(def.box, preview, cw, ch)
-      def.box:SetAlpha(0.8)
+      -- a box that will go below everything: shown over the lower part of the tab, on top of what is there
+      local at, below = preview, preview.y + preview.h > rows
+      if below then
+        local h = math.min(preview.h, rows)
+        at = { x = preview.x, y = rows - h, w = preview.w, h = h }
+        def.raised = true
+        def.box:SetFrameStrata("HIGH")
+      end
+      Put(def.box, at, cw, ch)
+      def.box:SetAlpha(below and 1 or 0.8)
       def.box:Show()
     end
     for key, def in pairs(self.defs) do
@@ -161,7 +177,7 @@ function UI.Board(parent, opts)
         slot:SetShown(not (preview and self.pickGap and self.pickGap.x == gap.x and self.pickGap.y == gap.y))
       end
       -- under everything there is always room: the bar at the bottom of the tab adds there
-      self.AddBar.gap = { x = 0, y = base, w = G.COLS, h = TAIL, tail = true }
+      self.AddBar.gap = { x = 0, y = base, w = G.COLS, h = G.MAX_ROWS, tail = true }
     end
     self.AddBar:SetShown(self.editing == true)
     for index = count + 1, #slots do slots[index]:Hide() end
@@ -170,10 +186,22 @@ function UI.Board(parent, opts)
   end
   board:SetScript("OnSizeChanged", function() board:Apply() end)
 
+  function board:Rows()
+    return math.max(G.PAGE, G.Rows(self:Layout()))
+  end
+
+  -- The layout has other rows than `before`: the window grows or gives back that much height
+  function board:RowsChanged(before)
+    local rows = self:Rows()
+    if rows ~= before and opts.grow and self.ch then opts.grow((rows - before) * self.ch) end
+  end
+
   local function Changed(layout)
+    local before = board:Rows()
     board.preview, board.pickGap = nil, nil
     ClosePicker()
     opts.save(layout)
+    board:RowsChanged(before)
     board:Apply()
     opts.onChange()
   end
@@ -290,12 +318,14 @@ function UI.Board(parent, opts)
     local from = drag.from
     local least = Least(from.k, from.o)
     local item = { k = from.k, x = from.x, y = from.y, w = from.w, h = from.h, o = from.o }
+    -- within the rows there are: more of them come with a box added below (the bar at the bottom)
+    local rows = math.max(G.PAGE, G.Rows(drag.layout))
     if drag.kind == "move" then
       item.x = math.max(0, math.min(G.COLS - item.w, from.x + dx))
-      item.y = math.max(0, math.min(G.MAX_ROWS - item.h, from.y + dy))
+      item.y = math.max(0, math.min(rows - item.h, from.y + dy))
     else
       item.w = math.max(least[1], math.min(G.COLS - item.x, from.w + dx))
-      item.h = math.max(least[2], math.min(G.MAX_ROWS - item.y, from.h + dy))
+      item.h = math.max(least[2], math.min(rows - item.y, from.h + dy))
     end
     drag.item, drag.ok = item, G.Fits(drag.layout, item)
     Put(self.Ghost, item, self.cw, self.ch)
@@ -436,8 +466,7 @@ function UI.Board(parent, opts)
       board.preview = item
       board:Apply()
       opts.onChange()
-      -- a box that goes below everything: bring that end of the tab into view
-      if item and (not fits or (board.pickGap and board.pickGap.tail)) then ScrollToEnd() end
+      if item and not fits then ScrollToEnd() end -- (only where the tab had to scroll)
     end)
     row:SetScript("OnLeave", function()
       if not board.preview then return end

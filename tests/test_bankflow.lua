@@ -715,7 +715,7 @@ T.describe("Pictures of the Bank tab", function()
     other.env.SlashCmdList.GUILDY("shots bank")
     other.RunTimers(1)
     T.eq(taken, #UI.BANK_SHOTS)
-    T.eq(taken, 16)
+    T.eq(taken, 15)
     T.truthy(seen[1].entries > 30 and seen[1].boxes == 5, "the made-up bank in the ledger")
     T.eq(seen[3].entries < seen[1].entries, true)       -- one member only
     T.eq(seen[4].editing, true)
@@ -723,9 +723,9 @@ T.describe("Pictures of the Bank tab", function()
     T.eq(seen[6].preview, true)
     T.eq(seen[6].boxes, 5)                               -- four and the one shown at the free place
     T.eq(seen[8].boxes, 3)
-    T.eq(seen[11].boxes, 7)
-    T.eq(seen[14].entries, 0)                            -- nothing read
-    T.eq(seen[15].boxes, 0)
+    T.eq(seen[11].boxes, 5)
+    T.eq(seen[13].entries, 0)                            -- nothing read
+    T.eq(seen[14].boxes, 0)
     -- afterwards: no made-up bank, no layout of the run, back on the tab it started on
     T.eq(UI.bankShot, nil)
     T.eq(other.ns.GuildData().bank, nil)

@@ -56,3 +56,34 @@ T.describe("Window size", function()
     T.eq(world.ns.UI.Scale(), 1)
   end)
 end)
+
+-- A board that needs more rows makes the window taller instead of scrolling (UI/Board.lua)
+T.describe("Window height follows the Bank tab", function()
+  T.it("grows by the rows a box adds below, and gives them back", function()
+    local world = World(3000, 2000)
+    local ns = world.ns
+    local UI = ns.UI
+    UI.SelectTab("bank")
+    local board = UI.TabView("bank").board
+    T.eq(UI.frame:GetHeight(), 600)
+    T.eq(board:Rows(), 12)
+    local ch = board.ch
+    T.eq(board:Insert("balance"), true)
+    T.eq(board.placed.balance.y, 12)
+    T.eq(board:Rows(), 18)
+    T.eq(UI.frame:GetHeight(), 600 + 6 * ch)
+    T.eq(ns.Settings().height, 600 + 6 * ch)
+    -- (in the game the tab is as tall as the window lets it be, so a row keeps its height and the window
+    -- comes back to exactly 600; the stubbed tab has one height whatever the window does)
+    local tall, row = UI.frame:GetHeight(), board.ch
+    board:Remove("balance")
+    T.eq(board:Rows(), 12)
+    T.eq(UI.frame:GetHeight(), tall - 6 * row)
+    UI.GrowWindow(600 - UI.frame:GetHeight())
+    -- never taller than the screen, never lower than the smallest window
+    T.eq(UI.GrowWindow(5000), 1980 - 600)
+    T.eq(UI.GrowWindow(-5000), UI.MIN_H - 1980)
+    T.eq(UI.GrowWindow(0), 0)
+    T.eq(world.errors, {})
+  end)
+end)
