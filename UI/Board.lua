@@ -17,7 +17,8 @@
 -- A box reads its own options from box.opts (the item's o; an option is on unless it is false).
 --
 -- Customizing looks and works the same for every box of every tab:
---   * The box keeps its look, a little darker, under a strip with its name. Drag it anywhere to move it,
+--   * The box keeps its look, a little darker, and gives its top to a strip with its name (the box is
+--     that much lower while customizing, so the strip covers nothing of it). Drag it anywhere to move it,
 --     drag its corner to size it (the boxes in its way move down, every box moves up into room that
 --     got free). The x in the strip removes it.
 --   * The parts of a box (tiles, title cards, the headings of its columns) each carry a handle: its x
@@ -90,6 +91,14 @@ function UI.Board(parent, opts)
     frame:SetSize(math.max(1, item.w * cw - W.GAP), math.max(1, item.h * ch - W.GAP))
   end
 
+  -- A box: while customizing its top belongs to the strip (see Cover), the box itself starts below it
+  local function PutBox(box, item, cw, ch)
+    local top = board.editing and STRIP or 0
+    box:ClearAllPoints()
+    box:SetPoint("TOPLEFT", content, "TOPLEFT", item.x * cw, -item.y * ch - top)
+    box:SetSize(math.max(1, item.w * cw - W.GAP), math.max(1, item.h * ch - W.GAP - top))
+  end
+
   local slots, picker = {}, nil
   local Slot, ClosePicker
 
@@ -148,7 +157,7 @@ function UI.Board(parent, opts)
       local def = self.defs[item.k]
       self.placed[item.k] = item
       def.box.opts = item.o or {}
-      Put(def.box, item, cw, ch)
+      PutBox(def.box, item, cw, ch)
       def.box:SetAlpha(1)
       if def.raised then
         def.raised = nil
@@ -170,7 +179,7 @@ function UI.Board(parent, opts)
         def.raised = true
         def.box:SetFrameStrata("HIGH")
       end
-      Put(def.box, at, cw, ch)
+      PutBox(def.box, at, cw, ch)
       def.box:SetAlpha(below and 1 or 0.8)
       def.box:Show()
     end
@@ -488,7 +497,7 @@ function UI.Board(parent, opts)
           Put(self.Ghost, placed, cw, ch)
           drag.lands = placed
         else
-          Put(self.defs[placed.k].box, placed, cw, ch)
+          PutBox(self.defs[placed.k].box, placed, cw, ch)
         end
       end
     end
@@ -496,9 +505,9 @@ function UI.Board(parent, opts)
     local box = self.defs[from.k].box
     if drag.kind == "move" then
       box:ClearAllPoints()
-      box:SetPoint("TOPLEFT", content, "TOPLEFT", from.x * cw + (x - drag.x), -from.y * ch + (y - drag.y))
+      box:SetPoint("TOPLEFT", content, "TOPLEFT", from.x * cw + (x - drag.x), -from.y * ch + (y - drag.y) - STRIP)
     else
-      Put(box, { x = from.x, y = (drag.lands or from).y, w = item.w, h = item.h }, cw, ch)
+      PutBox(box, { x = from.x, y = (drag.lands or from).y, w = item.w, h = item.h }, cw, ch)
     end
     self.Ghost:Show()
   end
@@ -541,26 +550,34 @@ function UI.Board(parent, opts)
     cover:SetFrameLevel(level)
     cover.Shade = cover:CreateTexture(nil, "BACKGROUND")
     cover.Shade:SetAllPoints()
-    cover.Shade:SetColorTexture(0, 0, 0, 0.3)
+    cover.Shade:SetColorTexture(0, 0, 0, 0.25)
     cover:SetScript("OnMouseDown", function(_, button)
       if button == "LeftButton" then board:Start("move", key) end
     end)
     cover:EnableMouseWheel(true)
     cover:SetScript("OnMouseWheel", Wheel)
-    -- (the strip takes no clicks itself: dragging it moves the box like dragging anything else of it)
-    cover.Strip = CreateFrame("Frame", nil, cover)
-    cover.Strip:SetPoint("TOPLEFT", 0, 0)
-    cover.Strip:SetPoint("TOPRIGHT", 0, 0)
+    -- the strip stands on top of the box, in the room the box gives up while customizing (PutBox);
+    -- dragging it moves the box like dragging anything else of it
+    cover.Strip = CreateFrame("Button", nil, cover)
+    cover.Strip:SetPoint("BOTTOMLEFT", cover, "TOPLEFT", 0, 0)
+    cover.Strip:SetPoint("BOTTOMRIGHT", cover, "TOPRIGHT", 0, 0)
     cover.Strip:SetHeight(STRIP)
     cover.Strip:SetFrameLevel(level + 4)
+    cover.Strip:SetScript("OnMouseDown", function(_, button)
+      if button == "LeftButton" then board:Start("move", key) end
+    end)
+    cover.Strip:EnableMouseWheel(true)
+    cover.Strip:SetScript("OnMouseWheel", Wheel)
     cover.Strip.Fill = cover.Strip:CreateTexture(nil, "BACKGROUND")
     cover.Strip.Fill:SetAllPoints()
-    cover.Strip.Fill:SetColorTexture(0.07, 0.05, 0.03, 0.88)
-    cover.Strip.Line = cover.Strip:CreateTexture(nil, "BORDER")
-    cover.Strip.Line:SetPoint("BOTTOMLEFT")
-    cover.Strip.Line:SetPoint("BOTTOMRIGHT")
-    cover.Strip.Line:SetHeight(1)
-    cover.Strip.Line:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.7)
+    cover.Strip.Fill:SetColorTexture(W.GOLD[1] * 0.22, W.GOLD[2] * 0.22, W.GOLD[3] * 0.22, 0.96)
+    for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", true }, { "TOPLEFT", "BOTTOMLEFT", false }, { "TOPRIGHT", "BOTTOMRIGHT", false } }) do
+      local line = cover.Strip:CreateTexture(nil, "BORDER")
+      line:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.6)
+      line:SetPoint(edge[1])
+      line:SetPoint(edge[2])
+      if edge[3] then line:SetHeight(1) else line:SetWidth(1) end
+    end
     cover.Remove = W.Button(cover.Strip, "x", function() board:Remove(key) end, 24, { small = true, pad = 10 })
     cover.Remove:SetPoint("RIGHT", -2, 0)
     W.Tooltip(cover.Remove, L.BOARD_REMOVE)

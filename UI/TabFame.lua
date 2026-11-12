@@ -891,9 +891,10 @@ local function Build(panel)
     end
   end
 
-  -- The title cards in as many rows as their box has room for (a card is 44 to 60 pixels tall, four in
-  -- a row where they fit); those the box has no room for are left out
-  local CARD_MIN, CARD_MAX, CARD_WIDTH = 44, 60, 150
+  -- The title cards in as many rows as their box has room for (a card is 34 to 60 pixels tall, four in
+  -- a row where they fit; 34 is what two rows get in a small window while customizing, when the box
+  -- gives its top to its strip); those the box has no room for are left out
+  local CARD_MIN, CARD_MAX, CARD_WIDTH = 34, 60, 150
   function view:LayoutCards()
     local width, height = cardsBox:GetWidth() or 0, cardsBox:GetHeight() or 0
     local cards = {}
@@ -915,6 +916,8 @@ local function Build(panel)
       local column, row = (i - 1) % perRow, math.floor((i - 1) / perRow)
       card:SetPoint("TOPLEFT", cardsBox, "TOPLEFT", column * (cardWidth + gap), -row * (cardHeight + gap))
       card:SetSize(cardWidth, cardHeight)
+      local icon = math.max(20, math.min(36, cardHeight - 6))
+      card.Icon:SetSize(icon, icon)
     end
   end
   tilesBox:SetScript("OnSizeChanged", function() view:LayoutTiles() end)

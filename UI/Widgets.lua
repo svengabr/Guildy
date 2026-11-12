@@ -165,7 +165,7 @@ function W.Handle(parent, onRemove)
   if onRemove then
     local remove = CreateFrame("Button", nil, handle)
     remove:SetSize(14, 16)
-    remove:SetPoint("RIGHT", -3, 0) -- (at its middle: the top of a tile lies under the strip of its box)
+    remove:SetPoint("TOPRIGHT", -2, -1)
     remove.Text = W.Text(remove, "GameFontNormalSmall", "x")
     remove.Text:SetPoint("CENTER", 0, 1)
     remove:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
