@@ -25,7 +25,10 @@ Activity.MAX = { presence = 30, playing = 70 }
 -- (2026-11): the same weekly play then lands in the same band, solo or in groups.
 Activity.UNITS = { quests = 1, kills = 0.02, honorKills = 0.2, dungeons = 3, dungeonBosses = 6, raidBosses = 25,
   battlegrounds = 4 }
-Activity.K = 80 -- units a week (some seven hours of play) that fill 63 % of the playing part
+-- Units a week that fill 63 % of the playing part: some 15 hours of play. The scale is absolute, in hours a
+-- week whatever they are spent on; with full presence 5 h make 50 (Active), 15 h make 75 (Very active),
+-- 30 h some 90, and the full 100 come at about 70 h. Without presence (scaled) 15 h make 64, 30 h 87.
+Activity.K = 175
 Activity.FULL_PRESENCE = 5 -- days a week for the whole presence part
 Activity.MIN_SPAN = 3      -- days between snapshot and reading below which there are no rates
 Activity.CURRENT_DAYS = 7  -- a reading this young is current whatever the member did since
