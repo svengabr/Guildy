@@ -361,6 +361,16 @@ T.describe("Smoke", function()
       if (row.Name:GetText() or ""):find(L.SPEC_20222, 1, true) then named = true end
     end
     T.eq(named, true) -- the page names the specialization after the profession
+    -- the name column grows with the longest name, so "Ingenieurskunst  Goblin" is not cut off
+    -- (seen in game 2026-11-13: "Ingenieurskunst Go...")
+    local rows = ns.UI.MemberPage().Profs.Rows
+    rawset(rows[1].Name, "GetStringWidth", function() return 170 end)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(rows[1].Name:GetWidth(), 174)
+    T.eq(rows[2].Name:GetWidth(), 174) -- all rows alike, so the numbers stand in one column
+    rawset(rows[1].Name, "GetStringWidth", function() return 400 end)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(rows[1].Name:GetWidth(), 200) -- never wider than that: the bar keeps its room
     au.profs, guild.cooldowns["au tsch"] = kept, nil
     ns.UI.Hide()
     T.eq(errors, {})

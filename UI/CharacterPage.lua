@@ -581,21 +581,39 @@ local function Build()
     dungeons.Note:SetText(rec and L.DUNGEON_COUNT:format(cleared, #dungeons.Icons) or L.NO_STATS_SHORT)
   end
 
+  -- the width of a name as written, not cut to its column
+  local function TextWidth(text)
+    local fn = text.GetUnboundedStringWidth
+    local width = type(fn) == "function" and fn(text) or nil
+    if type(width) ~= "number" then width = text:GetStringWidth() end
+    return type(width) == "number" and width or 0
+  end
+
   function page:RenderProfs(m)
     local list = ProfList(m)
+    -- the names first: the column is as wide as the longest one with its specialization (at least 110,
+    -- at most 200), the same for every row so the numbers stand in one column
+    local nameWidth = 110
+    for i, row in ipairs(profs.Rows) do
+      local p = list[i]
+      if p then
+        local tag = UI.SpecTag(p.prof)
+        row.Name:SetText(ns.TradeSkill.Name(p.skillLine) .. (tag and ("  |cff8f8268" .. tag .. "|r") or ""))
+        nameWidth = math.max(nameWidth, math.min(200, math.ceil(TextWidth(row.Name)) + 4))
+      end
+    end
     for i, row in ipairs(profs.Rows) do
       local p = list[i]
       if p then
         row.Icon:SetTexture(ns.Professions.ICONS[p.skillLine])
         local prof = p.prof
-        local tag = UI.SpecTag(prof)
-        row.Name:SetText(ns.TradeSkill.Name(p.skillLine) .. (tag and ("  |cff8f8268" .. tag .. "|r") or ""))
+        row.Name:SetWidth(nameWidth)
         row.Level:SetText(prof.rank and (prof.rank .. (prof.max and ("|cff999999/" .. prof.max .. "|r") or "")) or "|cff999999–|r")
         local atCap = prof.rank ~= nil and prof.max ~= nil and prof.rank >= prof.max and prof.max < W.SKILL_SCALE
         row.Trainer:SetShown(atCap)
         -- the bar takes the room between the number and the "Trainer" label
         local rowWidth = (profs:GetWidth() or 300) - 24
-        row.Bar:SetBarWidth(rowWidth - 16 - 6 - 110 - 4 - 56 - 8 - 8 - (row.Trainer:GetStringWidth() or 40))
+        row.Bar:SetBarWidth(math.max(40, rowWidth - 16 - 6 - nameWidth - 4 - 56 - 8 - 8 - (row.Trainer:GetStringWidth() or 40)))
         if prof.rank then
           row.Bar:SetSkill(prof.rank, prof.max)
           row.Bar:Show()
