@@ -469,24 +469,46 @@ export const CLASS_FILES = { 1: 'WARRIOR', 2: 'PALADIN', 3: 'HUNTER', 4: 'ROGUE'
   9: 'WARLOCK', 11: 'DRUID' }
 const MAX_TREE_POINTS = 100
 
+// The static namespace of this game version from the links in a profile answer, null without one
+export function staticNamespaceOf(body) {
+  return JSON.stringify(body ?? null).match(/[?&]namespace=(static-[\w.-]+)/)?.[1] ?? null
+}
+
+// The class's talent trees in tab order from /data/wow/playable-class/{id} (static namespace):
+// [[specializationID, name], ...], null without three valid entries
+export function classSpecs(body) {
+  const list = Array.isArray(body?.specializations) ? body.specializations : null
+  if (!list || list.length !== 3) return null
+  const specs = list.map(s => [s?.id, s?.name])
+  return specs.every(([id, name]) => Number.isInteger(id) && typeof name === 'string') ? specs : null
+}
+
 // The points per talent tree of the /specializations response: { trees: [p1, p2, p3], names }, null when
-// it has none. Assumed shape (not checked against a live answer): specialization_groups[] with is_active,
-// each with specializations[] of { specialization_name, spent_points, talents[] { talent_rank } } in the
-// game's tab order. A list of fewer than three trees is placed by the names Guildy knows for the class
-// (known: three names in the response's language), else nothing is taken.
-export function talentTrees(response, known = null) {
+// it has none. Shape (live, profile-forever-eu): specialization_groups[] with is_active, each with
+// specializations[] of { specialization { id, name }, specialization_name, spent_points, talents[] { talent_rank } },
+// listing only the trees with points. Each is placed by its specialization ID in the class's tab order
+// (specs: classSpecs of the class), a missing tree counts 0. Without specs the trees are placed by the names
+// Guildy knows for the class (known: three names in the response's language), else nothing is taken.
+export function talentTrees(response, known = null, specs = null) {
   const groups = Array.isArray(response?.specialization_groups) ? response.specialization_groups : []
   const group = groups.find(g => g?.is_active) ?? groups[0]
   const list = Array.isArray(group?.specializations) ? group.specializations : null
-  if (!list || list.length === 0 || list.length > 3) return null
+  if (!list || list.length > 3) return null
   const points = s => Number.isInteger(s?.spent_points) ? s.spent_points
     : (s?.talents ?? []).reduce((sum, t) => sum + (Number.isInteger(t?.talent_rank) ? t.talent_rank : 0), 0)
-  const names = list.map(s => typeof s?.specialization_name === 'string' ? s.specialization_name : '')
-  if (list.length === 3) return { trees: list.map(points), names }
-  if (!Array.isArray(known) || known.length !== 3) return null
   const trees = [0, 0, 0]
-  for (const [i, s] of list.entries()) {
-    const at = known.indexOf(names[i])
+  if (Array.isArray(specs) && specs.length === 3) {
+    const ids = specs.map(([id]) => id)
+    for (const s of list) {
+      const at = ids.indexOf(s?.specialization?.id)
+      if (at < 0) return null
+      trees[at] = points(s)
+    }
+    return { trees, names: specs.map(([, name]) => name) }
+  }
+  if (list.length === 0 || !Array.isArray(known) || known.length !== 3) return null
+  for (const s of list) {
+    const at = known.indexOf(typeof s?.specialization_name === 'string' ? s.specialization_name : '')
     if (at < 0) return null
     trees[at] = points(s)
   }
@@ -494,8 +516,8 @@ export function talentTrees(response, known = null) {
 }
 
 // Core/Talents.lua's record: { ts, src: 'api', trees }, null without three valid trees
-export function talentRecord(response, ts, known = null) {
-  const found = talentTrees(response, known)
+export function talentRecord(response, ts, known = null, specs = null) {
+  const found = talentTrees(response, known, specs)
   if (!found || !found.trees.every(p => Number.isInteger(p) && p >= 0 && p <= MAX_TREE_POINTS)) return null
   return { ts, src: 'api', trees: found.trees }
 }

@@ -13,7 +13,7 @@ import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes, gearRecord, updateGear, enchantTexts, craftItems, talentRecord, talentTrees, updateTalents, talentNames, knownTreeNames, CLASS_FILES } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes, gearRecord, updateGear, enchantTexts, craftItems, talentRecord, talentTrees, classSpecs, staticNamespaceOf, updateTalents, talentNames, knownTreeNames, CLASS_FILES } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -96,6 +96,8 @@ const own = new Set((db.get('ownChars') instanceof LuaTable ? db.get('ownChars')
 
 // recipe books and specializations need the names Guildy saved in the client's language
 const bridge = nameBridge(db)
+// the equipment and talent trees in the client's language, so their texts can go into Guildy's caches
+const CLIENT_LOCALE = typeof db.get('clientLocale') === 'string' ? db.get('clientLocale') : undefined
 const PROF_LOCALE = apiLocale(bridge?.locale)
 console.log(bridge
   ? `Rezeptnamen von Guildy (${bridge.locale}): Bücher und Spezialisierungen werden mitgeschrieben.`
@@ -137,11 +139,31 @@ async function craftedItem(id) {
   return recipeItems.get(id) || null
 }
 
+// Each class's talent trees in tab order ([[specializationID, name], ...] from /data/wow/playable-class), in
+// the client's language: the /specializations answer lists only the trees with points, and they are placed
+// by ID. Looked up once per class and run, kept in out/ like the names.
+const SPECS_LOCALE = apiLocale(CLIENT_LOCALE)
+const SPECS_FILE = join(dirname(NAMES_FILE), `class-specs-${CLIENT_LOCALE ?? 'enUS'}.json`)
+const classSpecCache = new Map(existsSync(SPECS_FILE)
+  ? Object.entries(JSON.parse(readFileSync(SPECS_FILE, 'utf8'))).map(([id, specs]) => [Number(id), specs]) : [])
+const specLookups = new Map()
+function specsOfClass(classId) {
+  if (classSpecCache.has(classId)) return Promise.resolve(classSpecCache.get(classId))
+  if (!Number.isInteger(classId) || !staticNamespace) return Promise.resolve(null)
+  if (!specLookups.has(classId)) {
+    specLookups.set(classId, api(`/data/wow/playable-class/${classId}`, SPECS_LOCALE, staticNamespace)
+      .then(body => {
+        const specs = classSpecs(body)
+        if (specs) classSpecCache.set(classId, specs)
+        return specs
+      }).catch(() => null))
+  }
+  return specLookups.get(classId)
+}
+
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
 const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, gear: 0, talents: 0, missing: [], failed: [] }
-// the equipment in the client's language, so its enchant texts can go into Guildy's cache
-const CLIENT_LOCALE = typeof db.get('clientLocale') === 'string' ? db.get('clientLocale') : undefined
 const crafts = [] // [spellID, itemID] of the guild's books: what each recipe makes (GuildyDB.craftItems)
 const unknownNames = new Map() // names no saved one matched -> a recipe ID: Guildy looks for them in the game
 
@@ -186,10 +208,14 @@ for (const guildKey of db.get('guilds').keys()) {
         api(`${base}/specializations`, apiLocale(CLIENT_LOCALE)).catch(() => null)])
       totals.members++
       if (specs) {
-        const classFile = CLASS_FILES[profile.character_class?.id]
-        const known = knownTreeNames(db, classFile, CLIENT_LOCALE)
-        if (updateTalents(guild, key, talentRecord(specs, ts, known))) totals.talents++
-        const found = talentTrees(specs, known)
+        staticNamespace ??= staticNamespaceOf(specs)
+        const classId = profile.character_class?.id
+        const classFile = CLASS_FILES[classId]
+        const tabs = await specsOfClass(classId)
+        // the names Guildy knows only stand in when the class's list could not be had
+        const known = tabs ? null : knownTreeNames(db, classFile, CLIENT_LOCALE)
+        if (updateTalents(guild, key, talentRecord(specs, ts, known, tabs))) totals.talents++
+        const found = talentTrees(specs, known, tabs)
         if (found) talentNames(db, classFile, found.names, CLIENT_LOCALE)
       }
       if (stats && updateStats(member, statValues(stats), equipment ? gearValues(equipment) : {}, ts)) totals.stats++
@@ -251,8 +277,9 @@ await pool([...unknownNames], async ([name, id]) => {
   const item = await craftedItem(id).catch(() => null)
   if (item) madeItems.set(name, item)
 })
+mkdirSync(dirname(NAMES_FILE), { recursive: true })
+if (classSpecCache.size) writeFileSync(SPECS_FILE, JSON.stringify(Object.fromEntries(classSpecCache)))
 if (bridge) {
-  mkdirSync(dirname(NAMES_FILE), { recursive: true })
   writeFileSync(NAMES_FILE, JSON.stringify(Object.fromEntries(recipeNames)))
   writeFileSync(ITEMS_FILE, JSON.stringify(Object.fromEntries(recipeItems)))
 }

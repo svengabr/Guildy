@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey, gearRecord, updateGear, enchantTexts, craftItems, talentTrees, talentRecord, updateTalents, talentNames, knownTreeNames, CLASS_FILES } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey, gearRecord, updateGear, enchantTexts, craftItems, talentTrees, talentRecord, classSpecs, staticNamespaceOf, updateTalents, talentNames, knownTreeNames, CLASS_FILES } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -340,21 +340,56 @@ test('craftItems writes integer pairs up to the cap', () => {
   assert.equal(db.get('craftItems').keys().length, 3000)
 })
 
-// /profile/wow/character/{realm}/{name}/specializations as the classic profile API is assumed to answer
-// (profile-forever-*): the active group's trees in tab order, each with its name and spent points
-const specializations = (points, names = ['Gleichgewicht', 'Wildheit', 'Wiederherstellung']) => ({
+// /profile/wow/character/{slug}/specializations as profile-forever-eu answers (live call 2026-11-13): the
+// active group lists only the trees with points, each with its specialization { key, name, id }
+const DRUID_SPECS = [[574, 'Gleichgewicht'], [134, 'Wilder Kampf'], [573, 'Wiederherstellung']]
+const specEntry = ([id, name], points) => ({
+  specialization: { key: { href: `https://eu.api.blizzard.com/data/wow/playable-specialization/${id}?namespace=static-1.60.1_70399-forever-eu` }, name, id },
+  talents: [{ talent: { id: 100 + id }, spell_tooltip: { spell: { name: 'X', id: 1 } }, talent_rank: points }],
+  specialization_name: name,
+  spent_points: points,
+})
+const specializations = (points, specs = DRUID_SPECS) => ({
   _links: { self: { href: 'https://eu.api.blizzard.com/profile/wow/character/x/au-tsch/specializations?namespace=profile-forever-eu' } },
   character: { name: 'Au Tsch', id: 1 },
   specialization_groups: [
-    { is_active: false, specializations: names.map((name, i) => ({ specialization_name: name, spent_points: i === 0 ? 51 : 0, talents: [] })) },
-    { is_active: true, specializations: names.map((name, i) => ({ specialization_name: name, spent_points: points[i],
-      talents: points[i] ? [{ talent: { id: 100 + i }, talent_rank: points[i], spell_tooltip: { spell: { name: 'X', id: 1 } } }] : [] })) },
+    { is_active: false, specializations: [specEntry(specs[0], 51)] },
+    { is_active: true, specializations: specs.map((s, i) => points[i] ? specEntry(s, points[i]) : null).filter(Boolean) },
   ],
 })
+// /data/wow/playable-class/11 (static namespace): the class's specializations in tab order
+const druidClass = { id: 11, name: 'Druide', specializations: DRUID_SPECS.map(([id, name]) => ({ key: { href: 'x' }, name, id })) }
 
-test('talentTrees takes the active group in tab order, with the trees names', () => {
-  assert.deepEqual(talentTrees(specializations([0, 31, 20])), { trees: [0, 31, 20], names: ['Gleichgewicht', 'Wildheit', 'Wiederherstellung'] })
-  assert.equal(talentTrees({}), null)
+test('classSpecs reads the class specializations in tab order', () => {
+  assert.deepEqual(classSpecs(druidClass), DRUID_SPECS)
+  assert.equal(classSpecs(null), null)
+  assert.equal(classSpecs({ specializations: [] }), null)
+  assert.equal(classSpecs({ specializations: [{ name: 'X' }] }), null)
+})
+
+test('staticNamespaceOf reads the static namespace from the links of a profile answer', () => {
+  assert.equal(staticNamespaceOf(specializations([7, 31, 0])), 'static-1.60.1_70399-forever-eu')
+  assert.equal(staticNamespaceOf({ _links: { self: { href: 'x?namespace=profile-forever-eu' } } }), null)
+  assert.equal(staticNamespaceOf(null), null)
+})
+
+test('talentTrees places the listed trees by specialization ID, a missing tree counts 0 (druid 7/31/0)', () => {
+  const r = specializations([7, 31, 0])
+  assert.equal(r.specialization_groups[1].specializations.length, 2) // the API leaves the empty tree out
+  assert.deepEqual(talentTrees(r, null, DRUID_SPECS), { trees: [7, 31, 0], names: ['Gleichgewicht', 'Wilder Kampf', 'Wiederherstellung'] })
+  assert.deepEqual(talentTrees(specializations([0, 0, 41]), null, DRUID_SPECS).trees, [0, 0, 41])
+  assert.deepEqual(talentTrees(specializations([0, 0, 0]), null, DRUID_SPECS).trees, [0, 0, 0])
+})
+
+test('talentTrees gives nothing for a specialization ID the class does not have', () => {
+  const r = specializations([7, 31, 0])
+  r.specialization_groups[1].specializations[0].specialization.id = 999
+  assert.equal(talentTrees(r, null, DRUID_SPECS), null)
+})
+
+test('talentTrees takes the active group', () => {
+  assert.deepEqual(talentTrees(specializations([0, 31, 20]), null, DRUID_SPECS).trees, [0, 31, 20])
+  assert.equal(talentTrees({}, null, DRUID_SPECS), null)
   assert.equal(talentTrees(null), null)
   assert.equal(talentTrees({ specialization_groups: [] }), null)
 })
@@ -362,25 +397,25 @@ test('talentTrees takes the active group in tab order, with the trees names', ()
 test('talentTrees counts the talent ranks where spent points are missing', () => {
   const r = specializations([0, 31, 20])
   for (const s of r.specialization_groups[1].specializations) delete s.spent_points
-  assert.deepEqual(talentTrees(r).trees, [0, 31, 20])
+  assert.deepEqual(talentTrees(r, null, DRUID_SPECS).trees, [0, 31, 20])
 })
 
-test('talentTrees places a shorter list by the tree names Guildy knows, else gives nothing', () => {
-  const r = specializations([31, 20], ['Wildheit', 'Wiederherstellung'])
+test('talentTrees falls back to the tree names Guildy knows only without the class list', () => {
+  const r = specializations([0, 31, 20])
   assert.equal(talentTrees(r), null)
-  assert.deepEqual(talentTrees(r, ['Gleichgewicht', 'Wildheit', 'Wiederherstellung']).trees, [0, 31, 20])
-  assert.equal(talentTrees(specializations([31], ['Fremd']), ['Gleichgewicht', 'Wildheit', 'Wiederherstellung']), null)
+  assert.deepEqual(talentTrees(r, ['Gleichgewicht', 'Wilder Kampf', 'Wiederherstellung']).trees, [0, 31, 20])
+  assert.equal(talentTrees(specializations([31], [[1, 'Fremd']]), ['Gleichgewicht', 'Wilder Kampf', 'Wiederherstellung']), null)
 })
 
 test('talentRecord mirrors Core/Talents.lua and the trees decide the spec there', () => {
-  assert.deepEqual(talentRecord(specializations([0, 31, 20]), 1800000000), { ts: 1800000000, src: 'api', trees: [0, 31, 20] })
-  assert.equal(talentRecord(specializations([0, 101, 0]), 1), null) // more than a tree can hold
+  assert.deepEqual(talentRecord(specializations([0, 31, 20]), 1800000000, null, DRUID_SPECS), { ts: 1800000000, src: 'api', trees: [0, 31, 20] })
+  assert.equal(talentRecord(specializations([0, 101, 0]), 1, null, DRUID_SPECS), null) // more than a tree can hold
   assert.equal(talentRecord({}, 1), null)
 })
 
 test('updateTalents writes only a newer record', () => {
   const guild = new LuaTable()
-  const rec = talentRecord(specializations([0, 31, 20]), 100)
+  const rec = talentRecord(specializations([0, 31, 20]), 100, null, DRUID_SPECS)
   assert.equal(updateTalents(guild, 'au tsch', rec), true)
   const stored = guild.get('talents').get('au tsch')
   assert.equal(stored.get('src'), 'api')
