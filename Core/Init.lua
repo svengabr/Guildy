@@ -66,6 +66,7 @@ local HANDLERS = {
   GET_ITEM_INFO_RECEIVED = function(itemID, success) ns.GameGear.OnItemInfo(itemID, success) end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
   PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
+  CHARACTER_POINTS_CHANGED = function() ns.GameTalents.OnPointsChanged() end,
   UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
   INSPECT_ACHIEVEMENT_READY = function(guid) ns.GameStats.OnComparisonReady(guid) end,
   INSPECT_READY = function(guid) ns.GameStats.OnInspectReady(guid) end,

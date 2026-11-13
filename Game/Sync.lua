@@ -19,6 +19,10 @@
 --   u = {"slot:uniqueID", ...}, t = {"slot:AGILITY=13,...", ...}}} (u and t optional; older clients ignore them)
 --   (Core/Gear.lua): a member's gear item by item, own or read nearby, records younger than 60 days.
 --   Own gear only with settings.share; older Guildy versions have no handler for GEAR and drop it.
+--   SUM also carries k = {nameKey = ts}, GEAR also k = {ts, src, p = {p1, p2, p3}} (Core/Talents.lua): a
+--   member's talent points per tree ride with the gear (no message of their own); a GEAR may carry k
+--   without g, which older Guildy versions drop as a GEAR without items. Offered on a summary that names
+--   older talents (k), never to a Guildy that sends no k. Own talents only with settings.share.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
 --   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
@@ -47,6 +51,7 @@ local seenStats = {}     -- same for statistics
 local seenFamilies = {}  -- same for families
 local seenCooldowns = {} -- same for cooldowns
 local seenGear = {}      -- same for gear
+local seenTalents = {}   -- same for talents (they ride in GEAR)
 local seenBank, bankMessages = 0, 0 -- newest bank reading seen on the channel, how many of them
 local joinMessages = 0   -- JOIN messages seen on the channel
 local joinOffered = {}   -- nameKey of a member -> the state of my dates I offered on their summary
@@ -189,7 +194,8 @@ function Sync.SendSummary()
     -- (b also when nothing of the bank is known yet: "I can take it", so someone offers it)
     Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild),
       b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 }, j = ns.Tenure.Digest(guild.joined),
-      c = ns.Cooldowns.Digest(guild.cooldowns, ns.Now()), g = ns.Gear.Digest(guild.gear, ns.Now()) })
+      c = ns.Cooldowns.Digest(guild.cooldowns, ns.Now()), g = ns.Gear.Digest(guild.gear, ns.Now()),
+      k = ns.Talents.Digest(guild.talents, ns.Now()) })
   end
 end
 
@@ -271,20 +277,27 @@ function Sync.ShareCooldowns(key)
   SendCooldowns(key)
 end
 
--- A member's gear (own gear only with settings.share)
+-- A member's gear and talents, what is known of them (own ones only with settings.share)
 local function SendGear(key)
   local guild = ns.GuildData()
-  local rec = guild and type(guild.gear) == "table" and guild.gear[key]
-  if type(rec) ~= "table" or type(rec.ts) ~= "number" or type(rec.items) ~= "table" then return end
-  if ns.Now() - rec.ts > ns.Gear.MAX_AGE then return end
-  if IsOwnKey(key) and not ns.Settings().share then return end
+  if not guild or (IsOwnKey(key) and not ns.Settings().share) then return end
+  local rec = type(guild.gear) == "table" and guild.gear[key]
+  if type(rec) ~= "table" or type(rec.ts) ~= "number" or type(rec.items) ~= "table" or ns.Now() - rec.ts > ns.Gear.MAX_AGE then
+    rec = nil
+  end
+  local tal = type(guild.talents) == "table" and guild.talents[key]
+  if type(tal) ~= "table" or type(tal.ts) ~= "number" or type(tal.trees) ~= "table" or ns.Now() - tal.ts > ns.Talents.MAX_AGE then
+    tal = nil
+  end
+  if not rec and not tal then return end
   local member, m = guild.members[key], ns.Roster.Find(key)
   local name = (member and member.name) or (m and ns.Names.Normalize(m.fullName)) or key
-  Send("GEAR", { m = name, g = ns.Gear.Wire(rec) })
-  seenGear[key] = math.max(seenGear[key] or 0, rec.ts)
+  Send("GEAR", { m = name, g = rec and ns.Gear.Wire(rec) or nil, k = tal and ns.Talents.Wire(tal) or nil })
+  if rec then seenGear[key] = math.max(seenGear[key] or 0, rec.ts) end
+  if tal then seenTalents[key] = math.max(seenTalents[key] or 0, tal.ts) end
 end
 
--- Gear of a member changed (own or read nearby): share it
+-- Gear or talents of a member changed (own or read nearby): share them
 function Sync.ShareGear(key)
   SendGear(key)
 end
@@ -374,17 +387,34 @@ local function OnSummary(data, sender)
       end)
     end
   end
-  -- gear the same way, behind the statistics (a Guildy before it sends no g)
+  -- gear the same way, behind the statistics (a Guildy before it sends no g); talents ride with it, offered
+  -- where the summary names older ones (a Guildy before them sends no k)
+  local gearOffered = {}
   if type(data.g) == "table" then
     local myGear = ns.Gear.Digest(guild.gear, ns.Now())
     local gearOffers = P.Outdated(myGear, data.g)
     for i = 1, math.min(#gearOffers, MAX_OFFERS) do
       local key = gearOffers[i]
       local myTs = myGear[key]
+      gearOffered[key] = true
       C_Timer.After(12 + math.random() * 8 + i * 0.5, function()
         if (seenGear[key] or 0) >= myTs then return end
         SendGear(key)
       end)
+    end
+  end
+  if type(data.k) == "table" then
+    local myTalents = ns.Talents.Digest(guild.talents, ns.Now())
+    local talentOffers, n = P.Outdated(myTalents, data.k), 0
+    for _, key in ipairs(talentOffers) do
+      if not gearOffered[key] and n < MAX_OFFERS then
+        n = n + 1
+        local myTs = myTalents[key]
+        C_Timer.After(14 + math.random() * 8 + n * 0.5, function()
+          if (seenTalents[key] or 0) >= myTs then return end
+          SendGear(key)
+        end)
+      end
     end
   end
   -- the guild bank: one offer for all of it. A Guildy before 1.6.0 sends no b and could not use it;
@@ -482,6 +512,19 @@ local function OnGear(data, sender)
   local guild = ns.GuildData()
   if not guild or (ns.Anon and ns.Anon.on) or type(data.m) ~= "string" then return end
   if not ns.Roster.IsMember(data.m) and #ns.Roster.Members() > 0 then return end
+  -- the talents beside the gear (optional, validated on their own)
+  local tal = data.k ~= nil and ns.Talents.Validate(data.k, ns.Now())
+  if tal then
+    if ns.Names.Same(sender, data.m) then
+      tal.src = "self"
+    elseif tal.src == "self" then
+      tal.src = "relay"
+    end
+    local key = ns.Names.Key(data.m)
+    seenTalents[key] = math.max(seenTalents[key] or 0, tal.ts)
+    if type(guild.talents) ~= "table" then guild.talents = {} end
+    if ns.Talents.Merge(guild.talents, key, tal) then ns.Fire("TALENTS", key) end
+  end
   local rec = ns.Gear.Validate(data.g, ns.Now())
   if not rec then return end
   if ns.Names.Same(sender, data.m) then

@@ -65,6 +65,7 @@ Game\Bank.lua
 Game\Stats.lua
 Game\GearProbe.lua
 Game\Gear.lua
+Game\Talents.lua
 Game\ModelPool.lua
 Game\Activity.lua
 Game\Ding.lua

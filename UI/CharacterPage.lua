@@ -768,6 +768,11 @@ local function Build()
   upgrades.Empty = W.Text(upgrades, "GameFontDisableSmall", L.UPGRADES_NO_DATA)
   upgrades.Empty:SetPoint("TOPLEFT", 12, -30)
   upgrades.Empty:SetPoint("RIGHT", -12, 0)
+  -- what the pieces are rated for, small and grey in the heading line: the talent spec, or the worn gear
+  upgrades.Basis = W.Text(upgrades, "GameFontDisableSmall")
+  upgrades.Basis:SetPoint("TOPLEFT", upgrades.Title, "TOPRIGHT", 8, -2)
+  upgrades.Basis:SetJustifyH("LEFT")
+  upgrades.Basis:SetWordWrap(false)
   upgrades.want = 56
   upgrades.Rows = {}
   -- the item's tooltip, under it how its stats differ from the worn piece's
@@ -1761,10 +1766,20 @@ local function Build()
     line.lineStart, line.lineWidth = x0, width
   end
 
+  -- The talent spec the upgrades were rated for, as the heading says it: the tree's name in the client's
+  -- language where known (Game/Talents.lua), a feral druid with cat or bear; nil spec: by the worn gear
+  local function RatedFor(classFile, spec, tree)
+    if not spec then return L.UPGRADES_RATED_GEAR end
+    local name = ns.GameTalents.TreeName(classFile, tree) or L.TALENT_TREE:format(tree or 0)
+    if spec == "DRUID_CAT" then name = L.TALENT_CAT:format(name)
+    elseif spec == "DRUID_BEAR" then name = L.TALENT_BEAR:format(name) end
+    return L.UPGRADES_RATED_SPEC:format(name)
+  end
+
   -- "Upgrades aus der Gilde": up to five better crafted pieces with their makers. Returns the height the
   -- box wants; LayoutColumn gives it the rest of the column and FitUpgrades drops what does not fit.
   function page:RenderUpgrades(m)
-    local rows, state, missing = ns.GameGear.UpgradesFor(m)
+    local rows, state, missing, spec, tree = ns.GameGear.UpgradesFor(m)
     if missing and #missing > 0 then self.waiting = true end
     self.makers = rows
     local rowW = (upgrades:GetWidth() or 300) - 24
@@ -1797,6 +1812,9 @@ local function Build()
     end
     upgrades.count = state == "rows" and #rows or 0
     upgrades.Note:SetText(state == "rows" and L.UPGRADES_COUNT:format(#rows) or "")
+    upgrades.Basis:SetText(state ~= "nodata" and RatedFor(m.classFile, spec, tree) or "")
+    upgrades.Basis:SetWidth(math.max(1, (upgrades:GetWidth() or 300) - 12 - TextWidth(upgrades.Title) - 8
+      - TextWidth(upgrades.Note) - 12 - 8))
     upgrades.Empty:SetText(state == "none" and L.UPGRADES_NONE or L.UPGRADES_NO_DATA)
     upgrades.Empty:SetShown(state ~= "rows")
     return state == "rows" and (UPGRADE_TOP + 6 + #rows * UPGRADE_H) or upgrades.want
@@ -1973,6 +1991,7 @@ local function Build()
   end)
   ns.On("STATS", function(key) if Shown(key) then page:Schedule() end end)
   ns.On("GEAR", function(key) if Shown(key) then page:Schedule() end end)
+  ns.On("TALENTS", function(key) if Shown(key) then page:Schedule() end end)
   ns.On("GEAR_INFO", function()
     if page.waiting or page.books ~= ns.GameGear.books then page:Schedule() end
   end)

@@ -132,7 +132,8 @@ function GameGear.ReadOwn()
   if ns.Settings().share then Share(key) end
 end
 
--- The links of a complete inspect read of request's member (Game/Stats.lua); ids optional
+-- The links of a complete inspect read of request's member (Game/Stats.lua); ids optional. True when
+-- stored and shared.
 function GameGear.Store(request, links, unit, ids)
   if ns.Anon.on or type(links) ~= "table" then return end
   local guild = ns.GuildData()
@@ -147,6 +148,7 @@ function GameGear.Store(request, links, unit, ids)
   if G.Merge(Book(guild), request.key, rec) then
     ns.Fire("GEAR", request.key)
     Share(request.key)
+    return true
   end
 end
 
@@ -688,31 +690,53 @@ function GameGear.CraftIndexNow()
   return CraftIndex(ns.GuildData(), db and type(db.craftItems) == "table" and db.craftItems or nil)
 end
 
+-- The talent spec member m's upgrades are scored by (Core/Talents.lua) and its main tree; nil while it is
+-- not known. rec: m's gear record (a feral druid is cat or bear by it), tal: m's talent record.
+function GameGear.SpecFor(m, rec, tal)
+  if type(tal) ~= "table" then return nil end
+  local worn
+  if m.classFile == "DRUID" then
+    worn = {}
+    for _, item in pairs(type(rec) == "table" and type(rec.items) == "table" and rec.items or {}) do
+      local stats = type(item) == "table" and U.WornStats(item, GAME)
+      if stats then worn[#worn + 1] = stats end
+    end
+  end
+  return ns.Talents.Decide(m.classFile, m.level, tal, worn)
+end
+
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
 -- "nodata" (no book of another member has a recipe whose item is known, or m's gear is unknown),
--- "none" (data, nothing better) or "rows", and the items still loading. Kept per member until their
--- gear, the guild's books, the member list or their level change, or, while items were loading, until
+-- "none" (data, nothing better) or "rows", the items still loading, and the talent spec and main tree
+-- the pieces were rated for (nil, nil: by the worn gear). Kept per member until their gear, talents or
+-- spec, the guild's books, the member list or their level change, or, while items were loading, until
 -- item infos come in. Spell IDs without an entry are asked from the game.
 function GameGear.UpgradesFor(m)
   local guild, db = ns.GuildData(), ns.DB()
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
+  local tal = guild and type(guild.talents) == "table" and guild.talents[m.key] or nil
+  if type(tal) ~= "table" then tal = nil end
+  local spec, tree = GameGear.SpecFor(m, rec, tal)
   local all = db and type(db.craftItems) == "table" and db.craftItems or nil
   local c = upgradesCache[m.key]
   if c and c.rec == rec and c.ts == (rec and rec.ts) and c.level == m.level and c.books == GameGear.books
     and c.all == all and c.guild == guild and c.roster == ns.Roster.version
+    and c.tal == tal and c.talTs == (tal and tal.ts) and c.spec == spec and c.tree == tree
     and (#c.missing == 0 or (c.info == GameGear.info and c.gone == GameGear.gone)) then
     Refresh(c.rows)
-    return c.rows, c.state, c.missing
+    return c.rows, c.state, c.missing, c.spec, c.tree
   end
-  local rows, state, missing = GameGear.WorkOutUpgrades(m)
+  local rows, state, missing = GameGear.WorkOutUpgrades(m, spec)
   Refresh(rows)
   upgradesCache[m.key] = { rec = rec, ts = rec and rec.ts, level = m.level, books = GameGear.books, all = all, guild = guild,
-    roster = ns.Roster.version, info = GameGear.info, gone = GameGear.gone, rows = rows, state = state, missing = missing }
-  return rows, state, missing
+    roster = ns.Roster.version, info = GameGear.info, gone = GameGear.gone, rows = rows, state = state, missing = missing,
+    tal = tal, talTs = tal and tal.ts, spec = spec, tree = tree }
+  return rows, state, missing, spec, tree
 end
 
--- Each part is measured on its own while /guildy perf runs ("upgrades: index", "upgrades: scoring")
-function GameGear.WorkOutUpgrades(m)
+-- Each part is measured on its own while /guildy perf runs ("upgrades: index", "upgrades: scoring").
+-- spec: the talent spec to score by (StatWeights), nil for the worn-gear profile.
+function GameGear.WorkOutUpgrades(m, spec)
   local lap = ns.Perf.Lap()
   local guild, db = ns.GuildData(), ns.DB()
   local all = db and type(db.craftItems) == "table" and db.craftItems or nil
@@ -721,7 +745,9 @@ function GameGear.WorkOutUpgrades(m)
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
   if not U.HasMakers(built, m.key) or type(rec) ~= "table" then return {}, "nodata", {} end
   -- the items still loading were asked for by GameGear.ItemInfo already, once
-  local rows, missing = U.ForIndex(GameGear.Who(m), rec, built, GameGear.ItemInfo, GAME)
+  local who = GameGear.Who(m)
+  who.weights = ns.StatWeights.For(spec)
+  local rows, missing = U.ForIndex(who, rec, built, GameGear.ItemInfo, GAME)
   lap("upgrades:", "scoring")
   return rows, #rows > 0 and "rows" or "none", missing
 end

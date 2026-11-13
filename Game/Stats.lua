@@ -165,6 +165,7 @@ end
 function GameStats.UpdateOwn()
   lastOwnRead = GetTime()
   if ns.GameGear then ns.SafeCall(ns.GameGear.ReadOwn) end -- the own gear item by item (Game/Gear.lua)
+  if ns.GameTalents then ns.SafeCall(ns.GameTalents.ReadOwn) end -- the own talent points (Game/Talents.lua)
   local guild = ns.GuildData()
   local values = GameStats.ReadOwn()
   if not guild or not values then return end
@@ -433,6 +434,17 @@ local function StoreRead(request, values)
   end
 end
 
+-- Stores the talents read in an inspect, then the equipment (storeGear, true when it shared the gear); the
+-- gear message carries the talents, so they go alone only when no gear was shared
+local function StoreTalents(request, talents, storeGear)
+  local changed, shared = false, false
+  if talents and ns.GameTalents then
+    ns.SafeCall(function() changed = ns.GameTalents.StoreInspect(request, talents) end)
+  end
+  ns.SafeCall(function() shared = storeGear() end)
+  if changed and not shared and ns.Sync.ShareGear then ns.SafeCall(ns.Sync.ShareGear, request.key) end
+end
+
 local function ClearInspect()
   local clear = rawget(_G, "ClearInspectPlayer")
   if clear and not BlizzardBusy() then pcall(clear) end
@@ -453,9 +465,11 @@ local function Finish(job)
     noGear[key] = true
     tried[key] = GetTime() + RETRY
   end
-  if job.gear and job.gear[S.GEAR.ILVL] and ns.GameGear then
-    ns.SafeCall(ns.GameGear.Store, job.request, job.links, job.gearUnit, job.ids)
-  end
+  StoreTalents(job.request, job.talents, function()
+    if job.gear and job.gear[S.GEAR.ILVL] and ns.GameGear then
+      return ns.GameGear.Store(job.request, job.links, job.gearUnit, job.ids)
+    end
+  end)
   Log(job.request.name .. (job.gear and job.gear[S.GEAR.ILVL]
     and (": equipment read (" .. tostring(job.gearUnit) .. "), item level " .. job.gear[S.GEAR.ILVL] / 10)
     or (": statistics stored without equipment (" .. (job.why or "no answer") .. "), next try in " .. RETRY .. " s")))
@@ -554,6 +568,8 @@ function GameStats.OnInspectReady(guid)
       if gear and gear[S.GEAR.ILVL] and links > 0 and links >= ids and steady then
         -- only a complete read is kept: never store part of the equipment
         job.gear, job.gearUnit, job.links, job.ids = gear, unit, slotLinks, slotIds
+        -- the talents of the same inspect, while the unit still shows the member (never an inspect of its own)
+        if ns.GameTalents then job.talents = ns.GameTalents.ReadInspect(unit, job.request.guid) end
         Log(("%s: equipment complete after %d read(s), %d items"):format(job.request.name, n, links))
         return GearDone(job)
       end
@@ -599,7 +615,10 @@ function GameStats.CheckLateGear(unit)
   for id, value in pairs(gear) do late.values[id] = value end
   noGear[late.request.key] = nil
   tried[late.request.key] = GetTime() + MEMBER_GAP
-  if ns.GameGear then ns.SafeCall(ns.GameGear.Store, late.request, slotLinks, unit, slotIds) end
+  local talents = ns.GameTalents and ns.GameTalents.ReadInspect(unit, late.request.guid)
+  StoreTalents(late.request, talents, function()
+    if ns.GameGear then return ns.GameGear.Store(late.request, slotLinks, unit, slotIds) end
+  end)
   Log(("%s: equipment read on the next look (%s), item level %s, %d items"):format(
     late.request.name, unit, gear[S.GEAR.ILVL] / 10, links))
   ClearInspect()
