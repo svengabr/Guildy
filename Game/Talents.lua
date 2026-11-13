@@ -213,8 +213,12 @@ local function RememberNames(classFile, names)
   cache.classes[classFile] = names
 end
 
--- The name of classFile's talent tree in the client's language, nil when not known
+-- The name of classFile's talent tree in the client's language: from Core/TalentTreeNames.lua, else from the
+-- names kept in GuildyDB.talentNames; nil when not known
 function GameTalents.TreeName(classFile, tree)
+  local static = ns.TalentTreeNames and ns.TalentTreeNames.names[Locale()]
+  local fixed = static and static[classFile]
+  if type(fixed) == "table" and type(fixed[tree]) == "string" then return fixed[tree] end
   local db = ns.DB()
   local cache = db and db.talentNames
   if type(cache) ~= "table" or cache.locale ~= Locale() or type(cache.classes) ~= "table" then return nil end

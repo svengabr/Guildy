@@ -335,12 +335,22 @@ T.describe("Upgrades by talent spec in the game", function()
     local guild = w.ns.GuildData()
     guild.talents = { ["au tsch"] = { ts = w.ns.Now(), src = "seen", trees = { 0, 31, 20 } } }
     w.ns.Fire("TALENTS", "au tsch")
-    T.eq(Basis(), L.UPGRADES_RATED_SPEC:format(L.TALENT_CAT:format(L.TALENT_TREE:format(2))))
+    -- the tree's name from Core/TalentTreeNames.lua in the client's language, no cache needed
+    w.env.GuildyDB.talentNames = nil
+    T.eq(Basis(), "bewertet für Wilder Kampf (Katze)")
+    -- the static table goes before the cache
     w.env.GuildyDB.talentNames = { locale = "deDE", classes = { DRUID = { "Gleichgewicht", "Wildheit", "Wiederherstellung" } } }
-    guild.talents["au tsch"] = { ts = w.ns.Now() + 1, src = "seen", trees = { 0, 11, 40 } }
+    guild.talents["au tsch"] = { ts = w.ns.Now() + 1, src = "seen", trees = { 0, 31, 20 } }
+    T.eq(Basis(), L.UPGRADES_RATED_SPEC:format(L.TALENT_CAT:format("Wilder Kampf")))
+    guild.talents["au tsch"] = { ts = w.ns.Now() + 2, src = "seen", trees = { 0, 11, 40 } }
     T.eq(Basis(), L.UPGRADES_RATED_SPEC:format("Wiederherstellung"))
-    w.env.GuildyDB.talentNames.locale = "enUS" -- names of another language are not used
-    guild.talents["au tsch"] = { ts = w.ns.Now() + 2, src = "seen", trees = { 0, 31, 20 } }
+    -- a client language the table lacks: the cache of that language, else the tab number
+    w.env.GetLocale = function() return "koKR" end
+    w.env.GuildyDB.talentNames = { locale = "koKR", classes = { DRUID = { "A", "B", "C" } } }
+    guild.talents["au tsch"] = { ts = w.ns.Now() + 3, src = "seen", trees = { 0, 31, 20 } }
+    T.eq(Basis(), L.UPGRADES_RATED_SPEC:format(L.TALENT_CAT:format("B")))
+    w.env.GuildyDB.talentNames.locale = "deDE" -- names of another language are not used
+    guild.talents["au tsch"] = { ts = w.ns.Now() + 4, src = "seen", trees = { 0, 31, 21 } }
     T.eq(Basis(), L.UPGRADES_RATED_SPEC:format(L.TALENT_CAT:format(L.TALENT_TREE:format(2))))
     T.eq(w.errors, {})
   end)
