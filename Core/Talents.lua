@@ -3,8 +3,9 @@
 -- (Talent specs, not the profession specializations of Core/Specs.lua.)
 --   guild.talents[nameKey] = { ts = when read, src = "self"|"seen"|"relay"|"api", trees = { p1, p2, p3 } }
 --   p1..p3: points spent in the class's three talent trees, in the game's tab order
--- On the wire it rides in the GEAR message as k = { ts, src, p = { p1, p2, p3 } } (Game/Sync.lua); older
--- Guildy versions ignore the field.
+--   optional spec: the specialization ID of the main tree (tools/bnet-sync knows it from the API)
+-- On the wire it rides in the GEAR message as k = { ts, src, p = { p1, p2, p3 }, s = specID? }
+-- (Game/Sync.lua); older Guildy versions ignore the field, and records without s parse as before.
 local _, ns = ...
 
 local Talents = {}
@@ -65,12 +66,15 @@ function Talents.Validate(raw, now)
   if type(raw) ~= "table" or not IsInt(raw.ts) or raw.ts <= 0 or raw.ts > now + 300 then return nil end
   local trees = Trees(raw.p)
   if not trees then return nil end
-  return { ts = raw.ts, src = Talents.SOURCES[raw.src] and raw.src or "relay", trees = trees }
+  local rec = { ts = raw.ts, src = Talents.SOURCES[raw.src] and raw.src or "relay", trees = trees }
+  if IsInt(raw.s) and raw.s > 0 then rec.spec = raw.s end
+  return rec
 end
 
--- The wire form of a stored record
+-- The wire form of a stored record (s: the main tree's specialization ID, where known)
 function Talents.Wire(rec)
-  return { ts = rec.ts, src = rec.src, p = { rec.trees[1], rec.trees[2], rec.trees[3] } }
+  return { ts = rec.ts, src = rec.src, p = { rec.trees[1], rec.trees[2], rec.trees[3] },
+    s = IsInt(rec.spec) and rec.spec > 0 and rec.spec or nil }
 end
 
 -- Newer wins; at the same time the member's own reading wins. True when rec was taken.

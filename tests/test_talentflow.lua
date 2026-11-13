@@ -345,3 +345,174 @@ T.describe("Upgrades by talent spec in the game", function()
     T.eq(w.errors, {})
   end)
 end)
+
+-- WoW Forever has no GetTalentTabInfo: the points live in the trait system (C_ClassTalents, C_Traits).
+-- shape "trees": the config has one treeID per talent tab, in tab order; shape "subtrees": one tree whose
+-- nodes name their tab through their entry's subTreeID (the nodes listed out of tab order). points[config]:
+-- { p1, p2, p3 } per config ID (77 the own active one, -1 the inspected unit's).
+local function Traits(w, shape, points, names)
+  local env = w.env
+  env.GetTalentTabInfo, env.GetNumTalentTabs = nil, nil
+  env.Constants = { TraitConsts = { INSPECT_TRAIT_CONFIG_ID = -1 } }
+  w.active = 77
+  env.C_ClassTalents = { GetActiveConfigID = function() return w.active end }
+  local function Rank(config, node)
+    local p = points[config]
+    if not p then return nil end
+    local tab, k = math.floor(node / 10), node % 10
+    local half = math.floor(p[tab] / 2)
+    return k == 1 and half or p[tab] - half
+  end
+  env.C_Traits = {
+    GetConfigInfo = function(config)
+      if not points[config] then return nil end
+      if w.secretConfig then return w.SECRET end
+      return { ID = config, type = 1, name = "", treeIDs = shape == "trees" and { 701, 702, 703 } or { 700 } }
+    end,
+    GetTreeNodes = function(tree)
+      if shape == "trees" then
+        local tab = tree - 700
+        return { tab * 10 + 1, tab * 10 + 2 }
+      end
+      return { 31, 32, 11, 12, 21, 22 }
+    end,
+    GetNodeInfo = function(config, node)
+      local rank = Rank(config, node)
+      if rank == nil then return nil end
+      if w.secretRank and node == 21 then rank = w.SECRET end
+      return { ID = node, ranksPurchased = rank, activeRank = rank, currentRank = rank, maxRanks = 50,
+        entryIDs = { node * 100 }, activeEntry = { entryID = node * 100, rank = rank } }
+    end,
+    GetEntryInfo = function(_, entry)
+      return { definitionID = entry + 1, type = 1, maxRanks = 50,
+        subTreeID = shape == "subtrees" and 900 + math.floor(entry / 1000) or nil }
+    end,
+    GetSubTreeInfo = function(_, sub)
+      return names and { ID = sub, name = names[sub - 900] } or nil
+    end,
+  }
+end
+
+T.describe("Talent points from the trait system (WoW Forever)", function()
+  T.it("reads the own points per tree from three trait trees and shares them", function()
+    local w = World()
+    Traits(w, "trees", { [77] = { 0, 31, 5 } })
+    w.ns.GuildData().talents = nil
+    w.ns.GameTalents.ReadOwn()
+    local rec = w.ns.GuildData().talents["ran fred"]
+    T.eq(rec.trees, { 0, 31, 5 })
+    T.eq(rec.src, "self")
+    local gear = w.Messages("GEAR")
+    T.eq(gear[#gear].k.p, { 0, 31, 5 })
+    -- the trait config changed (points spent): read again a moment later
+    Traits(w, "trees", { [77] = { 0, 32, 5 } })
+    w.Fire("TRAIT_CONFIG_UPDATED", 77)
+    w.RunTimers()
+    T.eq(w.ns.GuildData().talents["ran fred"].trees, { 0, 32, 5 })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("reads the own points from one tree whose nodes name their tab by subtree, with the tabs' names", function()
+    local w = World()
+    Traits(w, "subtrees", { [77] = { 7, 31, 0 } }, { "Arkan", "Feuer", "Frost" })
+    w.ns.GuildData().talents = nil
+    w.env.GuildyDB.talentNames = nil
+    w.ns.GameTalents.ReadOwn()
+    T.eq(w.ns.GuildData().talents["ran fred"].trees, { 7, 31, 0 })
+    T.eq(w.env.GuildyDB.talentNames.classes.MAGE, { "Arkan", "Feuer", "Frost" })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("reads an inspected druid's points from the inspect config, names the trees by spec ID, rates for Wilder Kampf (Katze)", function()
+    local w = World()
+    local L = w.ns.L
+    Traits(w, "trees", { [77] = { 0, 31, 5 }, [-1] = { 7, 31, 0 } })
+    w.env.C_SpecializationInfo = { GetSpecIDs = function(classID) if classID == 11 then return { 574, 134, 573 } end end }
+    local SPEC = { [574] = "Gleichgewicht", [134] = "Wilder Kampf", [573] = "Wiederherstellung" }
+    w.env.GetSpecializationInfoByID = function(id) if SPEC[id] then return id, SPEC[id], "", 1, "DAMAGER" end end
+    w.env.GuildyDB.talentNames = nil
+    w.env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    w.env.UnitClass = function(unit) if unit == "target" then return "Druide", "DRUID", 11 end return "Magier", "MAGE", 8 end
+    local read = w.ns.GameTalents.ReadInspect("target", "Player-1-03")
+    T.eq(read.trees, { 7, 31, 0 })
+    T.truthy(w.ns.GameTalents.StoreInspect({ key = "au tsch" }, read))
+    T.eq(w.ns.GuildData().talents["au tsch"].src, "seen")
+    T.eq(w.env.GuildyDB.talentNames.classes.DRUID, { "Gleichgewicht", "Wilder Kampf", "Wiederherstellung" })
+    local _, _, spec, tree = w.Offered()
+    T.eq(spec, "DRUID_CAT")
+    T.eq(tree, 2)
+    w.ns.UI.ShowMember(w.Member())
+    local page = w.ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 760)
+    page:Render()
+    T.eq(page.Upgrades.Basis:GetText(), L.UPGRADES_RATED_SPEC:format(L.TALENT_CAT:format("Wilder Kampf")))
+    T.eq(w.errors, {})
+  end)
+
+  T.it("stores nothing without an active config, for an inspect without points, or with secret values", function()
+    local w = World()
+    w.env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    w.env.UnitClass = function() return "Druide", "DRUID", 11 end
+    Traits(w, "trees", { [77] = { 0, 31, 5 }, [-1] = { 0, 0, 0 } })
+    w.ns.GuildData().talents = nil
+    w.active = nil
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    w.active = 0
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    T.eq(w.ns.GameTalents.ReadInspect("target", "Player-1-03"), nil)
+    w.active = 77
+    w.secretConfig = true
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    w.secretConfig = nil
+    Traits(w, "subtrees", { [77] = { 7, 31, 0 } })
+    w.secretRank = true
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    -- no inspect config on this client: nothing
+    w.env.C_Traits.GetConfigInfo = function() return nil end
+    T.eq(w.ns.GameTalents.ReadInspect("target", "Player-1-03"), nil)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("takes a record with the spec ID beside the points and one with the points alone", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    w.Receive("GEAR", { m = "Au Tsch", k = { ts = w.ns.Now(), src = "self", p = { 0, 31, 20 }, s = 134 } })
+    T.eq(guild.talents["au tsch"].trees, { 0, 31, 20 })
+    T.eq(guild.talents["au tsch"].spec, 134)
+    T.eq(w.ns.Talents.Wire(guild.talents["au tsch"]).s, 134)
+    w.Receive("GEAR", { m = "Au Tsch", k = { ts = w.ns.Now() + 5, src = "self", p = { 0, 11, 40 } } })
+    T.eq(guild.talents["au tsch"].trees, { 0, 11, 40 })
+    T.eq(guild.talents["au tsch"].spec, nil)
+    T.eq(w.ns.Talents.Wire(guild.talents["au tsch"]).s, nil)
+    -- a spec ID that is no number is dropped, the points kept
+    w.Receive("GEAR", { m = "Au Tsch", k = { ts = w.ns.Now() + 10, src = "self", p = { 0, 12, 40 }, s = "x" } })
+    T.eq(guild.talents["au tsch"].trees, { 0, 12, 40 })
+    T.eq(guild.talents["au tsch"].spec, nil)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("prints the trait shapes with /guildy talentprobe, with and without a target", function()
+    local w = World()
+    local lines = {}
+    w.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) lines[#lines + 1] = text end }
+    w.env.SlashCmdList.GUILDY("talentprobe") -- no trait system at all
+    T.truthy(#lines > 0)
+    Traits(w, "subtrees", { [77] = { 7, 31, 0 }, [-1] = { 0, 21, 30 } }, { "Arkan", "Feuer", "Frost" })
+    w.env.UnitExists = function(unit) return unit == "target" end
+    w.env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    lines = {}
+    w.env.SlashCmdList.GUILDY("talentprobe")
+    local all = table.concat(lines, "\n")
+    T.truthy(all:find("config 77", 1, true), all)
+    T.truthy(all:find("tree 700", 1, true), all)
+    T.truthy(all:find("ranksPurchased", 1, true), all)
+    T.truthy(all:find("subTreeID", 1, true), all)
+    T.truthy(all:find("inspect", 1, true), all)
+    T.truthy(all:find("38", 1, true), all) -- the own ranks purchased in the tree
+    T.eq(w.errors, {})
+  end)
+end)

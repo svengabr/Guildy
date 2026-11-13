@@ -67,6 +67,8 @@ local HANDLERS = {
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
   PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
   CHARACTER_POINTS_CHANGED = function() ns.GameTalents.OnPointsChanged() end,
+  TRAIT_CONFIG_UPDATED = function() ns.GameTalents.OnPointsChanged() end, -- WoW Forever's trait talents
+  TRAIT_CONFIG_LIST_UPDATED = function() ns.GameTalents.OnPointsChanged() end, -- the config is ready
   UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
   INSPECT_ACHIEVEMENT_READY = function(guid) ns.GameStats.OnComparisonReady(guid) end,
   INSPECT_READY = function(guid) ns.GameStats.OnInspectReady(guid) end,
@@ -246,6 +248,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))
   elseif msg:match("^modeltest") then
     ns.GearProbe.ModelTest(raw:sub(10))
+  elseif msg == "talentprobe" then
+    ns.GameTalents.Probe()
   elseif msg == "craftprobe" then
     ns.GearProbe.CraftProbe()
   elseif msg:match("^gearshow") then
