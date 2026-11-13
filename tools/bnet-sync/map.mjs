@@ -243,8 +243,10 @@ export function updateProfessions(member, list, ts, bridge = null) {
   for (const entry of list) {
     const { skillLine, rank, max } = entry
     let rec = profs.get(skillLine)
+    let madeNew = false
     const renewed = !(rec instanceof LuaTable && typeof rec.get('ts') === 'number' && rec.get('ts') >= ts)
     if (renewed && !(rec instanceof LuaTable && rec.get('rank') === rank && rec.get('max') === max && rec.get('src') !== 'note')) {
+      madeNew = true
       const fresh = new LuaTable()
       fresh.set('rank', rank)
       fresh.set('max', max)
@@ -259,17 +261,28 @@ export function updateProfessions(member, list, ts, bridge = null) {
     if (!bridge || !(rec instanceof LuaTable)) continue
     // a book read in the game after the login is newer than anything the API knows
     const readLater = rec.get('ts') > ts && rec.get('recipes') instanceof LuaTable
+    let completed = false
     if (entry.recipes && BOOK_SKILLS.has(skillLine) && !readLater) {
       const ids = translate(entry.recipes, bridge)
       const have = rec.get('recipes')
       if (ids && !(have instanceof LuaTable && have.arr.join(',') === ids.join(','))) {
         rec.set('recipes', toLua(ids))
-        changed = true
+        completed = true
       }
     }
-    if (writeSpec(rec, skillLine, entry.spec, bridge, ts)) changed = true
+    if (writeSpec(rec, skillLine, entry.spec, bridge, ts)) completed = true
+    // the guild only takes a record newer than its own (Professions.Digest): one completed here, at
+    // the time every other client already holds, would never leave this one
+    if (completed && !madeNew) rec.set('ts', rec.get('ts') + 1)
+    if (completed) changed = true
   }
   return changed
+}
+
+// Asks Guildy to save recipe names from the next login on (settings.recipeNames, Game/TradeSkill.lua):
+// only users of this script need them
+export function wantNames(db) {
+  db.table('settings').set('recipeNames', true)
 }
 
 // The SavedVariables file is handled as bytes (latin1 strings); API text is real Unicode.

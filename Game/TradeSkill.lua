@@ -131,11 +131,18 @@ local function KnownFns()
   end
   return fns
 end
+-- true, false, or nil when the client answered with a secret value and nothing said yes: it cannot tell
 local function SpellKnown(id)
+  local secret = false
   for _, fn in ipairs(KnownFns()) do
     local known = ns.Try(fn, id)
-    if not ns.IsSecret(known) and known == true then return true end
+    if ns.IsSecret(known) then
+      secret = true
+    elseif known == true then
+      return true
+    end
   end
+  if secret then return nil end
   return false
 end
 TradeSkill.SpellKnown = SpellKnown
@@ -163,10 +170,11 @@ function TradeSkill.InferAll()
 end
 
 -- Names of every recipe in the guild's books and of the specializations, in the client's language:
--- tools/bnet-sync matches the profile API's names against them (GuildyDB.recipeNames)
+-- tools/bnet-sync matches the profile API's names against them (GuildyDB.recipeNames). Only once the
+-- script asked for them (settings.recipeNames, set by the script): nobody else needs them.
 function TradeSkill.RememberNames()
   local db = ns.DB()
-  if not db then return end
+  if not db or not (type(db.settings) == "table" and db.settings.recipeNames) then return end
   local locale = ns.Try(rawget(_G, "GetLocale")) or "enUS"
   if type(db.recipeNames) ~= "table" or db.recipeNames.locale ~= locale or type(db.recipeNames.names) ~= "table" then
     db.recipeNames = { locale = locale, names = {} }
@@ -190,6 +198,7 @@ end
 
 -- The own character's specializations, from the game itself: only it and the script may replace or
 -- revoke one (Core/Specs.lua). A changed specialization makes the record news for the others.
+local confirmed = {} -- skill lines whose own specialization the game confirmed this session
 local function NoteOwnSpecs(present)
   if #KnownFns() == 0 then return end -- a client that cannot tell must not say "none"
   local member = OwnMember()
@@ -198,8 +207,15 @@ local function NoteOwnSpecs(present)
   for skillLine in pairs(present) do
     local id = ns.Specs.Detect(skillLine, SpellKnown)
     local rec = member.profs[skillLine]
-    if id and rec and ns.Specs.Merge(rec, { id = id, src = "known", ts = now }) then
+    local have = rec and rec.spec
+    if id and rec and type(have) == "table" and have.src == "known" and have.id == id then
+      -- the same answer as before (every skill-up scans): no news for the guild. Its age is renewed
+      -- once a session, quietly, so a later entry of the script does not outrank the game's own word.
+      if not confirmed[skillLine] then have.ts = math.max(have.ts or 0, now) end
+      confirmed[skillLine] = true
+    elseif id and rec and ns.Specs.Merge(rec, { id = id, src = "known", ts = now }) then
       rec.ts = math.max(rec.ts or 0, now)
+      confirmed[skillLine] = true
       changed = true
     end
   end

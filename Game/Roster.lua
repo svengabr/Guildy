@@ -152,7 +152,10 @@ function Roster.Scan()
     for key in pairs(byKey) do keep[key] = true end
     ns.Store.Prune(guild, keep)
     ns.Tenure.Prune(ns.Tenure.Book(guild), keep)
-    if type(guild.cooldowns) == "table" then ns.Cooldowns.Prune(guild.cooldowns, keep) end
+    if type(guild.cooldowns) == "table" then
+      ns.Cooldowns.Prune(guild.cooldowns, keep)
+      ns.Cooldowns.DropStale(guild.cooldowns, ns.Now())
+    end
   end
   NoteJoins(guild)
   lap("scan roster:", "event log and prune")

@@ -17,6 +17,7 @@ T.describe("Specs", function()
     T.eq(Specs.Detect(164, Known(9787)), 9787)
     T.eq(Specs.Detect(165, Known(10658)), 10658)
     T.eq(Specs.Detect(171, Known(20222)), nil) -- alchemy has none on Forever
+    T.eq(Specs.Detect(202, function() return nil end), nil) -- the client could not tell: no answer, not "none"
   end)
 
   T.it("knows which profession a specialization belongs to", function()

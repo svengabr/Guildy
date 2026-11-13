@@ -184,7 +184,7 @@ function Sync.SendSummary()
     -- (b also when nothing of the bank is known yet: "I can take it", so someone offers it)
     Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild),
       b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 }, j = ns.Tenure.Digest(guild.joined),
-      c = ns.Cooldowns.Digest(guild.cooldowns) })
+      c = ns.Cooldowns.Digest(guild.cooldowns, ns.Now()) })
   end
 end
 
@@ -250,6 +250,7 @@ local function SendCooldowns(key)
   local guild = ns.GuildData()
   local rec = guild and type(guild.cooldowns) == "table" and guild.cooldowns[key]
   if type(rec) ~= "table" or type(rec.ts) ~= "number" or type(rec.cd) ~= "table" then return end
+  if ns.Now() - rec.ts > ns.Cooldowns.MAX_AGE then return end -- nobody would take it
   if IsOwnKey(key) and not ns.Settings().share then return end
   local member, m = guild.members[key], ns.Roster.Find(key)
   local name = (member and member.name) or (m and ns.Names.Normalize(m.fullName)) or key
@@ -336,7 +337,7 @@ local function OnSummary(data, sender)
   end
   -- cooldowns the same way (a Guildy before them sends no c and could not use them)
   if type(data.c) == "table" then
-    local myCooldowns = ns.Cooldowns.Digest(guild.cooldowns)
+    local myCooldowns = ns.Cooldowns.Digest(guild.cooldowns, ns.Now())
     local cdOffers = P.Outdated(myCooldowns, data.c)
     for i = 1, math.min(#cdOffers, MAX_OFFERS) do
       local key = cdOffers[i]

@@ -41,13 +41,16 @@ end
 local RANK = { known = 3, api = 2, book = 1 }
 local AUTHORITY = { known = true, api = true }
 
--- The player's own specialization in a skill line: isKnown(spellID) -> boolean. 0 when they have
--- none, nil for a profession without specializations.
+-- The player's own specialization in a skill line: isKnown(spellID) -> true, false, or nil when the
+-- client cannot tell. 0 when they have none; nil for a profession without specializations, and when
+-- the client could not tell (a wrong "none" would spread through the guild).
 function Specs.Detect(skillLine, isKnown)
   local spells = Specs.ORDER[skillLine]
   if not spells then return nil end
   for _, id in ipairs(spells) do
-    if isKnown(id) then return id end
+    local known = isKnown(id)
+    if known == nil then return nil end
+    if known then return id end
   end
   return 0
 end

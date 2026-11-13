@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync, copyFileSync, readdirSync, unlinkSync } fr
 import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -155,6 +155,7 @@ console.log(`Statistiken/Ausrüstung aktualisiert: ${totals.stats}, Berufe aktua
 if (totals.missing.length) console.log(`Kein API-Profil (umbenannt, gelöscht oder privat): ${totals.missing.map(fromBytes).join(', ')}`)
 if (totals.failed.length) console.log(`Fehlgeschlagen: ${totals.failed.join('; ')}`)
 
+wantNames(db) // from the next login on Guildy saves the names this needs
 const out = serialize(globals)
 if (DRY) {
   const target = OUT ?? join(process.env.TEMP ?? dirname(SV), 'Guildy.bnet-dry-run.lua')

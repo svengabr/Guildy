@@ -13,6 +13,7 @@ ns.Cooldowns = Cooldowns
 
 Cooldowns.MAX_AGE = 7 * 86400 -- a reading this old says nothing any more
 Cooldowns.TOLERANCE = 60      -- seconds two readings of the same cooldown may differ by
+Cooldowns.REFRESH = 86400     -- an unchanged reading is taken again after this, so it never goes stale
 Cooldowns.MAX_SPELLS = 40     -- cooldowns a reading carries
 Cooldowns.MAX_LEARNED = 200
 
@@ -66,14 +67,18 @@ local function Same(a, b)
 end
 
 -- A reading of the player's own character: cd = { [spellID] = readyAt }. Returns true when it says
--- something the stored one did not (jitter of a few seconds does not count).
+-- something the stored one did not (jitter of a few seconds does not count), or when the stored one
+-- is a day old: "ready" for a week must not turn into "not known".
 function Cooldowns.Note(book, key, cd, ts)
   local clean = {}
   for spell, at in pairs(cd) do
     if IsId(spell) and type(at) == "number" then clean[spell] = at > ts and math.floor(at) or 0 end
   end
   local have = book[key]
-  if type(have) == "table" and type(have.cd) == "table" and Same(have.cd, clean) then return false end
+  if type(have) == "table" and type(have.cd) == "table" and Same(have.cd, clean)
+    and ts - (tonumber(have.ts) or 0) < Cooldowns.REFRESH then
+    return false
+  end
   book[key] = { ts = ts, cd = clean }
   return true
 end
@@ -111,13 +116,28 @@ function Cooldowns.Merge(book, key, rec)
   return true
 end
 
--- { [nameKey] = ts } of every reading known
-function Cooldowns.Digest(book)
+-- { [nameKey] = ts } of every reading known; with now, only those still young enough to mean something
+-- (an old one would be offered to everyone, and everyone would refuse it)
+function Cooldowns.Digest(book, now)
   local digest = {}
   for key, rec in pairs(type(book) == "table" and book or {}) do
-    if type(rec) == "table" and type(rec.ts) == "number" then digest[key] = rec.ts end
+    if type(rec) == "table" and type(rec.ts) == "number" and not (now and now - rec.ts > Cooldowns.MAX_AGE) then
+      digest[key] = rec.ts
+    end
   end
   return digest
+end
+
+-- Removes readings older than a week. Returns how many were removed.
+function Cooldowns.DropStale(book, now)
+  local removed = 0
+  for key, rec in pairs(book) do
+    if type(rec) ~= "table" or type(rec.ts) ~= "number" or now - rec.ts > Cooldowns.MAX_AGE then
+      book[key] = nil
+      removed = removed + 1
+    end
+  end
+  return removed
 end
 
 -- A member's cooldowns { { spell, readyAt, left = seconds } }, ready first, then the nearest; nil when

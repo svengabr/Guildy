@@ -39,7 +39,9 @@ end
 
 -- Seconds left on a craft's spell, nil when the player does not know it
 local function SpellLeft(id)
-  if not ns.TradeSkill.SpellKnown(id) then return nil end
+  local known = ns.TradeSkill.SpellKnown(id)
+  if known == nil then return SECRET end
+  if not known then return nil end
   local start, duration = SpellCooldown(id)
   if ns.AnySecret(start, duration) then return SECRET end
   -- (two seconds and less is the global cooldown, not the craft's)

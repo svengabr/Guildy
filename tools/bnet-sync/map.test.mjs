@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -185,4 +185,18 @@ test('updateProfessions follows the specialization rules of the game', () => {
   assert.equal(member.get('profs').get(202).get('spec').get('id'), 0) // unlearned
   updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Etwas Fremdes' }], TS + 3, bridge)
   assert.equal(member.get('profs').get(202).get('spec').get('id'), 0) // an unknown name changes nothing
+})
+
+test('updateProfessions makes a record it completes news for the guild', () => {
+  const member = toLua({ name: 'Au Tsch', profs: { 202: { rank: 264, max: 300, ts: TS, src: 'relay' } } })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur', recipes: ['Sappeurladung'] }], TS, nameBridge(bridgeDb()))
+  assert.equal(member.get('profs').get(202).get('ts'), TS + 1) // newer than what every other client holds
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur', recipes: ['Sappeurladung'] }], TS, nameBridge(bridgeDb()))
+  assert.equal(member.get('profs').get(202).get('ts'), TS + 1) // a second run adds nothing
+})
+
+test('wantNames asks Guildy to save recipe names from the next login on', () => {
+  const db = toLua({ settings: {} })
+  wantNames(db)
+  assert.equal(db.get('settings').get('recipeNames'), true)
 })

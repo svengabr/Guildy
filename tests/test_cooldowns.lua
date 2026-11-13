@@ -44,6 +44,22 @@ T.describe("Cooldowns", function()
     T.eq(C.Note(book, "anna", { [17187] = 0, [18560] = 0 }, NOW + 7300), true) -- became ready
   end)
 
+  T.it("takes an unchanged reading again after a day, so it never goes stale", function()
+    local book = {}
+    C.Note(book, "anna", { [17187] = 0 }, NOW)
+    T.eq(C.Note(book, "anna", { [17187] = 0 }, NOW + 3600), false)
+    T.eq(C.Note(book, "anna", { [17187] = 0 }, NOW + DAY), true)
+    T.eq(book.anna.ts, NOW + DAY)
+  end)
+
+  T.it("neither offers nor keeps a reading older than a week", function()
+    local book = { old = { ts = NOW - 8 * DAY, cd = {} }, new = { ts = NOW, cd = {} } }
+    T.eq(C.Digest(book, NOW), { new = NOW })
+    T.eq(C.DropStale(book, NOW), 1)
+    T.eq(book.old, nil)
+    T.eq(book.new.ts, NOW)
+  end)
+
   T.it("goes over the wire and back", function()
     local book = {}
     C.Note(book, "anna", { [17187] = NOW + 3600, [18560] = 0 }, NOW)

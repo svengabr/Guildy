@@ -148,6 +148,16 @@ T.describe("Smoke", function()
     ns.TradeSkill.ScanSkills()
     local me = guild.members["ran fred"]
     T.eq(me.profs[202].spec, { id = 20222, src = "known", ts = now })
+    -- the same answer again (every skill-up scans): no news, the record is not sent again
+    env.GetServerTime = function() return now + 5 end
+    ns.TradeSkill.ScanSkills()
+    T.eq(me.profs[202].ts, now)
+    T.eq(me.profs[202].spec.id, 20222)
+    -- a client that answers with secret values cannot tell: nothing is stored, least of all "none"
+    env.IsSpellKnown = function() return SECRET end
+    ns.TradeSkill.ScanSkills()
+    T.eq(me.profs[202].spec.id, 20222)
+    env.IsSpellKnown = function(id) return known[id] == true end
     -- unlearned: the game says so, and it counts
     known[20222] = nil
     env.GetServerTime = function() return now + 10 end
@@ -191,8 +201,11 @@ T.describe("Smoke", function()
     au.profs[202] = { ts = now, src = "relay", rank = 210, recipes = { 1, 12760 } }
     ns.TradeSkill.InferAll()
     T.eq(au.profs[202].spec, { id = 20222, src = "book", ts = now })
-    -- names for the script, in the client's language
+    -- names for the script, in the client's language, only once the script asked for them
     env.GetLocale = function() return "deDE" end
+    ns.TradeSkill.RememberNames()
+    T.eq(env.GuildyDB.recipeNames, nil)
+    env.GuildyDB.settings.recipeNames = true
     ns.TradeSkill.RememberNames()
     T.eq(env.GuildyDB.recipeNames.locale, "deDE")
     T.eq(env.GuildyDB.recipeNames.names[12760], "Rezept 12760")
