@@ -2669,8 +2669,12 @@ T.describe("Character page", function()
       local x = EnchantX(rows[1])
       for slot, row in pairs(rows) do
         T.eq(EnchantX(row), x, pageW .. ": slot " .. slot .. " starts its enchantment where the others do")
-        T.truthy(NAME_X + row.Name:GetWidth() + 6 <= x, pageW .. ": slot " .. slot .. " name ends before the column")
         local barLeft = row:GetWidth() - LEVEL_W - row.Track:GetWidth()
+        if row.Enchant:IsShown() then
+          T.truthy(NAME_X + row.Name:GetWidth() + 6 <= x, pageW .. ": slot " .. slot .. " name ends before the column")
+        else
+          T.truthy(NAME_X + row.Name:GetWidth() + 6 <= barLeft, pageW .. ": slot " .. slot .. " name ends before the bar")
+        end
         T.truthy(x + row.Enchant:GetWidth() + 6 <= barLeft, pageW .. ": slot " .. slot .. " enchantment ends before the bar")
       end
       T.truthy(rows[1].Name:GetWidth() >= 140, pageW .. ": the name keeps its minimum")
@@ -2690,6 +2694,17 @@ T.describe("Character page", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("gives a row without enchantment text the empty column for its name, in the smallest window", function()
+    local w, rows = GearWorld("deDE", 1130 - 22)
+    local x = EnchantX(rows[1])
+    local barLeft = rows[17]:GetWidth() - LEVEL_W - rows[17].Track:GetWidth()
+    T.eq(rows[17].Enchant:IsShown(), false)
+    T.eq(NAME_X + rows[17].Name:GetWidth() + 8, barLeft, "the book's name reaches up to the bar")
+    T.eq(NAME_X + rows[1].Name:GetWidth() + 8, x, "the head with enchantment keeps the name column")
+    T.eq(NAME_X + rows[5].Name:GetWidth() + 8, x, "the shirt with the missing mark keeps it too")
+    T.eq(w.errors, {})
+  end)
+
   T.it("fits the enchantment column in the smallest window with the longest texts, in German and Russian", function()
     for _, language in ipairs({ "deDE", "ruRU" }) do
       local w, rows, Chars = GearWorld(language, 1130 - 22)
@@ -2697,7 +2712,8 @@ T.describe("Character page", function()
       local x = EnchantX(rows[1])
       for slot, row in pairs(rows) do
         local barLeft = row:GetWidth() - LEVEL_W - row.Track:GetWidth()
-        T.truthy(NAME_X + row.Name:GetWidth() + 6 <= x, language .. ": slot " .. slot .. " name before the column")
+        T.truthy(NAME_X + row.Name:GetWidth() + 6 <= (row.Enchant:IsShown() and x or barLeft),
+          language .. ": slot " .. slot .. " name before the column or, without enchantment, the bar")
         T.truthy(x + row.Enchant:GetWidth() + 6 <= barLeft, language .. ": slot " .. slot .. " enchantment before the bar")
         T.truthy(row.Track:GetWidth() >= 60, language .. ": the bar keeps its room")
         T.eq(row.Level:GetWidth(), 28)

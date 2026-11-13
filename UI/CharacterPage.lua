@@ -1400,7 +1400,10 @@ local function Build()
         end
         row.Enchant:SetText(enchant or "")
         if enchantColor then row.Enchant:SetTextColor(enchantColor[1], enchantColor[2], enchantColor[3]) end
-        row.Enchant:SetShown(enchant ~= nil and enchantW >= 20)
+        local shown = enchant ~= nil and enchant ~= "" and enchantW >= 20
+        row.Enchant:SetShown(shown)
+        -- a row without enchantment text lends the empty column to the name
+        row.Name:SetWidth(math.max(1, G.NameWidth(nameW, enchantW, shown)))
         row.Bar:SetColorTexture(color[1], color[2], color[3], 0.9)
         row.Bar:SetWidth(math.max(1, math.min(1, (item.l or 0) / top) * barW))
         row.Bar:Show()

@@ -367,3 +367,10 @@ function Gear.Fit(height, width, markW)
   local enchantW = math.max(0, math.min(Gear.ENCHANT_MAX, room - nameW))
   return rowH, barW, nameW, enchantW
 end
+
+-- The width a row's name may take: its column when the row shows enchantment text (so those stay
+-- aligned), else the empty enchantment column too, up to the bar
+function Gear.NameWidth(nameW, enchantW, hasEnchant)
+  if hasEnchant then return nameW end
+  return nameW + Gear.GAP + enchantW
+end

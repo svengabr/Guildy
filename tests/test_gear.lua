@@ -258,4 +258,14 @@ T.describe("Gear", function()
     T.eq(nameW, G.NAME_MIN)
     T.truthy(enchantW >= 99, "the mark fits, " .. enchantW)
   end)
+
+  T.it("lets a name use the enchantment column in a row without enchantment text", function()
+    for _, width in ipairs({ 509, 700, 1400 }) do
+      local _, barW, nameW, enchantW = G.Fit(400, width, 99)
+      T.eq(G.NameWidth(nameW, enchantW, true), nameW, width .. ": with enchantment the name keeps its column")
+      T.eq(G.NameWidth(nameW, enchantW, false), nameW + G.GAP + enchantW, width .. ": without, up to the bar")
+      T.truthy(G.NAME_X + G.NameWidth(nameW, enchantW, false) + G.GAP + barW + G.LEVEL_W <= width - 2 * G.PAD,
+        width .. ": the long name ends before the bar")
+    end
+  end)
 end)
