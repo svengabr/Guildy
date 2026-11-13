@@ -741,11 +741,19 @@ local function Build()
   upgrades.Empty:SetPoint("RIGHT", -12, 0)
   upgrades.want = 56
   upgrades.Rows = {}
+  -- the item's tooltip, under it how its stats differ from the worn piece's
   local function ItemTooltip(self)
-    local itemID = self:GetParent().itemID
+    local row = self:GetParent()
+    local itemID = row.itemID
     if not itemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetHyperlink("item:" .. itemID)
+    local text = ns.Upgrades.DiffText(row.diff, ns.GameGear.StatName)
+    if text then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.UPGRADE_COMPARE, W.GOLD[1], W.GOLD[2], W.GOLD[3])
+      GameTooltip:AddLine(text, 1, 1, 1, true)
+    end
     GameTooltip:Show()
   end
   -- a block per piece: the icon in its quality border, the item name over slot and makers, the gain
@@ -1711,12 +1719,14 @@ local function Build()
       if row then
         local color = QUALITY[row.quality or 1] or QUALITY[1]
         local info = ns.GameGear.ItemInfo(row.itemID)
-        line.itemID = row.itemID
+        line.itemID, line.diff = row.itemID, row.diff
         line.Icon:SetTexture(ItemIcon(row.itemID) or "Interface\\Icons\\INV_Misc_QuestionMark")
         line.Icon:Show()
         line.Border:SetColorTexture(color[1], color[2], color[3], 1)
         local have = row.have or 0
-        line.Gain:SetText("+" .. (row.offer - have))
+        -- the item level difference stays the big number; a better piece may also be of a lower level
+        local levels = row.offer - have
+        line.Gain:SetText(levels > 0 and ("+" .. levels) or levels < 0 and ("−" .. -levels) or "±0")
         line.GainSub:SetText(have > 0 and L.UPGRADE_GAIN:format(tostring(have), row.offer) or L.UPGRADE_EMPTY)
         local gainW = math.ceil(math.max(TextWidth(line.Gain), TextWidth(line.GainSub)))
         local x0 = UPGRADE_ICON + 8
@@ -1726,7 +1736,7 @@ local function Build()
         MakerLine(line, row, x0, width)
         line:Show()
       else
-        line.itemID = nil
+        line.itemID, line.diff = nil, nil
         line:Hide()
       end
     end

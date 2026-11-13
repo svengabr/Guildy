@@ -135,6 +135,15 @@ end
 local requestedItems = {} -- itemID -> true: asked from the game this session (never again)
 local unknownItems = {}   -- itemID -> true: the game answered it has no such item
 
+-- Asks the game to load itemID, once per session
+local function Request(itemID)
+  local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
+  if request and itemID and not requestedItems[itemID] then
+    requestedItems[itemID] = true
+    ns.Try(request, itemID)
+  end
+end
+
 -- Upgrades' item info shape for itemID, or nil (then the game is asked to load it, once per session)
 function GameGear.ItemInfo(itemID)
   local getInfo = ItemInfoFunction()
@@ -143,16 +152,95 @@ function GameGear.ItemInfo(itemID)
     name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind = ns.Try(getInfo, itemID)
   end
   if name == nil or ns.AnySecret(name, quality, level, reqLevel, equipLoc, classID, subclassID, bind) or type(level) ~= "number" then
-    local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
-    if request and itemID and not requestedItems[itemID] then
-      requestedItems[itemID] = true
-      ns.Try(request, itemID)
-    end
+    Request(itemID)
     return nil
   end
   return { name = name, equipLoc = equipLoc, level = level, reqLevel = reqLevel or 0, classID = classID,
     subclassID = subclassID, bind = bind, quality = quality }
 end
+
+local statsCache = {} -- item string -> stats of a loaded item, for the session
+
+local function StatsFunction()
+  return (C_Item and rawget(C_Item, "GetItemStats")) or rawget(_G, "GetItemStats")
+end
+
+-- The stats of itemID or of a stored worn item (its suffix counts) as GetItemStats gives them
+-- ({ ITEM_MOD_*_SHORT = n, RESISTANCE0_NAME = armor }); nil while the item is not loaded (asked once)
+-- or anything about it is secret
+function GameGear.ItemStats(item)
+  local id = type(item) == "table" and item.id or item
+  local key = type(item) == "table" and G.ItemString(item) or ("item:" .. tostring(item))
+  local known = statsCache[key]
+  if known then return known end
+  local getInfo = ItemInfoFunction()
+  local name, link
+  if getInfo then name, link = ns.Try(getInfo, key) end
+  if name == nil or ns.AnySecret(name, link) then
+    Request(id)
+    return nil
+  end
+  local getStats = StatsFunction()
+  local raw = getStats and ns.Try(getStats, type(link) == "string" and link or key)
+  if ns.IsSecret(raw) then return nil end
+  local stats = {}
+  for k, v in pairs(type(raw) == "table" and raw or {}) do
+    if ns.AnySecret(k, v) then return nil end
+    if type(k) == "string" and type(v) == "number" then stats[k] = v end
+  end
+  statsCache[key] = stats
+  return stats
+end
+
+local requirementsCache = {} -- itemID -> what its tooltip says it needs, for the session
+
+-- The client's own format strings of the requirement lines
+local function Formats()
+  return { minLevel = rawget(_G, "ITEM_MIN_LEVEL"), minSkill = rawget(_G, "ITEM_MIN_SKILL"),
+    reqSkill = rawget(_G, "ITEM_REQ_SKILL"), classes = rawget(_G, "ITEM_CLASSES_ALLOWED"),
+    reputation = rawget(_G, "ITEM_REQ_REPUTATION") }
+end
+
+-- The text lines of itemID's tooltip; nil when there are none yet or any of them is secret
+local function TooltipLines(itemID)
+  local byID = C_TooltipInfo and rawget(C_TooltipInfo, "GetItemByID")
+  if byID then
+    local data = ns.Try(byID, itemID)
+    if ns.IsSecret(data) then return nil end
+    if type(data) == "table" and type(data.lines) == "table" then
+      local lines = {}
+      for _, line in ipairs(data.lines) do
+        local text = type(line) == "table" and line.leftText or nil
+        if ns.IsSecret(text) then return nil end
+        if type(text) == "string" then lines[#lines + 1] = text end
+      end
+      return #lines > 0 and lines or nil
+    end
+  end
+  local lines, _, secret = ns.GearProbe.TooltipLines("item:" .. itemID)
+  if secret or #lines == 0 then return nil end
+  return lines
+end
+
+-- What itemID needs (Upgrades.ParseRequirements: profession and rank, classes, reputation), read from
+-- its tooltip once per session; nil while the tooltip is empty or secret (then nothing is kept)
+function GameGear.ItemRequirements(itemID)
+  local known = requirementsCache[itemID]
+  if known then return known end
+  local lines = TooltipLines(itemID)
+  if not lines then return nil end
+  local req = U.ParseRequirements(lines, Formats())
+  requirementsCache[itemID] = req
+  return req
+end
+
+-- The stat name the client shows for an ITEM_MOD_* key
+function GameGear.StatName(key)
+  local name = rawget(_G, key)
+  return type(name) == "string" and name or nil
+end
+
+local GAME = { stats = GameGear.ItemStats, requirements = GameGear.ItemRequirements }
 
 -- What recipes make -----------------------------------------------------------------------------------
 
@@ -399,8 +487,28 @@ function GameGear.UpgradesFor(m)
   if #unknown > 0 then GameGear.ResolveCrafts(unknown) end
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
   if not known or type(rec) ~= "table" then return {}, "nodata" end
-  local rows = U.For({ key = m.key, level = m.level or 0, classFile = m.classFile }, rec, makers, craft, GameGear.ItemInfo)
-  return rows, #rows > 0 and "rows" or "none"
+  local rows, missing = U.For(GameGear.Who(m), rec, makers, craft, GameGear.ItemInfo, GAME)
+  for _, itemID in ipairs(missing) do Request(itemID) end
+  return rows, #rows > 0 and "rows" or "none", missing
+end
+
+-- Member m as Upgrades.For sees them: level, class (with the client's class names, for the class line
+-- of a tooltip) and the stored professions by their name in lower case, with the rank where known
+function GameGear.Who(m)
+  local names = {}
+  if type(m.className) == "string" and m.className ~= "" then names[m.className] = true end
+  for _, list in ipairs({ rawget(_G, "LOCALIZED_CLASS_NAMES_MALE"), rawget(_G, "LOCALIZED_CLASS_NAMES_FEMALE") }) do
+    local name = type(list) == "table" and m.classFile and list[m.classFile]
+    if type(name) == "string" then names[name] = true end
+  end
+  local profs = {}
+  local record = ns.TradeSkill.Record(m)
+  for skillLine, prof in pairs(record and type(record.profs) == "table" and record.profs or {}) do
+    if type(prof) == "table" then
+      profs[ns.TradeSkill.Name(skillLine):lower()] = type(prof.rank) == "number" and prof.rank or true
+    end
+  end
+  return { key = m.key, level = m.level or 0, classFile = m.classFile, classNames = names, profs = profs }
 end
 
 -- Enchant texts -----------------------------------------------------------------------------------

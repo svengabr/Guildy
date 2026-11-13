@@ -2,6 +2,10 @@ local T = ...
 local ns = T.pureNs()
 local U = ns.Upgrades
 
+local AGI, STR, STA, INT, SPI, AP = "ITEM_MOD_AGILITY_SHORT", "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_STAMINA_SHORT",
+  "ITEM_MOD_INTELLECT_SHORT", "ITEM_MOD_SPIRIT_SHORT", "ITEM_MOD_ATTACK_POWER_SHORT"
+local ARMOR = "RESISTANCE0_NAME"
+
 local function item(id, l) return { id = id, e = 0, s = 0, l = l, q = 2 } end
 
 -- item infos: id -> { equipLoc, level, reqLevel, classID, subclassID, bind, quality }
@@ -12,15 +16,39 @@ local INFO = {
 }
 local function info(id) return INFO[id] end
 
+-- item stats by item ID, for offers and worn items alike
+local STATS = {
+  [500] = { [INT] = 12, [STA] = 6 },
+  [501] = { [INT] = 8, [STA] = 4 },
+  [502] = { [INT] = 3, [STA] = 2 },
+}
+-- the caster's worn pieces: four with intellect and stamina (a strong profile), a weak waist
+for id = 101, 104 do STATS[id] = { [INT] = 10, [STA] = 5 } end
+STATS[1] = { [INT] = 3, [STA] = 2 }
+
+local REQ = {} -- itemID -> requirements; none known: {}
+local GAME = {
+  stats = function(x) return STATS[type(x) == "table" and x.id or x] end,
+  requirements = function(id) return REQ[id] or {} end,
+}
+
+local function caster(extra)
+  local items = { [1] = item(101, 45), [3] = item(102, 45), [5] = item(103, 45), [7] = item(104, 45), [6] = item(1, 47) }
+  for slot, it in pairs(extra or {}) do items[slot] = it end
+  return { items = items }
+end
+
 local function maker(key, recipes, online, offline)
   return { key = key, online = online or false, offline = offline or 0, profs = { [197] = { recipes = recipes } } }
 end
 
 local MEMBER = { key = "me", level = 52, classFile = "MAGE" }
 
+local function For(member, gear, makers, craft) return U.For(member, gear, makers, craft, info, GAME) end
+
 T.describe("Upgrades", function()
   T.it("offers a better piece from another member's book", function()
-    local rows, missing = U.For(MEMBER, { items = { [6] = item(1, 47) } }, { maker("tailor", { 9001 }, true) }, { [9001] = 500 }, info)
+    local rows, missing = For(MEMBER, caster(), { maker("tailor", { 9001 }, true) }, { [9001] = 500 })
     T.eq(#rows, 1)
     T.eq(rows[1].slot, 6)
     T.eq(rows[1].have, 47)
@@ -31,38 +59,52 @@ T.describe("Upgrades", function()
     T.eq(missing, {})
   end)
 
-  T.it("needs a gain of at least three levels", function()
+  T.it("needs a clearly better score, not a higher item level", function()
     local makers = { maker("tailor", { 9002, 9003 }) }
-    local craft = { [9002] = 501, [9003] = 502 }
-    T.eq(#U.For(MEMBER, { items = { [6] = item(1, 48) } }, makers, { [9003] = 502 }, info), 0) -- 49 - 48
-    T.eq(#U.For(MEMBER, { items = { [6] = item(1, 47) } }, makers, { [9003] = 502 }, info), 0) -- 49 - 47 = 2
-    local rows = U.For(MEMBER, { items = { [6] = item(1, 47) } }, makers, craft, info)
-    T.eq(rows[1].offer, 50) -- 3 levels: shown, the better of the two
+    -- 502 has the worn waist's stats at a higher level: no gain, not offered
+    T.eq(#For(MEMBER, caster(), makers, { [9003] = 502 }), 0)
+    -- 501 beats it by far: offered, the better of the two
+    local rows = For(MEMBER, caster(), makers, { [9002] = 501, [9003] = 502 })
+    T.eq(rows[1].offer, 50)
+    -- a few points more than the worn piece but under ten percent: not offered
+    STATS[505] = { [INT] = 31, [STA] = 15 }
+    STATS[506] = { [INT] = 32, [STA] = 16 }
+    INFO[506] = { equipLoc = "INVTYPE_WAIST", level = 50, reqLevel = 45, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    T.eq(#For(MEMBER, caster({ [6] = item(505, 49) }), makers, { [9002] = 506 }), 0)
   end)
 
   T.it("skips the member's own book, a too high required level and bind on pickup", function()
-    local gear = { items = { [6] = item(1, 47) } }
-    T.eq(#U.For(MEMBER, gear, { maker("me", { 9001 }) }, { [9001] = 500 }, info), 0)
-    T.eq(#U.For({ key = "me", level = 49, classFile = "MAGE" }, gear, { maker("t", { 9001 }) }, { [9001] = 500 }, info), 0)
+    local gear = caster()
+    T.eq(#For(MEMBER, gear, { maker("me", { 9001 }) }, { [9001] = 500 }), 0)
+    T.eq(#For({ key = "me", level = 49, classFile = "MAGE" }, gear, { maker("t", { 9001 }) }, { [9001] = 500 }), 0)
     INFO[503] = { equipLoc = "INVTYPE_WAIST", level = 58, reqLevel = 50, classID = 4, subclassID = 1, bind = 1, quality = 3 }
-    T.eq(#U.For(MEMBER, gear, { maker("t", { 9004 }) }, { [9004] = 503 }, info), 0)
+    STATS[503] = STATS[500]
+    T.eq(#For(MEMBER, gear, { maker("t", { 9004 }) }, { [9004] = 503 }), 0)
     INFO[503].bind = 2
-    T.eq(#U.For(MEMBER, gear, { maker("t", { 9004 }) }, { [9004] = 503 }, info), 1)
+    T.eq(#For(MEMBER, gear, { maker("t", { 9004 }) }, { [9004] = 503 }), 1)
   end)
 
   T.it("offers only armour the class can wear", function()
     INFO[510] = { equipLoc = "INVTYPE_CHEST", level = 45, reqLevel = 35, classID = 4, subclassID = 4, bind = 2, quality = 2 }
     INFO[511] = { equipLoc = "INVTYPE_CHEST", level = 25, reqLevel = 18, classID = 4, subclassID = 3, bind = 2, quality = 2 }
+    STATS[510] = { [STR] = 20, [STA] = 10 }
+    STATS[511] = { [AGI] = 10, [STA] = 5 }
+    for id = 111, 114 do STATS[id] = { [STR] = 5, [AGI] = 5, [STA] = 5 } end
+    STATS[2] = { [STR] = 1 }
+    local function fighter(extra)
+      local items = { [1] = item(111, 20), [3] = item(112, 20), [7] = item(113, 20), [8] = item(114, 20), [5] = item(2, 15) }
+      for slot, it in pairs(extra or {}) do items[slot] = it end
+      return { items = items }
+    end
     local makers = { maker("smith", { 9010, 9011 }) }
-    local craft = { [9010] = 510, [9011] = 511 }
-    T.eq(#U.For({ key = "w", level = 39, classFile = "WARRIOR" }, { items = { [5] = item(2, 30) } }, makers, { [9010] = 510 }, info), 0)
-    T.eq(#U.For({ key = "w", level = 40, classFile = "WARRIOR" }, { items = { [5] = item(2, 30) } }, makers, { [9010] = 510 }, info), 1)
+    T.eq(#For({ key = "w", level = 39, classFile = "WARRIOR" }, fighter(), makers, { [9010] = 510 }), 0)
+    T.eq(#For({ key = "w", level = 40, classFile = "WARRIOR" }, fighter(), makers, { [9010] = 510 }), 1)
     -- a level 20 hunter who already wears mail gets mail
     INFO[3] = { equipLoc = "INVTYPE_HAND", level = 18, reqLevel = 15, classID = 4, subclassID = 3, bind = 2, quality = 2 }
-    T.eq(#U.For({ key = "h", level = 20, classFile = "HUNTER" }, { items = { [5] = item(2, 15) } }, makers, { [9011] = 511 }, info), 0)
-    T.eq(#U.For({ key = "h", level = 20, classFile = "HUNTER" }, { items = { [5] = item(2, 15), [10] = item(3, 18) } },
-      makers, { [9011] = 511 }, info), 1)
-    T.eq(#U.For({ key = "m", level = 50, classFile = "MAGE" }, { items = {} }, makers, craft, info), 0)
+    STATS[3] = { [AGI] = 2 }
+    T.eq(#For({ key = "h", level = 20, classFile = "HUNTER" }, fighter(), makers, { [9011] = 511 }), 0)
+    T.eq(#For({ key = "h", level = 20, classFile = "HUNTER" }, fighter({ [10] = item(3, 18) }), makers, { [9011] = 511 }), 1)
+    T.eq(#For({ key = "m", level = 50, classFile = "MAGE" }, { items = {} }, makers, { [9010] = 510, [9011] = 511 }), 0)
   end)
 
   T.it("never offers weapons, off hands or ranged items", function()
@@ -70,32 +112,42 @@ T.describe("Upgrades", function()
     INFO[521] = { equipLoc = "INVTYPE_HOLDABLE", level = 60, reqLevel = 1, classID = 4, subclassID = 0, bind = 2, quality = 3 }
     INFO[522] = { equipLoc = "INVTYPE_RANGED", level = 60, reqLevel = 1, classID = 2, subclassID = 2, bind = 2, quality = 3 }
     INFO[523] = { equipLoc = "INVTYPE_SHIELD", level = 60, reqLevel = 1, classID = 4, subclassID = 6, bind = 2, quality = 3 }
-    local rows = U.For(MEMBER, { items = {} }, { maker("t", { 1, 2, 3, 4 }) }, { [1] = 520, [2] = 521, [3] = 522, [4] = 523 }, info)
+    for id = 520, 523 do STATS[id] = { [INT] = 50 } end
+    local rows = For(MEMBER, caster(), { maker("t", { 1, 2, 3, 4 }) }, { [1] = 520, [2] = 521, [3] = 522, [4] = 523 })
     T.eq(#rows, 0)
   end)
 
-  T.it("compares a ring with the weaker ring slot and an empty slot with level 0", function()
+  T.it("compares a ring with the weaker ring slot and an empty slot with nothing", function()
     INFO[530] = { equipLoc = "INVTYPE_FINGER", level = 40, reqLevel = 35, classID = 4, subclassID = 0, bind = 2, quality = 2 }
+    STATS[530] = { [INT] = 8, [STA] = 4 }
+    STATS[4], STATS[5] = { [INT] = 9, [STA] = 5 }, { [INT] = 2 }
     local makers = { maker("jc", { 9030 }) }
-    local rows = U.For(MEMBER, { items = { [11] = item(4, 45), [12] = item(5, 30) } }, makers, { [9030] = 530 }, info)
-    T.eq(rows[1].slot, 12)
-    T.eq(rows[1].have, 30)
-    rows = U.For(MEMBER, { items = { [11] = item(4, 45) } }, makers, { [9030] = 530 }, info)
+    local rows = For(MEMBER, caster({ [11] = item(4, 30), [12] = item(5, 45) }), makers, { [9030] = 530 })
+    T.eq(rows[1].slot, 12) -- the weaker by its stats, though its item level is higher
+    T.eq(rows[1].have, 45)
+    rows = For(MEMBER, caster({ [11] = item(4, 45) }), makers, { [9030] = 530 })
     T.eq(rows[1].slot, 12)
     T.eq(rows[1].have, 0)
   end)
 
   T.it("shows five rows at most, the largest gain first", function()
-    INFO[540] = { equipLoc = "INVTYPE_HEAD", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    INFO[541] = { equipLoc = "INVTYPE_FEET", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    INFO[542] = { equipLoc = "INVTYPE_HAND", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    INFO[543] = { equipLoc = "INVTYPE_WRIST", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    INFO[544] = { equipLoc = "INVTYPE_LEGS", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    INFO[545] = { equipLoc = "INVTYPE_WAIST", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    local gear = { items = { [1] = item(1, 40), [8] = item(1, 30), [10] = item(1, 45), [9] = item(1, 20), [7] = item(1, 35),
-      [6] = item(1, 25) } }
-    local rows = U.For(MEMBER, gear, { maker("t", { 1, 2, 3, 4, 5, 6 }) },
-      { [1] = 540, [2] = 541, [3] = 542, [4] = 543, [5] = 544, [6] = 545 }, info)
+    local slots = { INVTYPE_HEAD = 1, INVTYPE_FEET = 8, INVTYPE_HAND = 10, INVTYPE_WRIST = 9, INVTYPE_LEGS = 7, INVTYPE_WAIST = 6 }
+    local ids, craft, n = {}, {}, 0
+    for loc in pairs(slots) do
+      n = n + 1
+      local id = 539 + n
+      INFO[id] = { equipLoc = loc, level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+      STATS[id] = { [INT] = 20, [STA] = 10 }
+      craft[n], ids[n] = id, n
+    end
+    -- worn: the better the piece, the smaller the gain (9 worst, then 6, 8, 7, 1, 10)
+    local worn = { [9] = 1, [6] = 2, [8] = 3, [7] = 4, [1] = 5, [10] = 6 }
+    local items = { [3] = item(102, 45), [5] = item(103, 45), [13] = item(101, 45), [14] = item(104, 45) }
+    for slot, k in pairs(worn) do
+      STATS[600 + slot] = { [INT] = k * 2, [STA] = k }
+      items[slot] = item(600 + slot, 40)
+    end
+    local rows = For(MEMBER, { items = items }, { maker("t", ids) }, craft)
     T.eq(U.MAX_ROWS, 5)
     T.eq(#rows, 5)
     T.eq({ rows[1].slot, rows[2].slot, rows[3].slot, rows[4].slot, rows[5].slot }, { 9, 6, 8, 7, 1 })
@@ -103,14 +155,21 @@ T.describe("Upgrades", function()
 
   T.it("lists makers online first, then the ones seen last", function()
     local makers = { maker("a", { 9001 }, false, 30), maker("b", { 9001 }, false, 2), maker("c", { 9001 }, true) }
-    local rows = U.For(MEMBER, { items = { [6] = item(1, 47) } }, makers, { [9001] = 500 }, info)
+    local rows = For(MEMBER, caster(), makers, { [9001] = 500 })
     T.eq({ rows[1].makers[1].key, rows[1].makers[2].key, rows[1].makers[3].key }, { "c", "b", "a" })
   end)
 
   T.it("asks for item infos it does not have", function()
-    local rows, missing = U.For(MEMBER, { items = { [6] = item(1, 47) } }, { maker("t", { 9099, 9098 }) }, { [9099] = 599, [9098] = 599 }, info)
+    local rows, missing = For(MEMBER, caster(), { maker("t", { 9099, 9098 }) }, { [9099] = 599, [9098] = 599 })
     T.eq(#rows, 0)
     T.eq(missing, { 599 })
+  end)
+
+  T.it("skips an offer whose stats are not loaded yet and asks for them", function()
+    INFO[598] = { equipLoc = "INVTYPE_WAIST", level = 58, reqLevel = 50, classID = 4, subclassID = 1, bind = 2, quality = 3 }
+    local rows, missing = For(MEMBER, caster(), { maker("t", { 9097 }) }, { [9097] = 598 })
+    T.eq(#rows, 0)
+    T.eq(missing, { 598 })
   end)
 
   T.it("learns what recipes make, up to the cap, and forgets what is not equippable", function()
@@ -126,5 +185,167 @@ T.describe("Upgrades", function()
     local known = { [10] = true, [20] = false }
     T.eq(U.Clean(small, function(id) return known[id] end), 1)
     T.eq(small, { [1] = 10, [3] = 30 })
+  end)
+end)
+
+-- A feral druid: agility, strength, stamina and attack power on leather -----------------------------
+local FERAL = { key = "sven", level = 46, classFile = "DRUID" }
+local function feral(extra)
+  local items = {}
+  local worn = { [1] = 201, [3] = 202, [7] = 203, [8] = 204, [10] = 205, [5] = 206, [6] = 207 }
+  for slot, id in pairs(worn) do
+    INFO[id] = { equipLoc = "INVTYPE_HEAD", level = 40, reqLevel = 35, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[id] = { [AGI] = 6, [STR] = 4, [STA] = 6, [AP] = 10, [ARMOR] = 80 }
+    items[slot] = item(id, 40)
+  end
+  STATS[206] = { [AGI] = 6, [STA] = 5, [ARMOR] = 90 } -- the chest
+  for slot, it in pairs(extra or {}) do items[slot] = it end
+  return { items = items }
+end
+
+T.describe("Upgrades for a feral druid", function()
+  INFO[700] = { equipLoc = "INVTYPE_ROBE", level = 50, reqLevel = 45, classID = 4, subclassID = 1, bind = 2, quality = 3 } -- Winterzwirntunika
+  STATS[700] = { [INT] = 14, [SPI] = 10, [STA] = 4, [ARMOR] = 50 }
+  INFO[701] = { equipLoc = "INVTYPE_NECK", level = 50, reqLevel = 45, classID = 4, subclassID = 0, bind = 2, quality = 3 }
+  STATS[701] = { [INT] = 9, [SPI] = 8 }
+  INFO[702] = { equipLoc = "INVTYPE_CHEST", level = 44, reqLevel = 40, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+  STATS[702] = { [AGI] = 14, [STA] = 8, [ARMOR] = 100 }
+  INFO[703] = { equipLoc = "INVTYPE_TRINKET", level = 45, reqLevel = 40, classID = 4, subclassID = 0, bind = 2, quality = 2 } -- needs engineering 205
+  STATS[703] = { [AGI] = 10, [AP] = 20 }
+  REQ[703] = { skill = "Ingenieurskunst", rank = 205 }
+  INFO[704] = { equipLoc = "INVTYPE_FINGER", level = 45, reqLevel = 40, classID = 4, subclassID = 0, bind = 2, quality = 2 }
+  STATS[704] = { [AGI] = 10, [STR] = 10 }
+  REQ[704] = { classes = { "Schurke" } }
+  local makers = { maker("t", { 9700, 9701, 9702, 9703, 9704 }) }
+  local craft = { [9700] = 700, [9701] = 701, [9702] = 702, [9703] = 703, [9704] = 704 }
+
+  T.it("does not offer cloth caster pieces of a higher level", function()
+    local rows = For(FERAL, feral(), makers, { [9700] = 700, [9701] = 701 })
+    T.eq(#rows, 0)
+  end)
+
+  T.it("offers a leather agility chest that scores higher", function()
+    local rows = For(FERAL, feral(), makers, { [9700] = 700, [9702] = 702 })
+    T.eq(#rows, 1)
+    T.eq(rows[1].itemID, 702)
+    T.eq(rows[1].offer - rows[1].have, 4)
+    T.eq(rows[1].diff, { { key = AGI, delta = 8 }, { key = STA, delta = 3 } })
+  end)
+
+  T.it("drops a trinket that needs engineering 205 unless the member has it", function()
+    T.eq(#For(FERAL, feral(), makers, { [9703] = 703 }), 0)
+    local engineer = { key = "sven", level = 46, classFile = "DRUID", profs = { ingenieurskunst = 210 } }
+    T.eq(#For(engineer, feral(), makers, { [9703] = 703 }), 1)
+    local learning = { key = "sven", level = 46, classFile = "DRUID", profs = { ingenieurskunst = 150 } }
+    T.eq(#For(learning, feral(), makers, { [9703] = 703 }), 0)
+  end)
+
+  T.it("drops a piece only other classes may wear", function()
+    local druid = { key = "sven", level = 46, classFile = "DRUID", classNames = { Druide = true } }
+    T.eq(#For(druid, feral(), makers, { [9704] = 704 }), 0)
+    local rogue = { key = "x", level = 46, classFile = "ROGUE", classNames = { Schurke = true } }
+    T.eq(#For(rogue, feral(), makers, { [9704] = 704 }), 1)
+  end)
+
+  T.it("drops a piece that needs a reputation", function()
+    REQ[702] = { reputation = true }
+    T.eq(#For(FERAL, feral(), makers, { [9702] = 702 }), 0)
+    REQ[702] = nil
+  end)
+
+  T.it("offers no lighter armour type than the one worn mostly, though the class may wear it", function()
+    INFO[705] = { equipLoc = "INVTYPE_CHEST", level = 50, reqLevel = 45, classID = 4, subclassID = 1, bind = 2, quality = 3 }
+    STATS[705] = { [AGI] = 20, [STA] = 12, [ARMOR] = 40 }
+    T.eq(#For(FERAL, feral(), makers, { [9705] = 705 }), 0)
+    -- a druid in mixed cloth and leather may get cloth
+    INFO[208] = { equipLoc = "INVTYPE_HEAD", level = 40, reqLevel = 35, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    STATS[208] = STATS[201]
+    local mixed = feral({ [1] = item(208, 40), [3] = item(208, 40), [7] = item(208, 40) })
+    T.eq(#For(FERAL, mixed, { maker("t", { 9705 }) }, { [9705] = 705 }), 1)
+  end)
+end)
+
+T.describe("Upgrades stat profile", function()
+  T.it("weighs the stats that matter by what is worn, armor left out", function()
+    local p = U.Profile({ { [AGI] = 3, [STA] = 2, [ARMOR] = 100 }, { [AGI] = 1, [AP] = 4 } })
+    T.eq(p.weights, { [AGI] = 0.4, [STA] = 0.2, [AP] = 0.4 })
+    T.eq(p.items, 2)
+    T.eq(p.top, AGI)
+    T.eq(U.Score(p, { [AGI] = 10, [INT] = 50, [ARMOR] = 500 }), 4)
+  end)
+
+  T.it("names the top primary stat, stamina not counted", function()
+    T.eq(U.TopPrimary({ [STA] = 20, [INT] = 5, [SPI] = 4 }), INT)
+    T.eq(U.TopPrimary({ [STA] = 20 }), nil)
+  end)
+
+  T.it("tells the armour type worn mostly from 70 percent on", function()
+    T.eq(U.ArmorType({ 2, 2, 2, 2, 2, 2, 2, 1, 1, 1 }), 2)
+    T.eq(U.ArmorType({ 2, 2, 2, 2, 2, 2, 1, 1, 1, 1 }), nil)
+    T.eq(U.ArmorType({}), nil)
+  end)
+
+  T.it("lists the stat differences, the largest first", function()
+    T.eq(U.Diff({ [AGI] = 8, [STA] = 5, [ARMOR] = 30 }, { [INT] = 6, [STA] = 5 }),
+      { { key = AGI, delta = 8 }, { key = INT, delta = -6 } })
+  end)
+
+  T.it("writes the differences as a line with the client's stat names", function()
+    local names = { [AGI] = "Beweglichkeit", [INT] = "Intelligenz" }
+    local text = U.DiffText({ { key = AGI, delta = 8 }, { key = INT, delta = -6 }, { key = "ITEM_MOD_X", delta = 1.5 } },
+      function(key) return names[key] end)
+    T.eq(text, "|cff4ce64c+8 Beweglichkeit|r, |cffff5a5a−6 Intelligenz|r, |cff4ce64c+1.5 ITEM_MOD_X|r")
+    T.eq(U.DiffText({}, function() end), nil)
+  end)
+
+  T.it("falls back to the top primary stat with a weak profile", function()
+    local few = { items = { [6] = item(1, 47), [1] = item(101, 45) } } -- two pieces with stats
+    STATS[710], STATS[711] = { [INT] = 12 }, { [STR] = 12 }
+    INFO[710] = { equipLoc = "INVTYPE_WAIST", level = 52, reqLevel = 45, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    INFO[711] = { equipLoc = "INVTYPE_WAIST", level = 52, reqLevel = 45, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    T.eq(#For(MEMBER, few, { maker("t", { 1 }) }, { [1] = 710 }), 1)
+    T.eq(#For(MEMBER, few, { maker("t", { 1 }) }, { [1] = 711 }), 0)
+    -- the item level still has to be higher by three
+    INFO[712] = { equipLoc = "INVTYPE_WAIST", level = 49, reqLevel = 45, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    STATS[712] = { [INT] = 12 }
+    T.eq(#For(MEMBER, few, { maker("t", { 1 }) }, { [1] = 712 }), 0)
+    -- nothing worn in the slot: the profile's top stat
+    INFO[713] = { equipLoc = "INVTYPE_FEET", level = 30, reqLevel = 25, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    INFO[714] = { equipLoc = "INVTYPE_FEET", level = 30, reqLevel = 25, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    STATS[713], STATS[714] = { [INT] = 3 }, { [AGI] = 3 }
+    T.eq(#For(MEMBER, few, { maker("t", { 1 }) }, { [1] = 713 }), 1)
+    T.eq(#For(MEMBER, few, { maker("t", { 1 }) }, { [1] = 714 }), 0)
+    -- nothing with stats at all: nothing to go by
+    T.eq(#For(MEMBER, { items = {} }, { maker("t", { 1 }) }, { [1] = 713 }), 0)
+  end)
+end)
+
+T.describe("Upgrades requirements", function()
+  local DE = { minLevel = "Benötigt Stufe %d", minSkill = "Benötigt %s (%d)", reqSkill = "Benötigt %s",
+    classes = "Klassen: %s", reputation = "Benötigt %s - %s" }
+
+  T.it("reads profession, classes and reputation from the tooltip in the client's language", function()
+    T.eq(U.ParseRequirements({ "Goblinmörser", "Schmuck", "Benötigt Stufe 40", "|cffff2020Benötigt Ingenieurskunst (205)|r" }, DE),
+      { skill = "Ingenieurskunst", rank = 205 })
+    T.eq(U.ParseRequirements({ "Klassen: Schurke, Krieger" }, DE), { classes = { "Schurke", "Krieger" } })
+    T.eq(U.ParseRequirements({ "Benötigt Sturmwind - Wohlwollend" }, DE), { reputation = true })
+    T.eq(U.ParseRequirements({ "Ausdauer +5", "Benötigt Stufe 12" }, DE), {})
+  end)
+
+  T.it("understands numbered format arguments", function()
+    T.eq(U.ParseRequirements({ "205 Engineering needed" }, { minSkill = "%2$d %1$s needed" }),
+      { skill = "Engineering", rank = 205 })
+  end)
+
+  T.it("checks them against the member", function()
+    local who = { classNames = { Druide = true }, profs = { ingenieurskunst = 210 } }
+    T.eq(U.Meets({}, who), true)
+    T.eq(U.Meets({ skill = "Ingenieurskunst", rank = 205 }, who), true)
+    T.eq(U.Meets({ skill = "Ingenieurskunst", rank = 225 }, who), false)
+    T.eq(U.Meets({ skill = "Schneiderei", rank = 1 }, who), false)
+    T.eq(U.Meets({ skill = "Ingenieurskunst" }, { profs = { ingenieurskunst = true } }), true)
+    T.eq(U.Meets({ classes = { "Schurke" } }, who), false)
+    T.eq(U.Meets({ classes = { "Schurke", "Druide" } }, who), true)
+    T.eq(U.Meets({ reputation = true }, who), false)
   end)
 end)

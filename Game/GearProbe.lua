@@ -251,19 +251,20 @@ function GearProbe.CraftProbe()
   if #unresolved > 0 then Say("craftprobe: not resolved: " .. table.concat(unresolved, ", ")) end
 end
 
--- Left texts of the tooltip of link: { string }, and the path used ("C_TooltipInfo", "GameTooltip" or nil)
+-- Left texts of the tooltip of link: { string } (secret ones left out), the path used ("C_TooltipInfo",
+-- "GameTooltip" or nil) and whether a secret line was left out
 local scanTip
 function GearProbe.TooltipLines(link)
-  local lines = {}
+  local lines, secret = {}, false
   local info = C_TooltipInfo and rawget(C_TooltipInfo, "GetHyperlink")
   if info then
     local data = ns.Try(info, link)
     if type(data) == "table" and type(data.lines) == "table" then
       for _, line in ipairs(data.lines) do
         local text = type(line) == "table" and line.leftText
-        if type(text) == "string" and not ns.IsSecret(text) then lines[#lines + 1] = text end
+        if ns.IsSecret(text) then secret = true elseif type(text) == "string" then lines[#lines + 1] = text end
       end
-      return lines, "C_TooltipInfo"
+      return lines, "C_TooltipInfo", secret
     end
   end
   if not scanTip then
@@ -276,10 +277,10 @@ function GearProbe.TooltipLines(link)
   for i = 1, ns.Try(scanTip.NumLines, scanTip) or 0 do
     local region = rawget(_G, "GuildyScanTooltipTextLeft" .. i)
     local text = region and region.GetText and ns.Try(region.GetText, region)
-    if type(text) == "string" and not ns.IsSecret(text) then lines[#lines + 1] = text end
+    if ns.IsSecret(text) then secret = true elseif type(text) == "string" then lines[#lines + 1] = text end
   end
   ns.Try(scanTip.Hide, scanTip)
-  return lines, "GameTooltip"
+  return lines, "GameTooltip", secret
 end
 
 -- Lines of with that without lacks (duplicates counted)

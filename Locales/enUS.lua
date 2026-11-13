@@ -300,6 +300,7 @@ ns.LocaleTables.enUS = {
   MODEL_WAIT_FEMALE = "The figure appears once you come across a female character.",
   MODEL_WAIT_MALE = "The figure appears once you come across a male character.",
   UPGRADE_EMPTY = "Slot empty",
+  UPGRADE_COMPARE = "Compared with what is worn now:",
   UPGRADE_BY = "by",
   UPGRADES_COUNT = "%d found",
   GEAR_EMPTY = "Gear not known yet",

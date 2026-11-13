@@ -300,6 +300,7 @@ ns.LocaleTables.deDE = {
   MODEL_WAIT_FEMALE = "Die Figur erscheint, sobald dir eine Spielerin begegnet.",
   MODEL_WAIT_MALE = "Die Figur erscheint, sobald dir ein Spieler begegnet.",
   UPGRADE_EMPTY = "Platz leer",
+  UPGRADE_COMPARE = "Gegenüber dem, was jetzt getragen wird:",
   UPGRADE_BY = "von",
   UPGRADES_COUNT = "%d Treffer",
   GEAR_EMPTY = "Ausrüstung noch nicht bekannt",

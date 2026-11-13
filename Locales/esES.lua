@@ -300,6 +300,7 @@ ns.LocaleTables.esES = {
   MODEL_WAIT_FEMALE = "La figura aparecerá en cuanto te cruces con una jugadora.",
   MODEL_WAIT_MALE = "La figura aparecerá en cuanto te cruces con un jugador.",
   UPGRADE_EMPTY = "Hueco vacío",
+  UPGRADE_COMPARE = "Frente a lo que lleva puesto:",
   UPGRADE_BY = "por",
   UPGRADES_COUNT = "Total: %d",
   GEAR_EMPTY = "Equipo aún desconocido",

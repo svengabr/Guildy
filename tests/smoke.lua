@@ -2766,17 +2766,23 @@ T.describe("Upgrades from the guild on the character page", function()
   INFO[50013] = { "Robe des Sehers", 3, 56, 20, "INVTYPE_CHEST" }
   INFO[50014] = { "Hose des Sehers", 3, 55, 20, "INVTYPE_LEGS" }
   INFO[50015] = { "Stiefel des Sehers", 3, 54, 20, "INVTYPE_FEET" }
+  -- the pieces Au Tsch wears in these tests
+  INFO[7000] = { "Alter Gürtel", 2, 46, 20 }
+  INFO[7001] = { "Alte Kapuze", 2, 40, 20, "INVTYPE_HEAD" }
   local requested
   local function Stubs()
-    local saved = { env.GetItemInfo, env.C_Item }
+    local saved = { env.GetItemInfo, env.C_Item, env.C_TooltipInfo }
     requested = {}
-    env.C_Item = { RequestLoadItemDataByID = function(id) requested[#requested + 1] = id end }
+    -- every piece has intellect (a weak profile of one piece: the same top stat, three levels more)
+    env.C_Item = { RequestLoadItemDataByID = function(id) requested[#requested + 1] = id end,
+      GetItemStats = function() return { ITEM_MOD_INTELLECT_SHORT = 5 } end }
+    env.C_TooltipInfo = { GetItemByID = function(id) return INFO[id] and { lines = { { leftText = INFO[id][1] } } } end }
     env.GetItemInfo = function(item)
       local id = type(item) == "number" and item or ns.Gear.ParseLink(item)
       local it = INFO[id]
       if it then return it[1], "item:" .. id, it[2], it[3], it[4], "Rüstung", "Stoff", 1, it[5] or "INVTYPE_WAIST", 134, 1, 4, 1, 2 end
     end
-    return function() env.GetItemInfo, env.C_Item = unpack(saved, 1, 2) end
+    return function() env.GetItemInfo, env.C_Item, env.C_TooltipInfo = unpack(saved, 1, 3) end
   end
   local function Texts(box)
     local list = {}
@@ -2919,10 +2925,13 @@ T.describe("Upgrades from the guild on the character page", function()
             nil, nil, "Player-1-05" },
         },
         setup = function(e)
-          e.C_Item = { RequestLoadItemDataByID = function() end }
+          e.C_Item = { RequestLoadItemDataByID = function() end,
+            GetItemStats = function() return { ITEM_MOD_AGILITY_SHORT = 5 } end }
+          e.C_TooltipInfo = { GetItemByID = function(id) return { lines = { { leftText = "Item " .. id } } } end }
           e.GetItemInfo = function(item)
             local id = type(item) == "number" and item or tonumber(tostring(item):match("item:(%d+)"))
             if id == 50001 then return "Gürtel des Rechtsprechers", "item:50001", 3, 58, 20, "Rüstung", "Leder", 1, "INVTYPE_WAIST", 134, 1, 4, 2, 2 end
+            if id == 7000 then return "Alter Gürtel", "item:7000", 2, 47, 20, "Rüstung", "Leder", 1, "INVTYPE_WAIST", 134, 1, 4, 2, 2 end
           end
         end })
       w.Fire("ADDON_LOADED", "Guildy")

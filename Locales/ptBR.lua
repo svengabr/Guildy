@@ -300,6 +300,7 @@ ns.LocaleTables.ptBR = {
   MODEL_WAIT_FEMALE = "A figura aparece assim que você encontrar uma jogadora.",
   MODEL_WAIT_MALE = "A figura aparece assim que você encontrar um jogador.",
   UPGRADE_EMPTY = "Espaço vazio",
+  UPGRADE_COMPARE = "Comparado ao que está equipado:",
   UPGRADE_BY = "por",
   UPGRADES_COUNT = "Total: %d",
   GEAR_EMPTY = "Equipamento ainda desconhecido",
