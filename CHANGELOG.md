@@ -9,6 +9,18 @@
   back about a hundred events, and Guildy users share what they know with each other. For a member who
   joined before anyone could read it, Guildy counts from the day it first saw them and marks the time
   with a +: in the guild at least that long.
+- New: profession specializations. Goblin or gnomish engineer, weapon-, armor-, sword-, hammer- or
+  axesmith, dragonscale, elemental or tribal leatherworker: Guildy shows it after the member's name on
+  the Professions tab, in the member tooltip and on the character page, and the profession's tooltip on
+  the left lists who has which. Your own comes from the game itself; for others Guildy reads it from
+  their recipe book (engineering) or gets it from other Guildy users. Forever has no alchemy or
+  tailoring specializations.
+- New: profession cooldowns. Transmutes, Mooncloth and the Salt Shaker: Guildy reads your own and
+  shares them, so the Professions tab shows who can transmute today. Only Guildy users share their
+  cooldowns, nobody can read another player's; where a member's book has such a craft and nobody shared
+  its cooldown, Guildy says so. Your own cooldowns are shared only while "share my data" is on.
+- Crafts with a cooldown that Forever adds are learned from your own profession window.
+- `/guildy cd` and `/guildy spec` show what the game answers, for checking.
 - Fixed: on the Professions tab a skill like 278/300 broke into two lines.
 
 ## 1.7.1

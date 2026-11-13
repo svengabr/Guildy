@@ -411,6 +411,31 @@ local function Build(panel)
     row.Best = W.Text(row, "GameFontDisableSmall")
     row.Best:SetPoint("RIGHT", -6, 0)
     row.Best:SetJustifyH("RIGHT")
+    row:SetScript("OnEnter", function(self)
+      local group = self.group
+      if not group then return end
+      local bySpec, order = {}, {}
+      for _, e in ipairs(group.members) do
+        local name = UI.SpecName(e.prof)
+        if name then
+          if not bySpec[name] then
+            bySpec[name] = {}
+            order[#order + 1] = name
+          end
+          table.insert(bySpec[name], W.ClassName(e.member.name, e.member.classFile))
+        end
+      end
+      if #order == 0 then return end
+      table.sort(order)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetText(ns.TradeSkill.Name(group.skillLine))
+      GameTooltip:AddLine(L.SPECS_TITLE, 1, 0.82, 0)
+      for _, name in ipairs(order) do
+        GameTooltip:AddLine(name .. ": |cffffffff" .. table.concat(bySpec[name], ", ") .. "|r", 0.85, 0.78, 0.63, true)
+      end
+      GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row:SetScript("OnMouseUp", function(self)
       if not self.group then return end
       view.skill, view.memberKey, view.recipeQuery = self.group.skillLine, nil, ""
@@ -551,7 +576,8 @@ local function Build(panel)
     end
     local m, prof = item.member, item.prof
     row.Dot:SetOnline(m.online)
-    row.Name:SetText(W.ClassName(m.name, m.classFile))
+    local tag = UI.SpecTag(prof)
+    row.Name:SetText(W.ClassName(m.name, m.classFile) .. (tag and ("  |cff8f8268" .. tag .. "|r") or ""))
     row.Name:SetAlpha(m.online and 1 or 0.7)
     if prof.rank then
       row.Skill:SetText(prof.rank .. (prof.max and (MUTED .. "/" .. prof.max .. "|r") or ""))
@@ -666,6 +692,12 @@ local function Build(panel)
   book.Meta:SetPoint("TOPLEFT", 10, -30)
   book.Meta:SetPoint("RIGHT", -10, 0)
   book.Meta:SetWordWrap(false)
+  -- specialization and cooldowns of the selected member's profession; what follows moves down with it
+  book.Extra = W.Text(book, "GameFontHighlightSmall")
+  book.Extra:SetPoint("TOPLEFT", 10, -46)
+  book.Extra:SetPoint("RIGHT", -10, 0)
+  book.Extra:SetJustifyH("LEFT")
+  book.Extra:SetSpacing(2)
   local function Selected()
     local m = view.memberKey and ns.Roster.Find(view.memberKey)
     return m, view.skill
@@ -808,6 +840,47 @@ local function Build(panel)
     self.Status.Log:SetItems(rows)
   end
 
+  -- the buttons, the search and the list below the extra line (off = its height)
+  local function PlaceBook(off)
+    book.Open:ClearAllPoints()
+    book.Open:SetPoint("TOPLEFT", 8, -48 - off)
+    bookSearch:ClearAllPoints()
+    bookSearch:SetPoint("TOPLEFT", 16, -78 - off)
+    view.Recipes:ClearAllPoints()
+    view.Recipes:SetPoint("TOPLEFT", 6, -104 - off)
+    view.Recipes:SetPoint("BOTTOMRIGHT", -26, 6)
+    view.BookEmpty:ClearAllPoints()
+    view.BookEmpty:SetPoint("TOPLEFT", 12, -110 - off)
+    view.BookEmpty:SetPoint("RIGHT", -12, 0)
+  end
+
+  -- whether a book holds a craft with a cooldown of its profession
+  local function HasCooldownCraft(prof, skillLine)
+    local watched = ns.Cooldowns.Watched(ns.DB() and ns.DB().cooldownSpells)
+    for _, id in ipairs(prof.recipes or {}) do
+      if watched[id] == skillLine then return true end
+    end
+    return false
+  end
+
+  -- specialization and cooldowns of a member's profession, line by line
+  local function ExtraLines(m, prof, skillLine)
+    local lines = {}
+    local spec = UI.SpecName(prof)
+    if spec then lines[#lines + 1] = "|cffffd100" .. L.SPECIALIZATION .. ":|r " .. spec end
+    local cooldowns, readAt = UI.CooldownsOf(m, skillLine)
+    if cooldowns and #cooldowns > 0 then
+      for _, entry in ipairs(cooldowns) do
+        lines[#lines + 1] = (ns.TradeSkill.RecipeName(entry.spell) or ("#" .. entry.spell)) .. ": " .. UI.CooldownLeft(entry)
+      end
+      local age = UI.CooldownAge(readAt)
+      if age then lines[#lines + 1] = MUTED .. age .. "|r" end
+    elseif not cooldowns and HasCooldownCraft(prof, skillLine) then
+      lines[#lines + 1] = MUTED .. L.CD_UNKNOWN .. "|r"
+    end
+    return lines
+  end
+
   function view:RenderBook()
     local group = self.group
     local entry
@@ -817,6 +890,11 @@ local function Build(panel)
     local box = self.BookBox
     local hasMember = entry ~= nil
     for _, part in ipairs({ box.Dot, box.Who, box.Meta, box.Open, box.Whisper, box.Invite }) do part:SetShown(hasMember) end
+    local lines = entry and ExtraLines(entry.member, entry.prof, group.skillLine) or {}
+    box.Extra:SetText(table.concat(lines, "\n"))
+    box.Extra:SetShown(#lines > 0)
+    local height = box.Extra:GetStringHeight()
+    PlaceBook(#lines > 0 and math.max(#lines * 14, type(height) == "number" and height or 0) + 6 or 0)
     if not entry then
       self.BookSearch:Hide()
       self.Recipes:SetItems({})

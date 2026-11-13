@@ -262,6 +262,64 @@ T.describe("Smoke", function()
     T.eq(errors, {})
   end)
 
+  T.it("shows specializations and cooldowns on the professions tab, in the tooltip and on the page", function()
+    local guild, now, L = ns.GuildData(), ns.Now(), ns.L
+    local au = guild.members["au tsch"]
+    local kept = au.profs
+    au.profs = { [171] = { ts = now, src = "relay", rank = 290, max = 300, recipes = { 11, 17187 } } }
+    guild.cooldowns = guild.cooldowns or {}
+    guild.cooldowns["au tsch"] = { ts = now, cd = { [17187] = now + 7200 } }
+    ns.UI.Show()
+    ns.UI.SelectTab("professions")
+    local view = ns.UI.TabView("professions")
+    view.skill, view.memberKey = 171, "au tsch"
+    view:Refresh()
+    -- a cooldown someone shared: the craft and the time left, in the book panel
+    local extra = view.BookBox.Extra:GetText() or ""
+    T.truthy(extra:find(ns.TradeSkill.RecipeName(17187), 1, true), extra)
+    T.truthy(extra:find(L.CD_LEFT:format(L.CD_H:format(2)), 1, true), extra)
+    -- the book has the craft but nobody shared its cooldown: said so, not left empty
+    guild.cooldowns["au tsch"] = nil
+    view:RenderBook()
+    T.truthy((view.BookBox.Extra:GetText() or ""):find(L.CD_UNKNOWN, 1, true), "unknown cooldown")
+    -- a specialization: a tag after the name, its full name in the book, the rail's tooltip lists it
+    au.profs[202] = { ts = now, src = "relay", rank = 230, max = 300, recipes = { 12760 }, spec = { id = 20222, src = "book", ts = now } }
+    view.skill, view.memberKey = 202, "au tsch"
+    view:Refresh()
+    T.truthy((view.BookBox.Extra:GetText() or ""):find(ns.TradeSkill.RecipeName(20222), 1, true), "specialization named")
+    local tagged
+    for _, row in pairs(view.Members.rows) do
+      if row.item and row.item.member and row.item.member.key == "au tsch" then
+        tagged = (row.Name:GetText() or ""):find(L.SPEC_20222, 1, true) ~= nil
+      end
+    end
+    T.eq(tagged, true)
+    local railTip
+    for _, row in pairs(view.Rail.rows) do
+      if row.group and row.group.skillLine == 202 then
+        row:GetScript("OnEnter")(row)
+        railTip = true
+      end
+    end
+    T.eq(railTip, true)
+    -- nobody specialized: no tooltip at all
+    au.profs[202].spec = nil
+    view:Refresh()
+    -- the member tooltip and the character page
+    au.profs[202].spec = { id = 20222, src = "book", ts = now }
+    guild.cooldowns["au tsch"] = { ts = now - 7200, cd = { [17187] = 0 } }
+    ns.UI.MemberTooltip(env.UIParent, ns.Roster.Find("Au Tsch"))
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local named
+    for _, row in ipairs(ns.UI.MemberPage().Profs.Rows) do
+      if (row.Name:GetText() or ""):find(L.SPEC_20222, 1, true) then named = true end
+    end
+    T.eq(named, true) -- the page names the specialization after the profession
+    au.profs, guild.cooldowns["au tsch"] = kept, nil
+    ns.UI.Hide()
+    T.eq(errors, {})
+  end)
+
   T.it("fetches older chat lines when the player scrolls to the top, not on every render", function()
     local fetched = 0
     local box = env.CreateFrame("Frame")

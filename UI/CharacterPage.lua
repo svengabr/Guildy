@@ -587,8 +587,9 @@ local function Build()
       local p = list[i]
       if p then
         row.Icon:SetTexture(ns.Professions.ICONS[p.skillLine])
-        row.Name:SetText(ns.TradeSkill.Name(p.skillLine))
         local prof = p.prof
+        local tag = UI.SpecTag(prof)
+        row.Name:SetText(ns.TradeSkill.Name(p.skillLine) .. (tag and ("  |cff8f8268" .. tag .. "|r") or ""))
         row.Level:SetText(prof.rank and (prof.rank .. (prof.max and ("|cff999999/" .. prof.max .. "|r") or "")) or "|cff999999–|r")
         local atCap = prof.rank ~= nil and prof.max ~= nil and prof.rank >= prof.max and prof.max < W.SKILL_SCALE
         row.Trainer:SetShown(atCap)

@@ -11,6 +11,56 @@ function UI.ProfLevel(prof)
   return "?"
 end
 
+local function SpecId(prof)
+  local spec = type(prof) == "table" and prof.spec
+  return type(spec) == "table" and type(spec.id) == "number" and spec.id > 0 and spec.id or nil
+end
+
+-- Short tag of a profession's specialization ("Goblin"), nil when none is known
+function UI.SpecTag(prof)
+  local id = SpecId(prof)
+  if not id then return nil end
+  local key = "SPEC_" .. id
+  local text = ns.L[key]
+  return text ~= key and text or nil
+end
+
+-- Full name of a profession's specialization in the client's language (the spell's name)
+function UI.SpecName(prof)
+  local id = SpecId(prof)
+  return id and (ns.TradeSkill.RecipeName(id) or UI.SpecTag(prof)) or nil
+end
+
+-- Time left on a cooldown: "ready" in green, else "in 14 h"
+function UI.CooldownLeft(entry)
+  local L = ns.L
+  if entry.left <= 0 then return "|cff4ce64c" .. L.CD_READY .. "|r" end
+  local unit, count = ns.Cooldowns.Span(entry.left)
+  return L.CD_LEFT:format((unit == "m" and L.CD_M or unit == "h" and L.CD_H or L.SPAN_D):format(count))
+end
+
+-- A member's cooldowns { { spell, readyAt, left } }, of one profession or all (skillLine nil), and when
+-- they were read; nil when nothing is known of them
+function UI.CooldownsOf(m, skillLine)
+  local guild = ns.GuildData()
+  local book = guild and guild.cooldowns
+  local list = book and ns.Cooldowns.Of(book, m.key, ns.Now())
+  if not list then return nil end
+  local watched = ns.Cooldowns.Watched(ns.DB() and ns.DB().cooldownSpells)
+  local out = {}
+  for _, entry in ipairs(list) do
+    if not skillLine or watched[entry.spell] == skillLine then out[#out + 1] = entry end
+  end
+  return out, book[m.key].ts
+end
+
+-- "as of 3 h ago" for a reading older than an hour, nil for a fresh one
+function UI.CooldownAge(ts)
+  local age = ns.Now() - (ts or 0)
+  if age < 3600 then return nil end
+  return ns.L.CD_AS_OF:format(ns.Roster.LastOnlineText({ online = false, daysOffline = age / 86400 }))
+end
+
 function UI.Whisper(name)
   local tell = rawget(_G, "ChatFrame_SendTell") or (ChatFrameUtil and ChatFrameUtil.SendTell)
   if tell then pcall(tell, name) end
@@ -184,9 +234,19 @@ function UI.MemberTooltip(owner, m, hint)
       local prof = record.profs[skillLine]
       if prof then
         local level = UI.ProfLevel(prof)
-        GameTooltip:AddDoubleLine("|T" .. ns.Professions.ICONS[skillLine] .. ":14|t " .. ns.TradeSkill.Name(skillLine),
-          level, 1, 1, 1, 0.8, 0.8, 0.8)
+        local tag = UI.SpecTag(prof)
+        GameTooltip:AddDoubleLine("|T" .. ns.Professions.ICONS[skillLine] .. ":14|t " .. ns.TradeSkill.Name(skillLine)
+          .. (tag and ("  |cff8f8268" .. tag .. "|r") or ""), level, 1, 1, 1, 0.8, 0.8, 0.8)
       end
+    end
+  end
+  local cooldowns, readAt = UI.CooldownsOf(m)
+  if cooldowns and #cooldowns > 0 then
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddDoubleLine(L.COOLDOWNS, UI.CooldownAge(readAt) or "", 1, 0.82, 0, 0.6, 0.6, 0.6)
+    for _, entry in ipairs(cooldowns) do
+      GameTooltip:AddDoubleLine(ns.TradeSkill.RecipeName(entry.spell) or ("#" .. entry.spell), UI.CooldownLeft(entry),
+        1, 1, 1, 1, 1, 1)
     end
   end
   GameTooltip:AddLine(" ")
