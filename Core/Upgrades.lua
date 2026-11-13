@@ -82,7 +82,7 @@ end
 -- Stats are the tables the game's GetItemStats gives: { [ITEM_MOD_*_SHORT] = n, RESISTANCE0_NAME = armor }.
 -- Every ITEM_MOD_* key counts (primary stats, stamina, attack and spell power, healing, hit, crit,
 -- defense ...); armor does not, it only breaks ties. Stamina's weight is damped (STAMINA_DAMP) and it never
--- makes an upgrade by itself. Worn stats come from Upgrades.WornStats.
+-- makes an upgrade by itself, but for a tank spec (StatWeights.TANK). Worn stats come from Upgrades.WornStats.
 
 local function Counts(key) return type(key) == "string" and key:sub(1, 9) == "ITEM_MOD_" end
 Upgrades.Counts = Counts
@@ -566,6 +566,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
   local strong = profile.items >= Upgrades.STRONG_ITEMS and profile.sum > 0
   -- the talent spec's weights (Core/StatWeights.lua) where it is known: they need no worn pieces to be trusted
   if type(member.weights) == "table" then weights, strong = member.weights, true end
+  local tank = ns.StatWeights ~= nil and ns.StatWeights.IsTank(member.weights)
   local prefer = Upgrades.ArmorType(armour)
   local function Note(slot, entry, stats, verdict)
     local list = Slot(slot).candidates
@@ -621,8 +622,9 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
             if strong then
               score = Weighted(weights, stats)
               gain = score - current
-              -- stamina may add to a gain, never make it: without it the piece must still be better
-              local wSta = weights[STAMINA] or 0
+              -- stamina may add to a gain, never make it: without it the piece must still be better; for a
+              -- tank (bear, protection) it is the main stat and may
+              local wSta = tank and 0 or weights[STAMINA] or 0
               local wornSta = items[slot] and wornStats[slot][STAMINA] or 0
               local offerSta = type(stats[STAMINA]) == "number" and stats[STAMINA] or 0
               wornSta = type(wornSta) == "number" and wornSta or 0

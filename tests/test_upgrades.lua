@@ -332,6 +332,24 @@ T.describe("Upgrades for a feral druid", function()
     T.eq(U.WornStats({ id = 743, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }, game), { [STA] = 7 })
   end)
 
+  T.it("offers a tank a piece that is better by stamina alone, a damage dealer not", function()
+    INFO[744] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 4, bind = 2, quality = 2 }
+    STATS[744] = { [STA] = 10, [ARMOR] = 300 }
+    STATS[741] = { [STA] = 16, [ARMOR] = 300 }
+    local worn = { [5] = item(744, 40) }
+    local makers, craft = { maker("bs", { 9741 }) }, { [9741] = 741 }
+    T.eq(#For(TANK, { items = worn }, makers, craft), 1)
+    local bear = { key = "b", level = 45, classFile = "DRUID", weights = ns.StatWeights.For("DRUID_BEAR") }
+    INFO[745] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    INFO[746] = { equipLoc = "INVTYPE_CHEST", level = 42, reqLevel = 37, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[745] = { [STA] = 10, [ARMOR] = 100 }
+    STATS[746] = { [STA] = 16, [ARMOR] = 100 }
+    T.eq(#For(bear, { items = { [5] = item(745, 40) } }, { maker("lw", { 9746 }) }, { [9746] = 746 }), 1)
+    local arms = { key = "a", level = 45, classFile = "WARRIOR", weights = ns.StatWeights.For("WARRIOR_DPS") }
+    T.eq(#For(arms, { items = worn }, makers, craft), 0)
+    STATS[741] = { [STA] = 18, [ARMOR] = 300 }
+  end)
+
   T.it("offers nothing for a worn item whose stats cannot be known", function()
     -- a record without the suffix (bnet-sync before stored stats): the game gives the bare base item
     local bare = feral({ [5] = { id = 720, e = 0, s = 0, l = 39, q = 2 } })

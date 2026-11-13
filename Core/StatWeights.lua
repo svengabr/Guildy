@@ -67,6 +67,15 @@ StatWeights.WEIGHTS = {
 
 StatWeights.TANK = { WARRIOR_TANK = true, PALADIN_PROT = true, DRUID_BEAR = true }
 
+-- Whether weights are a tank spec's (the table StatWeights.For gave): stamina is their main stat
+function StatWeights.IsTank(weights)
+  if type(weights) ~= "table" then return false end
+  for spec in pairs(StatWeights.TANK) do
+    if StatWeights.WEIGHTS[spec] == weights then return true end
+  end
+  return false
+end
+
 -- The spec of each talent tree, in the game's tab order. DRUID_FERAL is cat or bear by the worn gear
 -- (Core/Talents.lua).
 StatWeights.TREES = {
