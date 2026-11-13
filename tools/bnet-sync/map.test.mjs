@@ -289,6 +289,15 @@ test('updateGear writes only a newer record', () => {
   assert.equal(updateGear(guild, 'au tsch', { ...rec, ts: 101 }), true)
 })
 
+test('updateGear never writes a record without items over good gear', () => {
+  const guild = new LuaTable()
+  updateGear(guild, 'au tsch', gearRecord({ equipped_items: [worn('HEAD', 101, 50, 'RARE')] }, {}, 100))
+  assert.equal(updateGear(guild, 'au tsch', gearRecord({ equipped_items: [] }, {}, 200)), false)
+  assert.equal(guild.get('gear').get('au tsch').get('items').get(1).get('id'), 101)
+  assert.equal(updateGear(guild, 'makira farron', gearRecord({ equipped_items: [] }, {}, 200)), false)
+  assert.equal(guild.get('gear').get('makira farron'), undefined)
+})
+
 test('enchantTexts keeps the text after the prefix, in the client language only', () => {
   const equipment = { equipped_items: [worn('HANDS', 1, 40, 'RARE', [844, 'Verzaubert: Bergbau +2'])] }
   const db = toLua({ clientLocale: 'deDE' })

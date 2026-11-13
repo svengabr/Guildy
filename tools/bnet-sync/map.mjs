@@ -55,9 +55,10 @@ export function gearRecord(equipment, profile, ts) {
   return rec
 }
 
-// Writes record into guild.gear[key] when it is newer than what is there; true when written
+// Writes record into guild.gear[key] when it is newer than what is there; true when written. A record
+// without items (an empty equipped_items) is never written: it would wipe good gear.
 export function updateGear(guild, key, record) {
-  if (!record) return false
+  if (!record || Object.keys(record.items ?? {}).length === 0) return false
   const book = guild.table('gear')
   const have = book.get(key)
   const stored = have instanceof LuaTable ? have.get('ts') : undefined

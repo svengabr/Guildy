@@ -78,7 +78,8 @@ local function ReadSlot(text)
   return slot, { id = id, e = e, s = s, l = l, q = q }
 end
 
--- A record from the guild (wire form) as stored, or nil
+-- A record from the guild (wire form) as stored, or nil; nil too without a single valid item (an empty
+-- record would wipe good gear)
 function Gear.Validate(raw, now)
   if type(raw) ~= "table" or not IsId(raw.ts) or raw.ts > now + 300 then return nil end
   local rec = { ts = raw.ts, src = Gear.SOURCES[raw.src] and raw.src or "relay", items = {} }
@@ -90,6 +91,7 @@ function Gear.Validate(raw, now)
       if slot and not rec.items[slot] then rec.items[slot] = item end
     end
   end
+  if not next(rec.items) then return nil end
   return rec
 end
 
@@ -105,8 +107,10 @@ function Gear.Wire(rec)
   return { ts = rec.ts, src = rec.src, r = rec.race, x = rec.sex, i = list }
 end
 
--- Newer wins; at the same time the member's own reading wins. True when rec was taken.
+-- Newer wins; at the same time the member's own reading wins. A record without items is never taken.
+-- True when rec was taken.
 function Gear.Merge(book, key, rec)
+  if type(rec) ~= "table" or type(rec.items) ~= "table" or not next(rec.items) then return false end
   local have = book[key]
   if type(have) == "table" and type(have.ts) == "number" then
     if have.ts > rec.ts then return false end

@@ -48,13 +48,21 @@ T.describe("Gear", function()
     T.eq(G.Validate({ ts = NOW + 301, i = {} }, NOW), nil)
     T.eq(G.Validate({ i = {} }, NOW), nil)
     T.eq(G.Validate("x", NOW), nil)
-    T.eq(G.Validate({ ts = NOW, i = "x" }, NOW).items, {})
-    T.eq(G.Validate({ ts = NOW, r = 2.5, x = 2, i = {} }, NOW).race, nil)
+    T.eq(G.Validate({ ts = NOW, r = 2.5, x = 2, i = { "1:1:0:0:1:1" } }, NOW).race, nil)
     local many = {}
     for i = 1, 40 do many[i] = ((i - 1) % 19 + 1) .. ":" .. (1000 + i) .. ":0:0:10:2" end
     local read = G.Validate({ ts = NOW, i = many }, NOW)
     T.eq(read.items[19].id, 1019) -- the first 19 strings only
     T.eq(read.items[1].id, 1001)
+  end)
+
+  T.it("refuses a record without items, so it never wipes good gear", function()
+    T.eq(G.Validate({ ts = NOW, src = "self", r = 4, x = 3, i = {} }, NOW), nil)
+    T.eq(G.Validate({ ts = NOW, i = "x" }, NOW), nil)
+    T.eq(G.Validate({ ts = NOW, i = { "junk", "0:1:0:0:1:1" } }, NOW), nil) -- nothing usable left
+    local book = { a = rec({ [1] = { id = 100, e = 0, s = 0, l = 50, q = 2 } }, NOW, "seen") }
+    T.eq(G.Merge(book, "a", rec({}, NOW + 1, "relay")), false)
+    T.eq(book.a.items[1].id, 100)
   end)
 
   T.it("sends a record and reads it back the same", function()
@@ -66,15 +74,16 @@ T.describe("Gear", function()
   end)
 
   T.it("merges: newer wins, the member's own reading at the same time", function()
-    local book = { a = rec({}, NOW, "seen") }
-    T.eq(G.Merge(book, "a", rec({}, NOW - 1, "self")), false)
-    T.eq(G.Merge(book, "a", rec({}, NOW, "relay")), false)
-    T.eq(G.Merge(book, "a", rec({}, NOW, "self")), true)
+    local ONE = { [1] = { id = 1, e = 0, s = 0, l = 1, q = 1 } }
+    local book = { a = rec(ONE, NOW, "seen") }
+    T.eq(G.Merge(book, "a", rec(ONE, NOW - 1, "self")), false)
+    T.eq(G.Merge(book, "a", rec(ONE, NOW, "relay")), false)
+    T.eq(G.Merge(book, "a", rec(ONE, NOW, "self")), true)
     T.eq(book.a.src, "self")
-    T.eq(G.Merge(book, "a", rec({}, NOW, "relay")), false)
+    T.eq(G.Merge(book, "a", rec(ONE, NOW, "relay")), false)
     T.eq(book.a.src, "self")
-    T.eq(G.Merge(book, "a", rec({}, NOW + 1, "relay")), true)
-    T.eq(G.Merge(book, "b", rec({}, NOW, "api")), true)
+    T.eq(G.Merge(book, "a", rec(ONE, NOW + 1, "relay")), true)
+    T.eq(G.Merge(book, "b", rec(ONE, NOW, "api")), true)
   end)
 
   T.it("offers young records only and prunes members who left", function()
