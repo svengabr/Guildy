@@ -1,0 +1,152 @@
+local T = ...
+local ns = T.pureNs()
+local G = ns.Gear
+
+local NOW = 1800000000
+local DAY = 86400
+
+local function info(map)
+  return function(link) local v = map[link] if v then return v[1], v[2] end end
+end
+
+local function rec(items, ts, src)
+  return { ts = ts or NOW, src = src or "seen", race = 4, sex = 3, items = items }
+end
+
+T.describe("Gear", function()
+  T.it("reads the fields of an item link", function()
+    T.eq({ G.ParseLink("|cff0070dd|Hitem:12345:1887:0:0:0:0:-17:0:60|h[X]|h|r") }, { 12345, 1887, -17 })
+    T.eq({ G.ParseLink("item:7") }, { 7, 0, 0 })
+    T.eq(G.ParseLink(nil), nil)
+    T.eq(G.ParseLink("spell:12"), nil)
+    T.eq(G.ItemString({ id = 7, e = 1887, s = -17 }), "item:7:1887:0:0:0:0:-17")
+  end)
+
+  T.it("makes items from the links of a complete read only", function()
+    local links = { [1] = "item:10:0", [4] = "item:44", [5] = "item:50:1887", [19] = "item:190" }
+    local ids = { [1] = 10, [4] = 44, [5] = 50, [19] = 190 }
+    local map = { ["item:10:0"] = { 2, 30 }, ["item:44"] = { 1, 1 }, ["item:50:1887"] = { 9, 40 }, ["item:190"] = { -1, 1 } }
+    local items = G.FromLinks(links, ids, info(map))
+    T.eq(items[5], { id = 50, e = 1887, s = 0, l = 40, q = 5 })
+    T.eq(items[4].id, 44)
+    T.eq(items[19].q, 0)
+    T.eq(items[1], { id = 10, e = 0, s = 0, l = 30, q = 2 })
+    ids[7] = 70 -- an item ID without its link: incomplete
+    T.eq(G.FromLinks(links, ids, info(map)), nil)
+    ids[7] = nil
+    map["item:44"] = nil -- item info not loaded
+    T.eq(G.FromLinks(links, ids, info(map)), nil)
+  end)
+
+  T.it("checks a record from the guild", function()
+    local good = { ts = NOW, src = "self", r = 4, x = 3, i = { "5:12345:1887:0:52:3", "1:100:0:-17:50:2" } }
+    T.eq(G.Validate(good, NOW), { ts = NOW, src = "self", race = 4, sex = 3, items = {
+      [5] = { id = 12345, e = 1887, s = 0, l = 52, q = 3 }, [1] = { id = 100, e = 0, s = -17, l = 50, q = 2 } } })
+    local bad = G.Validate({ ts = NOW, src = "boss", r = -1, x = 1, i = { "0:1:0:0:1:1", "20:1:0:0:1:1",
+      "2:1.5:0:0:1:1", "3:5:0:0:1:9", "6:5:0:0:1.5:1", "7:5:0:0:10:1", "junk" } }, NOW)
+    T.eq(bad, { ts = NOW, src = "relay", items = { [7] = { id = 5, e = 0, s = 0, l = 10, q = 1 } } })
+    T.eq(G.Validate({ ts = NOW + 301, i = {} }, NOW), nil)
+    T.eq(G.Validate({ i = {} }, NOW), nil)
+    T.eq(G.Validate("x", NOW), nil)
+    T.eq(G.Validate({ ts = NOW, i = "x" }, NOW).items, {})
+    T.eq(G.Validate({ ts = NOW, r = 2.5, x = 2, i = {} }, NOW).race, nil)
+    local many = {}
+    for i = 1, 40 do many[i] = ((i - 1) % 19 + 1) .. ":" .. (1000 + i) .. ":0:0:10:2" end
+    local read = G.Validate({ ts = NOW, i = many }, NOW)
+    T.eq(read.items[19].id, 1019) -- the first 19 strings only
+    T.eq(read.items[1].id, 1001)
+  end)
+
+  T.it("sends a record and reads it back the same", function()
+    local r = rec({ [1] = { id = 100, e = 0, s = -17, l = 50, q = 2 }, [4] = { id = 44, e = 0, s = 0, l = 1, q = 1 },
+      [16] = { id = 160, e = 1900, s = 0, l = 60, q = 4 } }, NOW, "self")
+    local wire = G.Wire(r)
+    T.eq(wire.i, { "1:100:0:-17:50:2", "4:44:0:0:1:1", "16:160:1900:0:60:4" })
+    T.eq(G.Validate(wire, NOW), r)
+  end)
+
+  T.it("merges: newer wins, the member's own reading at the same time", function()
+    local book = { a = rec({}, NOW, "seen") }
+    T.eq(G.Merge(book, "a", rec({}, NOW - 1, "self")), false)
+    T.eq(G.Merge(book, "a", rec({}, NOW, "relay")), false)
+    T.eq(G.Merge(book, "a", rec({}, NOW, "self")), true)
+    T.eq(book.a.src, "self")
+    T.eq(G.Merge(book, "a", rec({}, NOW, "relay")), false)
+    T.eq(book.a.src, "self")
+    T.eq(G.Merge(book, "a", rec({}, NOW + 1, "relay")), true)
+    T.eq(G.Merge(book, "b", rec({}, NOW, "api")), true)
+  end)
+
+  T.it("offers young records only and prunes members who left", function()
+    local book = { a = rec({}, NOW), b = rec({}, NOW - 61 * DAY), c = rec({}, NOW - DAY) }
+    T.eq(G.Digest(book, NOW), { a = NOW, c = NOW - DAY })
+    T.eq(G.Prune(book, { a = true }), 2)
+    T.eq(book.b, nil)
+    T.truthy(book.a)
+  end)
+
+  T.it("averages the item levels of the listed slots", function()
+    local r = rec({ [1] = { id = 1, e = 0, s = 0, l = 30, q = 2 }, [5] = { id = 2, e = 0, s = 0, l = 20, q = 2 },
+      [16] = { id = 3, e = 0, s = 0, l = 40, q = 2 }, [4] = { id = 4, e = 0, s = 0, l = 1, q = 1 } })
+    T.eq(G.Average(r), 300)
+    T.eq(G.Average(rec({})), nil)
+  end)
+
+  T.it("flags the enchantable slots without an enchantment", function()
+    local locs = { [17] = "INVTYPE_HOLDABLE", [27] = "INVTYPE_SHIELD" }
+    local function loc(id) return locs[id] end
+    local items = { [5] = { id = 5, e = 0, s = 0, l = 1, q = 1 }, [8] = { id = 8, e = 0, s = 0, l = 1, q = 1 },
+      [1] = { id = 1, e = 0, s = 0, l = 1, q = 1 }, [15] = { id = 15, e = 20, s = 0, l = 1, q = 1 },
+      [17] = { id = 17, e = 0, s = 0, l = 1, q = 1 } }
+    local set, count = G.Unenchanted(rec(items), loc)
+    T.eq(set, { [5] = true, [8] = true })
+    T.eq(count, 2)
+    items[17] = { id = 27, e = 0, s = 0, l = 1, q = 1 }
+    set, count = G.Unenchanted(rec(items), loc)
+    T.eq(set[17], true)
+    T.eq(count, 3)
+    items[17] = { id = 99, e = 0, s = 0, l = 1, q = 1 } -- equip location not known yet
+    T.eq(select(2, G.Unenchanted(rec(items), loc)), 2)
+    items[17] = nil -- empty off hand under a two-hander
+    T.eq(select(2, G.Unenchanted(rec(items), loc)), 2)
+  end)
+
+  T.it("computes the ready mark from at least five members of the level", function()
+    local list = { { 60, 400 }, { 60, 420 }, { 60, 450 }, { 60, 470 }, { 59, 100 } }
+    T.eq(G.ReadyMark(list, 60), nil)
+    list[#list + 1] = { 60, 500 }
+    T.eq(G.ReadyMark(list, 60), 450)
+    list[#list + 1] = { 60, 510 }
+    T.eq(G.ReadyMark(list, 60), 450) -- even count: the lower of the two middle values
+  end)
+
+  T.it("finds the enchant line in the tooltip", function()
+    T.eq(G.EnchantLine({ "Name", "Brust", "|cff00ff00+4 Werte|r", "Rüstung" }, { "Name", "Brust", "Rüstung" }), "+4 Werte")
+    T.eq(G.EnchantLine({ "Name", "Brust" }, { "Name", "Brust" }), nil)
+    T.eq(G.EnchantLine({ "A", "A", "B" }, { "A", "B" }), "A")
+  end)
+
+  T.it("keeps the enchant texts per language", function()
+    local db = {}
+    local names = G.EnchantCache(db, "deDE")
+    names[1887] = "+4 Werte"
+    T.eq(G.EnchantCache(db, "deDE")[1887], "+4 Werte")
+    T.eq(G.EnchantCache(db, "frFR")[1887], nil)
+    T.eq(db.enchantText.locale, "frFR")
+  end)
+
+  T.it("fits the list into the box", function()
+    T.eq((G.Fit(17 * 18 + 52, 900)), 18)
+    T.eq((G.Fit(300, 900)), 18)
+    T.eq((G.Fit(17 * 24 + 52, 900)), 24)
+    local _, barW, enchantW = G.Fit(400, 900)
+    T.eq(barW, 130)
+    T.eq(enchantW, 200)
+    _, barW, enchantW = G.Fit(400, 560)
+    T.eq(barW, 60)
+    T.truthy(enchantW < 200, "enchant text narrower")
+    _, barW, enchantW = G.Fit(400, 300)
+    T.eq(barW, 60)
+    T.eq(enchantW, 0)
+  end)
+end)
