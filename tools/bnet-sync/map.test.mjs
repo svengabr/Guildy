@@ -495,3 +495,15 @@ test('treeNamesLua writes Core/TalentTreeNames.lua: spec IDs per class and tab, 
   assert.throws(() => treeNamesLua({ deDE: { DRUID: DRUID_SPECS }, enUS: { DRUID: [[1, 'a'], [2, 'b'], [3, 'c']] } }))
   assert.deepEqual(TREE_LOCALES, { deDE: 'de_DE', enUS: 'en_US', frFR: 'fr_FR', esES: 'es_ES', ruRU: 'ru_RU', ptBR: 'pt_BR' })
 })
+
+test('gearRecord stores a worn item\'s armour with its stats, under the key Core/StatWeights uses', () => {
+  const stat = (type, value) => ({ type: { type, name: type }, value })
+  const chest = { ...worn('CHEST', 740, 40, 'UNCOMMON'), armor: { value: 400, display: { display_string: '400 Rüstung' } },
+    stats: [stat('STAMINA', 20)] }
+  const bare = { ...worn('HEAD', 741, 40, 'UNCOMMON'), armor: { value: 300 } } // no stats list: nothing known
+  const odd = { ...worn('LEGS', 742, 40, 'UNCOMMON'), armor: { value: 'x' }, stats: [] }
+  const rec = gearRecord({ equipped_items: [chest, bare, odd] }, {}, 1)
+  assert.deepEqual(rec.items[5].st, { ITEM_MOD_STAMINA_SHORT: 20, RESISTANCE0_NAME: 400 })
+  assert.equal('st' in rec.items[1], false)
+  assert.deepEqual(rec.items[7].st, {})
+})

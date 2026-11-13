@@ -293,6 +293,45 @@ T.describe("Upgrades for a feral druid", function()
     T.eq(rows[1].diff[1], { key = AGI, delta = 6 })
   end)
 
+  -- A protection warrior's worn chest: 20 stamina, 400 armour; the crafted one 18 stamina, 300 armour
+  INFO[740] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 4, bind = 2, quality = 2 }
+  INFO[741] = { equipLoc = "INVTYPE_CHEST", level = 42, reqLevel = 37, classID = 4, subclassID = 4, bind = 2, quality = 2 }
+  STATS[741] = { [STA] = 18, [ARMOR] = 300 }
+  local TANK = { key = "w", level = 45, classFile = "WARRIOR", weights = ns.StatWeights.For("WARRIOR_TANK") }
+  local function tankRows(worn)
+    return For(TANK, { items = { [5] = worn } }, { maker("bs", { 9741 }) }, { [9741] = 741 })
+  end
+
+  T.it("does not beat a tank's worn piece whose stored stats carry its armour", function()
+    STATS[740] = { [STA] = 20, [ARMOR] = 400 }
+    T.eq(#tankRows({ id = 740, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 20, [ARMOR] = 400 } }), 0)
+  end)
+
+  T.it("takes the armour of a worn piece with stored stats from the game", function()
+    STATS[740] = { [STA] = 20, [ARMOR] = 400 }
+    local worn = { id = 740, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 20 } }
+    T.eq(U.WornStats(worn, GAME), { [STA] = 20, [ARMOR] = 400 })
+    T.eq(#tankRows({ id = 740, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 20 } }), 0)
+  end)
+
+  T.it("keeps the stored stats over the game's for every ITEM_MOD key, also one the game adds", function()
+    STATS[742] = { [STA] = 5, [AGI] = 9, [ARMOR] = 80 }
+    T.eq(U.WornStats({ id = 742, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }, GAME), { [STA] = 7, [ARMOR] = 80 })
+  end)
+
+  T.it("uses the stored stats alone while the game's load, and names the piece missing", function()
+    local game = { stats = function() return nil end }
+    local worn = { id = 743, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }
+    local stats, gone, loading = U.WornStats(worn, game)
+    T.eq({ stats, gone, loading }, { { [STA] = 7 }, nil, true })
+    local _, missing = U.For(TANK, { items = { [5] = worn } }, {}, {}, info, game)
+    T.eq(missing, { 743 })
+    game.stats = function() return { [ARMOR] = 90 } end -- loaded now: not kept from before
+    T.eq(U.WornStats(worn, game), { [STA] = 7, [ARMOR] = 90 })
+    game.stats = function() return nil, true end
+    T.eq(U.WornStats({ id = 743, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }, game), { [STA] = 7 })
+  end)
+
   T.it("offers nothing for a worn item whose stats cannot be known", function()
     -- a record without the suffix (bnet-sync before stored stats): the game gives the bare base item
     local bare = feral({ [5] = { id = 720, e = 0, s = 0, l = 39, q = 2 } })

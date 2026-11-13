@@ -161,7 +161,8 @@ end
 
 local storedStats = setmetatable({}, { __mode = "k" }) -- worn item table -> its stored stats, checked
 
--- The stats of a worn item (Core/Gear.lua): the ones stored with it (st) when there are, else the game's
+-- The stats of a worn item (Core/Gear.lua): the ones stored with it (st) when there are (armour from the
+-- game where st lacks it), else the game's
 -- (game.stats). nil while they load; nil, true when the game never gives them or they cannot be known:
 -- a negative random suffix without the unique ID that carries its factor, or an uncommon or better piece
 -- without a suffix that the game says has no stats at all (a random-suffix item read without its suffix,
@@ -182,9 +183,18 @@ function Upgrades.WornStats(item, game, info)
   if type(item.st) == "table" then
     local known = storedStats[item]
     if known then return known end
+    -- the stored stats carry every ITEM_MOD_* key the API lists, but not always armour (written before
+    -- bnet-sync stored it): what they lack beside those (armour, resistances) comes from the game's reading of
+    -- the full item string. While that loads: the stored stats alone, not kept, and true as the third value
+    -- (the caller waits for the item); the stored stats alone when the game never gives it.
+    local fromGame, gone = game.stats(item)
     known = {}
     for key, value in pairs(item.st) do
       if type(key) == "string" and type(value) == "number" then known[key] = value end
+    end
+    if not fromGame and not gone then return known, nil, true end
+    for key, value in pairs(fromGame or {}) do
+      if known[key] == nil and not Counts(key) and type(value) == "number" then known[key] = value end
     end
     storedStats[item] = known
     return known
@@ -537,10 +547,11 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
     local info = itemInfo(item.id)
     if info and info.classID == ARMOR_CLASS and info.subclassID then worn[info.subclassID] = true end
     if IsArmour(info) then armour[#armour + 1] = info.subclassID end
-    local stats, gone = Upgrades.WornStats(item, game, info)
+    local stats, gone, loading = Upgrades.WornStats(item, game, info)
     if stats then
       wornStats[slot] = stats
       list[#list + 1] = stats
+      if loading then Miss(item.id) end -- stored stats whose armour the game has not given yet
     elseif not gone then
       Miss(item.id)
     end

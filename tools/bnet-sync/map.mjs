@@ -54,12 +54,13 @@ function storedStats(list) {
   return st
 }
 
+const ARMOR_KEY = 'RESISTANCE0_NAME' // GetItemStats' armour key (Core/Upgrades.lua ARMOR_KEY)
 const MAX_BONUS = 16 // Core/Gear.lua's Gear.MAX_BONUS
 
 // Core/Gear.lua's record from the /equipment response and the profile: { ts, src: 'api', race, sex,
 // items: { [slot]: { id, e, s, l, q, st, b } } }, null without a list of equipped items. The suffix ID is not
 // in the response as far as known (2026-11-13), so it is 0; st holds the stats the response lists for the
-// item (its random suffix included), which Guildy takes for the worn item instead of the game's; b the
+// item (its random suffix included) and its armour, which Guildy takes for the worn item instead of the game's; b the
 // item's bonus_list.
 export function gearRecord(equipment, profile, ts) {
   if (!Array.isArray(equipment?.equipped_items)) return null
@@ -73,7 +74,13 @@ export function gearRecord(equipment, profile, ts) {
     items[slot] = { id, e: enchant, s: 0, l: Number.isInteger(level) && level > 0 ? level : 0,
       q: Math.max(0, Math.min(QUALITY[item.quality?.type] ?? 1, 5)) }
     const st = storedStats(item.stats)
-    if (st) items[slot].st = st
+    if (st) {
+      // the armour too where the item has one: Guildy takes st instead of the game's stats, and the tank
+      // weights count armour (Core/StatWeights.lua), as a crafted offer's stats from the game carry it
+      const armor = item.armor?.value
+      if (Number.isInteger(armor) && armor > 0) st[ARMOR_KEY] = armor
+      items[slot].st = st
+    }
     // the bonus IDs: WoW Forever's modern engine carries a random suffix there; Guildy rebuilds the item
     // string with them (Core/Gear.lua, b), else the game gives the base item
     const b = Array.isArray(item.bonus_list) ? item.bonus_list.filter(x => Number.isInteger(x) && x > 0).slice(0, MAX_BONUS) : []
