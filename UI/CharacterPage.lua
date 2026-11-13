@@ -300,17 +300,19 @@ end
 -- A random suffix ("des Tigers") is not in GetItemInfo's name, which is the base item's: the name in the
 -- link of the full item string (suffix, unique ID, bonus IDs) where it carries one, else the first line of that
 -- string's tooltip, read once per item string.
-local suffixNames = {} -- full item string -> name as worn, this session
+-- A piece whose tooltip came back with the base name is kept as plain (true) and not read again.
+local suffixNames = {} -- full item string -> name as worn, or true for the base name, this session
 local function SuffixName(itemString, base, link)
   local known = suffixNames[itemString]
+  if known == true then return base end
   if known then return known end
   local inLink = type(link) == "string" and not ns.IsSecret(link) and link:match("|h%[(.-)%]|h")
   local name = inLink and inLink ~= "" and inLink ~= base and inLink or nil
   if not name then
     local first = ns.GearProbe.TooltipLines(itemString)[1]
-    name = type(first) == "string" and first ~= "" and first or nil
+    name = type(first) == "string" and not ns.IsSecret(first) and first ~= "" and first or nil
   end
-  if name and name ~= base then suffixNames[itemString] = name end -- the bare name may be a tooltip still loading
+  if name then suffixNames[itemString] = name ~= base and name or true end -- an empty tooltip is still loading
   return name
 end
 

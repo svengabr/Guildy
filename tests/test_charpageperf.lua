@@ -302,3 +302,23 @@ T.describe("Character page renders", function()
     T.eq(w.errors, {})
   end)
 end)
+
+T.describe("Character page item names", function()
+  T.it("reads the tooltip of a suffixed worn piece once when its name is the base item's", function()
+    local w = World()
+    local tooltip = w.env.C_TooltipInfo.GetHyperlink
+    w.env.C_TooltipInfo.GetHyperlink = function(link)
+      local result = tooltip(link)
+      result.lines[1].leftText = "Alter Gürtel" -- the full item string's name is the base name
+      return result
+    end
+    w.ns.GuildData().gear["au tsch"].items[6] = { id = 7000, e = 0, s = 5, l = 46, q = 2 }
+    w.page:Render()
+    local tips = w.tips
+    T.truthy(tips > 0, "tooltip read")
+    w.page:Render()
+    w.page:Render()
+    T.eq(w.tips, tips)
+    T.eq(w.errors, {})
+  end)
+end)
