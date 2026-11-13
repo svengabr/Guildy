@@ -1085,7 +1085,9 @@ local function Build()
           t = a.topTexCoord or 0, b = a.bottomTexCoord or 1 }
       end
     elseif bg then
-      picW, picH = 320, 384
+      -- the art fades to black in its lowest 64 rows (made for the old dressing room's bottom bar): only
+      -- the 320 rows above count as the picture, so no dark band sits under the model
+      picW, picH = 320, 320
       for i, tile in ipairs(TILES) do
         pieces[i] = { file = bg.path .. i, x = tile[1], y = tile[2], w = tile[3], h = tile[4], l = 0, r = 1, t = 0, b = 1 }
       end

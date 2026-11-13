@@ -3336,6 +3336,14 @@ T.describe("The background behind the model", function()
     hero = Open()
     T.eq(hero.Background.source, "race tiles")
     for i = 1, 4 do T.eq(hero.BgPieces[i]:IsShown(), true) end
+    -- the classic art fades to black in its lowest 64 rows (seen in game): never drawn, so no dark band
+    local coords
+    rawset(hero.BgPieces[3], "SetTexCoord", function(_, ...) coords = { ... } end)
+    hero.ModelArea:SetSize(375, 480)
+    ns.UI.MemberPage().bgKey = nil
+    ns.UI.MemberPage():RenderBackground(ns.Roster.Find("Au Tsch"))
+    T.truthy(coords and coords[4] <= 0.5 + 1e-6, "bottom tiles cut at row 320: " .. tostring(coords and coords[4]))
+    rawset(hero.BgPieces[3], "SetTexCoord", nil)
     rawset(hero.BgPieces[1], "SetTexture", nil)
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
     T.eq(hero.Background.source, "class atlas")
