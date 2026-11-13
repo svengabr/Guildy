@@ -81,7 +81,9 @@ export function statValues(response) {
 }
 
 // /professions response to [{ skillLine, rank, max, spec?, recipes? }]: spec is the specialization's name
-// (null for a profession that has them when none is taken), recipes the names of the known recipes
+// (null for a profession that has them when none is taken), recipes the known recipes as { id, name }.
+// The API names recipes in English whatever locale is asked (checked 2026-11-13); localize() gives
+// them the client's names
 export function professions(response) {
   const list = []
   for (const p of [...(response?.primaries ?? []), ...(response?.secondaries ?? [])]) {
@@ -93,8 +95,9 @@ export function professions(response) {
     const entry = { skillLine, rank: clamp(tier.skill_points), max: clamp(tier.max_skill_points) }
     if (typeof p.specialization?.name === 'string') entry.spec = p.specialization.name
     else if (SPEC_SKILLS.has(skillLine)) entry.spec = null
-    const names = (p.tiers ?? []).flatMap(t => (t.known_recipes ?? []).map(r => r?.name)).filter(n => typeof n === 'string')
-    if (names.length) entry.recipes = names
+    const recipes = (p.tiers ?? []).flatMap(t => t.known_recipes ?? [])
+      .filter(r => typeof r?.id === 'number' && typeof r?.name === 'string').map(r => ({ id: r.id, name: r.name }))
+    if (recipes.length) entry.recipes = recipes
     list.push(entry)
   }
   return list
@@ -197,6 +200,19 @@ export function nameBridge(db) {
       return EN_SPECS[name] ?? null
     },
   }
+}
+
+// The recipes ({ id, name }) with the names of the client's language from names (recipe ID -> name,
+// /data/wow/recipe in that locale); null when one has none yet
+export function localize(recipes, names) {
+  if (!Array.isArray(recipes)) return null
+  const out = []
+  for (const r of recipes) {
+    const name = names.get(r.id)
+    if (typeof name !== 'string') return null
+    out.push(name)
+  }
+  return out
 }
 
 // The API's locale for a client locale ("deDE" -> "de_DE")

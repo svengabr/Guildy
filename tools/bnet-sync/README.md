@@ -44,11 +44,17 @@ game after that login keeps winning, and Guildy shares everything with the guild
 
 **Recipe books and specializations need the name bridge.** The API numbers recipes differently from
 the game; the name is what both share. Guildy saves the names of every recipe it has seen, and of the
-specializations, in the client's language (`GuildyDB.recipeNames`, written at each login). The script
-asks the API for professions in that language and translates each name back to the game's spell ID.
-Checked on 2026-11-13: of the 52 alchemy recipes the API lists for one member, all 52 matched a spell
-Guildy had read in the game. Without saved names (a Guildy before this version, or not yet logged
-in), only ranks are written, as before.
+specializations, in the client's language (`GuildyDB.recipeNames`). It does so only once this script
+has run (it sets `settings.recipeNames`), so the first run writes ranks, and the run after the next
+login writes books too.
+
+The profile API names recipes in English whatever locale is asked (found 2026-11-13: not one German
+book matched). Its static recipe entries (`/data/wow/recipe/{id}`) do honor the locale, so the script
+looks up each recipe's name in the client's language there, once: the names are kept in
+`out/recipe-names-<locale>.json` (git ignores `out/`) and only new recipes are asked for. Checked on
+2026-11-13: "Kräutergebackenes Ei" and "Magentafarbener Farbstoff" came back exactly as the game names
+them, and one run took the guild from 66 books to 199. At the end the script says how many books it
+could translate.
 
 A book is written whole or not at all: if one name has no match, that profession's list stays as it
 was. A book read in the game after the member's last login is never replaced. Gathering professions

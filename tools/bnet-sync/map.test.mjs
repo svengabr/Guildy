@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -111,7 +111,7 @@ test('professions also gives the specialization and the recipe names', () => {
     { profession: { id: 164 }, tiers: [{ skill_points: 54, max_skill_points: 75 }] },
   ] })
   assert.deepEqual(list, [
-    { skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur', recipes: ['Sappeurladung', 'Goblin-Mörser'] },
+    { skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur', recipes: [{ id: 1, name: 'Sappeurladung' }, { id: 2, name: 'Goblin-Mörser' }] },
     { skillLine: 164, rank: 54, max: 75, spec: null }, // a profession with specializations, none taken
   ])
 })
@@ -199,4 +199,12 @@ test('wantNames asks Guildy to save recipe names from the next login on', () => 
   const db = toLua({ settings: {} })
   wantNames(db)
   assert.equal(db.get('settings').get('recipeNames'), true)
+})
+
+test('localize gives the recipes the names of the client language, or nothing when one is missing', () => {
+  const names = new Map([[1, 'Kräutergebackenes Ei'], [2, 'Magentafarbener Farbstoff']])
+  assert.deepEqual(localize([{ id: 1, name: 'Herb Baked Egg' }, { id: 2, name: 'Magenta Dye' }], names),
+    ['Kräutergebackenes Ei', 'Magentafarbener Farbstoff'])
+  assert.equal(localize([{ id: 1, name: 'Herb Baked Egg' }, { id: 3, name: 'Basic Campfire' }], names), null)
+  assert.equal(localize(undefined, names), null)
 })

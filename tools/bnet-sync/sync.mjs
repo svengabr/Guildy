@@ -8,11 +8,12 @@
 // Records are written the way Guildy writes data it read in the game (src "seen" / "relay"), with
 // the character's last login as timestamp: newer data read in the game keeps winning, and Guildy
 // shares the rest with the guild as usual.
-import { readFileSync, writeFileSync, copyFileSync, readdirSync, unlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, copyFileSync, readdirSync, unlinkSync, existsSync, mkdirSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -60,10 +61,10 @@ async function token() {
 
 let accessToken
 let requests = 0
-async function api(path, locale = 'en_US') {
+async function api(path, locale = 'en_US', namespace = NAMESPACE) {
   for (let attempt = 0; ; attempt++) {
     requests++
-    const r = await fetch(`https://${REGION}.api.blizzard.com${path}?namespace=${NAMESPACE}&locale=${locale}`,
+    const r = await fetch(`https://${REGION}.api.blizzard.com${path}?namespace=${namespace}&locale=${locale}`,
       { headers: { Authorization: `Bearer ${accessToken}` } })
     if (r.ok) return r.json()
     if (r.status === 404 || r.status === 403) return null
@@ -100,9 +101,31 @@ console.log(bridge
   ? `Rezeptnamen von Guildy (${bridge.locale}): Bücher und Spezialisierungen werden mitgeschrieben.`
   : 'Keine Rezeptnamen gespeichert – einmal mit diesem Guildy einloggen, dann schreibt das Skript auch Bücher.')
 
+// The profile API names recipes in English whatever locale is asked; its static recipe entries
+// (/data/wow/recipe) honor the locale. Each recipe's name in the client's language is looked up once and
+// kept in out/, since it never changes.
+const NAMES_FILE = join(dirname(fileURLToPath(import.meta.url)), 'out', `recipe-names-${bridge?.locale ?? 'enUS'}.json`)
+const recipeNames = new Map(existsSync(NAMES_FILE)
+  ? Object.entries(JSON.parse(readFileSync(NAMES_FILE, 'utf8'))).map(([id, name]) => [Number(id), name]) : [])
+const lookups = new Map()
+let staticNamespace = null
+let namesLooked = 0
+function recipeName(id) {
+  if (recipeNames.has(id)) return null
+  if (!lookups.has(id)) {
+    lookups.set(id, api(`/data/wow/recipe/${id}`, PROF_LOCALE, staticNamespace).then(body => {
+      if (typeof body?.name === 'string') {
+        recipeNames.set(id, body.name)
+        namesLooked++
+      }
+    }))
+  }
+  return lookups.get(id)
+}
+
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
-const totals = { members: 0, added: 0, stats: 0, profs: 0, missing: [], failed: [] }
+const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, bookCandidates: 0, missing: [], failed: [] }
 
 for (const guildKey of db.get('guilds').keys()) {
   const guild = db.get('guilds').get(guildKey)
@@ -143,7 +166,23 @@ for (const guildKey of db.get('guilds').keys()) {
         api(`${base}/achievements/statistics`), api(`${base}/equipment`), api(`${base}/professions`, PROF_LOCALE)])
       totals.members++
       if (stats && updateStats(member, statValues(stats), equipment ? gearValues(equipment) : {}, ts)) totals.stats++
-      if (profs && updateProfessions(member, professions(profs), ts, bridge)) totals.profs++
+      if (profs) {
+        const list = professions(profs)
+        // the static namespace of this game version, from the profile's own links
+        staticNamespace ??= JSON.stringify(profs).match(/data\/wow\/recipe\/\d+\?namespace=([\w.-]+)/)?.[1] ?? null
+        for (const entry of list) {
+          if (!entry.recipes) continue
+          if (!bridge || !staticNamespace) {
+            delete entry.recipes
+            continue
+          }
+          await Promise.all(entry.recipes.map(r => recipeName(r.id)))
+          totals.bookCandidates++
+          entry.recipes = localize(entry.recipes, recipeNames) ?? undefined
+          if (entry.recipes && entry.recipes.every(name => bridge.spells(name).length > 0)) totals.books++
+        }
+        if (updateProfessions(member, list, ts, bridge)) totals.profs++
+      }
     } catch (e) {
       totals.failed.push(`${key} (${e.message})`)
     }
@@ -154,6 +193,12 @@ console.log(`\n${totals.members} Charaktere gelesen (${requests} Anfragen), ${to
 console.log(`Statistiken/Ausrüstung aktualisiert: ${totals.stats}, Berufe aktualisiert: ${totals.profs}`)
 if (totals.missing.length) console.log(`Kein API-Profil (umbenannt, gelöscht oder privat): ${totals.missing.map(fromBytes).join(', ')}`)
 if (totals.failed.length) console.log(`Fehlgeschlagen: ${totals.failed.join('; ')}`)
+if (bridge) {
+  console.log(`Rezeptbücher übersetzbar: ${totals.books} von ${totals.bookCandidates} (${namesLooked} Rezeptnamen neu nachgeschlagen).`)
+  console.log('Ein Buch, von dem Guildy ein Rezept noch nie gesehen hat, wartet, bis es dieses Rezept einmal in einem Buch liest.')
+  mkdirSync(dirname(NAMES_FILE), { recursive: true })
+  writeFileSync(NAMES_FILE, JSON.stringify(Object.fromEntries(recipeNames)))
+}
 
 wantNames(db) // from the next login on Guildy saves the names this needs
 const out = serialize(globals)
