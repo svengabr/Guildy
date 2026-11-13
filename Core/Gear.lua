@@ -1,9 +1,13 @@
 -- Gear of guild members item by item, pure: the record, its wire form, merge, the ready mark, the
 -- enchant line of a tooltip and the layout of the gear list. The game side is Game/Gear.lua.
 --   guild.gear[nameKey] = { ts = when read, src = "self"|"seen"|"relay"|"api", race = raceID|nil,
---     sex = 2|3|nil, items = { [slot] = { id, e, s, l, q } } }
+--     sex = 2|3|nil, items = { [slot] = { id, e, s, u, l, q, st } } }
 --   slot 1..19 (shirt 4 and tabard 19 only for the model), e = enchantID or 0, s = suffixID or 0,
---   l = item level, q = quality 0..5
+--   u = the link's unique ID, only with a suffix (a negative Classic random suffix carries its factor
+--   there: without it the game gives the item without its suffix stats), l = item level, q = quality 0..5,
+--   st = the item's stats { [ITEM_MOD_*_SHORT] = n } where the source listed them (bnet-sync), else nil
+-- On the wire u and st travel beside the item list (u, t), so the list keeps its six fields and older
+-- Guildy versions, which drop slots with more, read it as before and ignore u and t.
 --   GuildyDB.enchantText = { locale, names = { [enchantID] = text } } (per account, reset on a new locale)
 -- An incomplete read (a slot with an item ID but no link) is never stored.
 local _, ns = ...
@@ -26,7 +30,7 @@ local function IsInt(n)
 end
 local function IsId(n) return IsInt(n) and n > 0 end
 
--- id, enchant, suffix of an item link or item string; nil when it is none
+-- id, enchant, suffix, unique ID of an item link or item string; nil when it is none
 function Gear.ParseLink(link)
   if type(link) ~= "string" then return nil end
   local body = link:match("item:([%-%d:]+)")
@@ -38,10 +42,17 @@ function Gear.ParseLink(link)
   end
   local id = fields[1]
   if not IsId(id) then return nil end
-  return id, fields[2] or 0, fields[7] or 0
+  local u = fields[8] or 0
+  return id, fields[2] or 0, fields[7] or 0, IsInt(u) and u or 0
 end
 
+-- The item string of a stored item, with its suffix and the suffix's unique ID: the stats the game
+-- gives for it are the item's own, suffix included
 function Gear.ItemString(item)
+  local u = item.u
+  if IsInt(u) and u ~= 0 then
+    return ("item:%d:%d:0:0:0:0:%d:%d"):format(item.id, item.e or 0, item.s or 0, u)
+  end
   return ("item:%d:%d:0:0:0:0:%d"):format(item.id, item.e or 0, item.s or 0)
 end
 
@@ -54,11 +65,12 @@ function Gear.FromLinks(links, ids, info)
     if link == nil then
       if ids and ids[slot] then return nil end
     else
-      local id, e, s = Gear.ParseLink(link)
+      local id, e, s, u = Gear.ParseLink(link)
       if not id then return nil end
       local quality, level = info(link)
       if type(quality) ~= "number" or type(level) ~= "number" then return nil end
       items[slot] = { id = id, e = e, s = s, l = math.max(0, math.floor(level)), q = math.max(0, math.min(5, math.floor(quality))) }
+      if s ~= 0 and u ~= 0 then items[slot].u = u end
     end
   end
   return items
@@ -78,8 +90,32 @@ local function ReadSlot(text)
   return slot, { id = id, e = e, s = s, l = l, q = q }
 end
 
+Gear.MAX_STATS = 16 -- stats per item on the wire
+
+-- "slot:rest" -> slot, rest; nil for a slot outside 1..19
+local function SlotOf(text)
+  if type(text) ~= "string" then return nil end
+  local slot, rest = text:match("^(%d+):(.*)$")
+  slot = tonumber(slot)
+  if not (IsInt(slot) and slot >= 1 and slot <= 19) then return nil end
+  return slot, rest
+end
+
+-- "AGILITY=13,STRENGTH=13" -> { ITEM_MOD_AGILITY_SHORT = 13, ... }; nil when any part is wrong
+local function ReadStats(text)
+  local stats, count = {}, 0
+  for part in text:gmatch("[^,]+") do
+    local key, value = part:match("^([A-Z][A-Z0-9_]*)=(%-?%d+)$")
+    value = tonumber(value)
+    count = count + 1
+    if not key or #key > 40 or not IsInt(value) or count > Gear.MAX_STATS then return nil end
+    stats["ITEM_MOD_" .. key .. "_SHORT"] = value
+  end
+  return stats
+end
+
 -- A record from the guild (wire form) as stored, or nil; nil too without a single valid item (an empty
--- record would wipe good gear)
+-- record would wipe good gear). u and t (unique IDs, stored stats) are optional; a wrong entry is dropped.
 function Gear.Validate(raw, now)
   if type(raw) ~= "table" or not IsId(raw.ts) or raw.ts > now + 300 then return nil end
   local rec = { ts = raw.ts, src = Gear.SOURCES[raw.src] and raw.src or "relay", items = {} }
@@ -92,19 +128,46 @@ function Gear.Validate(raw, now)
     end
   end
   if not next(rec.items) then return nil end
+  if type(raw.u) == "table" then
+    for n = 1, math.min(#raw.u, 19) do
+      local slot, rest = SlotOf(raw.u[n])
+      local u = tonumber(rest)
+      local item = slot and rec.items[slot]
+      if item and IsInt(u) and u ~= 0 and item.s ~= 0 then item.u = u end
+    end
+  end
+  if type(raw.t) == "table" then
+    for n = 1, math.min(#raw.t, 19) do
+      local slot, rest = SlotOf(raw.t[n])
+      local item = slot and rec.items[slot]
+      local stats = item and ReadStats(rest)
+      if stats then item.st = stats end
+    end
+  end
   return rec
 end
 
 -- The wire form of a stored record
 function Gear.Wire(rec)
-  local slots, list = {}, {}
+  local slots, list, uniques, stats = {}, {}, {}, {}
   for slot in pairs(rec.items or {}) do slots[#slots + 1] = slot end
   table.sort(slots)
   for _, slot in ipairs(slots) do
     local it = rec.items[slot]
     list[#list + 1] = ("%d:%d:%d:%d:%d:%d"):format(slot, it.id, it.e or 0, it.s or 0, it.l or 0, it.q or 0)
+    if IsInt(it.u) and it.u ~= 0 then uniques[#uniques + 1] = ("%d:%d"):format(slot, it.u) end
+    if type(it.st) == "table" then
+      local parts = {}
+      for key, value in pairs(it.st) do
+        local short = type(key) == "string" and key:match("^ITEM_MOD_([A-Z][A-Z0-9_]*)_SHORT$")
+        if short and IsInt(value) then parts[#parts + 1] = short .. "=" .. value end
+      end
+      table.sort(parts)
+      stats[#stats + 1] = slot .. ":" .. table.concat(parts, ",", 1, math.min(#parts, Gear.MAX_STATS))
+    end
   end
-  return { ts = rec.ts, src = rec.src, r = rec.race, x = rec.sex, i = list }
+  return { ts = rec.ts, src = rec.src, r = rec.race, x = rec.sex, i = list,
+    u = #uniques > 0 and uniques or nil, t = #stats > 0 and stats or nil }
 end
 
 -- Newer wins; at the same time the member's own reading wins. A record without items is never taken.

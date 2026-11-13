@@ -15,11 +15,40 @@ end
 
 T.describe("Gear", function()
   T.it("reads the fields of an item link", function()
-    T.eq({ G.ParseLink("|cff0070dd|Hitem:12345:1887:0:0:0:0:-17:0:60|h[X]|h|r") }, { 12345, 1887, -17 })
-    T.eq({ G.ParseLink("item:7") }, { 7, 0, 0 })
+    T.eq({ G.ParseLink("|cff0070dd|Hitem:12345:1887:0:0:0:0:-17:0:60|h[X]|h|r") }, { 12345, 1887, -17, 0 })
+    T.eq({ G.ParseLink("item:7") }, { 7, 0, 0, 0 })
+    T.eq({ G.ParseLink("item:7484:0:0:0:0:0:-17:2752512:46") }, { 7484, 0, -17, 2752512 })
     T.eq(G.ParseLink(nil), nil)
     T.eq(G.ParseLink("spell:12"), nil)
     T.eq(G.ItemString({ id = 7, e = 1887, s = -17 }), "item:7:1887:0:0:0:0:-17")
+  end)
+
+  T.it("keeps the unique ID a random suffix needs and builds the full item string with it", function()
+    -- Classic random suffixes: a negative suffix ID, the suffix factor in the unique ID
+    T.eq(G.ItemString({ id = 7484, e = 0, s = -17, u = 2752512 }), "item:7484:0:0:0:0:0:-17:2752512")
+    local links = { [5] = "item:7484:0:0:0:0:0:-17:2752512:46", [1] = "item:10:0:0:0:0:0:0:99887766:46" }
+    local map = { [links[5]] = { 2, 39 }, [links[1]] = { 2, 30 } }
+    local items = G.FromLinks(links, nil, info(map))
+    T.eq(items[5], { id = 7484, e = 0, s = -17, u = 2752512, l = 39, q = 2 })
+    T.eq(items[1], { id = 10, e = 0, s = 0, l = 30, q = 2 }) -- no suffix: the unique ID is of no use
+  end)
+
+  T.it("sends the unique ID and stored stats beside the item list, which old clients read unchanged", function()
+    local r = rec({ [5] = { id = 7484, e = 0, s = -17, u = 2752512, l = 39, q = 2 },
+      [6] = { id = 600, e = 0, s = 0, l = 39, q = 2, st = { ITEM_MOD_AGILITY_SHORT = 13, ITEM_MOD_STRENGTH_SHORT = 13 } },
+      [7] = { id = 700, e = 0, s = 0, l = 39, q = 2, st = {} } }, NOW, "api")
+    local wire = G.Wire(r)
+    T.eq(wire.i, { "5:7484:0:-17:39:2", "6:600:0:0:39:2", "7:700:0:0:39:2" }) -- six fields, as before
+    T.eq(wire.u, { "5:2752512" })
+    T.eq(wire.t, { "6:AGILITY=13,STRENGTH=13", "7:" })
+    T.eq(G.Validate(wire, NOW), r)
+    -- an old client's message has neither
+    T.eq(G.Validate({ ts = NOW, i = { "5:7484:0:-17:39:2" } }, NOW).items[5], { id = 7484, e = 0, s = -17, l = 39, q = 2 })
+    -- wrong entries are dropped, the item stays
+    local bad = G.Validate({ ts = NOW, i = { "5:7484:0:-17:39:2", "6:600:0:0:39:2" },
+      u = { "5:1.5", "9:7", "x" }, t = { "6:AGILITY=x", "5:agility=3", "9:AGILITY=3" } }, NOW)
+    T.eq(bad.items[5], { id = 7484, e = 0, s = -17, l = 39, q = 2 })
+    T.eq(bad.items[6], { id = 600, e = 0, s = 0, l = 39, q = 2 })
   end)
 
   T.it("makes items from the links of a complete read only", function()

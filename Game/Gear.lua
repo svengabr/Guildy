@@ -96,8 +96,11 @@ end
 
 local function Same(a, b)
   if type(a) ~= "table" or type(b) ~= "table" or a.race ~= b.race or a.sex ~= b.sex then return false end
-  local wa, wb = G.Wire(a).i, G.Wire(b).i
-  return table.concat(wa, ",") == table.concat(wb, ",")
+  local wa, wb = G.Wire(a), G.Wire(b)
+  for _, field in ipairs({ "i", "u", "t" }) do
+    if table.concat(wa[field] or {}, ",") ~= table.concat(wb[field] or {}, ",") then return false end
+  end
+  return true
 end
 
 local function Share(key)
