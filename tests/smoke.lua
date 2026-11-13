@@ -2523,6 +2523,22 @@ T.describe("Upgrades from the guild on the character page", function()
     return table.concat(list, "\n")
   end
 
+  T.it("names an empty slot with a dash, not 0", function()
+    local restore = Stubs()
+    local guild = ns.GuildData()
+    guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [1] = { id = 7001, e = 0, s = 0, l = 40, q = 2 } } }
+    guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
+    env.GuildyDB.craftItems = { [99001] = 50001 }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local text = Texts(ns.UI.MemberPage().Upgrades)
+    T.truthy(text:find(L.UPGRADE_GAIN:format("–", 58), 1, true), "dash for the empty waist: " .. text)
+    T.truthy(not text:find(L.UPGRADE_GAIN:format(0, 58), 1, true), "no 0")
+    restore()
+    guild.members["makira farron"].profs[197] = nil
+    env.GuildyDB.craftItems = {}
+    T.eq(errors, {})
+  end)
+
   T.it("offers a better crafted piece and its maker", function()
     local restore = Stubs()
     local guild = ns.GuildData()
@@ -2631,6 +2647,33 @@ T.describe("The model on the character page", function()
     T.eq(page.Hero.Portrait:IsShown(), true)
     T.eq(page.Hero.ModelHint:IsShown(), false)
     rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("keeps the model when the page renders again without a change", function()
+    local page = ns.UI.MemberPage()
+    local back = NoUnit()
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local calls = Watch(page.Model)
+    page:Render() -- a roster update, a sync message: nothing about the model changed
+    page:Render()
+    T.eq(#calls.race, 0)
+    T.eq(calls.undress, 0)
+    T.eq(#calls.tryOn, 0)
+    T.eq(page.Model:IsShown(), true)
+    -- new gear arrives: dressed anew, once
+    ns.GuildData().gear["au tsch"].ts = ns.Now() + 60
+    page:Render()
+    page:Render()
+    T.eq(#calls.race, 1)
+    T.eq(calls.undress, 1)
+    -- the own page renders again: SetUnit("player") is not repeated either
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+    calls = Watch(page.Model)
+    page:Render()
+    T.eq(calls.unit, {})
     back()
     T.eq(errors, {})
   end)

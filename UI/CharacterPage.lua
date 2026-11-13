@@ -609,6 +609,9 @@ local function Build()
   end
 
   function page:RenderModel(m)
+    local key = ns.GameGear.ModelKey(m)
+    if key == self.modelKey then return end
+    self.modelKey = key
     if self.modelFor ~= m.key then
       model.zoom = 0
       pcall(model.SetPortraitZoom, model, 0)
@@ -857,7 +860,7 @@ local function Build()
         local info = ns.GameGear.ItemInfo(row.itemID)
         line.Item.itemID = row.itemID
         line.Item.Text:SetText(Hex(color) .. (info and info.name or "…") .. "|r")
-        line.Gain:SetText(L.UPGRADE_GAIN:format(row.have, row.offer))
+        line.Gain:SetText(L.UPGRADE_GAIN:format((row.have or 0) > 0 and tostring(row.have) or "–", row.offer))
         local x = 0
         for j, button in ipairs(line.Makers) do
           local maker = row.makers[j]
@@ -1001,6 +1004,7 @@ function UI.ShowMember(m)
   if not page then Build() end
   if not page:IsShown() then page.backTab = UI.Current() end
   page.member = m
+  page.modelKey = nil -- opening a page always loads its model anew
   UI.ShowPage(page)
   page:Render()
 end

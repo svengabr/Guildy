@@ -259,6 +259,19 @@ function GameGear.ShowsOwnBody(model, m)
   return file == mine
 end
 
+-- What DressModel would show for member m, as a string: the same string means the model already shows it
+-- and is left alone (loading it again on every render makes it flicker)
+function GameGear.ModelKey(m)
+  local guild = ns.GuildData()
+  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
+  local ts = type(rec) == "table" and tostring(rec.ts) or "-"
+  if m.key == ns.Names.Key(ns.PlayerName()) then return "player:" .. ts end
+  local unit = m.guid and ns.GameStats.FindUnitByGuid(m.guid)
+  if unit and unit ~= "player" then return "unit:" .. unit .. ":" .. m.key end
+  if type(rec) ~= "table" then return "none:" .. m.key end
+  return ("race:%s:%s:%s:%s"):format(m.key, tostring(rec.race), tostring(rec.sex), ts)
+end
+
 -- Dresses model for roster member m; false when the page is to show the portrait instead
 function GameGear.DressModel(model, m)
   if m.key == ns.Names.Key(ns.PlayerName()) then
