@@ -67,6 +67,32 @@ local function Dress(model, race, sex)
   Say(("modeltest: race %d, sex %d: SetCustomRace %s, %d items tried on"):format(race, sex, ok and "ok" or "failed", items))
 end
 
+-- The calls of a widget whose names speak of race, display, files, units or dressing: other ways to show
+-- another member's body where SetCustomRace is missing
+local WORDS = { "Race", "Custom", "Display", "File", "Unit", "Dress", "Gender", "Sex", "Player", "Creature" }
+local function Calls(widget)
+  local index = widget and getmetatable(widget) and getmetatable(widget).__index
+  local found = {}
+  if type(index) == "table" then
+    for name, fn in pairs(index) do
+      if type(name) == "string" and type(fn) == "function" then
+        for _, word in ipairs(WORDS) do
+          if name:find(word, 1, true) then found[#found + 1] = name break end
+        end
+      end
+    end
+  end
+  table.sort(found)
+  return #found > 0 and table.concat(found, " ") or "(nothing readable)"
+end
+
+local function ListCalls(model)
+  Say("modeltest: DressUpModel has " .. Calls(model))
+  local okScene, scene = pcall(CreateFrame, "ModelScene")
+  local actor = okScene and scene and type(scene.CreateActor) == "function" and select(2, pcall(scene.CreateActor, scene))
+  Say("modeltest: ModelScene actor has " .. (type(actor) == "table" and Calls(actor) or "(no ModelScene actors)"))
+end
+
 function GearProbe.ModelTest(args)
   local model = Model()
   model:Show()
@@ -76,6 +102,8 @@ function GearProbe.ModelTest(args)
     parts[#parts + 1] = method .. " " .. (type(model[method]) == "function" and "yes" or "no")
   end
   Say("modeltest: " .. table.concat(parts, ", "))
+  ListCalls(model)
+  if type(model.SetCustomRace) ~= "function" then return end -- nothing to cycle through
   local race, sex = tostring(args or ""):match("^%s*(%d+)%s+(%d+)")
   if race then return Dress(model, tonumber(race), tonumber(sex)) end
   -- without arguments: every race and sex value in turn, 3 s each, to see which gender values work

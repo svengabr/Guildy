@@ -2142,6 +2142,8 @@ T.describe("Gear", function()
     ns.Print = print
     local all = table.concat(printed, "\n")
     T.truthy(all:find("SetCustomRace", 1, true), "modeltest names SetCustomRace")
+    T.truthy(all:find("modeltest: DressUpModel has", 1, true), "lists the model's calls about race, display and files")
+    T.truthy(all:find("modeltest: ModelScene actor has", 1, true), "lists the scene actor's calls")
     T.truthy(all:find("craftprobe:", 1, true), "craftprobe prints its count")
     T.truthy(all:find("gearshow", 1, true), "gearshow prints")
     T.eq(errors, {})
