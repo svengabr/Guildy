@@ -139,9 +139,23 @@ return function(T, opts)
     frame._parent = parent
     if name then env[name] = frame end
     frame._fs = Stub()
-    -- a model scene of the game's template: scene IDs, a player actor and a camera (any method exists)
+    -- a model scene of the game's template: scene IDs, a player actor and a camera (any method exists).
+    -- The actor notes its bodies and dressing in actor._log: unit = { "unit:race" }, undress, tryOn.
+    -- SetAlpha and EnableMouse are kept (GetAlpha, IsMouseEnabled).
     if kind == "ModelScene" and template == "ModelSceneMixinTemplate" then
       local actor, camera = Stub(), Stub()
+      local log = { unit = {}, undress = 0, tryOn = {} }
+      rawset(actor, "_log", log)
+      rawset(actor, "SetModelByUnit", function(_, unit, _, _, _, _, _, race)
+        log.unit[#log.unit + 1] = tostring(unit) .. ":" .. tostring(race)
+        return true
+      end)
+      rawset(actor, "Undress", function() log.undress = log.undress + 1 end)
+      rawset(actor, "TryOn", function(_, item) log.tryOn[#log.tryOn + 1] = item end)
+      rawset(frame, "SetAlpha", function(self, a) rawset(self, "_alpha", a) end)
+      rawset(frame, "GetAlpha", function(self) return rawget(self, "_alpha") or 1 end)
+      rawset(frame, "EnableMouse", function(self, on) rawset(self, "_mouse", on and true or false) end)
+      rawset(frame, "IsMouseEnabled", function(self) return rawget(self, "_mouse") == true end)
       rawset(frame, "TransitionToModelSceneID", function() end)
       rawset(frame, "GetPlayerActor", function() return actor end)
       rawset(frame, "GetActiveCamera", function() return camera end)

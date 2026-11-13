@@ -531,37 +531,6 @@ local function Build()
     model = nil
   end
   page.Model = model
-  if model then
-    model:SetAllPoints()
-    model:EnableMouse(true)
-    model:EnableMouseWheel(true)
-    model:Hide()
-    model.zoom, model.yaw = 0, 0
-    model:SetScript("OnMouseWheel", function(self, delta)
-      self.zoom = math.max(0, math.min(MODEL_ZOOM, math.floor((self.zoom + delta * 0.1) * 10 + 0.5) / 10))
-      self:ApplyView()
-    end)
-    model:SetScript("OnMouseDown", function(self, button)
-      if button ~= "LeftButton" or not self.actor then return end
-      self.dragX, self.dragYaw = GetCursorPosition(), ns.Try(self.actor.GetYaw, self.actor) or 0
-    end)
-    model:SetScript("OnMouseUp", function(self) self.dragX = nil end)
-    model:HookScript("OnHide", function(self) self.dragX = nil end)
-    -- hooked: the template's own OnUpdate moves the camera
-    model:HookScript("OnUpdate", function(self)
-      if not (self.dragX and self.actor) then return end
-      self.yaw = self.dragYaw + (GetCursorPosition() - self.dragX) * 0.01
-      pcall(self.actor.SetYaw, self.actor, self.yaw)
-    end)
-    -- the turn and zoom of the viewer on the actor and the camera (again after each scene transition)
-    function model:ApplyView()
-      if self.actor then pcall(self.actor.SetYaw, self.actor, self.yaw) end
-      local camera = type(self.GetActiveCamera) == "function" and ns.Try(self.GetActiveCamera, self)
-      if type(camera) == "table" and self.distance and type(camera.SetZoomDistance) == "function" then
-        pcall(camera.SetZoomDistance, camera, self.distance * (1 - self.zoom))
-      end
-    end
-  end
   -- the drag and zoom hint: small, at the model area's bottom edge over its shade, only while the mouse
   -- is over the model
   hero.HintLayer = CreateFrame("Frame", nil, hero.ModelArea)
@@ -571,15 +540,58 @@ local function Build()
   hero.ModelHint:SetTextColor(0.82, 0.8, 0.74)
   hero.ModelHint:SetPoint("BOTTOM", 0, 6)
   hero.ModelHint:Hide()
-  if model then
-    model:HookScript("OnEnter", function(self)
+  -- while the portrait stands in for want of a body of the member's sex: when the figure comes, small and
+  -- grey at the same place
+  hero.WaitHint = W.Text(hero.HintLayer, "GameFontDisableSmall", "")
+  hero.WaitHint:SetPoint("BOTTOMLEFT", 8, 6)
+  hero.WaitHint:SetPoint("BOTTOMRIGHT", -8, 6)
+  hero.WaitHint:SetJustifyH("CENTER")
+  hero.WaitHint:Hide()
+  -- drag turns the actor of a scene, the wheel brings its camera closer, the hint while the mouse is over
+  -- it: on the page's own scene and on every pooled scene the page borrows (Game/ModelPool.lua)
+  local function Equip(scene)
+    if scene.guildyEquipped then return end
+    scene.guildyEquipped = true
+    scene.zoom, scene.yaw = 0, 0
+    scene:SetScript("OnMouseWheel", function(self, delta)
+      self.zoom = math.max(0, math.min(MODEL_ZOOM, math.floor((self.zoom + delta * 0.1) * 10 + 0.5) / 10))
+      self:ApplyView()
+    end)
+    scene:SetScript("OnMouseDown", function(self, button)
+      if button ~= "LeftButton" or not self.actor then return end
+      self.dragX, self.dragYaw = GetCursorPosition(), ns.Try(self.actor.GetYaw, self.actor) or 0
+    end)
+    scene:SetScript("OnMouseUp", function(self) self.dragX = nil end)
+    scene:HookScript("OnHide", function(self) self.dragX = nil end)
+    -- hooked: the template's own OnUpdate moves the camera
+    scene:HookScript("OnUpdate", function(self)
+      if not (self.dragX and self.actor) then return end
+      self.yaw = self.dragYaw + (GetCursorPosition() - self.dragX) * 0.01
+      pcall(self.actor.SetYaw, self.actor, self.yaw)
+    end)
+    -- the turn and zoom of the viewer on the actor and the camera (again after each scene transition)
+    function scene:ApplyView()
+      if self.actor then pcall(self.actor.SetYaw, self.actor, self.yaw) end
+      local camera = type(self.GetActiveCamera) == "function" and ns.Try(self.GetActiveCamera, self)
+      if type(camera) == "table" and self.distance and type(camera.SetZoomDistance) == "function" then
+        pcall(camera.SetZoomDistance, camera, self.distance * (1 - self.zoom))
+      end
+    end
+    scene:HookScript("OnEnter", function(self)
       self.hovered = true
       hero.ModelHint:SetShown(self:IsShown())
     end)
-    model:HookScript("OnLeave", function(self)
+    scene:HookScript("OnLeave", function(self)
       self.hovered = nil
       hero.ModelHint:Hide()
     end)
+  end
+  if model then
+    model:SetAllPoints()
+    model:EnableMouse(true)
+    model:EnableMouseWheel(true)
+    model:Hide()
+    Equip(model)
   end
   -- a gold frame around the picture, as Blizzard frames its portraits: the picture sits in the card
   -- instead of running into its edge
@@ -1010,20 +1022,72 @@ local function Build()
 
   -- the model where the game can show the member in their race and sex, else the portrait (never the
   -- viewer's own body with someone else's race or sex)
-  local function ShowModel(shown)
+  -- The scene in the model area: a pooled body the page borrowed, else its own scene. hint: the line in
+  -- the picture while the portrait stands in.
+  local function Scene() return page.borrowed and page.borrowed.scene or model end
+  local function ShowModel(shown, hint)
+    local borrowed = page.borrowed and page.borrowed.scene
     if model then
-      model:SetShown(shown)
+      model:SetShown(shown and not borrowed)
       model:SetAlpha(1)
     end
+    if borrowed then
+      borrowed:SetShown(shown)
+      borrowed:SetAlpha(1)
+    end
+    local scene = Scene()
     hero.Portrait:SetShown(not shown)
-    hero.ModelHint:SetShown(shown and model ~= nil and model.hovered == true)
+    hero.ModelHint:SetShown(shown and scene ~= nil and scene.hovered == true)
+    hero.WaitHint:SetText(hint or "")
+    hero.WaitHint:SetShown(not shown and hint ~= nil)
+  end
+
+  -- The pooled body on the page goes back to the pool (Game/ModelPool.lua), unseen, its body kept
+  local function GiveBack()
+    local body = page.borrowed
+    if not body then return end
+    page.borrowed = nil
+    body.scene.hovered, body.scene.dragX = nil, nil
+    ns.ModelPool.Give(body)
+  end
+
+  -- The page borrows pooled body for member key: its scene fills the model area in the place of the own
+  local function Borrow(body, key)
+    if page.borrowed ~= body then
+      GiveBack()
+      page.borrowed = body
+      local scene = body.scene
+      Equip(scene)
+      scene:SetParent(hero.ModelArea)
+      scene:ClearAllPoints()
+      scene:SetAllPoints(hero.ModelArea)
+      scene:SetFrameLevel(model and model:GetFrameLevel() or hero.ModelArea:GetFrameLevel() + 1)
+      scene:EnableMouse(true)
+      scene:EnableMouseWheel(true)
+      scene.actor, scene.distance = body.actor, body.distance
+      scene.zoom, scene.yaw, scene.member = 0, 0, nil
+    end
+    if body.scene.member ~= key then
+      body.scene.zoom, body.scene.yaw, body.scene.member = 0, 0, key
+    end
+    ns.ModelPool.Take(body, key)
+  end
+
+  -- The line in the picture for member m on route "wait": by their sex, only with stored items (without,
+  -- the gear box explains)
+  local function WaitHint(m, route)
+    if route.kind ~= "wait" then return nil end
+    local guild = ns.GuildData()
+    local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
+    if type(rec) ~= "table" or type(rec.items) ~= "table" or next(rec.items) == nil then return nil end
+    return route.sex == 3 and L.MODEL_WAIT_FEMALE or L.MODEL_WAIT_MALE
   end
 
   -- true when the model shows member m's body already, in whatever gear: it stays while no player of
   -- their sex is around (a dressed body needs no donor afterwards, checked in game)
   local function ShowsBodyOf(m, route)
-    local body = page.modelBody
-    return model ~= nil and model:IsShown() and body ~= nil and body.key == m.key
+    local body, scene = page.modelBody, Scene()
+    return scene ~= nil and scene:IsShown() and body ~= nil and body.key == m.key
       and (body.race == nil or (body.race == route.race and body.sex == route.sex))
   end
 
@@ -1032,15 +1096,38 @@ local function Build()
   function page:RenderModel(m)
     local route = ns.GameGear.ModelRoute(m)
     self.modelWaiting = route.kind == "wait"
+    if route.kind == "wait" then ns.ModelPool.Prefer(route.race, route.sex) else ns.ModelPool.Prefer(nil) end
     if route.kind == "wait" and ShowsBodyOf(m, route) then return end -- new gear waits for a donor
     local key = ns.GameGear.ModelKey(m, route)
     if key == self.modelKey then return end
     self.modelKey = key
     local token = {}
     self.modelDress = token -- a newer dressing ends a pending one
+    if route.kind == "pool" and model then
+      -- a body the pool built earlier: borrowed into the model area and dressed in the stored items,
+      -- once it had its moment to load
+      local body = route.body
+      Borrow(body, m.key)
+      self.modelFor = m.key
+      body.scene:ApplyView()
+      local function Dress()
+        if page.modelDress ~= token or page.borrowed ~= body then return end
+        ns.SafeCall(ns.GameGear.DressStored, body.actor, m)
+        page.modelBody = { key = m.key, race = route.race, sex = route.sex }
+        ShowModel(true)
+      end
+      if body.ready then return Dress() end
+      -- a body built a moment ago: unseen until dressed
+      model:Hide()
+      body.scene:SetAlpha(0)
+      body.scene:Show()
+      C_Timer.After(MODEL_DRESS_AFTER, Dress)
+      return
+    end
+    GiveBack()
     if not model or route.kind == "wait" or route.kind == "none" then
       self.modelBody = nil
-      ShowModel(false)
+      ShowModel(false, WaitHint(m, route))
       return
     end
     if self.modelFor ~= m.key then
@@ -1149,6 +1236,11 @@ local function Build()
       local m = page.member and (ns.Roster.Find(page.member.key) or page.member)
       if m and page.modelWaiting and page:IsShown() then ns.SafeCall(page.RenderModel, page, m) end
     end)
+  end)
+  -- the pool built bodies (Game/ModelPool.lua): a waiting model may take one now
+  ns.On("MODEL_POOL", function()
+    local m = page.member and (ns.Roster.Find(page.member.key) or page.member)
+    if m and page.modelWaiting and page:IsShown() then page:RenderModel(m) end
   end)
 
   -- the family as a list, as many lines as the box has room for (lines), "+N" after

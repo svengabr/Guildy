@@ -237,7 +237,10 @@ end
 --   "donor"   else the stored race and sex: a player unit of the member's sex (the donor) with the
 --             member's raceID, undressed and dressed in the stored items. Race and sex are the
 --             member's by construction, never the viewer's body with someone else's race or sex.
---   "wait"    race and sex stored, but no player of that sex around: the portrait until one shows up
+--   "pool"    no donor around, but Game/ModelPool.lua built a body of that race and sex earlier: the page
+--             borrows that scene and dresses it in the stored items (route.body)
+--   "wait"    race and sex stored, but no player of that sex around and no pooled body: the portrait
+--             until one shows up
 --   "none"    nothing stored: the portrait
 -- A dressed body stays when its donor leaves (checked in game).
 
@@ -279,12 +282,16 @@ function GameGear.ModelRoute(m)
   local rec = Record(m)
   if not rec or type(rec.race) ~= "number" or (rec.sex ~= 2 and rec.sex ~= 3) then return { kind = "none" } end
   local donor = GameGear.FindDonor(rec.sex)
-  return { kind = donor and "donor" or "wait", unit = donor, race = rec.race, sex = rec.sex }
+  if donor then return { kind = "donor", unit = donor, race = rec.race, sex = rec.sex } end
+  local body = ns.ModelPool and ns.ModelPool.Get(rec.race, rec.sex)
+  if body then return { kind = "pool", body = body, race = rec.race, sex = rec.sex } end
+  return { kind = "wait", race = rec.race, sex = rec.sex }
 end
 
 -- What the model shows for member m on route (default: ModelRoute(m)), as a string: the same string means
 -- the model already shows it and is left alone (loading it again on every render makes it flicker). The
--- donor unit is not part of it: another donor of the same sex shows the same.
+-- donor unit is not part of it: another donor of the same sex shows the same. A donor's body and a
+-- pooled body show the same too, so a donor leaving or coming changes nothing.
 function GameGear.ModelKey(m, route)
   route = route or GameGear.ModelRoute(m)
   local rec = Record(m)
@@ -292,7 +299,8 @@ function GameGear.ModelKey(m, route)
   if route.kind == "player" then return "player:" .. ts end
   if route.kind == "unit" then return "unit:" .. route.unit .. ":" .. m.key end
   if route.kind == "none" then return "none:" .. m.key end
-  return ("%s:%s:%s:%s:%s"):format(route.kind, m.key, tostring(route.race), tostring(route.sex), ts)
+  local kind = (route.kind == "donor" or route.kind == "pool") and "body" or route.kind
+  return ("%s:%s:%s:%s:%s"):format(kind, m.key, tostring(route.race), tostring(route.sex), ts)
 end
 
 -- Loads the body of route into actor: true when the game took it

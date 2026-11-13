@@ -3165,22 +3165,30 @@ T.describe("The model on the character page", function()
     page:Render()
     T.eq(#calls.unit, 1)
     Shown(page, true)
-    -- new gear without a donor: the body keeps its old gear, no portrait
+    -- the target also filled the pool (Game/ModelPool.lua): new gear without a donor goes on the pooled
+    -- body, no portrait
+    local body = ns.ModelPool.Get(8, 2)
+    T.truthy(body ~= nil, "a pooled body for him")
     ns.GuildData().gear["au tsch"].ts = ns.Now() + 60
     page:Render()
     RunTimers(2)
     T.eq(#calls.unit, 1)
     T.eq(calls.undress, 1)
-    Shown(page, true)
-    -- a donor again: dressed anew, once
+    T.eq(page.Model:IsShown(), false)
+    T.eq(body.scene:IsShown(), true)
+    T.eq(page.Hero.Portrait:IsShown(), false)
+    T.eq(body.actor._log.tryOn, DRESSED)
+    -- a donor again: the pooled body shows the same, nothing is loaded or dressed anew
     sexes.nameplate3 = 2
     Fire("NAME_PLATE_UNIT_ADDED", "nameplate3")
     RunTimers(2)
     page:Render()
     RunTimers(2)
-    T.eq(calls.unit, { "target:8", "nameplate3:8" })
-    T.eq(calls.undress, 2)
-    Shown(page, true)
+    T.eq(calls.unit, { "target:8" })
+    T.eq(body.actor._log.undress, 1)
+    T.eq(body.scene:IsShown(), true)
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred")) -- the body back to the pool
+    T.truthy(rawget(body.scene, "_parent") == env.UIParent, "back in the pool")
     back()
     T.eq(errors, {})
   end)
@@ -3311,6 +3319,206 @@ T.describe("The model on the character page", function()
     rawset(camera, "SetZoomDistance", nil)
     back()
     T.eq(errors, {})
+  end)
+end)
+
+T.describe("The body pool for members of the other sex", function()
+  local DRESSED = { "item:2001:0:0:0:0:0:0", "item:38:0:0:0:0:0:0" }
+  local function Items() return { [1] = { id = 2001, e = 0, s = 0, l = 42, q = 3 }, [4] = { id = 38, e = 0, s = 0, l = 1, q = 1 } } end
+  local function Row(name, guid) return { name, "Haifutter", 2, 30, "Schurke", "Dämmerwald", "", "", false, 0, "ROGUE", nil, nil, false, nil, nil, guid } end
+  -- a fresh world with a viewer of sex mine and five members; sexes = { unit = UnitSex } for the player
+  -- units the game shows besides the viewer. Gear: three women of races 8, 4, 7 and a man of race 3.
+  local function World(mine)
+    local sexes = {}
+    local w = dofile(T.testsDir .. "/wow.lua")(T, { roster = {
+      { "Ran-Fred", "Offizier", 1, 16, "Druide", "Sturmwind", "", "", true, 0, "DRUID", nil, nil, false, nil, nil, "Player-1-01" },
+      Row("Makira-Farron", "Player-1-02"), Row("Au-Tsch", "Player-1-03"), Row("Zu-Lu", "Player-1-04"), Row("Bo-Ris", "Player-1-05"),
+    } })
+    local env = w.env
+    env.UnitGUID = function() return nil end
+    env.UnitIsPlayer = function(unit) return unit == "player" or sexes[unit] ~= nil end
+    env.UnitSex = function(unit)
+      if unit == "player" then return mine end
+      return sexes[unit]
+    end
+    w.Fire("ADDON_LOADED", "Guildy")
+    w.Fire("PLAYER_LOGIN")
+    w.Fire("GUILD_ROSTER_UPDATE")
+    w.RunTimers()
+    local guild = w.ns.GuildData()
+    guild.gear = guild.gear or {}
+    local gear = guild.gear
+    gear["au tsch"] = { ts = w.ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
+    gear["makira farron"] = { ts = w.ns.Now(), src = "seen", race = 4, sex = 3, items = Items() }
+    gear["zu lu"] = { ts = w.ns.Now(), src = "seen", race = 7, sex = 3, items = Items() }
+    gear["bo ris"] = { ts = w.ns.Now(), src = "seen", race = 3, sex = 2, items = Items() }
+    return w, sexes
+  end
+  local function Bodies(w)
+    local found = {}
+    for _, race in ipairs({ 1, 2, 3, 4, 5, 6, 7, 8, 10, 11 }) do
+      for _, sex in ipairs({ 2, 3 }) do
+        if w.ns.ModelPool.Get(race, sex) then found[#found + 1] = race .. ":" .. sex end
+      end
+    end
+    return found
+  end
+
+  T.it("fills the pool from a woman's nameplate while the page is closed, for the guild's women only, two per event", function()
+    local w, sexes = World(2)
+    T.eq(w.env.CommunitiesFrame:IsShown(), false)
+    sexes.nameplate1 = 3
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    local first = Bodies(w)
+    T.eq(#first, 2)
+    for _, pair in ipairs(first) do T.truthy(pair == "8:3" or pair == "4:3" or pair == "7:3", pair) end
+    w.RunTimers()
+    T.eq(Bodies(w), { "4:3", "7:3", "8:3" }) -- the man (race 3) needs none: the viewer is one
+    local body = w.ns.ModelPool.Get(8, 3)
+    T.eq(body.actor._log.unit, { "nameplate1:8" })
+    T.truthy(rawget(body.scene, "_parent") == w.env.UIParent, "hidden on the screen")
+    T.eq(body.scene:IsShown(), true)
+    T.eq(body.scene:GetAlpha(), 0)
+    T.eq(body.scene:IsMouseEnabled(), false)
+    -- an event later builds nothing new
+    w.Fire("PLAYER_TARGET_CHANGED")
+    w.RunTimers()
+    T.eq(#body.actor._log.unit, 1)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("shows the pooled body on the page with her items, no portrait, dressed once", function()
+    local w, sexes = World(2)
+    sexes.nameplate1 = 3
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    sexes.nameplate1 = nil -- she walked on: no donor around
+    w.env.CommunitiesFrame:Show()
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+    w.RunTimers()
+    local page = w.ns.UI.MemberPage()
+    local body = w.ns.ModelPool.Get(8, 3)
+    T.truthy(rawget(body.scene, "_parent") == page.Hero.ModelArea, "the pooled scene in the model area")
+    T.eq(body.scene:IsShown(), true)
+    T.eq(body.scene:GetAlpha(), 1)
+    T.eq(body.scene:IsMouseEnabled(), true)
+    T.eq(page.Model:IsShown(), false)
+    T.eq(page.Hero.Portrait:IsShown(), false)
+    T.eq(page.Hero.WaitHint:IsShown(), false)
+    T.eq(body.actor._log.unit, { "nameplate1:8" }) -- no new body
+    T.eq(body.actor._log.undress, 1)
+    T.eq(body.actor._log.tryOn, DRESSED)
+    -- renders leave it alone
+    page:Render()
+    page:Render()
+    w.RunTimers()
+    T.eq(body.actor._log.undress, 1)
+    -- drag and wheel on the scene that shows
+    T.truthy(body.scene:GetScript("OnMouseWheel") and body.scene:GetScript("OnMouseDown"), "drag and wheel")
+    page.Hero.ModelArea:SetSize(200, 200)
+    body.scene:GetScript("OnMouseWheel")(body.scene, 1)
+    T.eq(body.scene.zoom, 0.1)
+    -- another member: the body goes back to the pool, hidden again
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Ran Fred"))
+    T.truthy(rawget(body.scene, "_parent") == w.env.UIParent, "back on the screen, hidden")
+    T.eq(body.scene:GetAlpha(), 0)
+    T.eq(body.scene:IsMouseEnabled(), false)
+    T.eq(page.Model:IsShown(), true)
+    -- a second woman of that race takes the same body, dressed in her items
+    w.ns.GuildData().gear["zu lu"].race = 8
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Zu Lu"))
+    w.RunTimers()
+    T.eq(body.actor._log.undress, 2)
+    T.truthy(rawget(body.scene, "_parent") == page.Hero.ModelArea, "on the page again")
+    T.eq(w.errors, {})
+  end)
+
+  T.it("shows the portrait and a hint by the member's sex without donor or pooled body", function()
+    local w = World(2)
+    local L = w.ns.L
+    w.env.CommunitiesFrame:Show()
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+    local page = w.ns.UI.MemberPage()
+    T.eq(page.Hero.Portrait:IsShown(), true)
+    T.eq(page.Hero.WaitHint:IsShown(), true)
+    T.eq(page.Hero.WaitHint:GetText(), L.MODEL_WAIT_FEMALE)
+    -- the own character next: no hint
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Ran Fred"))
+    T.eq(page.Hero.WaitHint:IsShown(), false)
+    -- no stored items: the gear box explains, no hint
+    w.ns.GuildData().gear["makira farron"].items = {}
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Makira Farron"))
+    T.eq(page.Hero.Portrait:IsShown(), true)
+    T.eq(page.Hero.WaitHint:IsShown(), false)
+    T.eq(w.errors, {})
+    -- a woman looking at a man
+    local w2 = World(3)
+    w2.env.CommunitiesFrame:Show()
+    w2.ns.UI.ShowMember(w2.ns.Roster.Find("Bo Ris"))
+    local page2 = w2.ns.UI.MemberPage()
+    T.eq(page2.Hero.Portrait:IsShown(), true)
+    T.eq(page2.Hero.WaitHint:GetText(), w2.ns.L.MODEL_WAIT_MALE)
+    T.eq(page2.Hero.WaitHint:IsShown(), true)
+    T.eq(w2.errors, {})
+  end)
+
+  T.it("skips a secret sex and builds nothing in combat", function()
+    local w, sexes = World(2)
+    sexes.nameplate1 = w.SECRET
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(Bodies(w), {})
+    sexes.nameplate1 = 3
+    w.env.InCombatLockdown = function() return true end
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(Bodies(w), {})
+    w.env.InCombatLockdown = function() return false end
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(#Bodies(w), 3)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("fills the pool from a brief mouseover while the page waits, and the figure shows", function()
+    local w, sexes = World(2)
+    w.env.CommunitiesFrame:Show()
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+    local page = w.ns.UI.MemberPage()
+    T.eq(page.Hero.Portrait:IsShown(), true)
+    sexes.mouseover = 3
+    w.Fire("UPDATE_MOUSEOVER_UNIT")
+    sexes.mouseover = nil -- gone before any timer runs: the body was built in the event itself
+    w.RunTimers()
+    T.truthy(w.ns.ModelPool.Get(8, 3) ~= nil, "a body for her")
+    T.eq(page.Hero.Portrait:IsShown(), false)
+    T.eq(page.Hero.WaitHint:IsShown(), false)
+    -- she is gone, the page opens anew on her: the pooled body
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Ran Fred"))
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+    w.RunTimers()
+    local body = w.ns.ModelPool.Get(8, 3)
+    T.eq(body.scene:IsShown(), true)
+    T.truthy(rawget(body.scene, "_parent") == page.Hero.ModelArea, "on the page")
+    T.eq(body.actor._log.tryOn[#body.actor._log.tryOn], DRESSED[2])
+    T.eq(w.errors, {})
+  end)
+
+  T.it("tells which bodies the pool holds", function()
+    local w, sexes = World(2)
+    local printed = {}
+    w.ns.Print = function(text) printed[#printed + 1] = tostring(text) end
+    w.env.SlashCmdList.GUILDY("modeltest pool")
+    T.truthy(table.concat(printed, "\n"):find("modeltest pool: empty", 1, true), table.concat(printed, "\n"))
+    sexes.target = 3
+    w.Fire("PLAYER_TARGET_CHANGED")
+    w.RunTimers()
+    printed = {}
+    w.env.SlashCmdList.GUILDY("modeltest pool")
+    local all = table.concat(printed, "\n")
+    T.truthy(all:find("modeltest pool: race 8 (Troll), sex 3", 1, true), all)
+    T.truthy(all:find("modeltest pool: race 4 (NightElf), sex 3", 1, true), all)
+    T.eq(w.errors, {})
   end)
 end)
 

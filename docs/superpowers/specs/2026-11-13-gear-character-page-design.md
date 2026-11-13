@@ -102,15 +102,39 @@ The routes, in order (`GameGear.ModelRoute`, `Game/Gear.lua`):
    `IsUnitModelReadyForUI` says yes; secret values are skipped, never compared. `SetModelByUnit(donor,
    …, member's raceID)` always with the race, so race and sex are the member's by construction; then
    `Undress()` and `TryOn` of every stored slot after 0.5 s. Face and hair are the donor's.
-4. *No donor of that sex around:* the race portrait; while the page shows, Guildy looks again on
+4. *No donor around, but a pooled body* (`Game/ModelPool.lua`): the page borrows it and dresses it in the
+   stored items (below).
+5. *Neither:* the race portrait with a small grey line at the bottom of the model area, by the member's
+   sex: "Die Figur erscheint, sobald dir eine Spielerin begegnet." / "… ein Spieler begegnet." (only
+   with stored items; without them the gear box explains). While the page shows, Guildy looks again on
    `PLAYER_TARGET_CHANGED`, `NAME_PLATE_UNIT_ADDED`, `GROUP_ROSTER_UPDATE`, `UPDATE_MOUSEOVER_UNIT`
-   (throttled to 0.5 s) and switches to the model once one is found. A body once dressed stays: new
-   gear without a donor keeps the old gear on it until a donor shows up.
-5. *No stored race or sex:* the portrait.
+   (throttled to 0.5 s) and when the pool built a body (`MODEL_POOL`), and switches to the model once
+   one is found. A body once dressed stays: new gear without donor or pooled body keeps the old gear on
+   it until one shows up.
+6. *No stored race or sex:* the portrait.
 
-`GameGear.ModelKey` names the member, the route (not the donor unit) and the gear's `ts`: the model is
-loaded again only when one of them changes. The earlier own-body file-ID check is gone: race and sex
-are set explicitly. Without the template the page keeps the portrait.
+**The body pool** (`Game/ModelPool.lua`). A viewer rarely meets a player of the other sex while the page
+is open, so bodies are kept ahead: on the same four events, also while the guild window is closed, the
+pool builds a body for each (raceID, sex) that a roster member with stored items needs and the pool
+lacks — never the viewer's own sex ("player" is always a donor). A body is a `ModelScene` of the page's
+template and scene 596 on `UIParent`, 8×8 px, alpha 0, mouse off, shown; its player actor gets
+`SetModelByUnit(donor, …, raceID)` from `GameGear.FindDonor` (secret values skipped, ready models
+preferred). At most two bodies per look, at most one look a second (another follows while bodies are
+missing), the one the open page waits for first, nothing in combat. The page shows a pooled body by
+borrowing the whole scene: `SetParent` into the model area, `SetAllPoints`, the page's frame level,
+alpha 1, mouse on, the page's own scene hidden; drag and wheel are installed on every scene the page
+shows. It dresses it at once (0.5 s after building for a fresh one) and gives the scene back, parked
+unseen with its body, when another route takes over. No known actor call copies a body into another
+scene, hence the borrowing. `/guildy modeltest pool` lists the bodies, whether they are ready, which member the page
+shows on one, and how many are still wanted.
+
+`GameGear.ModelKey` names the member, the route (not the donor unit) and the gear's `ts`; a donor's body
+and a pooled body count as the same route, so a donor coming or going changes nothing. The model is
+loaded or dressed again only when one of them changes. The earlier own-body file-ID check is gone: race
+and sex are set explicitly. Without the template the page keeps the portrait and builds no bodies.
+
+Under the model's gold frame (4 px outside the model area) the name hangs 11 px lower, anchored to the
+frame's bottom; the room comes out of the model, not out of facts or notes.
 
 Behind the model the race's dressing room art (game data): a race atlas if the client has one
 (`dressingroom-background-<race>`), else the classic four tiles `Interface\DressUpFrame\DressUpBackground-<RaceFile>1..4`

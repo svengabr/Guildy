@@ -1,6 +1,7 @@
 -- Debug commands for gear on the character page (docs/superpowers/specs/2026-11-13-gear-character-page-design.md):
 --   /guildy modeltest [raceID sex]  which model calls Forever has, and whether a custom race wears the own gear
 --   /guildy modeltest scene <raceID> | creature <displayID> | bg   the model scene routes, the backgrounds
+--   /guildy modeltest pool          which (race, sex) bodies the pool holds (Game/ModelPool.lua)
 --   /guildy craftprobe              whether the game names what a recipe makes without its window
 --   /guildy gearshow [name]         the gear slot by slot and the enchant text the tooltip gives
 -- They print only when typed.
@@ -175,6 +176,10 @@ end
 
 function GearProbe.ModelTest(args)
   if tostring(args or ""):match("^%s*bg%s*$") then return BackgroundTest() end
+  if tostring(args or ""):match("^%s*pool%s*$") then
+    for _, line in ipairs(ns.ModelPool.Lines()) do Say(line) end
+    return
+  end
   local mode, number = tostring(args or ""):match("^%s*(%a+)%s+(%d+)")
   if mode == "scene" then return SceneTest(tonumber(number)) end
   if mode == "creature" then return CreatureTest(tonumber(number)) end

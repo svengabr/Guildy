@@ -31,11 +31,13 @@
 - The character itself stands in its gear on the page, turned with the mouse and zoomed with the wheel,
   in front of the dressing room art of its race: your own character and members nearby as they are,
   other members in their race, sex and gear. Face and hair are not theirs unless they are nearby. A
-  member of the other sex than yours needs a player of that sex to have been in sight (target, group,
-  nameplates); until then the race portrait stands there, and the model comes as soon as one shows up.
-- `/guildy modeltest` with `scene`, `creature` and `bg` shows what the game offers for the model, for
-  checking.
-- New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
+  member of the other sex than yours needs a player of that sex to have been in sight once (target,
+  group, nameplates, mouseover), even while the guild window was closed: Guildy keeps a body per race
+  and sex your guild needs from that moment on. Until one was in sight the race portrait stands there
+  with a small line saying so ("Die Figur erscheint, sobald dir eine Spielerin begegnet."), and the
+  model comes as soon as one shows up.
+- `/guildy modeltest` with `scene`, `creature`, `bg` and `pool` shows what the game offers for the model
+  and which bodies Guildy keeps, for checking.- New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
   member, up to five, each with its icon, the gain in big green ("+12", "39 auf 51" under it), the
   crafter and whether they are online. A click on the crafter whispers them. Weapons, off hands and
   ranged are left out for now. The professions box below takes only the room its rows need.
