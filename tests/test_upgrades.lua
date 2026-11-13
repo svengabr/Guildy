@@ -549,3 +549,34 @@ T.describe("Worn pieces without stats", function()
     T.eq({ stats, gone }, { nil, true })
   end)
 end)
+
+T.describe("Armour type by the item's numeric subclass", function()
+  -- Tough Scorpid (8203 ...) is mail in classic and on Forever (Wowhead: class 4, subclass 3), although its
+  -- icon is a leather one and leatherworkers make it: a feral druid in leather is not offered it. The rule
+  -- reads only GetItemInfo's subclassID, never the name or the localized subtype.
+  local function scorpid(sub)
+    INFO[8203] = { name = "Feste Skorpidbrustplatte", equipLoc = "INVTYPE_CHEST", level = 44, reqLevel = 39, classID = 4,
+      subclassID = sub, bind = 2, quality = 2 }
+    STATS[8203] = { [AGI] = 15, [SPI] = 7 }
+    INFO[730] = { equipLoc = "INVTYPE_CHEST", level = 30, reqLevel = 25, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[730] = { [AGI] = 7, [STA] = 7 }
+    local member = { key = "d", level = 47, classFile = "DRUID", weights = ns.StatWeights.For("DRUID_CAT") }
+    local trace = {}
+    local craft = { [9203] = 8203 }
+    local rows = U.ForIndex(member, { items = { [5] = item(730, 30) } }, U.Index({ maker("lw", { 9203 }) }, craft, info),
+      info, GAME, trace)
+    return rows, trace.slots[5].candidates[1].verdict
+  end
+
+  T.it("rejects the mail Tough Scorpid breastplate for a druid in leather", function()
+    local rows, verdict = scorpid(3)
+    T.eq(#rows, 0)
+    T.eq(verdict, "armour type")
+  end)
+
+  T.it("offers the same piece were it leather by subclass", function()
+    local rows, verdict = scorpid(2)
+    T.eq(#rows, 1)
+    T.eq(verdict, "offered")
+  end)
+end)
