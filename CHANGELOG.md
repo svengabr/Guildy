@@ -37,7 +37,8 @@
   with a small line saying so ("Die Figur erscheint, sobald dir eine Spielerin begegnet."), and the
   model comes as soon as one shows up.
 - `/guildy modeltest` with `scene`, `creature`, `bg` and `pool` shows what the game offers for the model
-  and which bodies Guildy keeps, for checking.- New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
+  and which bodies Guildy keeps, for checking.
+- New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
   member, up to five, each with its icon, the gain in big green ("+12", "39 auf 51" under it), the
   crafter and whether they are online. A click on the crafter whispers them. Weapons, off hands and
   ranged are left out for now. The professions box below takes only the room its rows need.
@@ -54,6 +55,9 @@
   presence and playing with what fed each of them per week, which characters count, and the time it
   covers.
 - Solo play now counts as much as group play in the activity score.
+- The same score panel shows when you hover the activity column on the Members tab and a member in the
+  overview's list of comings and goings.
+- The profession icons in the chat's member list are now off unless you switch them on in the options.
 - The dungeon collection left the character page (it stays in the Hall of Fame), and so did the medals.
 - `/guildy gearshow [name]` lists what Guildy knows of a member's gear, for checking.
 - Fixed: on the Professions tab a skill like 278/300 broke into two lines.
