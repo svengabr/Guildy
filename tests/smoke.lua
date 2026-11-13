@@ -3117,7 +3117,9 @@ T.describe("Upgrades from the guild on the character page", function()
     T.eq(box.Empty:IsShown(), true)
     env.GuildyDB.craftItems = { [99001] = 50002 } -- level 48: not better by three
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(box.Empty:GetText(), L.UPGRADES_NONE)
+    -- praise, not a fault: another member is named, the own page says "your"
+    T.eq(box.Empty:GetText(), L.UPGRADES_NONE:format(ns.Roster.Find("Au Tsch").name))
+    T.truthy(box.Empty:GetText():find("Au Tsch", 1, true), "the member is named")
     env.GuildyDB.craftItems = { [99001] = 50003 } -- not loaded yet: asked for
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
     local asked = false

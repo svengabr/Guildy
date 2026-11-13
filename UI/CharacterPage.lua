@@ -1560,7 +1560,9 @@ local function Build()
     upgrades.Basis:SetText(state ~= "nodata" and RatedFor(m.classFile, spec, tree) or "")
     upgrades.Basis:SetWidth(math.max(1, (upgrades:GetWidth() or 300) - 12 - TextWidth(upgrades.Title) - 8
       - TextWidth(upgrades.Note) - 12 - 8))
-    upgrades.Empty:SetText(state == "none" and L.UPGRADES_NONE or L.UPGRADES_NO_DATA)
+    -- nothing better: said as praise of the gear, the own page with "your", others by name
+    local none = m.key == ns.Names.Key(ns.PlayerName()) and L.UPGRADES_NONE_OWN or L.UPGRADES_NONE:format(m.name or "")
+    upgrades.Empty:SetText(state == "none" and none or L.UPGRADES_NO_DATA)
     upgrades.Empty:SetShown(state ~= "rows")
     return state == "rows" and (UPGRADE_TOP + 6 + #rows * UPGRADE_H) or upgrades.want
   end
