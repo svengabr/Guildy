@@ -85,15 +85,20 @@ T.describe("Upgrades", function()
     T.eq(rows[1].have, 0)
   end)
 
-  T.it("shows three rows at most, the largest gain first", function()
+  T.it("shows five rows at most, the largest gain first", function()
     INFO[540] = { equipLoc = "INVTYPE_HEAD", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
     INFO[541] = { equipLoc = "INVTYPE_FEET", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
     INFO[542] = { equipLoc = "INVTYPE_HAND", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
     INFO[543] = { equipLoc = "INVTYPE_WRIST", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
-    local gear = { items = { [1] = item(1, 40), [8] = item(1, 30), [10] = item(1, 45), [9] = item(1, 20) } }
-    local rows = U.For(MEMBER, gear, { maker("t", { 1, 2, 3, 4 }) }, { [1] = 540, [2] = 541, [3] = 542, [4] = 543 }, info)
-    T.eq(#rows, 3)
-    T.eq({ rows[1].slot, rows[2].slot, rows[3].slot }, { 9, 8, 1 })
+    INFO[544] = { equipLoc = "INVTYPE_LEGS", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    INFO[545] = { equipLoc = "INVTYPE_WAIST", level = 50, reqLevel = 40, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    local gear = { items = { [1] = item(1, 40), [8] = item(1, 30), [10] = item(1, 45), [9] = item(1, 20), [7] = item(1, 35),
+      [6] = item(1, 25) } }
+    local rows = U.For(MEMBER, gear, { maker("t", { 1, 2, 3, 4, 5, 6 }) },
+      { [1] = 540, [2] = 541, [3] = 542, [4] = 543, [5] = 544, [6] = 545 }, info)
+    T.eq(U.MAX_ROWS, 5)
+    T.eq(#rows, 5)
+    T.eq({ rows[1].slot, rows[2].slot, rows[3].slot, rows[4].slot, rows[5].slot }, { 9, 6, 8, 7, 1 })
   end)
 
   T.it("lists makers online first, then the ones seen last", function()

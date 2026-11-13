@@ -10,7 +10,7 @@ ns.Upgrades = Upgrades
 
 Upgrades.MAX_CRAFTS = 3000
 Upgrades.MIN_GAIN = 3
-Upgrades.MAX_ROWS = 3
+Upgrades.MAX_ROWS = 5
 Upgrades.LEFT_OUT = { [16] = true, [17] = true, [18] = true, [4] = true, [19] = true }
 
 Upgrades.SLOTS_OF = {

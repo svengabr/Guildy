@@ -36,8 +36,14 @@
 - `/guildy modeltest` with `scene`, `creature` and `bg` shows what the game offers for the model, for
   checking.
 - New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
-  member, with the crafter and whether they are online. A click on the crafter whispers them. Weapons,
-  off hands and ranged are left out for now.
+  member, up to five, each with its icon, the gain in big green ("+12", "39 auf 51" under it), the
+  crafter and whether they are online. A click on the crafter whispers them. Weapons, off hands and
+  ranged are left out for now. The professions box below takes only the room its rows need.
+- The character page's left card is ordered anew: a bigger model (the drag and zoom hint shows while the
+  mouse is over it), name, race and class, rank and zone on one centre line, then member since and last
+  online as a short list, the notes under their own headings, and the buttons at the bottom.
+- A member whose gear Guildy has not seen yet gets one clear message in the gear box instead of empty
+  slot rows.
 - New: the activity score has a tile on the character page. Its tooltip explains how the score is made:
   presence, playing and group play with what fed each of them per week, which characters count, and the
   time it covers.

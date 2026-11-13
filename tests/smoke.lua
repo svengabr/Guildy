@@ -2396,12 +2396,31 @@ T.describe("Character page", function()
     T.eq(errors, {})
   end)
 
-  T.it("shows an empty gear list as finished", function()
+  T.it("shows an unknown gear list as one finished message, not bare slot names", function()
     ns.GuildData().gear["makira farron"] = nil
     ns.UI.ShowMember(ns.Roster.Find("Makira Farron"))
     local page = ns.UI.MemberPage()
-    for _, row in ipairs(page.Gear.Rows) do T.eq(row.Level:GetText(), "–") end
-    T.truthy(page.Gear.Foot:GetText():find("Makira Farron", 1, true), "the unseen line names the member")
+    local gear = page.Gear
+    for _, row in ipairs(gear.Rows) do T.eq(row:IsShown(), false) end
+    T.eq(gear.Empty:IsShown(), true)
+    T.eq(gear.Empty:GetText(), L.GEAR_EMPTY)
+    T.eq(gear.EmptyHint:IsShown(), true)
+    T.eq(gear.EmptyHint:GetText(), L.GEAR_EMPTY_HINT)
+    T.eq(gear.Head:IsShown(), false)
+    T.truthy(not gear.Note:IsShown() or gear.Note:GetText() == "", "no summary without gear")
+    T.eq(gear.Foot:IsShown(), false)
+    T.truthy(not L.GEAR_EMPTY_HINT:lower():find("bnet", 1, true) and not L.GEAR_EMPTY_HINT:find("Arsenal", 1, true),
+      "the hint names no script")
+    -- a member with a record keeps the slot rows, the empty slots too
+    ns.GuildData().gear["makira farron"] = { ts = ns.Now(), src = "seen", items = { [1] = Item(2001, 42, 3) } }
+    ns.UI.ShowMember(ns.Roster.Find("Makira Farron"))
+    T.eq(gear.Empty:IsShown(), false)
+    T.eq(gear.EmptyHint:IsShown(), false)
+    T.eq(gear.Head:IsShown(), true)
+    T.eq(gear.Foot:IsShown(), true)
+    for _, row in ipairs(gear.Rows) do T.eq(row:IsShown(), true) end
+    T.eq(Row(page, 5).Level:GetText(), "–")
+    ns.GuildData().gear["makira farron"] = nil
     T.eq(errors, {})
   end)
 
@@ -2732,6 +2751,11 @@ T.describe("Upgrades from the guild on the character page", function()
     [50001] = { "Gürtel des Rechtsprechers", 3, 58, 20 },
     [50002] = { "Schlichter Gürtel", 2, 48, 20 },
   }
+  INFO[50011] = { "Kapuze des Sehers", 3, 58, 20, "INVTYPE_HEAD" }
+  INFO[50012] = { "Schultern des Sehers", 3, 57, 20, "INVTYPE_SHOULDER" }
+  INFO[50013] = { "Robe des Sehers", 3, 56, 20, "INVTYPE_CHEST" }
+  INFO[50014] = { "Hose des Sehers", 3, 55, 20, "INVTYPE_LEGS" }
+  INFO[50015] = { "Stiefel des Sehers", 3, 54, 20, "INVTYPE_FEET" }
   local requested
   local function Stubs()
     local saved = { env.GetItemInfo, env.C_Item }
@@ -2740,7 +2764,7 @@ T.describe("Upgrades from the guild on the character page", function()
     env.GetItemInfo = function(item)
       local id = type(item) == "number" and item or ns.Gear.ParseLink(item)
       local it = INFO[id]
-      if it then return it[1], "item:" .. id, it[2], it[3], it[4], "Rüstung", "Stoff", 1, "INVTYPE_WAIST", 134, 1, 4, 1, 2 end
+      if it then return it[1], "item:" .. id, it[2], it[3], it[4], "Rüstung", "Stoff", 1, it[5] or "INVTYPE_WAIST", 134, 1, 4, 1, 2 end
     end
     return function() env.GetItemInfo, env.C_Item = unpack(saved, 1, 2) end
   end
@@ -2749,22 +2773,92 @@ T.describe("Upgrades from the guild on the character page", function()
     for _, row in ipairs(box.Rows) do
       if row:IsShown() then
         list[#list + 1] = row.Gain:GetText()
+        list[#list + 1] = row.GainSub:GetText()
         for _, maker in ipairs(row.Makers) do if maker:IsShown() then list[#list + 1] = maker.Name:GetText() end end
       end
     end
     return table.concat(list, "\n")
   end
 
-  T.it("names an empty slot with a dash, not 0", function()
+  T.it("names an empty slot as empty, with the whole level as the gain", function()
     local restore = Stubs()
     local guild = ns.GuildData()
     guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [1] = { id = 7001, e = 0, s = 0, l = 40, q = 2 } } }
     guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
     env.GuildyDB.craftItems = { [99001] = 50001 }
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local row = ns.UI.MemberPage().Upgrades.Rows[1]
+    T.eq(row.Gain:GetText(), "+58")
+    T.eq(row.GainSub:GetText(), L.UPGRADE_EMPTY)
     local text = Texts(ns.UI.MemberPage().Upgrades)
-    T.truthy(text:find(L.UPGRADE_GAIN:format("–", 58), 1, true), "dash for the empty waist: " .. text)
     T.truthy(not text:find(L.UPGRADE_GAIN:format(0, 58), 1, true), "no 0")
+    T.truthy(not text:find(L.UPGRADE_GAIN:format("–", 58), 1, true), "no dash either")
+    restore()
+    guild.members["makira farron"].profs[197] = nil
+    env.GuildyDB.craftItems = {}
+    T.eq(errors, {})
+  end)
+
+  T.it("shows the gain big and the levels small under it", function()
+    local restore = Stubs()
+    local guild = ns.GuildData()
+    guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 46, q = 2 } } }
+    guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
+    env.GuildyDB.craftItems = { [99001] = 50001 }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local box = ns.UI.MemberPage().Upgrades
+    local row = box.Rows[1]
+    T.eq(row.Gain:GetText(), "+12")
+    T.eq(row.GainSub:GetText(), L.UPGRADE_GAIN:format("46", 58))
+    T.eq(box.Note:GetText(), L.UPGRADES_COUNT:format(1))
+    restore()
+    guild.members["makira farron"].profs[197] = nil
+    env.GuildyDB.craftItems = {}
+    T.eq(errors, {})
+  end)
+
+  T.it("shows up to five pieces, each with its icon in a quality border; a maker click whispers", function()
+    local restore = Stubs()
+    local guild = ns.GuildData()
+    local page = ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 760)
+    guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 47, q = 2 } } }
+    guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300,
+      recipes = { 99001, 99011, 99012, 99013, 99014, 99015 } }
+    env.GuildyDB.craftItems = { [99001] = 50001, [99011] = 50011, [99012] = 50012, [99013] = 50013, [99014] = 50014,
+      [99015] = 50015 }
+    local box = page.Upgrades
+    for _, row in ipairs(box.Rows) do
+      rawset(row.Border, "SetColorTexture", function(self, r, g, b) self.color = { r, g, b } end)
+    end
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local shown = 0
+    for _, row in ipairs(box.Rows) do if row:IsShown() then shown = shown + 1 end end
+    T.eq(shown, 5)
+    T.eq(box.Note:GetText(), L.UPGRADES_COUNT:format(5))
+    local first = box.Rows[1]
+    T.eq(first.Icon:IsShown(), true)
+    T.eq(first.Border.color, { 0, 0.44, 0.87 }) -- rare
+    T.truthy(first.Name:GetText():find("Kapuze des Sehers", 1, true), first.Name:GetText())
+    T.truthy(first.Sub:GetText():find(L.UPGRADE_BY, 1, true), "the maker line: " .. first.Sub:GetText())
+    -- the item tooltip on the icon
+    local link
+    local setLink = env.GameTooltip.SetHyperlink
+    rawset(env.GameTooltip, "SetHyperlink", function(_, l) link = l end)
+    first.Item:GetScript("OnEnter")(first.Item)
+    rawset(env.GameTooltip, "SetHyperlink", setLink)
+    T.eq(link, "item:50011")
+    -- a click on the maker whispers them
+    local whispered
+    local whisper = ns.UI.Whisper
+    ns.UI.Whisper = function(name) whispered = name end
+    local maker = first.Makers[1]
+    T.eq(maker:IsShown(), true)
+    maker:GetScript("OnClick")(maker)
+    ns.UI.Whisper = whisper
+    T.eq(whispered, "Makira-Farron")
+    for _, row in ipairs(box.Rows) do rawset(row.Border, "SetColorTexture", nil) end
+    page:SetSize(100, 100)
     restore()
     guild.members["makira farron"].profs[197] = nil
     env.GuildyDB.craftItems = {}
@@ -2777,6 +2871,7 @@ T.describe("Upgrades from the guild on the character page", function()
     guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 47, q = 2 } } }
     guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
     env.GuildyDB.craftItems = { [99001] = 50001 }
+    ns.UI.MemberPage():SetSize(1130 - 22, 560 - 42)
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
     local box = ns.UI.MemberPage().Upgrades
     local text = Texts(box)
@@ -2792,8 +2887,86 @@ T.describe("Upgrades from the guild on the character page", function()
     ns.Anon.Enable(false)
     Fire("GUILD_ROSTER_UPDATE")
     RunTimers()
+    ns.UI.MemberPage():SetSize(100, 100)
     restore()
     T.eq(errors, {})
+  end)
+
+  T.it("keeps a line with two long makers inside the box, at the smallest window and a wide one", function()
+    local function Chars(text)
+      local n = 0
+      for _ in tostring(text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gmatch("[^\128-\191]") do n = n + 1 end
+      return n
+    end
+    for _, size in ipairs({ { 1130 - 22, 560 - 42 }, { 1870 - 22, 900 }, { 2560 - 22, 1000 } }) do
+      local w = dofile(T.testsDir .. "/wow.lua")(T, {
+        roster = {
+          { "Ran-Fred", "Offizier", 1, 16, "Druide", "Sturmwind", "", "", true, 0, "DRUID", nil, nil, false, nil, nil, "Player-1-01" },
+          { "Au-Tsch", "Haifutter", 2, 21, "Schurke", "Dämmerwald", "", "", true, 0, "ROGUE", nil, nil, false, nil, nil, "Player-1-03" },
+          { "Elezabethiana-Blakemoore", "Haifutter", 2, 60, "Druide", "Orgrimmar", "", "", false, 0, "DRUID", nil, nil, false,
+            nil, nil, "Player-1-04" },
+          { "Haradrimmon-Flutbinderin", "Haifutter", 2, 60, "Schamane", "Orgrimmar", "", "", true, 0, "SHAMAN", nil, nil, false,
+            nil, nil, "Player-1-05" },
+        },
+        setup = function(e)
+          e.C_Item = { RequestLoadItemDataByID = function() end }
+          e.GetItemInfo = function(item)
+            local id = type(item) == "number" and item or tonumber(tostring(item):match("item:(%d+)"))
+            if id == 50001 then return "Gürtel des Rechtsprechers", "item:50001", 3, 58, 20, "Rüstung", "Leder", 1, "INVTYPE_WAIST", 134, 1, 4, 2, 2 end
+          end
+        end })
+      w.Fire("ADDON_LOADED", "Guildy")
+      w.Fire("PLAYER_LOGIN")
+      w.Fire("GUILD_ROSTER_UPDATE")
+      w.RunTimers()
+      w.env.CommunitiesFrame:Show()
+      local guild = w.ns.GuildData()
+      guild.gear = guild.gear or {}
+      guild.gear["au tsch"] = { ts = w.ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 47, q = 2 } } }
+      for _, key in ipairs({ "elezabethiana blakemoore", "haradrimmon flutbinderin" }) do
+        guild.members[key] = guild.members[key] or {}
+        guild.members[key].profs = guild.members[key].profs or {}
+        guild.members[key].profs[165] = { ts = w.ns.Now(), src = "relay", rank = 300, max = 300, recipes = { 99001 } }
+      end
+      w.env.GuildyDB.craftItems = { [99001] = 50001 }
+      w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+      local page = w.ns.UI.MemberPage()
+      local row = page.Upgrades.Rows[1]
+      local texts = { row.Sub, row.Info, row.GainSub, row.Makers[1].Name, row.Makers[1].Info, row.Makers[2].Name, row.Makers[2].Info }
+      for _, text in ipairs(texts) do
+        rawset(text, "GetUnboundedStringWidth", function(self) return Chars(self:GetText()) * 5.5 end)
+      end
+      rawset(row.Gain, "GetUnboundedStringWidth", function(self) return Chars(self:GetText()) * 9 end)
+      for _, part in ipairs({ row.Info, row.Makers[1], row.Makers[2] }) do
+        rawset(part, "SetPoint", function(self, ...) rawset(self, "at", { ... }) end)
+      end
+      page:SetSize(size[1], size[2])
+      page:Render()
+      local where = size[1] .. " px"
+      T.eq(row:IsShown(), true)
+      local limit = row.lineStart + row.lineWidth
+      T.truthy(limit <= page.Upgrades:GetWidth() - 24, where .. ": the line ends inside the box")
+      for j, maker in ipairs(row.Makers) do
+        T.eq(maker:IsShown(), true)
+        local at = rawget(maker, "at")
+        T.truthy(at[4] + maker:GetWidth() <= limit, ("%s: maker %d ends at %d of %d"):format(where, j, at[4] + maker:GetWidth(), limit))
+        T.eq(maker.Name:GetWidth(), maker:GetWidth()) -- the click target is the name
+      end
+      local info = rawget(row.Info, "at")
+      T.truthy(info[4] + row.Info:GetWidth() <= limit + 0.5, where .. ": the state ends inside the box")
+      T.truthy(rawget(row.Makers[1], "at")[4] + row.Makers[1]:GetWidth() <= rawget(row.Makers[2], "at")[4], where .. ": the names do not overlap")
+      T.eq(row.Makers[1].Info:GetText(), ", ")
+      T.truthy(row.Info:GetText():find(w.ns.L.ONLINE, 1, true), where .. ": the online maker's state")
+      local prof = w.ns.TradeSkill.Name(165)
+      local _, count = row.Info:GetText():gsub(prof, "")
+      T.truthy(count <= 1, where .. ": one profession at most")
+      if size[1] > 2000 then T.eq(count, 1) end -- with room for it
+      local whispered
+      w.ns.UI.Whisper = function(name) whispered = name end
+      row.Makers[2]:GetScript("OnClick")(row.Makers[2])
+      T.eq(whispered, "Elezabethiana-Blakemoore") -- the online maker stands first
+      T.eq(w.errors, {})
+    end
   end)
 
   T.it("says when there is nothing to offer", function()
@@ -2897,8 +3070,28 @@ T.describe("The model on the character page", function()
   local function Shown(page, shown)
     T.eq(page.Model:IsShown(), shown)
     T.eq(page.Hero.Portrait:IsShown(), not shown)
-    T.eq(page.Hero.ModelHint:IsShown(), shown)
+    T.eq(page.Hero.ModelHint:IsShown(), false) -- only while the mouse is over the model
   end
+
+  T.it("shows the drag and zoom hint only while the mouse is over the model, inside the model area", function()
+    local page = ns.UI.MemberPage()
+    Watch(page)
+    local back = Units({})
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+    local hint = page.Hero.ModelHint
+    T.eq(page.Model:IsShown(), true)
+    T.eq(hint:IsShown(), false)
+    page.Model:GetScript("OnEnter")(page.Model)
+    T.eq(hint:IsShown(), true)
+    page:Render() -- a redraw while hovering keeps it
+    T.eq(hint:IsShown(), true)
+    page.Model:GetScript("OnLeave")(page.Model)
+    T.eq(hint:IsShown(), false)
+    -- on a layer of the model area above the model, not between the model and the name
+    T.truthy(rawget(page.Hero.HintLayer, "_parent") == page.Hero.ModelArea, "the hint layer hangs on the model area")
+    back()
+    T.eq(errors, {})
+  end)
 
   T.it("shows the own character through the player unit, without a race", function()
     local page = ns.UI.MemberPage()
@@ -3188,6 +3381,148 @@ T.describe("The background behind the model", function()
     T.truthy(all:find("modeltest bg: Troll", 1, true), all)
     T.truthy(all:find("modeltest bg: DRUID: class atlas yes", 1, true), all)
     back()
+    T.eq(errors, {})
+  end)
+end)
+
+T.describe("The hero card and the column on the character page", function()
+  local L = ns.L
+  -- records anchors and justification of a widget (the stubs keep neither)
+  local function Spy(obj)
+    rawset(obj, "SetPoint", function(self, ...) rawset(self, "at", { ... }) end)
+    rawset(obj, "ClearAllPoints", function(self) rawset(self, "at", nil) end)
+    rawset(obj, "SetJustifyH", function(self, j) rawset(self, "justify", j) end)
+  end
+  local function Unspy(obj)
+    for _, key in ipairs({ "SetPoint", "ClearAllPoints", "SetJustifyH" }) do rawset(obj, key, nil) end
+  end
+
+  T.it("centres the name and the identity lines on the card", function()
+    local page = ns.UI.MemberPage()
+    local hero = page.Hero
+    local lines = { hero.Name, hero.Ident, hero.Where }
+    for _, text in ipairs(lines) do Spy(text) end
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    for i, text in ipairs(lines) do
+      T.eq(rawget(text, "justify"), "CENTER")
+      local at = rawget(text, "at")
+      T.truthy(at and at[1] == "TOP" and at[2] == hero and at[3] == "TOP" and at[4] == 0, "line " .. i .. " on the card's axis")
+      Unspy(text)
+    end
+    T.eq(errors, {})
+  end)
+
+  T.it("lists the facts as label and value, each only with a value", function()
+    local hero = ns.UI.MemberPage().Hero
+    local makira = ns.Roster.Find("Makira Farron") -- offline
+    makira.joinedDay = ns.Tenure.Day(ns.Now()) - 400
+    ns.UI.ShowMember(makira)
+    T.eq(hero.Facts.since:IsShown(), true)
+    T.eq(hero.Facts.since.Label:GetText(), L.MEMBER_SINCE)
+    T.eq(hero.Facts.since.Value:GetText(), ns.Roster.TenureText(makira, true))
+    T.eq(hero.Facts.last:IsShown(), true)
+    T.eq(hero.Facts.last.Label:GetText(), L.LAST_ONLINE)
+    T.eq(hero.Facts.last.Value:GetText(), ns.Roster.LastOnlineText(makira))
+    T.eq(hero.Facts.guildy:IsShown(), false)
+    T.truthy(not hero.Where:GetText():find(ns.Roster.LastOnlineText(makira), 1, true), "offline: nothing about it in the identity")
+    makira.joinedDay = nil
+    local au = ns.Roster.Find("Au Tsch") -- online, no join date
+    au.joinedDay = nil
+    ns.UI.ShowMember(au)
+    T.eq(hero.Facts.since:IsShown(), false)
+    T.eq(hero.Facts.last:IsShown(), false)
+    T.truthy(hero.Where:GetText():find(L.ONLINE, 1, true), "online in the identity line")
+    T.eq(errors, {})
+  end)
+
+  T.it("shows each note under its own heading, an empty one not at all", function()
+    local hero = ns.UI.MemberPage().Hero
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch")) -- a note, no officer note
+    T.eq(hero.NoteBlocks.note:IsShown(), true)
+    T.eq(hero.NoteBlocks.note.Heading:GetText(), L.NOTE)
+    T.eq(hero.NoteBlocks.note.Text:GetText(), "Kürsch")
+    T.eq(hero.NoteBlocks.officer:IsShown(), false)
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred")) -- neither
+    T.eq(hero.NoteBlocks.note:IsShown(), false)
+    T.eq(hero.NoteBlocks.officer:IsShown(), false)
+    T.eq(errors, {})
+  end)
+
+  T.it("anchors the buttons and the officer row to the card's bottom", function()
+    local hero = ns.UI.MemberPage().Hero
+    local parts = { hero.Whisper, hero.Invite, hero.Remove, hero.OfficerLabel }
+    for _, part in ipairs(parts) do Spy(part) end
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local function At(part) return rawget(part, "at") or {} end
+    local function Anchored(part, point, relative)
+      local at = At(part)
+      return at[1] == point and at[2] == hero and (relative == nil or at[3] == relative)
+    end
+    T.truthy(Anchored(hero.Whisper, "BOTTOMRIGHT", "BOTTOM"), "whisper on the card's bottom")
+    T.truthy(Anchored(hero.Invite, "BOTTOMLEFT", "BOTTOM"), "invite on the card's bottom")
+    T.truthy(Anchored(hero.Remove, "BOTTOMRIGHT", "BOTTOMRIGHT"), "remove at the bottom right")
+    T.truthy(Anchored(hero.OfficerLabel, "BOTTOMLEFT"), "the officer label at the bottom left")
+    T.truthy(At(hero.Whisper)[5] > At(hero.Remove)[5], "the officer row under the buttons")
+    T.eq(hero.OfficerRule:IsShown(), true)
+    for _, part in ipairs(parts) do Unspy(part) end
+    T.eq(errors, {})
+  end)
+
+  T.it("fits the hero card in the smallest window with the longest texts, in German and Russian", function()
+    for _, language in ipairs({ "deDE", "ruRU" }) do
+      local w = dofile(T.testsDir .. "/wow.lua")(T, {
+        roster = {
+          { "Ran-Fred", "Offizier", 1, 16, "Druide", "Sturmwind", "", "", true, 0, "DRUID", nil, nil, false, nil, nil, "Player-1-01" },
+          { "Makira-Farron", "Ehrenwerte Ält", 1, 60, "Paladin", "Die Höhlen des Wehklagens, Brachland",
+            "Twink von Ranfred, Schneiderin", "Raidlead Mo und Mi, Ersatzheiler", false, 0, "PALADIN", nil, nil, false,
+            nil, nil, "Player-1-02" },
+        },
+        setup = function(e)
+          e.GuildyDB = { settings = { language = language } }
+          e.GetPlayerInfoByGUID = function()
+            return "PALADIN", "Paladin", language == "ruRU" and "Высшая эльфийка Ночного Колодца" or "Himmelsgeborene des Ordens", "NightElf", 3
+          end
+        end })
+      w.Fire("ADDON_LOADED", "Guildy")
+      w.Fire("PLAYER_LOGIN")
+      w.Fire("GUILD_ROSTER_UPDATE")
+      w.RunTimers()
+      w.env.CommunitiesFrame:Show()
+      local m = w.ns.Roster.Find("Makira Farron")
+      m.joinedDay, m.joinedExact = w.ns.Tenure.Day(w.ns.Now()) - 700, false
+      w.ns.UI.ShowMember(m)
+      local page = w.ns.UI.MemberPage()
+      page:SetSize(1130 - 22, 560 - 42)
+      page:Render()
+      local hero = page.Hero
+      local fit = hero.layout
+      T.eq(hero:GetHeight(), 560 - 42 - 30)
+      T.truthy(hero.Facts.since:IsShown() and hero.Facts.last:IsShown(), language .. ": both facts")
+      T.truthy(hero.NoteBlocks.note:IsShown() and hero.NoteBlocks.officer:IsShown(), language .. ": both notes")
+      T.truthy(fit.content <= fit.buttons - 6, ("%s: content ends at %d, the buttons start at %d"):format(language, fit.content, fit.buttons))
+      T.truthy(fit.model >= 140, language .. ": model area " .. fit.model)
+      T.truthy(fit.model <= math.floor(hero:GetHeight() * 0.6), language .. ": model area at most 60 % " .. fit.model)
+      T.eq(hero.ModelArea:GetHeight(), fit.model)
+      T.eq(w.errors, {})
+    end
+  end)
+
+  T.it("gives the professions only their rows and the upgrades the rest of the column", function()
+    local page = ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 560 - 42)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local profs, upgrades, family = page.Profs, page.Upgrades, page.Family
+    local n = 0
+    for _, row in ipairs(profs.Rows) do if row:IsShown() then n = n + 1 end end
+    T.truthy(n > 0, "Au has professions")
+    T.eq(profs:GetHeight(), 34 + n * 18)
+    T.eq(profs.Rows[1]:GetHeight(), 18)
+    local areaH = 560 - 42 - 30 - 78 - 8
+    T.eq(family:GetHeight() + upgrades:GetHeight() + profs:GetHeight() + 2 * 8, areaH)
+    local shown = 0
+    for _, row in ipairs(upgrades.Rows) do if row:IsShown() then shown = shown + 1 end end
+    T.truthy(30 + shown * 42 <= upgrades:GetHeight(), "the upgrade rows inside their box")
+    page:SetSize(100, 100)
     T.eq(errors, {})
   end)
 end)

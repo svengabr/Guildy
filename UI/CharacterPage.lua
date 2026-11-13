@@ -16,7 +16,15 @@ local TILE_KEYS = { "kills", "quests", "deaths", "gear", "score" }
 local FAMILY_LINES = 8
 local LINE_H = 18
 local PROF_ROWS = 6
-local UPGRADE_H = 34
+local PROF_H = 18       -- a profession row
+local UPGRADE_H = 42    -- an upgrade block: icon, item name, slot and makers, the gain at the right
+local UPGRADE_TOP = 28  -- the heading line above the upgrade rows
+local UPGRADE_ICON = 32 -- the icon with its quality border
+local FACTS = { "since", "last", "guildy" }
+local NOTE_LINES = 3
+local MODEL_SHARE = 0.6 -- the model area takes at most this share of the card
+local MODEL_MIN = 120   -- and at least this, the notes give up lines first
+local CONTENT_GAP = 12  -- between the card's content and its buttons
 local MODEL_ZOOM = 0.8
 local MODEL_SCENE = 596 -- the game's scene of a player in the shop and dressing room
 local MODEL_DRESS_AFTER = 0.5 -- s a donor's body needs before it takes the stored items (checked in game)
@@ -551,41 +559,81 @@ local function Build()
       end
     end
   end
-  hero.ModelHint = W.Text(hero, "GameFontDisableSmall", L.MODEL_HINT)
-  hero.ModelHint:SetPoint("TOP", hero.ModelArea, "BOTTOM", 0, -2)
+  -- the drag and zoom hint: small, at the model area's bottom edge over its shade, only while the mouse
+  -- is over the model
+  hero.HintLayer = CreateFrame("Frame", nil, hero.ModelArea)
+  hero.HintLayer:SetAllPoints()
+  hero.HintLayer:SetFrameLevel((model and model:GetFrameLevel() or hero.ModelArea:GetFrameLevel()) + 2)
+  hero.ModelHint = W.Text(hero.HintLayer, "GameFontHighlightSmall", L.MODEL_HINT)
+  hero.ModelHint:SetTextColor(0.82, 0.8, 0.74)
+  hero.ModelHint:SetPoint("BOTTOM", 0, 6)
   hero.ModelHint:Hide()
+  if model then
+    model:HookScript("OnEnter", function(self)
+      self.hovered = true
+      hero.ModelHint:SetShown(self:IsShown())
+    end)
+    model:HookScript("OnLeave", function(self)
+      self.hovered = nil
+      hero.ModelHint:Hide()
+    end)
+  end
   hero.LevelRing = CreateFrame("Frame", nil, hero)
   hero.LevelRing:SetSize(34, 34)
   hero.LevelRing:SetPoint("TOPRIGHT", -12, -12)
-  hero.LevelRing:SetFrameLevel(hero.ModelArea:GetFrameLevel() + 3)
+  hero.LevelRing:SetFrameLevel(hero.HintLayer:GetFrameLevel() + 1)
   Disc(hero.LevelRing, "BACKGROUND", 1, 0, W.GOLD[1], W.GOLD[2], W.GOLD[3])
   Disc(hero.LevelRing, "BACKGROUND", 2, 2, 0.07, 0.06, 0.04)
   hero.Level = W.Text(hero.LevelRing, "GameFontNormal")
   hero.Level:SetPoint("CENTER", 0, 0)
+  -- identity on the card's centre axis: name, Hall of Fame title, race and class, rank and zone
   hero.Name = W.Text(hero, "GameFontNormalHuge")
-  hero.Name:SetPoint("TOP", hero.ModelArea, "BOTTOM", 0, -18)
-  hero.Name:SetWidth(HERO_WIDTH - 24)
   hero.Name:SetWordWrap(false)
   hero.Title = W.Text(hero, "GameFontNormal")
-  hero.Title:SetPoint("TOP", hero.Name, "BOTTOM", 0, -4)
-  hero.Ident = W.Text(hero, "GameFontHighlightSmall")
-  -- long race names ("Himmelsgeborene des Hohen Ordens") wrap inside the card; the class icon is inline
-  hero.Ident:SetPoint("TOP", hero.Title, "BOTTOM", 0, -8)
-  hero.Ident:SetWidth(HERO_WIDTH - 24)
-  hero.Ident:SetJustifyH("CENTER")
+  hero.Title:SetWordWrap(false)
+  hero.Ident = W.Text(hero, "GameFontHighlightSmall") -- long race names wrap inside the card
   hero.Ident:SetSpacing(2)
-  hero.Where = W.Text(hero, "GameFontDisableSmall")
-  hero.Where:SetPoint("TOP", hero.Ident, "BOTTOM", 0, -5)
-  hero.Where:SetJustifyH("CENTER")
-  hero.Where:SetWidth(HERO_WIDTH - 24) -- long guild names wrap inside the card
+  hero.Where = W.Text(hero, "GameFontHighlightSmall")
   hero.Where:SetSpacing(2)
-  hero.Notes = W.Text(hero, "GameFontHighlightSmall")
-  hero.Notes:SetSpacing(2)
+  hero.Divider = hero:CreateTexture(nil, "ARTWORK")
+  hero.Divider:SetHeight(1)
+  hero.Divider:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.35)
+  -- facts: label left in muted gold, value right in white
+  hero.Facts = {}
+  for _, key in ipairs(FACTS) do
+    local row = CreateFrame("Frame", nil, hero)
+    row.Label = W.Text(row, "GameFontNormalSmall")
+    row.Label:SetTextColor(W.GOLD[1], W.GOLD[2], W.GOLD[3])
+    row.Label:SetPoint("TOPLEFT", 0, 0)
+    row.Label:SetWordWrap(false)
+    row.Value = W.Text(row, "GameFontHighlightSmall")
+    row.Value:SetPoint("TOPRIGHT", 0, 0)
+    row.Value:SetJustifyH("RIGHT")
+    row.Value:SetSpacing(1)
+    if row.Value.SetMaxLines then row.Value:SetMaxLines(2) end
+    row:Hide()
+    hero.Facts[key] = row
+  end
+  -- notes: a small heading, the text under it, at most NOTE_LINES lines
+  hero.NoteBlocks = {}
+  for key, title in pairs({ note = L.NOTE, officer = L.OFFICER_NOTE }) do
+    local block = CreateFrame("Frame", nil, hero)
+    block.Heading = W.Text(block, "GameFontNormalSmall", title)
+    block.Heading:SetTextColor(W.GOLD[1], W.GOLD[2], W.GOLD[3])
+    block.Heading:SetPoint("TOPLEFT", 0, 0)
+    block.Text = W.Text(block, "GameFontHighlightSmall")
+    block.Text:SetSpacing(1)
+    block:Hide()
+    hero.NoteBlocks[key] = block
+  end
   hero.Whisper = W.Button(hero, L.WHISPER, function() if page.member then UI.Whisper(page.member.fullName) end end, 110)
   hero.Invite = W.Button(hero, L.GROUP_INVITE_SHORT, function() if page.member then ns.Roster.GroupInvite(page.member) end end, 110)
 
-  -- officer bar: removal (rank and notes are in Blizzard's own member panel beside the page,
-  -- UI/Notes.lua)
+  -- officer row under a hairline: removal (rank and notes are in Blizzard's own member panel beside the
+  -- page, UI/Notes.lua)
+  hero.OfficerRule = hero:CreateTexture(nil, "ARTWORK")
+  hero.OfficerRule:SetHeight(1)
+  hero.OfficerRule:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.25)
   hero.OfficerLabel = W.Text(hero, "GameFontNormalSmall", L.OFFICERS)
   hero.OfficerLabel:SetTextColor(0.85, 0.5, 0.25)
   hero.Remove = W.Button(hero, L.REMOVE_SHORT, function()
@@ -636,6 +684,14 @@ local function Build()
   gear.Foot:SetPoint("BOTTOMLEFT", 12, 8)
   gear.Foot:SetPoint("RIGHT", -12, 0)
   gear.Foot:SetWordWrap(false)
+  -- no gear known yet: one message in the middle of the box instead of bare slot names
+  gear.Empty = W.Text(gear, "GameFontNormal", L.GEAR_EMPTY)
+  gear.Empty:SetPoint("CENTER", 0, 12)
+  gear.Empty:SetJustifyH("CENTER")
+  gear.EmptyHint = W.Text(gear, "GameFontDisableSmall", L.GEAR_EMPTY_HINT)
+  gear.EmptyHint:SetPoint("TOP", gear.Empty, "BOTTOM", 0, -8)
+  gear.EmptyHint:SetJustifyH("CENTER")
+  gear.EmptyHint:SetSpacing(2)
 
   -- column: family, upgrades, professions
   local family = Section(right, L.FAMILY)
@@ -659,46 +715,72 @@ local function Build()
   upgrades.Empty:SetPoint("RIGHT", -12, 0)
   upgrades.want = 56
   upgrades.Rows = {}
+  local function ItemTooltip(self)
+    local itemID = self:GetParent().itemID
+    if not itemID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetHyperlink("item:" .. itemID)
+    GameTooltip:Show()
+  end
+  -- a block per piece: the icon in its quality border, the item name over slot and makers, the gain
+  -- big at the right over the levels it is made of
   for i = 1, ns.Upgrades.MAX_ROWS do
     local row = CreateFrame("Frame", nil, upgrades)
     row:SetHeight(UPGRADE_H)
-    row:SetPoint("TOPLEFT", 12, -30 - (i - 1) * UPGRADE_H)
+    row:SetPoint("TOPLEFT", 12, -UPGRADE_TOP - (i - 1) * UPGRADE_H)
     row:SetPoint("RIGHT", -12, 0)
-    row.Slot = W.Text(row, "GameFontDisableSmall")
-    row.Slot:SetPoint("TOPLEFT", 0, 0)
-    row.Gain = W.Text(row, "GameFontHighlightSmall")
-    row.Gain:SetPoint("TOPRIGHT", 0, 0)
-    row.Gain:SetJustifyH("RIGHT")
+    if i > 1 then
+      row.Rule = row:CreateTexture(nil, "BORDER")
+      row.Rule:SetHeight(1)
+      row.Rule:SetPoint("TOPLEFT", 0, 0)
+      row.Rule:SetPoint("TOPRIGHT", 0, 0)
+      row.Rule:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.18)
+    end
     row.Item = CreateFrame("Button", nil, row)
-    row.Item:SetPoint("TOPLEFT", row.Slot, "TOPRIGHT", 6, 0)
-    row.Item:SetPoint("RIGHT", row.Gain, "LEFT", -6, 0)
-    row.Item:SetHeight(14)
-    row.Item.Text = W.Text(row.Item, "GameFontHighlightSmall")
-    row.Item.Text:SetPoint("LEFT", 0, 0)
-    row.Item.Text:SetPoint("RIGHT", 0, 0)
-    row.Item.Text:SetJustifyH("LEFT")
-    row.Item.Text:SetWordWrap(false)
-    row.Item:SetScript("OnEnter", function(self)
-      if not self.itemID then return end
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetHyperlink("item:" .. self.itemID)
-      GameTooltip:Show()
-    end)
+    row.Item:SetSize(UPGRADE_ICON, UPGRADE_ICON)
+    row.Item:SetPoint("LEFT", 0, 0)
+    row.Item:SetScript("OnEnter", ItemTooltip)
     row.Item:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    -- the makers: a click whispers them
+    row.Border = row.Item:CreateTexture(nil, "BACKGROUND")
+    row.Border:SetAllPoints()
+    row.Icon = row.Item:CreateTexture(nil, "ARTWORK")
+    row.Icon:SetPoint("TOPLEFT", 1, -1)
+    row.Icon:SetPoint("BOTTOMRIGHT", -1, 1)
+    row.Icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    row.Gain = W.Text(row, "GameFontNormalLarge")
+    row.Gain:SetPoint("TOPRIGHT", 0, -5)
+    row.Gain:SetJustifyH("RIGHT")
+    row.Gain:SetTextColor(0.3, 0.9, 0.3)
+    row.GainSub = W.Text(row, "GameFontDisableSmall")
+    row.GainSub:SetPoint("TOPRIGHT", 0, -25)
+    row.GainSub:SetJustifyH("RIGHT")
+    row.GainSub:SetWordWrap(false)
+    row.Name = W.Text(row, "GameFontHighlightSmall")
+    row.Name:SetPoint("TOPLEFT", UPGRADE_ICON + 8, -8)
+    row.Name:SetWordWrap(false)
+    row.NameHit = CreateFrame("Button", nil, row)
+    row.NameHit:SetAllPoints(row.Name)
+    row.NameHit:SetScript("OnEnter", ItemTooltip)
+    row.NameHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- "Slot · von", the makers' names (a click whispers them), "(Beruf) · online"
+    row.Sub = W.Text(row, "GameFontDisableSmall")
+    row.Sub:SetWordWrap(false)
     row.Makers = {}
     for j = 1, 2 do
       local maker = CreateFrame("Button", nil, row)
       maker:SetHeight(14)
       maker.Name = W.Text(maker, "GameFontHighlightSmall")
       maker.Name:SetPoint("LEFT", 0, 0)
-      maker.Info = W.Text(maker, "GameFontDisableSmall")
-      maker.Info:SetPoint("LEFT", maker.Name, "RIGHT", 4, 0)
+      maker.Name:SetWordWrap(false)
+      maker.Info = W.Text(maker, "GameFontDisableSmall") -- the comma after the first of two
+      maker.Info:SetPoint("LEFT", maker.Name, "RIGHT", 0, 0)
       maker:SetScript("OnClick", function(self) if self.member then UI.Whisper(self.member.fullName) end end)
       maker:SetScript("OnEnter", function(self) if self.member then UI.MemberTooltip(self, self.member) end end)
       maker:SetScript("OnLeave", function() GameTooltip:Hide() end)
       row.Makers[j] = maker
     end
+    row.Info = W.Text(row, "GameFontDisableSmall")
+    row.Info:SetWordWrap(false)
     upgrades.Rows[i] = row
   end
 
@@ -707,11 +789,11 @@ local function Build()
   profs.Rows = {}
   for i = 1, PROF_ROWS do
     local row = CreateFrame("Frame", nil, profs)
-    row:SetHeight(18)
-    row:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 22)
+    row:SetHeight(PROF_H)
+    row:SetPoint("TOPLEFT", 12, -28 - (i - 1) * PROF_H)
     row:SetPoint("RIGHT", -12, 0)
     row.Icon = row:CreateTexture(nil, "ARTWORK")
-    row.Icon:SetSize(16, 16)
+    row.Icon:SetSize(14, 14)
     row.Icon:SetPoint("LEFT")
     row.Name = W.Text(row, "GameFontHighlightSmall")
     row.Name:SetPoint("LEFT", row.Icon, "RIGHT", 6, 0)
@@ -725,16 +807,19 @@ local function Build()
     row.Trainer = W.Text(row, "GameFontNormalSmall", L.TRAINER)
     row.Trainer:SetPoint("RIGHT")
     row.Bar = W.SkillBar(row, 100)
+    row.Bar:SetHeight(4)
     row.Bar:SetPoint("LEFT", row.Level, "RIGHT", 8, 0)
     profs.Rows[i] = row
   end
   profs.Empty = W.Text(profs, "GameFontDisableSmall", L.NO_PROFESSIONS)
-  profs.Empty:SetPoint("TOPLEFT", 12, -32)
+  profs.Empty:SetPoint("TOPLEFT", 12, -31)
 
   -- render -----------------------------------------------------------------------------------------
   function page:RenderHero(m, entries)
     local can = ns.Roster.Can()
     local info = hero.Portrait:SetMember(m)
+    local SEP = ns.L.SEP
+    local inner = HERO_WIDTH - 24
     hero.Level:SetText(m.level or "")
     hero.Name:SetText(W.ClassName(m.name, m.classFile))
     local title = FirstTitle(entries, m.key)
@@ -743,35 +828,53 @@ local function Build()
     if info and info.race then ident[#ident + 1] = info.race end
     if info then ident[#ident + 1] = info.female and L.FEMALE or L.MALE end
     ident[#ident + 1] = m.className or ""
-    hero.Ident:SetText(ClassIconString(m.classFile) .. table.concat(ident, ns.L.SEP))
-    hero.Where:SetText((m.rank or "") .. (m.zone and m.zone ~= "" and (ns.L.SEP .. m.zone) or "") .. ns.L.SEP ..
-      (m.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(m)))
+    local icon = info and info.icon and ("|T" .. info.icon .. ":14:14:0:0:64:64:5:59:5:59|t ") or ClassIconString(m.classFile, 14)
+    hero.Ident:SetText(icon .. table.concat(ident, SEP))
+    -- rank in gold, zone in grey, "online" in green; offline says nothing here (the facts tell when)
+    local where = {}
+    if m.rank and m.rank ~= "" then where[#where + 1] = "|cffffd100" .. m.rank .. "|r" end
+    if m.zone and m.zone ~= "" then where[#where + 1] = "|cff9d9d9d" .. m.zone .. "|r" end
+    if m.online then where[#where + 1] = "|cff4ce64c" .. L.ONLINE .. "|r" end
+    hero.Where:SetText(table.concat(where, "|cff9d9d9d" .. SEP .. "|r"))
 
-    local notes = {}
-    local since = ns.Roster.TenureText(m, true)
-    if since then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.MEMBER_SINCE, "|r" .. since) end
-    if m.note and m.note ~= "" then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.NOTE, "|r" .. m.note) end
-    if can.viewOfficer and m.officerNote and m.officerNote ~= "" then
-      notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.OFFICER_NOTE, "|r" .. m.officerNote)
+    -- facts, each only with a value
+    local values = {
+      since = ns.Roster.TenureText(m, true),
+      last = not m.online and ns.Roster.LastOnlineText(m) or nil,
+      guildy = UI.GuildyVersionText and UI.GuildyVersionText(m) or nil,
+    }
+    local labels = { since = L.MEMBER_SINCE, last = L.LAST_ONLINE, guildy = L.COL_GUILDY }
+    local labelW = 0
+    for _, key in ipairs(FACTS) do
+      local row = hero.Facts[key]
+      row.Label:SetText(labels[key])
+      row.Value:SetText(values[key] or "")
+      if values[key] then labelW = math.max(labelW, TextWidth(row.Label)) end
     end
-    local guildy = UI.GuildyVersionText and UI.GuildyVersionText(m)
-    if guildy then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.COL_GUILDY, "|r" .. guildy) end
-    hero.Notes:SetText(table.concat(notes, "\n"))
-    hero.Notes:ClearAllPoints()
-    hero.Notes:SetPoint("TOP", hero.Where, "BOTTOM", 0, -10)
-    hero.Notes:SetWidth(HERO_WIDTH - 28)
+    labelW = math.min(110, math.ceil(labelW) + 2)
+    local notes = {
+      note = m.note ~= nil and m.note ~= "" and m.note or nil,
+      officer = can.viewOfficer and m.officerNote ~= nil and m.officerNote ~= "" and m.officerNote or nil,
+    }
+    for key, block in pairs(hero.NoteBlocks) do block.Text:SetText(notes[key] or "") end
 
+    -- the bottom: whisper and invite, under them the officer row behind a hairline
     local officer = can.remove
+    local bottomH = officer and 64 or 32
     hero.OfficerLabel:SetShown(officer)
-    hero.Remove:SetShown(officer and can.remove)
+    hero.OfficerRule:SetShown(officer)
+    hero.Remove:SetShown(officer)
     hero.Remove:SetEnabled(ns.Roster.Rights(m).remove or false)
     local y = 10
     if officer then
       hero.Remove:ClearAllPoints()
-      hero.Remove:SetPoint("BOTTOMLEFT", 12, y)
+      hero.Remove:SetPoint("BOTTOMRIGHT", hero, "BOTTOMRIGHT", -12, 8)
       hero.OfficerLabel:ClearAllPoints()
-      hero.OfficerLabel:SetPoint("BOTTOMLEFT", 14, y + 28)
-      y = y + 50
+      hero.OfficerLabel:SetPoint("BOTTOMLEFT", hero, "BOTTOMLEFT", 14, 14)
+      hero.OfficerRule:ClearAllPoints()
+      hero.OfficerRule:SetPoint("BOTTOMLEFT", hero, "BOTTOMLEFT", 12, 36)
+      hero.OfficerRule:SetWidth(inner)
+      y = 42
     end
     hero.Whisper:ClearAllPoints()
     hero.Whisper:SetPoint("BOTTOMRIGHT", hero, "BOTTOM", -3, y)
@@ -779,6 +882,110 @@ local function Build()
     hero.Invite:SetPoint("BOTTOMLEFT", hero, "BOTTOM", 3, y)
     hero.Whisper:SetEnabled(m.online or false)
     hero.Invite:SetEnabled(m.online or false)
+
+    -- heights of what goes under the model; the notes give up lines before the model gets small
+    local cardH = hero:GetHeight() or 0
+    local function Measure(lines)
+      local h = {}
+      h.name = TextHeight(hero.Name, inner)
+      h.title = title and TextHeight(hero.Title, inner) or 0
+      h.ident = TextHeight(hero.Ident, inner)
+      h.where = #where > 0 and TextHeight(hero.Where, inner) or 0
+      local total = 10 + h.name + (title and 2 + h.title or 0) + 4 + h.ident + (#where > 0 and 3 + h.where or 0)
+      total = total + 10 + 1 + 10 -- the divider
+      local facts = 0
+      for _, key in ipairs(FACTS) do
+        if values[key] then
+          local row = hero.Facts[key]
+          local line = TextHeight(row.Label, labelW)
+          h[key] = math.max(line, math.min(TextHeight(row.Value, inner - labelW - 10), 2 * line + 1))
+          facts = facts + (facts > 0 and 4 or 0) + h[key]
+        end
+      end
+      total = total + facts
+      local blocks = 0
+      for _, key in ipairs({ "note", "officer" }) do
+        if notes[key] then
+          local block = hero.NoteBlocks[key]
+          local line = TextHeight(block.Heading, inner)
+          h[key] = math.min(TextHeight(block.Text, inner), lines * (line + 1))
+          blocks = blocks + (blocks > 0 and 8 or 0) + line + 2 + h[key]
+        end
+      end
+      if blocks > 0 then total = total + (facts > 0 and 12 or 0) + blocks end
+      return total, h
+    end
+    local lines, contentH, h = NOTE_LINES
+    repeat
+      contentH, h = Measure(lines)
+      lines = lines - 1
+    until lines < 1 or cardH - bottomH - CONTENT_GAP - contentH >= MODEL_MIN
+    local modelH = math.max(MODEL_MIN, math.min(math.floor(cardH * MODEL_SHARE), cardH - bottomH - CONTENT_GAP - contentH))
+    hero.ModelArea:SetHeight(modelH)
+
+    -- placed top-down: identity centred, the divider, facts, notes
+    local top = modelH + 10
+    local function Centre(text, height)
+      text:SetJustifyH("CENTER")
+      text:SetWidth(inner)
+      text:ClearAllPoints()
+      text:SetPoint("TOP", hero, "TOP", 0, -top)
+      top = top + height
+    end
+    Centre(hero.Name, h.name)
+    hero.Title:SetShown(title ~= nil)
+    if title then
+      top = top + 2
+      Centre(hero.Title, h.title)
+    end
+    top = top + 4
+    Centre(hero.Ident, h.ident)
+    hero.Where:SetShown(#where > 0)
+    if #where > 0 then
+      top = top + 3
+      Centre(hero.Where, h.where)
+    end
+    top = top + 10
+    hero.Divider:ClearAllPoints()
+    hero.Divider:SetPoint("TOPLEFT", hero, "TOPLEFT", 24, -top)
+    hero.Divider:SetWidth(HERO_WIDTH - 48)
+    top = top + 11
+    local facts = 0
+    for _, key in ipairs(FACTS) do
+      local row = hero.Facts[key]
+      row:SetShown(values[key] ~= nil)
+      if values[key] then
+        if facts > 0 then top = top + 4 end
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", hero, "TOPLEFT", 12, -top)
+        row:SetSize(inner, h[key])
+        row.Label:SetWidth(labelW)
+        row.Value:SetWidth(inner - labelW - 10)
+        row.Value:SetHeight(h[key])
+        top = top + h[key]
+        facts = facts + 1
+      end
+    end
+    local blocks = 0
+    for _, key in ipairs({ "note", "officer" }) do
+      local block = hero.NoteBlocks[key]
+      block:SetShown(notes[key] ~= nil)
+      if notes[key] then
+        top = top + (blocks > 0 and 8 or (facts > 0 and 12 or 0))
+        local line = TextHeight(block.Heading, inner)
+        block.Text:ClearAllPoints()
+        block.Text:SetPoint("TOPLEFT", block.Heading, "BOTTOMLEFT", 0, -2)
+        block.Text:SetWidth(inner)
+        block.Text:SetHeight(h[key]) -- cut with an ellipsis after the last line that fits
+        if block.Text.SetMaxLines then block.Text:SetMaxLines(lines + 1) end
+        block:ClearAllPoints()
+        block:SetPoint("TOPLEFT", hero, "TOPLEFT", 12, -top)
+        block:SetSize(inner, line + 2 + h[key])
+        top = top + line + 2 + h[key]
+        blocks = blocks + 1
+      end
+    end
+    hero.layout = { model = modelH, content = top, buttons = cardH - bottomH }
     UI.Notes.Show(m)
   end
 
@@ -790,7 +997,7 @@ local function Build()
       model:SetAlpha(1)
     end
     hero.Portrait:SetShown(not shown)
-    hero.ModelHint:SetShown(shown)
+    hero.ModelHint:SetShown(shown and model ~= nil and model.hovered == true)
   end
 
   -- true when the model shows member m's body already, in whatever gear: it stays while no player of
@@ -1229,6 +1436,18 @@ local function Build()
     gear.Note:SetJustifyH("LEFT")
     gear.Note:SetWordWrap(false)
     gear.Note:SetWidth(math.max(1, width - 12 - TextWidth(gear.Title) - 10 - 16 - TextWidth(gear.Head) - barsEnd))
+    gear.Empty:SetShown(rec == nil)
+    gear.EmptyHint:SetShown(rec == nil)
+    gear.EmptyHint:SetWidth(math.max(120, math.min(360, width - 60)))
+    gear.Head:SetShown(rec ~= nil)
+    gear.Note:SetShown(rec ~= nil)
+    gear.Foot:SetShown(rec ~= nil)
+    if not rec then
+      for _, row in ipairs(gear.Rows) do row:Hide() end
+      gear.Note:SetText("")
+      gear.Foot:SetText("")
+      return nil
+    end
     for i, row in ipairs(gear.Rows) do
       local item = rec and rec.items[row.slot]
       row.item = item
@@ -1286,9 +1505,7 @@ local function Build()
     gear.Note:SetText(table.concat(parts, ns.L.SEP))
     -- under the list: how old the reading is and where it comes from, or why there is none
     local name = m.name -- (made up for pictures by the roster itself, Game/Roster.lua)
-    if not rec then
-      gear.Foot:SetText(L.GEAR_UNSEEN:format(name))
-    elseif rec.src == "self" then
+    if rec.src == "self" then
       gear.Foot:SetText(L.GEAR_SELF_AGO:format(name, Span(ns.Now() - (rec.ts or 0))))
     elseif rec.src == "api" then
       gear.Foot:SetText(L.GEAR_API_AGO:format(Span(ns.Now() - (rec.ts or 0))))
@@ -1298,46 +1515,120 @@ local function Build()
     return rec
   end
 
-  -- "Upgrades aus der Gilde": up to three better crafted pieces with their makers; height of the box
+  -- The line under an upgrade's name: "Slot · von A, B (Beruf) · online", never wider than width. The
+  -- profession goes first when room is short, then the names are cut, then the slot; each maker's
+  -- click target stays on their name.
+  local function MakerLine(line, row, x0, width)
+    local SEP = ns.L.SEP
+    local makers = {}
+    for j = 1, #line.Makers do
+      local maker = row.makers[j]
+      local other = maker and ns.Roster.Find(maker.key) -- (names made up for pictures by the roster)
+      if other then makers[#makers + 1] = { maker = maker, member = other } end
+    end
+    -- one profession (one recipe: the makers share it as a rule), the state of the first online maker,
+    -- else when the first was last online
+    local prof = makers[1] and ns.TradeSkill.Name(makers[1].maker.skillLine)
+    local state
+    for _, entry in ipairs(makers) do
+      if entry.maker.online and not state then state = "|cff4ce64c" .. L.ONLINE .. "|r" end
+    end
+    if not state and makers[1] then state = ns.Roster.LastOnlineText(makers[1].member) end
+    line.Sub:SetText(SlotName(row.slot) .. SEP .. L.UPGRADE_BY .. " ")
+    local names, nameW = 0, {}
+    for j, button in ipairs(line.Makers) do
+      local entry = makers[j]
+      button.member = entry and entry.member or nil
+      button:SetShown(entry ~= nil)
+      if entry then
+        button.Name:SetWidth(0)
+        button.Name:SetText(entry.member.name)
+        button.Info:SetText(j < #makers and ", " or "")
+        nameW[j] = math.ceil(TextWidth(button.Name))
+        names = names + nameW[j] + (j < #makers and math.ceil(TextWidth(button.Info)) or 0)
+      end
+    end
+    local function Info(withProf)
+      local text = (withProf and prof and (" (" .. prof .. ")") or "") .. (state and ("|cff9d9d9d" .. SEP .. "|r" .. state) or "")
+      line.Info:SetText(text)
+      return math.ceil(TextWidth(line.Info))
+    end
+    local subW = math.ceil(TextWidth(line.Sub))
+    local infoW = Info(true)
+    if subW + names + infoW > width then infoW = Info(false) end
+    -- the names share what is left, each cut with an ellipsis; the slot gives way last
+    local commas = 0
+    for j, button in ipairs(line.Makers) do
+      if makers[j] and j < #makers then commas = commas + math.ceil(TextWidth(button.Info)) end
+    end
+    local wantNames = names - commas
+    local roomNames = width - subW - infoW - commas
+    if roomNames < math.min(wantNames, 40 * #makers) then
+      subW = math.max(0, width - infoW - commas - math.min(wantNames, 40 * #makers))
+      roomNames = width - subW - infoW - commas
+    end
+    local scale = wantNames > 0 and math.min(1, math.max(0, roomNames) / wantNames) or 1
+    line.Sub:ClearAllPoints()
+    line.Sub:SetPoint("TOPLEFT", line, "TOPLEFT", x0, -24)
+    line.Sub:SetWidth(math.max(1, subW))
+    local x = x0 + subW
+    for j, button in ipairs(line.Makers) do
+      if makers[j] then
+        local w = math.max(1, math.floor(nameW[j] * scale))
+        button.Name:SetWidth(w)
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", line, "TOPLEFT", x, -23)
+        button:SetWidth(w)
+        x = x + w + (j < #makers and math.ceil(TextWidth(button.Info)) or 0)
+      end
+    end
+    line.Info:ClearAllPoints()
+    line.Info:SetPoint("TOPLEFT", line, "TOPLEFT", x, -24)
+    line.Info:SetWidth(math.max(1, math.min(infoW, x0 + width - x)))
+    line.lineStart, line.lineWidth = x0, width
+  end
+
+  -- "Upgrades aus der Gilde": up to five better crafted pieces with their makers. Returns the height the
+  -- box wants; LayoutColumn gives it the rest of the column and FitUpgrades drops what does not fit.
   function page:RenderUpgrades(m)
     local rows, state = ns.GameGear.UpgradesFor(m)
+    local rowW = (upgrades:GetWidth() or 300) - 24
     for i, line in ipairs(upgrades.Rows) do
       local row = rows[i]
       if row then
         local color = QUALITY[row.quality or 1] or QUALITY[1]
-        line.Slot:SetText(SlotName(row.slot))
         local info = ns.GameGear.ItemInfo(row.itemID)
-        line.Item.itemID = row.itemID
-        line.Item.Text:SetText(Hex(color) .. (info and info.name or "…") .. "|r")
-        line.Gain:SetText(L.UPGRADE_GAIN:format((row.have or 0) > 0 and tostring(row.have) or "–", row.offer))
-        local x = 0
-        for j, button in ipairs(line.Makers) do
-          local maker = row.makers[j]
-          local other = maker and ns.Roster.Find(maker.key) -- (names made up for pictures by the roster)
-          if other then
-            button.member = other
-            button.Name:SetText(other.name)
-            button.Info:SetText(ns.TradeSkill.Name(maker.skillLine) .. "  " ..
-              (maker.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(other)))
-            local w = TextWidth(button.Name) + 4 + TextWidth(button.Info)
-            button:ClearAllPoints()
-            button:SetPoint("TOPLEFT", line, "TOPLEFT", x, -16)
-            button:SetWidth(w)
-            x = x + w + 12
-            button:Show()
-          else
-            button.member = nil
-            button:Hide()
-          end
-        end
+        line.itemID = row.itemID
+        line.Icon:SetTexture(ItemIcon(row.itemID) or "Interface\\Icons\\INV_Misc_QuestionMark")
+        line.Icon:Show()
+        line.Border:SetColorTexture(color[1], color[2], color[3], 1)
+        local have = row.have or 0
+        line.Gain:SetText("+" .. (row.offer - have))
+        line.GainSub:SetText(have > 0 and L.UPGRADE_GAIN:format(tostring(have), row.offer) or L.UPGRADE_EMPTY)
+        local gainW = math.ceil(math.max(TextWidth(line.Gain), TextWidth(line.GainSub)))
+        local x0 = UPGRADE_ICON + 8
+        local width = math.max(40, rowW - x0 - 8 - gainW)
+        line.Name:SetText(Hex(color) .. (info and info.name or "…") .. "|r")
+        line.Name:SetWidth(width)
+        MakerLine(line, row, x0, width)
         line:Show()
       else
+        line.itemID = nil
         line:Hide()
       end
     end
+    upgrades.count = state == "rows" and #rows or 0
+    upgrades.Note:SetText(state == "rows" and L.UPGRADES_COUNT:format(#rows) or "")
     upgrades.Empty:SetText(state == "none" and L.UPGRADES_NONE or L.UPGRADES_NO_DATA)
     upgrades.Empty:SetShown(state ~= "rows")
-    return state == "rows" and (34 + #rows * UPGRADE_H) or upgrades.want
+    return state == "rows" and (UPGRADE_TOP + 6 + #rows * UPGRADE_H) or upgrades.want
+  end
+
+  -- the upgrade rows the box of height has room for
+  function page:FitUpgrades(height)
+    for i, line in ipairs(upgrades.Rows) do
+      if i <= (upgrades.count or 0) then line:SetShown(UPGRADE_TOP + i * UPGRADE_H + 2 <= height) end
+    end
   end
 
   function page:RenderProfs(m)
@@ -1364,7 +1655,7 @@ local function Build()
         row.Trainer:SetShown(atCap)
         -- the bar takes the room between the number and the "Trainer" label
         local rowWidth = (profs:GetWidth() or 300) - 24
-        row.Bar:SetBarWidth(math.max(40, rowWidth - 16 - 6 - nameWidth - 4 - 56 - 8 - 8 - (atCap and (row.Trainer:GetStringWidth() or 40) or 0)))
+        row.Bar:SetBarWidth(math.max(40, rowWidth - 14 - 6 - nameWidth - 4 - 56 - 8 - 8 - (atCap and (row.Trainer:GetStringWidth() or 40) or 0)))
         if prof.rank then
           row.Bar:SetSkill(prof.rank, prof.max)
           row.Bar:Show()
@@ -1377,7 +1668,7 @@ local function Build()
       end
     end
     profs.Empty:SetShown(#list == 0)
-    return 34 + math.max(1, #list) * 22
+    return 34 + math.max(1, math.min(#list, PROF_ROWS)) * PROF_H
   end
 
   -- sizes of everything from the page's own size (the smallest window is 1130 x 560: content 1108 x 518)
@@ -1385,8 +1676,7 @@ local function Build()
     local pageW, pageH = self:GetWidth() or 0, self:GetHeight() or 0
     local bodyH = math.max(200, pageH - (W.BAR_H + 6))
     local rightW = math.max(400, pageW - HERO_WIDTH - W.GAP)
-    hero:SetSize(HERO_WIDTH, bodyH)
-    hero.ModelArea:SetHeight(math.floor(bodyH * 0.45))
+    hero:SetSize(HERO_WIDTH, bodyH) -- the model area's height follows from the card's content (RenderHero)
     right:SetSize(rightW, bodyH)
     local tileW = math.floor((rightW - (#TILE_KEYS - 1) * W.GAP) / #TILE_KEYS)
     for i, key in ipairs(TILE_KEYS) do
@@ -1406,21 +1696,24 @@ local function Build()
     return y, areaH, gearW, colW
   end
 
-  -- the column: family as tall as its lines, upgrades as they need, professions take the rest
+  -- the column: professions only as tall as their rows, family as many lines as remain after what the
+  -- upgrades want, the upgrades take the rest
   function page:LayoutColumn(m, y, areaH, gearW)
-    local upH = self:RenderUpgrades(m)
+    local upWant = self:RenderUpgrades(m)
     local profsH = self:RenderProfs(m)
-    local free = areaH - upH - profsH - 2 * W.GAP - 36
+    local free = areaH - upWant - profsH - 2 * W.GAP - 36
     local familyH = self:RenderFamily(m, math.floor(free / LINE_H))
+    local upH = math.max(0, areaH - familyH - profsH - 2 * W.GAP)
     family:ClearAllPoints()
     family:SetPoint("TOPLEFT", right, "TOPLEFT", gearW + W.GAP, y)
     family:SetHeight(familyH)
     upgrades:ClearAllPoints()
     upgrades:SetPoint("TOPLEFT", family, "BOTTOMLEFT", 0, -W.GAP)
     upgrades:SetHeight(upH)
+    self:FitUpgrades(upH)
     profs:ClearAllPoints()
     profs:SetPoint("TOPLEFT", upgrades, "BOTTOMLEFT", 0, -W.GAP)
-    profs:SetHeight(math.max(profsH, areaH - familyH - upH - 2 * W.GAP))
+    profs:SetHeight(profsH)
   end
 
   function page:Render()
