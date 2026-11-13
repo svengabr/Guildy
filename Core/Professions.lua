@@ -95,6 +95,8 @@ function Professions.Merge(member, skillLine, incoming, ctx)
   if existing then
     if merged.recipes == nil then merged.recipes = existing.recipes end
     if merged.rank == nil then merged.rank, merged.max = existing.rank, existing.max end
+    -- the specialization has merge rules of its own (Core/Specs.lua) and is merged apart
+    merged.spec = existing.spec
   end
   member.profs[skillLine] = merged
   if Professions.PRIMARY[skillLine] then

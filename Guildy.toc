@@ -34,6 +34,7 @@ Core\Names.lua
 Core\Store.lua
 Core\Census.lua
 Core\Professions.lua
+Core\Specs.lua
 Core\Search.lua
 Core\Protocol.lua
 Core\Manage.lua
