@@ -229,6 +229,48 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("names a suffixed worn item on its gear row in full, as worn", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    w.INFO[7300] = { name = "Waldläufertunika", level = 39, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    w.STATS[7300] = {}
+    local full = "item:7300:0:0:0:0:0:-17:2752512"
+    local tips = {}
+    w.env.C_TooltipInfo.GetHyperlink = function(link)
+      tips[#tips + 1] = link
+      if link == full then return { lines = { { leftText = "Waldläufertunika des Tigers" }, { leftText = "Leder" } } } end
+      return { lines = { { leftText = "Waldläufertunika" } } }
+    end
+    guild.gear["au tsch"].items[5] = { id = 7300, e = 0, s = -17, u = 2752512, l = 39, q = 2 }
+    local function RowName()
+      w.ns.UI.ShowMember(w.Member())
+      local page = w.ns.UI.MemberPage()
+      page:SetSize(1130 - 22, 760)
+      page:Render()
+      for _, r in ipairs(page.Gear.Rows) do if r.slot == 5 then return r.Name:GetText() end end
+    end
+    -- the game's GetItemInfo gives the bare base name: the tooltip of the full item string names it
+    T.truthy(RowName():find("Waldläufertunika des Tigers", 1, true), RowName())
+    local asked = #tips
+    RowName()
+    T.eq(#tips, asked) -- read once, not on every render
+    -- a link that carries the full name is taken as it is
+    w.env.GetItemInfo = function(item)
+      local id = IdOf(item)
+      local it = w.INFO[id]
+      if not it then return nil end
+      local link = id == 7300 and type(item) == "string" and item:find(":-17:", 1, true)
+        and "|cff1eff00|H" .. item .. "|h[Waldläufertunika des Affen]|h|r" or ("item:" .. id)
+      return it.name, link, 2, it.level, 1, "Rüstung", "Leder", 1, it.equipLoc, 134, 1, 4, 2, 2
+    end
+    guild.gear["au tsch"].items[5] = { id = 7300, e = 0, s = -17, u = 1376256, l = 39, q = 2 }
+    T.truthy(RowName():find("Waldläufertunika des Affen", 1, true), RowName())
+    -- an item without a suffix keeps its plain name
+    guild.gear["au tsch"].items[5] = { id = 7300, e = 0, s = 0, l = 39, q = 2 }
+    T.truthy(RowName():find("Waldläufertunika|r", 1, true), RowName())
+    T.eq(w.errors, {})
+  end)
+
   T.it("takes the stats bnet-sync stored with Sven's tiger tunic and offers no chest over it", function()
     local w = World()
     local guild = w.ns.GuildData()

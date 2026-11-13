@@ -297,12 +297,32 @@ end
 -- it asks the game once and reads nothing while the item loads (the page redraws on GEAR_INFO);
 -- GetItemInfo of an item the client lacks would ask the server again on every render. nil, true when the
 -- game said it has no such item: nothing to wait for.
+-- A random suffix ("des Tigers") is not in GetItemInfo's name, which is the base item's: the name in the
+-- link of the full item string (suffix and unique ID) where it carries one, else the first line of that
+-- string's tooltip, read once per item string.
+local suffixNames = {} -- full item string -> name as worn, this session
+local function SuffixName(itemString, base, link)
+  local known = suffixNames[itemString]
+  if known then return known end
+  local inLink = type(link) == "string" and not ns.IsSecret(link) and link:match("|h%[(.-)%]|h")
+  local name = inLink and inLink ~= "" and inLink ~= base and inLink or nil
+  if not name then
+    local first = ns.GearProbe.TooltipLines(itemString)[1]
+    name = type(first) == "string" and first ~= "" and first or nil
+  end
+  if name and name ~= base then suffixNames[itemString] = name end -- the bare name may be a tooltip still loading
+  return name
+end
+
 local function ItemName(item)
   local info, gone = ns.GameGear.ItemInfo(item.id)
   if not info then return nil, gone end
   local getInfo = rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
-  local name = getInfo and ns.Try(getInfo, ns.Gear.ItemString(item))
+  local itemString = ns.Gear.ItemString(item)
+  local name, link
+  if getInfo then name, link = ns.Try(getInfo, itemString) end
   if type(name) ~= "string" or ns.IsSecret(name) then return nil end
+  if item.s and item.s ~= 0 then return SuffixName(itemString, name, link) or name end
   return name
 end
 
