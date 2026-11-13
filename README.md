@@ -17,22 +17,22 @@ More screenshots are in the gallery on [CurseForge](https://www.curseforge.com/w
 | Chat | Guild and officer chat with times and a mark for what's new since your last login. Next to it, everyone who is online. |
 | Members | Search, filter and sort the roster. Twinks can hang under their main, and you arrange the columns right at their headings: order, width, which ones show. |
 | Overview | A census: classes, levels and professions of the members who were online lately. Once the guild is level 60 it switches to an endgame view: an activity score, what the guild did this month, item levels and raids. |
-| Professions | Who has which profession, with skill and recipes. The search answers "who can make Elixir of Lion's Strength?". |
+| Professions | Who has which profession, with skill, specialization and recipes, and whose transmute or Mooncloth is ready today. The search answers "who can make Elixir of Lion's Strength?". |
 | Hall of Fame | Guild records from Forever's character statistics: kills, quests, deaths (including by Hogger), gold, dungeons, reputation and PvP. Each page is yours to arrange: which boxes, where and how large, which totals and titles. |
 | Ranks | Every rank with its members and permissions. The guild master edits them right there. |
 | Bank | The guild bank for everyone in the guild: gold over 30 days and a ledger of every deposit, withdrawal and repair, read whenever a Guildy user opens the bank at a guild banker. |
 | Info & log | Message of the day, guild information and the guild log. |
 | Communities | Your communities with their chat and members. Works without a guild too. |
 
-Click a member for their character page with twinks, dungeons, gear and professions. Inviting, removing, ranks and notes all work from Guildy's window.
+Click a member for their character page: the character in its gear, every slot with enchantment and item level, the activity score and how it is made, member since, twinks and professions. "Upgrades from the guild" lists better pieces a guild member can craft for them, rated for their talent spec, with the crafter one click away. Inviting, removing, ranks and notes all work from Guildy's window.
 
 ## Where the data comes from
 
 An addon can only read its own character, so Guildy collects the rest.
 
-Professions come from your own profession windows (open each one once), from other Guildy users in the guild, from profession links you click in chat and from guild notes like "Herb/Alch". One button in the professions tab also reads the recipe books of members who are online.
+Professions come from your own profession windows (open each one once), from other Guildy users in the guild, from profession links you click in chat and from guild notes like "Herb/Alch". One button in the professions tab also reads the recipe books of members who are online. Cooldowns can't be read from anyone else, so only Guildy users share theirs.
 
-The Hall of Fame uses your own statistics, those of guild members you target or hover nearby, and what other Guildy users share. The more members use Guildy, the faster the pages fill up.
+The Hall of Fame, the activity score, gear and talents use your own character, guild members you target, hover or inspect nearby, and what other Guildy users share and pass on. Gear and talents travel between Guildy users from version 1.8 on. The more members use Guildy, the faster the pages fill up.
 
 ## Getting started
 

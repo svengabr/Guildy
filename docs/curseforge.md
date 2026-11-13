@@ -8,7 +8,7 @@ Guildy
 
 ## Summary (one line, English)
 
-A modern guild window for WoW Forever: chat first, who's online, census of active members, professions and recipe search.
+A modern guild window for WoW Forever: chat first, who's online, census of active members, professions and recipe search, character pages with gear.
 
 ## Class
 
@@ -77,7 +77,8 @@ Title and description per image (CurseForge allows 255 characters per descriptio
    - Description: Every rank with its permissions and members. The guild master edits them in Blizzard's own rank editor, which opens inside the tab.
 12. `media/gallery/14-character.jpg`
    - Title: Character page
-   - Description: A member's statistics, dungeon collection and professions, with their twinks once Guildy knows them.
+   - Description: New in 1.8: the member in their gear, every slot with enchantment and item level, better pieces the guild can craft for them, the activity score, member since, professions and twinks.
+   - The picture still shows the page before 1.8; take it anew with `/guildy shots` before uploading.
 13. `media/gallery/15-options-members.jpg`
    - Title: Options: Members
    - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: how the member list tells online from offline, and whether twinks hang under their main.

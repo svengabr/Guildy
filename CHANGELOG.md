@@ -2,68 +2,60 @@
 
 ## 1.8.0
 
-- New: member since. Guildy remembers when each member joined the guild and shows it in the member
-  tooltip and on the character page. The member list has a new column for it, sortable, so the members
-  who are longest in the guild stand on top: add it with "Customize" and the + at the headings.
-- The game itself keeps no join date. Guildy reads it from the guild's event log, which only reaches
-  back about a hundred events, and Guildy users share what they know with each other. For a member who
-  joined before anyone could read it, Guildy counts from the day it first saw them and marks the time
-  with a +: in the guild at least that long.
+- New: the character page shows each member's gear slot by slot: item with its random suffix ("of the
+  Tiger"), enchantment ("no enchantment" in orange where the slot should have one) and item level as a
+  bar. A tick on the bar marks "ready at": the middle item level of the guild's members at the same
+  level, once at least five of them are known.
+- Where the gear of others comes from: Guildy users in the guild share their own (only while "share my
+  data" is on) and pass on what they know of others, and Guildy reads members you target or inspect
+  nearby, as for the statistics. One player in the capital fills the page for everyone. Gear and talents
+  travel in a new message, so members still on 1.7 or older see them only after updating. A member whose
+  gear nobody has seen yet gets one clear message instead of empty rows.
+- The character stands in its gear on the page, in front of the dressing room art of its race, turned
+  with the mouse and zoomed with the wheel. Your own character and members nearby look as they are;
+  other members show their race, sex and gear, with face and hair borrowed. For that Guildy needs a
+  player of the member's sex to have been in sight once (target, group, nameplate, mouseover), even with
+  the guild window closed, and keeps one body per race and sex your guild needs. For the other sex than
+  yours the race portrait stands there until then, with a line saying so.
+- New: "Upgrades from the guild" on the character page: up to five better pieces a guild member can
+  craft for this member, each with the gain in big green, the crafter and whether they are online. A
+  click on the crafter whispers them, and a piece's tooltip stands beside the one it would replace. A
+  piece counts when it beats the worn one by 10 % for the member's talent spec, with Guildy's own stat
+  weights per class and spec (feral cat or bear by the gear worn); while the spec is unknown it goes by
+  the stats of the gear worn. The heading says which it is.
+  Stamina alone makes no upgrade, except for tanks. Pieces of a lighter armour type than the one worn,
+  pieces the member cannot wear yet and pieces that ask for a reputation, or for a profession or class
+  the member lacks, are left out, and so are weapons, off hands, ranged, shirts and tabards for now. When
+  nothing beats the gear, the box says so.
+- Talents come from your own character, from members Guildy inspects nearby and from other Guildy
+  users, the same way as the gear. On Forever Guildy reads the points per talent tree from the game's
+  trait tree.
 - New: profession specializations. Goblin or gnomish engineer, weapon-, armor-, sword-, hammer- or
-  axesmith, dragonscale, elemental or tribal leatherworker: Guildy shows it after the member's name on
-  the Professions tab, in the member tooltip and on the character page, and the profession's tooltip on
-  the left lists who has which. Your own comes from the game itself; for others Guildy reads it from
-  their recipe book (engineering) or gets it from other Guildy users. Forever has no alchemy or
-  tailoring specializations.
-- New: profession cooldowns. Transmutes, Mooncloth and the Salt Shaker: Guildy reads your own and
-  shares them, so the Professions tab shows who can transmute today. Only Guildy users share their
-  cooldowns, nobody can read another player's; where a member's book has such a craft and nobody shared
-  its cooldown, Guildy says so. Your own cooldowns are shared only while "share my data" is on.
-- Crafts with a cooldown that Forever adds are learned from your own profession window.
-- `/guildy cd` and `/guildy spec` show what the game answers, for checking.
-- New: the character page shows each member's gear slot by slot: item, enchantment ("keine
-  Verzauberung" in orange where the slot should have one), item level as a bar. A tick on the bar marks
-  "bereit ab": the middle item level of the guild's members at the same level, once at least five of
-  them are known.
-- Gear comes from targeting members nearby, as for the statistics, and Guildy users share it with each
-  other, so one player in the capital fills the page for everyone. Your own gear is shared only while
-  "share my data" is on. The Battle.net script fills the same fields, with enchantment texts.
-- The character itself stands in its gear on the page, turned with the mouse and zoomed with the wheel,
-  in front of the dressing room art of its race: your own character and members nearby as they are,
-  other members in their race, sex and gear. Face and hair are not theirs unless they are nearby. A
-  member of the other sex than yours needs a player of that sex to have been in sight once (target,
-  group, nameplates, mouseover), even while the guild window was closed: Guildy keeps a body per race
-  and sex your guild needs from that moment on. Until one was in sight the race portrait stands there
-  with a small line saying so ("Die Figur erscheint, sobald dir eine Spielerin begegnet."), and the
-  model comes as soon as one shows up.
-- `/guildy modeltest` with `scene`, `creature`, `bg` and `pool` shows what the game offers for the model
-  and which bodies Guildy keeps, for checking.
-- New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
-  member, up to five, each with its icon, the gain in big green ("+12", "39 auf 51" under it), the
-  crafter and whether they are online. A click on the crafter whispers them. Weapons, off hands and
-  ranged are left out for now. The professions box below takes only the room its rows need.
-- The upgrades are rated for the member's talent spec (feral cat or bear by the gear worn) with
-  Guildy's own stat weights per class and spec, and say so in grey beside the heading; while the spec is
-  unknown they go by the gear worn. Talents come from your own character (shared while "share my data"
-  is on), from members Guildy inspects nearby and from the Battle.net script.
-- The character page's left card is ordered anew: a bigger model (the drag and zoom hint shows while the
-  mouse is over it), name, race and class, rank and zone on one centre line, then member since and last
-  online as a short list, the notes under their own headings, and the buttons at the bottom.
-- A member whose gear Guildy has not seen yet gets one clear message in the gear box instead of empty
-  slot rows.
-- New: the activity score has a tile on the character page. Its tooltip explains how the score is made:
-  presence and playing with what fed each of them per week, which characters count, and the time it
-  covers.
-- Solo play now counts as much as group play in the activity score.
-- The same score panel shows when you hover the activity column on the Members tab and a member in the
-  overview's list of comings and goings.
-- The profession icons in the chat's member list are now off unless you switch them on in the options.
-- Talents on WoW Forever: Guildy reads the points per talent tree from the game's trait system (your own,
-  and a member's in Guildy's inspect), so the upgrades are rated for the spec ("bewertet für Wilder
-  Kampf (Katze)") instead of only by the worn gear. `/guildy talentprobe` prints what the game gives.
-- The gear rows name a worn piece with its random suffix ("Waldläufertunika des Tigers").
-- The dungeon collection left the character page (it stays in the Hall of Fame), and so did the medals.
-- `/guildy gearshow [name]` lists what Guildy knows of a member's gear, for checking.
+  axesmith, dragonscale, elemental or tribal leatherworker: Guildy shows it after the name on the
+  Professions tab, in the member tooltip and on the character page, and the profession's tooltip lists
+  who has which. Your own comes from the game; for others Guildy reads it from their recipe book
+  (engineering) or gets it from Guildy users. Forever has no alchemy or tailoring specializations.
+- New: profession cooldowns. Transmutes (Forever's own included), Mooncloth and the Salt Shaker: Guildy
+  reads your own and shares them while "share my data" is on, so the Professions tab shows who can
+  transmute today. Nobody can read another player's cooldowns; where a member's book has such a craft
+  and nobody shared it, Guildy says so.
+- New: member since. Guildy remembers when each member joined and shows it in the member tooltip and on
+  the character page; the Members tab has a sortable column for it ("Customize", then the + at the
+  headings). The game keeps no join date: Guildy reads the guild's event log, which reaches back about a
+  hundred events, and Guildy users share what they know. For a member who joined earlier Guildy counts
+  from the day it first saw them and marks it with a +: at least that long.
+- The activity score is measured in hours of play a week, whatever they are spent on: about 5 hours
+  make Active, 15 Very active. Solo play counts as much as group play. A panel explains how a score is
+  made (presence and playing per week and what fed them, which characters count, the period); it opens
+  from the score tile on the character page, the activity column on the Members tab and the comings and
+  goings in the overview.
+- The character page's left card is ordered anew: the model in a gold frame, name, race, class, rank
+  and zone on one line, member since and last online, the notes, the buttons at the bottom. The
+  professions box takes only the room its rows need. The dungeon collection and the medals left the
+  page; the dungeons stay in the Hall of Fame.
+- The profession icons in the chat's member list are off unless you switch them on in the options.
+- For checking: `/guildy gearshow`, `talentprobe`, `upgradeprobe`, `craftprobe`, `modeltest`, `cd` and
+  `spec` print what Guildy knows or the game answers.
 - Fixed: on the Professions tab a skill like 278/300 broke into two lines.
 
 ## 1.7.1
