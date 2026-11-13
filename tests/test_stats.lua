@@ -352,3 +352,30 @@ T.describe("Stats days counter and boss sums", function()
     T.eq(Stats.HasGear({ [Stats.DAYS] = 4 }), false)
   end)
 end)
+
+T.describe("Stats.FirstTitles", function()
+  local function Entry(key, values) return { key = key, name = key:upper(), rec = { ts = NOV, v = values, months = {} } } end
+  T.it("gives every member the title of their first place on the earliest card, as the rankings do", function()
+    local entries = {
+      Entry("a", { [107] = 50, [98] = 10, [60] = 3 }),
+      Entry("b", { [107] = 40, [98] = 90, [60] = 3 }), -- deaths tied with a: the name decides (A before B)
+      Entry("c", { [107] = 0, [98] = 0, [588] = 7 }),
+    }
+    local titles = Stats.FirstTitles(entries, NOV, date)
+    -- the same as walking the rankings card by card
+    local want = {}
+    for _, fame in ipairs(Stats.PAGES) do
+      for _, title in ipairs(fame.titles) do
+        local top = Stats.Ranking(entries, title.stat, "all", NOV, date)[1]
+        if top and top.value > 0 and not want[top.key] then want[top.key] = title.key end
+      end
+    end
+    T.eq(titles, want)
+    T.eq(titles.a, "SLAYER")
+    T.eq(titles.b, "QUESTER")
+    T.eq(titles.c, "HEADHUNTER")
+  end)
+  T.it("gives nobody a title for a first place with nothing counted", function()
+    T.eq(Stats.FirstTitles({ Entry("a", { [107] = 0 }) }, NOV, date), {})
+  end)
+end)

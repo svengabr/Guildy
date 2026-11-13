@@ -711,6 +711,28 @@ function Stats.Ranking(entries, id, period, now, date)
   return list
 end
 
+-- The title of every member's first first place in the Hall of Fame (the title cards in the order of
+-- Stats.PAGES): { [key] = title key }; a first place needs a value above 0. The same as walking each
+-- card's ranking (the higher value, then the name, comes first), but with one pass over the entries per
+-- card and no lists sorted: worked out once for the guild, not by building every card's ranking for the
+-- first member without a title (measured in game 2026-11-13: 8 ms for that member).
+function Stats.FirstTitles(entries, now, date)
+  local titles = {}
+  for _, fame in ipairs(Stats.PAGES) do
+    for _, title in ipairs(fame.titles or {}) do
+      local top, best
+      for _, entry in ipairs(entries) do
+        local value = Stats.Value(entry.rec, title.stat, "all", now, date)
+        if value and (not top or value > best or (value == best and entry.name < top.name)) then
+          top, best = entry, value
+        end
+      end
+      if top and best > 0 and not titles[top.key] then titles[top.key] = title.key end
+    end
+  end
+  return titles
+end
+
 -- Sum over a ranking
 function Stats.Total(ranking)
   local sum = 0

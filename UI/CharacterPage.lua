@@ -159,7 +159,7 @@ end
 -- What the page works out from the whole guild, kept until the statistics or the member list change
 -- (GameStats.version, Roster.version): the entries, a ranking per statistic, the first title per member;
 -- the ready marks and the highest item level besides until stored gear changes (GEAR)
-local guildData = { stats = -1, roster = -1, gear = -1, rankings = {}, titles = {}, ready = {} }
+local guildData = { stats = -1, roster = -1, gear = -1, rankings = {}, ready = {} }
 local gearVersion = 0
 ns.On("GEAR", function() gearVersion = gearVersion + 1 end)
 
@@ -168,7 +168,7 @@ local function GuildData()
   local guild = ns.GuildData()
   if d.stats ~= ns.GameStats.version or d.roster ~= ns.Roster.version or d.guild ~= guild or d.anon ~= ns.Anon.on then
     d.stats, d.roster, d.guild, d.anon = ns.GameStats.version, ns.Roster.version, guild, ns.Anon.on
-    d.entries, d.rankings, d.titles, d.ready, d.gear = ns.GameStats.Entries(), {}, {}, {}, -1
+    d.entries, d.rankings, d.firstTitles, d.ready, d.gear = ns.GameStats.Entries(), {}, nil, {}, -1
   end
   if d.gear ~= gearVersion then d.gear, d.ready, d.top = gearVersion, {}, nil end
   return d
@@ -191,23 +191,12 @@ local function Place(key, id)
 end
 
 -- The title of member key's first places in the Hall of Fame (the best title card), or nil
+-- (Stats.FirstTitles: worked out for the whole guild once per version, a member is then looked up)
 local function FirstTitle(key)
   local d = GuildData()
-  local known = d.titles[key]
-  if known ~= nil then return known or nil end
-  local found = false
-  for _, fame in ipairs(ns.Stats.PAGES) do
-    for _, title in ipairs(fame.titles or {}) do
-      local place, _, value = Place(key, title.stat)
-      if place == 1 and value and value > 0 then
-        found = ns.L["FAME_TITLE_" .. title.key]
-        break
-      end
-    end
-    if found then break end
-  end
-  d.titles[key] = found
-  return found or nil
+  if not d.firstTitles then d.firstTitles = ns.Stats.FirstTitles(d.entries, ns.Now(), ns.GameStats.Date) end
+  local title = d.firstTitles[key]
+  return title and ns.L["FAME_TITLE_" .. title] or nil
 end
 
 local function ProfList(m)

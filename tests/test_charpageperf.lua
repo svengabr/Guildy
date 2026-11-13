@@ -156,6 +156,24 @@ T.describe("Character page renders", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("works out the first titles of the whole guild once per version of the statistics, not per member", function()
+    local w = World()
+    local built, ns = 0, w.ns
+    local fn = ns.Stats.FirstTitles
+    ns.Stats.FirstTitles = function(...)
+      built = built + 1
+      return fn(...)
+    end
+    local names = { "Au Tsch", "Makira Farron", "Ran Fred" }
+    ns.Fire("STATS")
+    for i = 1, 9 do ns.UI.ShowMember(ns.Roster.Find(names[(i - 1) % 3 + 1])) end
+    T.eq(built, 1)
+    ns.Fire("STATS", "au tsch")
+    for i = 1, 3 do ns.UI.ShowMember(ns.Roster.Find(names[i])) end
+    T.eq(built, 2)
+    T.eq(w.errors, {})
+  end)
+
   T.it("works out the activity scores anew when statistics, families, seen days or the day change", function()
     local w = World()
     local players, ns = 0, w.ns
