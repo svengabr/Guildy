@@ -18,6 +18,7 @@ local LINE_H = 18
 local PROF_ROWS = 6
 local UPGRADE_H = 34
 local MODEL_ZOOM = 0.8
+local MODEL_CHECKS, MODEL_CHECK_EVERY = 4, 0.5 -- re-checks of a dressed race model: 0.5 to 2 s
 local GEAR_SHARE = 0.62 -- of the room right of the hero card, the rest is the column
 local GEAR_TOP = 38     -- title and the column heading above the rows
 local QUALITY = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 } }
@@ -358,6 +359,7 @@ local function Build()
   model:EnableMouseWheel(true)
   model:Hide()
   page.Model = model
+  ns.GameGear.ReferenceModel() -- the viewer's own body to compare with, loading from now on
   model.zoom = 0
   model:SetScript("OnMouseWheel", function(self, delta)
     self.zoom = math.max(0, math.min(MODEL_ZOOM, math.floor((self.zoom + delta * 0.1) * 10 + 0.5) / 10))
@@ -611,6 +613,10 @@ local function Build()
   function page:RenderModel(m)
     local key = ns.GameGear.ModelKey(m)
     if key == self.modelKey then return end
+    -- the same member's same race dressed anew (new gear) keeps the model shown until a check says
+    -- otherwise (keys "race:<member>:<race>:<sex>:<ts>", Game/Gear.lua)
+    local function Body(k) return type(k) == "string" and k:match("^(race:.*):[^:]*$") or nil end
+    local keep = model:IsShown() and Body(key) ~= nil and Body(key) == Body(self.modelKey)
     self.modelKey = key
     if self.modelFor ~= m.key then
       model.zoom = 0
@@ -618,17 +624,31 @@ local function Build()
       pcall(model.SetFacing, model, 0)
       self.modelFor = m.key
     end
-    local shown = ns.GameGear.DressModel(model, m)
-    ShowModel(shown)
-    if shown then
-      -- a model loads a moment later: check once more that it is not the viewer's own body
-      C_Timer.After(0.5, function()
-        if page.member and page.member.key == m.key and m.key ~= ns.Names.Key(ns.PlayerName()) and model:IsShown()
-          and ns.GameGear.ShowsOwnBody(model, m) then
-          ShowModel(false)
-        end
-      end)
+    local how = ns.GameGear.DressModel(model, m)
+    local token = {}
+    self.modelCheck = token -- a newer dressing ends the checks of this one
+    if how ~= "check" then
+      ShowModel(how == "show")
+      return
     end
+    -- the stored race: shown once a check says it is not the viewer's own body. The model loads a moment
+    -- later, so while the check cannot tell it is asked again every MODEL_CHECK_EVERY seconds, at most
+    -- MODEL_CHECKS times; the portrait stays meanwhile and the model is never shown and hidden again
+    local function Check()
+      local own = ns.GameGear.ShowsOwnBody(model, m)
+      if own == nil then return false end
+      ShowModel(not own)
+      return true
+    end
+    if Check() then return end
+    if not keep then ShowModel(false) end
+    local left = MODEL_CHECKS
+    local function Again()
+      if page.modelCheck ~= token then return end
+      left = left - 1
+      if not Check() and left > 0 then C_Timer.After(MODEL_CHECK_EVERY, Again) end
+    end
+    C_Timer.After(MODEL_CHECK_EVERY, Again)
   end
 
   -- the family as a list, as many lines as the box has room for (lines), "+N" after

@@ -231,9 +231,9 @@ end
 -- The model ------------------------------------------------------------------------------------------
 -- Like the game's dressing room: the own character through SetUnit("player"); a member some unit token
 -- shows right now through that unit; else the member's stored race and sex with SetCustomRace, undressed
--- and dressed in the stored items. Where the client has no working SetCustomRace, or the model still
--- shows the viewer's own body, the page keeps the race portrait: the gear is never shown on the
--- viewer's body.
+-- and dressed in the stored items. That last one is shown only once a check tells it is not the viewer's
+-- own body; where the client has no working SetCustomRace, the model shows the viewer's body or the
+-- check cannot tell, the page keeps the race portrait: the gear is never shown on the viewer's body.
 -- UnitSex values 2/3 -> SetCustomRace's gender (0 male, 1 female as in the game's dressing room; not yet
 -- checked on Forever, /guildy modeltest shows it)
 GameGear.MODEL_SEX = { [2] = 0, [3] = 1 }
@@ -265,7 +265,8 @@ function GameGear.ShowsOwnBody(model, m)
   if type(rec) == "table" and rec.race == myRace and rec.sex == mySex then return false end
   local ok, file = Call(model, "GetModelFileID")
   local okMine, mine = Call(GameGear.ReferenceModel(), "GetModelFileID")
-  if not (ok and okMine) or type(file) ~= "number" or type(mine) ~= "number" or ns.AnySecret(file, mine) then return nil end
+  if not (ok and okMine) or ns.AnySecret(file, mine) or type(file) ~= "number" or type(mine) ~= "number"
+    or file <= 0 or mine <= 0 then return nil end -- a model still loading has no file yet
   return file == mine
 end
 
@@ -282,14 +283,16 @@ function GameGear.ModelKey(m)
   return ("race:%s:%s:%s:%s"):format(m.key, tostring(rec.race), tostring(rec.sex), ts)
 end
 
--- Dresses model for roster member m; false when the page is to show the portrait instead
+-- Dresses model for roster member m: "show" when the game shows the member itself (the own character, a
+-- member a unit token shows: no check, they may share the viewer's race and sex), "check" when it is the
+-- stored race (shown only once GameGear.ShowsOwnBody says false), false for the portrait
 function GameGear.DressModel(model, m)
   if m.key == ns.Names.Key(ns.PlayerName()) then
-    return (Call(model, "SetUnit", "player"))
+    return Call(model, "SetUnit", "player") and "show" or false
   end
   local unit = m.guid and ns.GameStats.FindUnitByGuid(m.guid)
   if unit and unit ~= "player" then
-    if Call(model, "SetUnit", unit) then return true end
+    if Call(model, "SetUnit", unit) then return "show" end
   end
   local guild = ns.GuildData()
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
@@ -300,7 +303,7 @@ function GameGear.DressModel(model, m)
     local item = rec.items and rec.items[slot]
     if item then Call(model, "TryOn", G.ItemString(item)) end
   end
-  return GameGear.ShowsOwnBody(model, m) ~= true
+  return "check"
 end
 
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
