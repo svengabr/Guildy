@@ -425,11 +425,12 @@ function Bank.Ledger(bank, filter)
       or (not isMoney and filter.kind ~= "gold" and (not filter.tab or tostring(filter.tab) == key))
     if shown then
       for index, e in ipairs(log) do
-        if (e.ts or 0) < since then -- older than the days looked at
-        elseif e.k == "gap" then
-          if not filter.who then rows[#rows + 1] = { e = e, log = key, index = index } end
-        elseif not filter.who or (e.w and ns.Names.Key(e.w) == filter.who) then
-          rows[#rows + 1] = { e = e, log = key, index = index, after = after[e] }
+        if (e.ts or 0) >= since then -- nothing older than the days looked at
+          if e.k == "gap" then
+            if not filter.who then rows[#rows + 1] = { e = e, log = key, index = index } end
+          elseif not filter.who or (e.w and ns.Names.Key(e.w) == filter.who) then
+            rows[#rows + 1] = { e = e, log = key, index = index, after = after[e] }
+          end
         end
       end
     end
