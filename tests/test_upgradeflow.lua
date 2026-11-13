@@ -201,6 +201,60 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("reads a suffixed worn item's stats through its full item string, each suffix apart", function()
+    local w = World()
+    w.INFO[7100] = { name = "Waldläufertunika", level = 39, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    local asked = {}
+    local getStats = w.env.C_Item.GetItemStats
+    w.env.GetItemInfo = function(item)
+      local id = IdOf(item)
+      local it = w.INFO[id]
+      if it then -- the link keeps what the item string carried, as the game's does
+        local link = type(item) == "string" and item or ("item:" .. id)
+        return it.name, link, 2, it.level, 1, "Rüstung", "Leder", 1, it.equipLoc, 134, 1, 4, 2, 2
+      end
+    end
+    w.env.C_Item.GetItemStats = function(link)
+      asked[#asked + 1] = link
+      if link == "item:7100:0:0:0:0:0:-17:2752512" then return { [STR] = 13, [AGI] = 13 } end
+      if link == "item:7100:0:0:0:0:0:-17:1376256" then return { [STR] = 6, [AGI] = 6 } end
+      return getStats(link)
+    end
+    local tiger = { id = 7100, e = 0, s = -17, u = 2752512, l = 39, q = 2 }
+    local weak = { id = 7100, e = 0, s = -17, u = 1376256, l = 39, q = 2 }
+    T.eq(w.ns.GameGear.ItemStats(tiger), { [STR] = 13, [AGI] = 13 })
+    T.eq(w.ns.GameGear.ItemStats(weak), { [STR] = 6, [AGI] = 6 })
+    T.eq(w.ns.GameGear.ItemStats({ id = 7100, e = 0, s = -17, u = 2752512, l = 39, q = 2 }), { [STR] = 13, [AGI] = 13 })
+    T.eq(asked, { "item:7100:0:0:0:0:0:-17:2752512", "item:7100:0:0:0:0:0:-17:1376256" })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("takes the stats bnet-sync stored with Sven's tiger tunic and offers no chest over it", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    w.INFO[7200] = { name = "Waldläufertunika", level = 39, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    w.STATS[7200] = {} -- the base item: no stats without the suffix
+    w.INFO[710] = { name = "Barbarischer Harnisch", level = 40, reqLevel = 35, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    w.STATS[710] = { [STR] = 7, [AGI] = 8, [STA] = 8 }
+    guild.members["makira farron"].profs[165] = { ts = w.ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99710 } }
+    w.env.GuildyDB.craftItems[99710] = 710
+    local function Wear(st)
+      local items = {}
+      for slot, it in pairs(guild.gear["au tsch"].items) do items[slot] = it end
+      items[5] = { id = 7200, e = 0, s = 0, l = 39, q = 2, st = st }
+      guild.gear["au tsch"] = { ts = guild.gear["au tsch"].ts + 1, src = "api", items = items }
+      w.ns.Fire("PROFS")
+      local _, _, rows = w.Offered()
+      local offered = false
+      for _, row in ipairs(rows) do offered = offered or row.slot == 5 end
+      return offered
+    end
+    T.eq(Wear({ [AGI] = 2 }), true) -- a weak chest by its stored stats: a chest is offered
+    T.eq(Wear({ [STR] = 13, [AGI] = 13 }), false)
+    T.eq(Wear(nil), false) -- nothing stored, the bare base item: not known, nothing offered
+    T.eq(w.errors, {})
+  end)
+
   T.it("adds the stat comparison under the item tooltip", function()
     local w = World()
     local lines = {}

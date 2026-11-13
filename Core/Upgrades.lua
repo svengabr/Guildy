@@ -16,6 +16,8 @@ Upgrades.MIN_SCORE = 1      -- ... and by at least this much (about one point of
 Upgrades.STRONG_ITEMS = 4   -- worn pieces with stats a profile needs to be trusted
 Upgrades.ARMOR_SHARE = 0.7  -- of the worn armour in one type: no lighter type is offered
 Upgrades.ARMOR_KEY = "RESISTANCE0_NAME"
+Upgrades.STAMINA = "ITEM_MOD_STAMINA_SHORT"
+Upgrades.STAMINA_DAMP = 0.25 -- of stamina's share in the profile: nearly every piece has it, it decides nothing
 Upgrades.PRIMARY = { "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_AGILITY_SHORT", "ITEM_MOD_INTELLECT_SHORT", "ITEM_MOD_SPIRIT_SHORT" }
 Upgrades.MAX_ROWS = 5
 Upgrades.LEFT_OUT = { [16] = true, [17] = true, [18] = true, [4] = true, [19] = true }
@@ -78,7 +80,8 @@ end
 -- The stat profile -----------------------------------------------------------------------------------
 -- Stats are the tables the game's GetItemStats gives: { [ITEM_MOD_*_SHORT] = n, RESISTANCE0_NAME = armor }.
 -- Every ITEM_MOD_* key counts (primary stats, stamina, attack and spell power, healing, hit, crit,
--- defense ...); armor does not, it only breaks ties.
+-- defense ...); armor does not, it only breaks ties. Stamina's weight is damped (STAMINA_DAMP) and it never
+-- makes an upgrade by itself. Worn stats come from Upgrades.WornStats.
 
 local function Counts(key) return type(key) == "string" and key:sub(1, 9) == "ITEM_MOD_" end
 Upgrades.Counts = Counts
@@ -115,6 +118,7 @@ function Upgrades.Profile(list)
   end
   local weights = {}
   for key, total in pairs(totals) do weights[key] = total / sum end
+  if weights[Upgrades.STAMINA] then weights[Upgrades.STAMINA] = weights[Upgrades.STAMINA] * Upgrades.STAMINA_DAMP end
   return { weights = weights, items = items, sum = sum, top = Upgrades.TopPrimary(totals) }
 end
 
@@ -128,8 +132,9 @@ function Upgrades.Score(profile, stats)
   return score
 end
 
--- The counted stats offer has more (+) or less (-) than worn: { { key, delta } }, the largest first
-function Upgrades.Diff(offer, worn)
+-- The counted stats offer has more (+) or less (-) than worn: { { key, delta } }, the largest first: by
+-- weight × delta when weights (a profile's) are given, else by the delta alone
+function Upgrades.Diff(offer, worn, weights)
   offer, worn = offer or {}, worn or {}
   local seen, list = {}, {}
   for _, stats in ipairs({ offer, worn }) do
@@ -143,10 +148,40 @@ function Upgrades.Diff(offer, worn)
     end
   end
   table.sort(list, function(x, y)
+    if weights then
+      local ex, ey = math.abs(x.delta * (weights[x.key] or 0)), math.abs(y.delta * (weights[y.key] or 0))
+      if ex ~= ey then return ex > ey end
+    end
     if math.abs(x.delta) ~= math.abs(y.delta) then return math.abs(x.delta) > math.abs(y.delta) end
     return x.key < y.key
   end)
   return list
+end
+
+local storedStats = setmetatable({}, { __mode = "k" }) -- worn item table -> its stored stats, checked
+
+-- The stats of a worn item (Core/Gear.lua): the ones stored with it (st) when there are, else the game's
+-- (game.stats). nil while they load; nil, true when the game never gives them or they cannot be known:
+-- a negative random suffix without the unique ID that carries its factor, or an uncommon or better piece
+-- without a suffix that the game says has no stats at all (a random-suffix item read without its suffix,
+-- as bnet-sync wrote them before it stored stats). A slot with such an item gets no offer.
+function Upgrades.WornStats(item, game)
+  if type(item.st) == "table" then
+    local known = storedStats[item]
+    if known then return known end
+    known = {}
+    for key, value in pairs(item.st) do
+      if type(key) == "string" and type(value) == "number" then known[key] = value end
+    end
+    storedStats[item] = known
+    return known
+  end
+  local s, u = item.s or 0, item.u or 0
+  if s < 0 and u == 0 then return nil, true end
+  local stats, gone = game.stats(item)
+  if not stats then return nil, gone end
+  if s == 0 and (item.q or 0) >= 2 and not HasStats(stats) then return nil, true end
+  return stats
 end
 
 -- The differences as one line for the tooltip, "+8 Agility, −6 Intellect", gains green, losses red;
@@ -301,6 +336,7 @@ local function IsArmour(info)
 end
 
 local function NoRequirements() return {} end
+local STAMINA = Upgrades.STAMINA
 
 -- The index of crafted pieces -------------------------------------------------------------------------
 -- What the guild's books make, worked out once per version of the books (not per member):
@@ -454,7 +490,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
     local info = itemInfo(item.id)
     if info and info.classID == ARMOR_CLASS and info.subclassID then worn[info.subclassID] = true end
     if IsArmour(info) then armour[#armour + 1] = info.subclassID end
-    local stats, gone = game.stats(item)
+    local stats, gone = Upgrades.WornStats(item, game)
     if stats then
       wornStats[slot] = stats
       list[#list + 1] = stats
@@ -505,7 +541,13 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
             if strong then
               score = Weighted(weights, stats)
               gain = score - current
-              if score < current * Upgrades.MIN_RATIO or gain < Upgrades.MIN_SCORE then score = nil end
+              -- stamina may add to a gain, never make it: without it the piece must still be better
+              local wSta = weights[STAMINA] or 0
+              local wornSta = items[slot] and wornStats[slot][STAMINA] or 0
+              local offerSta = type(stats[STAMINA]) == "number" and stats[STAMINA] or 0
+              wornSta = type(wornSta) == "number" and wornSta or 0
+              local rest = gain - wSta * (offerSta - wornSta)
+              if score < current * Upgrades.MIN_RATIO or gain < Upgrades.MIN_SCORE or rest <= 0 then score = nil end
             else
               local top = Upgrades.TopPrimary(stats)
               gain = info.level - have
@@ -547,7 +589,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
   for slot, entry in pairs(best) do
     local info = entry.info
     local row = { slot = slot, itemID = entry.itemID, quality = info.quality, have = bestHave[slot], offer = info.level,
-      gain = bestGain[slot], diff = Upgrades.Diff(game.stats(entry.itemID), wornStats[slot]), makers = {} }
+      gain = bestGain[slot], diff = Upgrades.Diff(game.stats(entry.itemID), wornStats[slot], weights), makers = {} }
     local sorted = {}
     for _, m in ipairs(entry.makers) do
       if m.key ~= memberKey then sorted[#sorted + 1] = m end

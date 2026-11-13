@@ -263,12 +263,65 @@ T.describe("Upgrades for a feral druid", function()
     local mixed = feral({ [1] = item(208, 40), [3] = item(208, 40), [7] = item(208, 40) })
     T.eq(#For(FERAL, mixed, { maker("t", { 9705 }) }, { [9705] = 705 }), 1)
   end)
+
+  -- Sven's chest: "Waldläufertunika des Tigers", +13 strength and agility from its random suffix; the base
+  -- item alone has no stats. "Barbarischer Harnisch" (+7 strength, +8 agility, +8 stamina) is no upgrade.
+  INFO[720] = { equipLoc = "INVTYPE_CHEST", level = 39, reqLevel = 34, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+  STATS[720] = {} -- the base item: its stats are all in the suffix
+  INFO[721] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+  STATS[721] = { [STR] = 7, [AGI] = 8, [STA] = 8, [ARMOR] = 120 }
+  local harness = { [9721] = 721 }
+
+  T.it("does not offer the harness over the tiger tunic whose stats come with the suffix", function()
+    local game = { requirements = GAME.requirements, stats = function(x)
+      if type(x) == "table" and x.id == 720 then
+        return x.s == -17 and x.u == 2752512 and { [STR] = 13, [AGI] = 13, [ARMOR] = 110 } or {}
+      end
+      return GAME.stats(x)
+    end }
+    local gear = feral({ [5] = { id = 720, e = 0, s = -17, u = 2752512, l = 39, q = 2 } })
+    T.eq(#U.For(FERAL, gear, { maker("t", { 9721 }) }, harness, info, game), 0)
+  end)
+
+  T.it("uses the stats stored with a worn item (bnet-sync) over the game's", function()
+    local gear = feral({ [5] = { id = 720, e = 0, s = 0, l = 39, q = 2, st = { [STR] = 13, [AGI] = 13 } } })
+    T.eq(#For(FERAL, gear, { maker("t", { 9721 }) }, harness), 0)
+    -- stored stats that are weaker do let a better piece through
+    local weak = feral({ [5] = { id = 720, e = 0, s = 0, l = 39, q = 2, st = { [AGI] = 2 } } })
+    local rows = For(FERAL, weak, { maker("t", { 9721 }) }, harness)
+    T.eq(#rows, 1)
+    T.eq(rows[1].diff[1], { key = AGI, delta = 6 })
+  end)
+
+  T.it("offers nothing for a worn item whose stats cannot be known", function()
+    -- a record without the suffix (bnet-sync before stored stats): the game gives the bare base item
+    local bare = feral({ [5] = { id = 720, e = 0, s = 0, l = 39, q = 2 } })
+    T.eq(#For(FERAL, bare, { maker("t", { 9721 }) }, harness), 0)
+    -- a negative suffix without the unique ID that carries its factor
+    local noFactor = feral({ [5] = { id = 720, e = 0, s = -17, l = 39, q = 2 } })
+    T.eq(#For(FERAL, noFactor, { maker("t", { 9721 }) }, harness), 0)
+    -- the other slots still get their offers
+    INFO[722] = { equipLoc = "INVTYPE_HEAD", level = 44, reqLevel = 40, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[722] = { [AGI] = 12, [STR] = 8, [STA] = 6, [AP] = 16 }
+    T.eq(#For(FERAL, bare, { maker("t", { 9722 }) }, { [9722] = 722 }), 1)
+  end)
+
+  T.it("never takes a piece that wins on stamina alone", function()
+    -- the worn chest has 6 agility and 5 stamina; this one the same agility and far more stamina
+    INFO[723] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[723] = { [AGI] = 6, [STA] = 25 }
+    T.eq(#For(FERAL, feral(), { maker("t", { 9723 }) }, { [9723] = 723 }), 0)
+    -- nor one that loses agility while gaining stamina, even at a higher item level
+    INFO[724] = { equipLoc = "INVTYPE_CHEST", level = 48, reqLevel = 40, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[724] = { [AGI] = 5, [STA] = 30 }
+    T.eq(#For(FERAL, feral(), { maker("t", { 9724 }) }, { [9724] = 724 }), 0)
+  end)
 end)
 
 T.describe("Upgrades stat profile", function()
   T.it("weighs the stats that matter by what is worn, armor left out", function()
     local p = U.Profile({ { [AGI] = 3, [STA] = 2, [ARMOR] = 100 }, { [AGI] = 1, [AP] = 4 } })
-    T.eq(p.weights, { [AGI] = 0.4, [STA] = 0.2, [AP] = 0.4 })
+    T.eq(p.weights, { [AGI] = 0.4, [STA] = 0.2 * U.STAMINA_DAMP, [AP] = 0.4 }) -- stamina damped: nearly every piece has it
     T.eq(p.items, 2)
     T.eq(p.top, AGI)
     T.eq(U.Score(p, { [AGI] = 10, [INT] = 50, [ARMOR] = 500 }), 4)
@@ -288,6 +341,15 @@ T.describe("Upgrades stat profile", function()
   T.it("lists the stat differences, the largest first", function()
     T.eq(U.Diff({ [AGI] = 8, [STA] = 5, [ARMOR] = 30 }, { [INT] = 6, [STA] = 5 }),
       { { key = AGI, delta = 8 }, { key = INT, delta = -6 } })
+  end)
+
+  T.it("orders the differences by their weight in the profile, the largest effect first", function()
+    local weights = { [AGI] = 0.3, [STR] = 0.2, [STA] = 0.05 }
+    local diff = U.Diff({ [STR] = 7, [AGI] = 8, [STA] = 8 }, { [STR] = 13, [AGI] = 13 }, weights)
+    T.eq(diff, { { key = AGI, delta = -5 }, { key = STR, delta = -6 }, { key = STA, delta = 8 } })
+    local names = { [AGI] = "Beweglichkeit", [STR] = "Stärke", [STA] = "Ausdauer" }
+    T.eq(U.DiffText(diff, function(key) return names[key] end),
+      "|cffff5a5a−5 Beweglichkeit|r, |cffff5a5a−6 Stärke|r, |cff4ce64c+8 Ausdauer|r")
   end)
 
   T.it("writes the differences as a line with the client's stat names", function()
