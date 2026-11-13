@@ -42,6 +42,7 @@ local function World(crafts, extra)
   local world = dofile(T.testsDir .. "/wow.lua")(T, {
     items = data,
     noCachedCheck = extra and extra.noCachedCheck,
+    silent = extra and extra.silent,
     roster = {
       { "Ran-Fred", "Offizier", 1, 46, "Druide", "Sturmwind", "", "", true, 0, "DRUID", nil, nil, false, nil, nil, "Player-1-01" },
       { "Makira-Farron", "Offizier", 1, 50, "Paladin", "Eisenschmiede", "", "", true, 0, "PALADIN", nil, nil, false, nil, nil, "Player-1-02" },
@@ -85,6 +86,22 @@ local function World(crafts, extra)
   function w.Warm()
     ns.GameGear.WarmUp()
     for _ = 1, 40 do w.RunTimers(5) end
+  end
+  -- the game's clock (GetTime), moved on by the tests
+  w.now = 1000
+  w.env.GetTime = function() return w.now end
+  -- the index by state: loaded (offered or never offered), waiting, unavailable
+  function w.IndexState()
+    local built, loaded = ns.GameGear.CraftIndexNow(), 0
+    for _, entries in pairs(built.byLoc) do loaded = loaded + #entries end
+    for _ in pairs(built.left) do loaded = loaded + 1 end
+    return loaded, #built.pending, built.gone
+  end
+  function w.Probe(name)
+    local lines = {}
+    w.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) lines[#lines + 1] = text end }
+    w.env.SlashCmdList.GUILDY("upgradeprobe " .. name)
+    return (table.concat(lines, "\n"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
   end
   function w.Offered(name)
     local ids = {}
@@ -296,6 +313,114 @@ T.describe("Guild upgrades against the game's item client", function()
     local per = kb / 400
     -- measured in game 2026-11-13: about 350 kB per first run, most of it tooltips read for every piece
     T.truthy(per < 2, ("%.2f kB per piece"):format(per))
+    T.eq(w.errors, {})
+  end)
+end)
+
+-- Found in game 2026-11-13 (/guildy upgradeprobe 15 min after login): "index: 0 loaded, 294 waiting".
+-- C_Item.RequestLoadItemDataByID is answered with ITEM_DATA_LOAD_RESULT, not GET_ITEM_INFO_RECEIVED, and
+-- an item the client has already answers nothing at all.
+T.describe("Guild upgrades: no crafted piece stays waiting", function()
+  -- 289 pieces of Makira's book and the 5 the game lacks: 294 item IDs. The first 100 are in the client
+  -- before Guildy asks, the last 9 are never answered.
+  local SILENT = {}
+  for i = 281, 289 do SILENT[10000 + i] = true end
+  local function Big()
+    local w = World(289, { silent = SILENT })
+    for i = 1, 100 do w.items.Prime(10000 + i) end
+    return w
+  end
+
+  T.it("loads the 294 crafted items from the warm-up alone: cached at once, the rest by the game's answer", function()
+    local w = Big()
+    w.Warm()
+    local loaded, waiting, gone = w.IndexState()
+    T.eq(loaded, 280)
+    T.eq(waiting, 9)
+    T.eq(gone, 5)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("asks once more after 30 s for an item without an answer, then counts it unavailable", function()
+    local w = Big()
+    w.Warm()
+    T.eq(w.items.requests[10281], 1)
+    w.now = w.now + 31
+    for _ = 1, 5 do w.RunTimers(5) end
+    T.eq(w.items.requests[10281], 2)
+    local _, waiting = w.IndexState()
+    T.eq(waiting, 9)
+    w.now = w.now + 31
+    for _ = 1, 5 do w.RunTimers(5) end
+    T.eq(w.items.requests[10281], 2)
+    local loaded, left, gone = w.IndexState()
+    T.eq({ loaded, left, gone }, { 280, 0, 14 })
+    T.truthy(w.Probe("Au Tsch"):find("index: %d+ loaded, 0 waiting, 14 unavailable"), "probe")
+    T.eq(w.errors, {})
+  end)
+
+  T.it("marks an item the client has before Guildy asks loaded at once, without a request", function()
+    local w = World()
+    w.items.Prime(10001)
+    local info = w.ns.GameGear.ItemInfo(10001)
+    T.truthy(info, "loaded at once")
+    T.eq(info and info.name, "Werkstück 1")
+    T.eq(w.items.requests[10001], nil)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("reads an item the client has although IsItemDataCachedByID says it has not", function()
+    local w = World()
+    w.items.Prime(10002)
+    w.env.C_Item.IsItemDataCachedByID = function() return false end
+    T.truthy(w.ns.GameGear.ItemInfo(10002), "read at once")
+    T.eq(w.errors, {})
+  end)
+
+  T.it("takes item IDs given as strings, in the craft map and in the game's answer", function()
+    local w = World()
+    w.items.Prime(10003)
+    T.truthy(w.ns.GameGear.ItemInfo("10003"), "string ID read")
+    T.eq(w.ns.GameGear.ItemInfo(10004), nil) -- asked
+    w.ns.GameGear.OnItemInfo("10004", true)
+    w.items.Prime(10004)
+    T.truthy(w.ns.GameGear.ItemInfo(10004), "answered by a string ID")
+    -- a craft map entry whose item ID is a string
+    local craft = w.env.GuildyDB.craftItems
+    craft[200005] = "10005"
+    w.Warm()
+    local found = false
+    for _, entries in pairs(w.ns.GameGear.CraftIndexNow().byLoc) do
+      for _, entry in ipairs(entries) do if entry.itemID == 10005 then found = true end end
+    end
+    T.truthy(found, "string item ID in the index")
+    T.eq(w.errors, {})
+  end)
+
+  T.it("offers the feral druid a better leather chest once the items load after login", function()
+    local w = World()
+    w.items.data[10999] = { name = "Wildlederweste", level = 44, reqLevel = 40, equipLoc = "INVTYPE_CHEST", subclassID = 2,
+      stats = { [AGI] = 14, [STR] = 8, [STA] = 10, [AP] = 20 } }
+    w.env.GuildyDB.craftItems[209999] = 10999
+    local recipes = {}
+    for i, id in ipairs(w.maker.profs[165].recipes) do recipes[i] = id end
+    recipes[#recipes + 1] = 209999
+    w.maker.profs[165].recipes = recipes
+    w.Warm()
+    local offered = false
+    for _, id in ipairs(w.Offered("Au Tsch")) do if id == 10999 then offered = true end end
+    T.truthy(offered, "chest offered")
+    T.eq(w.errors, {})
+  end)
+
+  T.it("tells in /guildy upgradeprobe how long index items wait and which answers came for them", function()
+    local w = Big()
+    w.Warm()
+    w.now = w.now + 12
+    local all = w.Probe("Au Tsch")
+    T.truthy(all:find("waiting: 9 items, oldest 12 s, newest 12 s, asked again 0", 1, true), all)
+    T.truthy(all:find("answers for them: GET_ITEM_INFO_RECEIVED 0, ITEM_DATA_LOAD_RESULT 0, none 9", 1, true), all)
+    T.truthy(all:find("answers this session: GET_ITEM_INFO_RECEIVED %d+, ITEM_DATA_LOAD_RESULT %d+"), all)
     T.eq(w.errors, {})
   end)
 end)

@@ -165,10 +165,29 @@ end
 --   "answered" the game said it loaded it: read once more; still nothing then means "gone"
 --   "gone"    the game has no such item (success false): skipped everywhere, never asked again
 -- A loaded item's info, stats and requirements are cached at once, so the next render reads only those.
+-- Found in game 2026-11-13 ("index: 0 loaded, 294 waiting" 15 min after login): C_Item.RequestLoadItemDataByID
+-- is answered with ITEM_DATA_LOAD_RESULT, not GET_ITEM_INFO_RECEIVED, and an item the client has already
+-- answers nothing at all. Both events are heard now, an item is read at once on its first look (whatever
+-- IsItemDataCachedByID says), and an item still waiting after WAIT_RETRY seconds is read and asked once
+-- more, after as long again it counts as gone. A sweep runs while items wait, so this happens without a
+-- render, and the index takes in what loaded (GEAR_INFO).
 local itemState = {}
-local requestedItems = {} -- itemID -> true: asked from the game this session (never again)
+local requestedItems = {} -- itemID -> true: asked from the game this session (only the retry asks again)
+local waitSince = {}      -- itemID -> GetTime() when it began waiting (or was asked again)
+local retried = {}        -- itemID -> true: asked a second time
+local heard = {}          -- itemID -> the last event that answered it ("GET_ITEM_INFO_RECEIVED" | "ITEM_DATA_LOAD_RESULT")
+local heardCount = { GET_ITEM_INFO_RECEIVED = 0, ITEM_DATA_LOAD_RESULT = 0 } -- answers this session, any item
+GameGear.WAIT_RETRY = 30
 
 local function IsItemId(id) return type(id) == "number" and id > 0 end
+
+-- itemID as a number (a craft map or an event may hand a string); nil when it is no item ID
+local function ToId(id)
+  if type(id) == "string" then id = tonumber(id) end
+  return IsItemId(id) and id or nil
+end
+
+local function Clock() return ns.Try(rawget(_G, "GetTime")) or 0 end
 
 -- Notes that the client asks the server for itemID because of Guildy (counted in /guildy perf as
 -- "item requests (Guildy)"); true the first time this session
@@ -179,11 +198,65 @@ local function Asked(itemID)
   return true
 end
 
+local function Load(itemID)
+  local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
+  if request then ns.Try(request, itemID) end
+end
+
 -- Asks the game to load itemID, once per session
 local function Request(itemID)
   if not IsItemId(itemID) or not Asked(itemID) then return end
-  local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
-  if request then ns.Try(request, itemID) end
+  Load(itemID)
+end
+
+-- GEAR_INFO once per burst: the index takes in what loaded, the page draws when it waits for an item
+local infoTimer
+local function InfoChanged()
+  if infoTimer then return end
+  infoTimer = C_Timer.NewTimer(0.5, function()
+    infoTimer = nil
+    ns.Fire("GEAR_INFO")
+  end)
+end
+
+-- The items waiting are looked at every WAIT_RETRY seconds while there are any (GameGear.ItemInfo does
+-- the retry and the timeout)
+local Sweep
+local sweepPending = false
+local function ScheduleSweep()
+  if sweepPending then return end
+  sweepPending = true
+  C_Timer.After(GameGear.WAIT_RETRY, function()
+    sweepPending = false
+    ns.SafeCall(Sweep)
+  end)
+end
+
+-- itemID was asked for and has no answer yet
+local function Wait(itemID)
+  if itemState[itemID] ~= "wait" then
+    itemState[itemID] = "wait"
+    waitSince[itemID] = Clock()
+  end
+  Request(itemID)
+  ScheduleSweep()
+end
+
+-- itemID waited WAIT_RETRY seconds without an answer: asked once more
+local function Retry(itemID)
+  retried[itemID] = true
+  waitSince[itemID] = Clock()
+  ns.Perf.ItemRequest()
+  Load(itemID)
+  ScheduleSweep()
+end
+
+-- itemID was asked twice and never answered: gone for the session, like an item the game does not have
+local function GiveUp(itemID)
+  itemState[itemID] = "gone"
+  waitSince[itemID] = nil
+  GameGear.gone = GameGear.gone + 1
+  InfoChanged()
 end
 
 -- true / false when the client says whether it has itemID's data, nil when it cannot say
@@ -200,20 +273,30 @@ function GameGear.IsGone(itemID) return itemState[itemID] == "gone" end
 
 local infoCache = {} -- itemID -> item info of a loaded item, for the session (it does not change)
 
--- Upgrades' item info shape for itemID; nil while it loads (asked once per session), nil, true when the
--- game has no such item. The same table on every call once loaded: callers must not change it.
+-- Upgrades' item info shape for itemID (a number, or a string of one); nil while it loads, nil, true when
+-- the game has no such item or never answered. The same table on every call once loaded: callers must not
+-- change it. The first look reads the item at once: an item the client has gives its data and fires no
+-- event (whatever IsItemDataCachedByID says). One that did not is asked for and then not read again until
+-- the game answers, the client says it has it, or WAIT_RETRY seconds passed: then it is read and asked
+-- once more, and after as long again without an answer it counts as gone.
 function GameGear.ItemInfo(itemID)
   local known = infoCache[itemID]
   if known then return known end
-  if not IsItemId(itemID) then return nil end
+  itemID = ToId(itemID)
+  if not itemID then return nil end
+  known = infoCache[itemID]
+  if known then return known end
   local state = itemState[itemID]
   if state == "gone" then return nil, true end
   local cached = IsCached(itemID)
-  if (cached == false and state ~= "answered") or (state == "wait" and cached == nil) then
-    -- not in the client: asking (once) is all; GetItemInfo would make it ask the server once more
-    if not state then itemState[itemID] = "wait" end
-    Request(itemID)
-    return nil
+  local retry = false
+  if state == "wait" and cached ~= true then
+    if Clock() - (waitSince[itemID] or 0) < GameGear.WAIT_RETRY then return nil end
+    if retried[itemID] then
+      GiveUp(itemID)
+      return nil, true
+    end
+    retry = true
   end
   local getInfo = ItemInfoFunction()
   local name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind
@@ -225,17 +308,33 @@ function GameGear.ItemInfo(itemID)
     if state == "answered" or cached == true then
       -- the game says it has the item, and still gives nothing to work with: it never will
       itemState[itemID] = "gone"
+      waitSince[itemID] = nil
       return nil, true
     end
-    itemState[itemID] = "wait"
-    Request(itemID) -- in flight already when GetItemInfo above asked: the client asks the server once
+    -- in flight already when GetItemInfo above asked: the client asks the server once
+    if retry then Retry(itemID) else Wait(itemID) end
     return nil
   end
   local info = { name = name, equipLoc = equipLoc, level = level, reqLevel = type(reqLevel) == "number" and reqLevel or 0,
     classID = classID, subclassID = subclassID, bind = bind, quality = quality }
   infoCache[itemID] = info
-  itemState[itemID] = nil
+  itemState[itemID], waitSince[itemID] = nil, nil
+  if state then InfoChanged() end -- it was loading: the index takes it in, whether or not an event came
   return info
+end
+
+-- Looks at every item still waiting: read when the client has it now, asked again or given up when due
+function Sweep()
+  local left = false
+  for itemID in pairs(waitSince) do
+    if itemState[itemID] == "wait" then
+      GameGear.ItemInfo(itemID)
+      if itemState[itemID] == "wait" then left = true end
+    else
+      waitSince[itemID] = nil
+    end
+  end
+  if left then ScheduleSweep() end
 end
 
 local statsCache = {} -- item string -> stats of a loaded item, for the session
@@ -342,7 +441,7 @@ function GameGear.StatName(key)
   return type(name) == "string" and name or nil
 end
 
-local GAME = { stats = GameGear.ItemStats, requirements = GameGear.ItemRequirements }
+local GAME = { stats = GameGear.ItemStats, requirements = GameGear.ItemRequirements, info = GameGear.ItemInfo }
 GameGear.GAME = GAME
 
 -- What recipes make -----------------------------------------------------------------------------------
@@ -377,15 +476,6 @@ function GameGear.LearnCraft(spellID, itemOrLink)
     BooksChanged()
   end
   return learned
-end
-
-local infoTimer
-local function InfoChanged()
-  if infoTimer then return end
-  infoTimer = C_Timer.NewTimer(0.5, function()
-    infoTimer = nil
-    ns.Fire("GEAR_INFO")
-  end)
 end
 
 local function RunQueue()
@@ -654,7 +744,7 @@ local function CraftIndex(guild, all)
   -- crafts whose item the game said it does not have are left out (bnet-sync may know items this
   -- client has not)
   local craft = setmetatable({}, { __index = function(_, spellID)
-    local itemID = map[spellID]
+    local itemID = ToId(map[spellID])
     if itemID and itemState[itemID] ~= "gone" then return itemID end
   end })
   local makers, books, count = {}, {}, 0
@@ -832,6 +922,30 @@ function GameGear.UpgradeProbe(name)
   table.sort(reasons)
   P(("index: %d loaded, %d waiting, %d unavailable, %d never offered%s"):format(loaded, #built.pending, built.gone or 0,
     left, #reasons > 0 and (" (" .. table.concat(reasons, ", ") .. ")") or ""))
+  -- the waiting ones: since when, asked again, and which answer of the game came for them
+  if #built.pending > 0 then
+    local now, oldest, newest, again, never = Clock(), nil, nil, 0, 0
+    local by = { GET_ITEM_INFO_RECEIVED = 0, ITEM_DATA_LOAD_RESULT = 0, none = 0 }
+    for _, entry in ipairs(built.pending) do
+      local id = ToId(entry.itemID)
+      local since = id and waitSince[id]
+      if since then
+        local waited = math.floor(now - since)
+        oldest, newest = math.max(oldest or waited, waited), math.min(newest or waited, waited)
+      else
+        never = never + 1
+      end
+      if id and retried[id] then again = again + 1 end
+      local event = id and heard[id] or "none"
+      by[event] = (by[event] or 0) + 1
+    end
+    P(("waiting: %d items, oldest %s s, newest %s s, asked again %d%s"):format(#built.pending, tostring(oldest or "-"),
+      tostring(newest or "-"), again, never > 0 and (", %d not asked yet"):format(never) or ""))
+    P(("  answers for them: GET_ITEM_INFO_RECEIVED %d, ITEM_DATA_LOAD_RESULT %d, none %d"):format(
+      by.GET_ITEM_INFO_RECEIVED, by.ITEM_DATA_LOAD_RESULT, by.none))
+  end
+  P(("answers this session: GET_ITEM_INFO_RECEIVED %d, ITEM_DATA_LOAD_RESULT %d"):format(
+    heardCount.GET_ITEM_INFO_RECEIVED or 0, heardCount.ITEM_DATA_LOAD_RESULT or 0))
 end
 
 -- The warm-up ---------------------------------------------------------------------------------------
@@ -983,12 +1097,19 @@ end
 -- nothing (the index and the upgrades drop it when next asked, GameGear.gone); a good one lets an item
 -- that was loading be read once more, and the page hears it once per burst (GEAR_INFO). Together with
 -- asking once per item this ends the GEAR_INFO -> render -> request loop.
-function GameGear.OnItemInfo(itemID, success)
-  if not IsItemId(itemID) then return end
+-- ITEM_DATA_LOAD_RESULT (the answer to C_Item.RequestLoadItemDataByID) is taken the same way. event: which
+-- of the two came (counted for /guildy upgradeprobe), GET_ITEM_INFO_RECEIVED when not given.
+function GameGear.OnItemInfo(itemID, success, event)
+  itemID = ToId(itemID)
+  if not itemID then return end
+  event = event or "GET_ITEM_INFO_RECEIVED"
+  heard[itemID] = event
+  heardCount[event] = (heardCount[event] or 0) + 1
   local state = itemState[itemID]
   if success == false then
     if state == "gone" then return end
     itemState[itemID] = "gone"
+    waitSince[itemID] = nil
     if requestedItems[itemID] then GameGear.gone = GameGear.gone + 1 end
     return
   end

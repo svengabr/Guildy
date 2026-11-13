@@ -9,6 +9,7 @@
 --                        { [itemID] = { name, level, equipLoc, reqLevel, quality, classID, subclassID, bind,
 --                        stats = { ITEM_MOD_* = n }, tip = { lines } } }; an ID the table lacks never resolves
 --   opts.noCachedCheck   with opts.items: the client has no C_Item.IsItemDataCachedByID
+--   opts.silent          with opts.items: { [itemID] = true } whose queries the game never answers
 return function(T, opts)
   opts = opts or {}
   local errors = {}
@@ -26,17 +27,35 @@ return function(T, opts)
   local function IdOf(item)
     return type(item) == "number" and item or tonumber(tostring(item):match("item:(%d+)"))
   end
+  -- As the game does it: a query started by C_Item.RequestLoadItemDataByID is answered with
+  -- ITEM_DATA_LOAD_RESULT(itemID, success), one started by GetItemInfo, GetItemStats or a tooltip with
+  -- GET_ITEM_INFO_RECEIVED; a query asked both ways gets both. An item the client has already gives its
+  -- data at once and no event at all. opts.silent = { [itemID] = true }: queries for it are lost, never
+  -- answered (one asked again after the next timer round counts as a new request).
   if opts.items then
-    items = { data = opts.items, cached = {}, pending = {}, requests = {}, tips = 0 }
-    function items.Ask(id)
-      if not id or items.cached[id] or items.pending[id] then return end -- one query in flight per item
+    items = { data = opts.items, cached = {}, pending = {}, requests = {}, tips = 0, silent = opts.silent or {},
+      events = { GET_ITEM_INFO_RECEIVED = 0, ITEM_DATA_LOAD_RESULT = 0 } }
+    function items.Ask(id, how)
+      how = how or "info"
+      if not id or items.cached[id] then return end
+      local query = items.pending[id]
+      if query then query[how] = true return end -- one query in flight per item
       items.requests[id] = (items.requests[id] or 0) + 1
-      items.pending[id] = true
+      query = { [how] = true }
+      items.pending[id] = query
       timers[#timers + 1] = function()
         items.pending[id] = nil
+        if items.silent[id] then return end -- the query is lost: no answer
         local ok = items.data[id] ~= nil
         if ok then items.cached[id] = true end
-        FireEvent("GET_ITEM_INFO_RECEIVED", id, ok)
+        if query.load then
+          items.events.ITEM_DATA_LOAD_RESULT = items.events.ITEM_DATA_LOAD_RESULT + 1
+          FireEvent("ITEM_DATA_LOAD_RESULT", id, ok)
+        end
+        if query.info then
+          items.events.GET_ITEM_INFO_RECEIVED = items.events.GET_ITEM_INFO_RECEIVED + 1
+          FireEvent("GET_ITEM_INFO_RECEIVED", id, ok)
+        end
       end
     end
     function items.Prime(id) if items.data[id] then items.cached[id] = true end end
@@ -314,7 +333,7 @@ return function(T, opts)
     env.GetItemInfo = Info
     env.C_Item = {
       GetItemInfo = Info,
-      RequestLoadItemDataByID = function(id) items.Ask(id) end,
+      RequestLoadItemDataByID = function(id) items.Ask(id, "load") end,
       IsItemDataCachedByID = not opts.noCachedCheck and function(id) return items.cached[id] == true end or nil,
       GetItemStats = function(link)
         local id = IdOf(link)

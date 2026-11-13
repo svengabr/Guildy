@@ -63,7 +63,9 @@ local HANDLERS = {
     ns.GameStats.UpdateOwn()
   end,
   PLAYER_LEVEL_UP = function(level) ns.GameDing.OnLevelUp(level) end,
-  GET_ITEM_INFO_RECEIVED = function(itemID, success) ns.GameGear.OnItemInfo(itemID, success) end,
+  GET_ITEM_INFO_RECEIVED = function(itemID, success) ns.GameGear.OnItemInfo(itemID, success, "GET_ITEM_INFO_RECEIVED") end,
+  -- the answer to C_Item.RequestLoadItemDataByID: it fires no GET_ITEM_INFO_RECEIVED
+  ITEM_DATA_LOAD_RESULT = function(itemID, success) ns.GameGear.OnItemInfo(itemID, success, "ITEM_DATA_LOAD_RESULT") end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
   PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
   CHARACTER_POINTS_CHANGED = function() ns.GameTalents.OnPointsChanged() end,
