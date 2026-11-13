@@ -43,6 +43,7 @@ Core\Columns.lua
 Core\Stats.lua
 Core\Family.lua
 Core\Activity.lua
+Core\Ding.lua
 Core\Anon.lua
 Core\ShotRun.lua
 Core\Runtime.lua
@@ -55,8 +56,10 @@ Game\Sync.lua
 Game\Bank.lua
 Game\Stats.lua
 Game\Activity.lua
+Game\Ding.lua
 UI\Widgets.lua
 UI\Main.lua
+UI\Ding.lua
 UI\Board.lua
 UI\Popups.lua
 UI\CharacterPage.lua

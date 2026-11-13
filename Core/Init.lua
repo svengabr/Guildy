@@ -17,6 +17,7 @@ end
 local function OnGuildChat(kind, text, sender, ...)
   local guid = select(10, ...)
   ns.Chat.OnGuildMessage(kind, text, sender, guid)
+  if kind == "guild" then ns.GameDing.OnGuildChat(text) end
   ns.TradeSkill.OnChatMessage(text, sender, guid)
 end
 
@@ -45,12 +46,14 @@ local HANDLERS = {
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
     ns.Sync.Start()
     ns.GameStats.Start()
+    ns.GameDing.Start()
     ns.UI.ResumeShots() -- /guildy shots all goes on after its reload
   end,
   PLAYER_LOGOUT = function()
     ns.Chat.OnLogout(ns.Settings(), ns.Now())
     ns.GameStats.UpdateOwn()
   end,
+  PLAYER_LEVEL_UP = function(level) ns.GameDing.OnLevelUp(level) end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
   PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
   UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
@@ -246,6 +249,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.GameBank.OnChanged()
     ns.GameBank.AskAgain()
     for _, line in ipairs(ns.GameBank.Debug()) do ns.Print(line) end
+  elseif msg == "ding" then
+    ns.GameDing.Test()
   elseif msg == "activity" then
     ns.Print(ns.GameActivity.Report())
   elseif msg == "statmouse" then

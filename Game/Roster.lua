@@ -13,12 +13,15 @@ local lastRequest = 0
 local emptyRetries = 0 -- requests again after an empty roster while in a guild
 local EMPTY_RETRIES = 5
 
-function Roster.Request(force)
+-- rosterOnly leaves the guild event log alone (the regular request of Game/Ding.lua: the log's answer
+-- would mean a second scan each time)
+function Roster.Request(force, rosterOnly)
   local now = GetTime()
   if not force and now - lastRequest < 10 then return end
   lastRequest = now
   local request = (C_GuildInfo and C_GuildInfo.GuildRoster) or rawget(_G, "GuildRoster")
   if request then pcall(request) end
+  if rosterOnly then return end
   local queryLog = rawget(_G, "QueryGuildEventLog")
   if queryLog then pcall(queryLog) end
 end

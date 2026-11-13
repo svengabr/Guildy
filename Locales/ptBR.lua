@@ -689,4 +689,9 @@ ns.LocaleTables.ptBR = {
   MEMBERS_HINT = "Arraste um cabeçalho para mover a coluna · a borda direita muda a largura · x oculta · + mostra uma oculta",
   MEMBER_FORGET_PROFS = "Descartar profissões e ler de novo",
   MEMBER_FORGOT_PROFS = "O que o Guildy sabia das profissões de %s foi descartado. A próxima leitura as lê de novo.",
+  DING_TEXT = "alcançou o nível máximo",
+  DING_CHAT = "%s alcançou o nível %d!",
+  OPTIONS_DING = "Faixa quando um membro da guilda alcança o nível 60",
+  OPTIONS_DING_POST = "Anunciar no bate-papo da guilda",
+  OPTIONS_DING_POST_TIP = "Só um usuário do Guildy anuncia: quem notar primeiro.",
 }

@@ -175,11 +175,20 @@ local function BuildGeneral(panel)
   scaleTip:EnableMouse(true)
   W.Tooltip(scaleTip, L.OPTIONS_SCALE, L.OPTIONS_SCALE_TIP)
 
+  -- a guild member reaches the top level (Game/Ding.lua): the banner, and the line in guild chat
+  panel.Ding = Check(panel, L.OPTIONS_DING, function(self) ns.Settings().ding60 = Off(self) end)
+  panel.Ding:SetPoint("TOPLEFT", scaleLabel, "BOTTOMLEFT", -4, -18)
+  panel.DingPost = Check(panel, L.OPTIONS_DING_POST, function(self) ns.Settings().ding60Post = Off(self) end)
+  panel.DingPost:SetPoint("TOPLEFT", panel.Ding, "BOTTOMLEFT", 0, -2)
+  local dingTip = W.Text(panel, "GameFontDisableSmall", L.OPTIONS_DING_POST_TIP)
+  dingTip:SetPoint("TOPLEFT", panel.DingPost, "BOTTOMLEFT", 26, -2)
+  dingTip:SetPoint("RIGHT", -12, 0)
+
   local blizzard = W.Button(panel, L.OPEN_BLIZZARD, function()
     options:Hide()
     UI.ShowBlizzard()
   end, 170, { small = true })
-  blizzard:SetPoint("TOPLEFT", scaleLabel, "BOTTOMLEFT", -2, -30)
+  blizzard:SetPoint("TOPLEFT", dingTip, "BOTTOMLEFT", -24, -22)
 
   -- everything this window changes back to what Guildy ships (sharing is not a look: it stays)
   local reset = W.Button(panel, L.OPTIONS_RESET_ALL, function()
@@ -188,6 +197,7 @@ local function BuildGeneral(panel)
     settings.memberOrder, settings.memberWidths = nil, nil
     settings.memberColumns, settings.memberTwinks, settings.chatProfs, settings.tooltipAnchor = nil, nil, nil, nil
     settings.overviewPhase, settings.bank, settings.bankOpen = nil, nil, nil
+    settings.ding60, settings.ding60Post = nil, nil
     UI.SetScale(nil)
     RefreshTab("bank")
     if options.Panels.bank then options.Panels.bank:Refresh() end
@@ -208,6 +218,8 @@ local function BuildGeneral(panel)
     self.Phase:SetText(phase == "level" and L.PHASE_LEVEL or phase == "endgame" and L.PHASE_ENDGAME or L.OPTIONS_PHASE_AUTO)
     self.Scale:Set(UI.Scale())
     self.ScaleValue:SetText(Percent(UI.Scale()))
+    self.Ding:SetChecked(ns.Settings().ding60 ~= false)
+    self.DingPost:SetChecked(ns.Settings().ding60Post ~= false)
   end
 end
 

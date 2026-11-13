@@ -689,4 +689,9 @@ ns.LocaleTables.deDE = {
   MEMBERS_HINT = "Überschrift ziehen verschiebt die Spalte · ihr rechter Rand ändert die Breite · x blendet aus · + blendet wieder ein",
   MEMBER_FORGET_PROFS = "Berufe verwerfen und neu lesen",
   MEMBER_FORGOT_PROFS = "Guildys Wissen über die Berufe von %s ist verworfen. Der nächste Scan liest sie neu.",
+  DING_TEXT = "hat die höchste Stufe erreicht",
+  DING_CHAT = "%s hat Stufe %d erreicht!",
+  OPTIONS_DING = "Banner, wenn ein Gildenmitglied Stufe 60 erreicht",
+  OPTIONS_DING_POST = "Im Gildenchat ansagen",
+  OPTIONS_DING_POST_TIP = "Nur ein Guildy-Nutzer sagt es an: wer es zuerst bemerkt.",
 }

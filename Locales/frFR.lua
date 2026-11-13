@@ -689,4 +689,9 @@ ns.LocaleTables.frFR = {
   MEMBERS_HINT = "Glissez un en-tête pour déplacer sa colonne · son bord droit change la largeur · x la masque · + en réaffiche une",
   MEMBER_FORGET_PROFS = "Oublier les métiers et les relire",
   MEMBER_FORGOT_PROFS = "Ce que Guildy savait des métiers de %s est oublié. La prochaine lecture les relit.",
+  DING_TEXT = "a atteint le niveau maximum",
+  DING_CHAT = "%s a atteint le niveau %d !",
+  OPTIONS_DING = "Bannière quand un membre de la guilde atteint le niveau 60",
+  OPTIONS_DING_POST = "L'annoncer dans la discussion de guilde",
+  OPTIONS_DING_POST_TIP = "Un seul utilisateur de Guildy l'annonce : le premier qui le remarque.",
 }

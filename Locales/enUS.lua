@@ -690,4 +690,9 @@ ns.LocaleTables.enUS = {
   MEMBERS_HINT = "Drag a heading to move its column · its right edge changes the width · x hides it · + shows a hidden one",
   MEMBER_FORGET_PROFS = "Discard professions and read anew",
   MEMBER_FORGOT_PROFS = "Discarded what Guildy knew of %s's professions. The next scan reads them anew.",
+  DING_TEXT = "has reached the highest level",
+  DING_CHAT = "%s has reached level %d!",
+  OPTIONS_DING = "Banner when a guild member reaches level 60",
+  OPTIONS_DING_POST = "Say it in guild chat",
+  OPTIONS_DING_POST_TIP = "Only one Guildy user says it: whoever notices first.",
 }
