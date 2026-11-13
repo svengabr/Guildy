@@ -32,6 +32,78 @@ const EN_SPECS = { 'Gnomish Engineer': 20219, 'Goblin Engineer': 20222, Weaponsm
   'Dragonscale Leatherworking': 10656, 'Elemental Leatherworking': 10658, 'Tribal Leatherworking': 10660 }
 const SPEC_RANK = { known: 3, api: 2, book: 1 }
 
+// Core/Gear.lua's record from the /equipment response and the profile: { ts, src: 'api', race, sex,
+// items: { [slot]: { id, e, s, l, q } } }, null without a list of equipped items. The suffix ID is not in
+// the response as far as known (2026-11-13), so it is 0; the game fills it in when it reads the member.
+export function gearRecord(equipment, profile, ts) {
+  if (!Array.isArray(equipment?.equipped_items)) return null
+  const items = {}
+  for (const item of equipment.equipped_items) {
+    const slot = SLOT_IDS[item?.slot?.type]
+    const id = item?.item?.id
+    if (!slot || !Number.isInteger(id) || id <= 0) continue
+    const enchant = (item.enchantments ?? []).map(e => e?.enchantment_id).find(e => Number.isInteger(e) && e > 0) ?? 0
+    const level = item.level?.value ?? item.item_level ?? 0
+    items[slot] = { id, e: enchant, s: 0, l: Number.isInteger(level) && level > 0 ? level : 0,
+      q: Math.max(0, Math.min(QUALITY[item.quality?.type] ?? 1, 5)) }
+  }
+  const race = profile?.race?.id
+  const sex = { MALE: 2, FEMALE: 3 }[profile?.gender?.type]
+  const rec = { ts, src: 'api', items }
+  if (Number.isInteger(race) && race > 0) rec.race = race
+  if (sex) rec.sex = sex
+  return rec
+}
+
+// Writes record into guild.gear[key] when it is newer than what is there; true when written
+export function updateGear(guild, key, record) {
+  if (!record) return false
+  const book = guild.table('gear')
+  const have = book.get(key)
+  const stored = have instanceof LuaTable ? have.get('ts') : undefined
+  if (typeof stored === 'number' && stored >= record.ts) return false
+  book.set(key, toLua(record))
+  return true
+}
+
+// Enchant texts of the response into GuildyDB.enchantText, the text after the first ": " of display_string
+// ("Verzaubert: Bergbau +2" -> "Bergbau +2"); only when locale (the language the response was asked in)
+// is the client's. A table of another language is replaced.
+export function enchantTexts(db, equipment, locale) {
+  if (typeof locale !== 'string' || db.get('clientLocale') !== locale) return
+  let cache = db.get('enchantText')
+  if (!(cache instanceof LuaTable) || cache.get('locale') !== locale || !(cache.get('names') instanceof LuaTable)) {
+    cache = toLua({ locale, names: {} })
+    db.set('enchantText', cache)
+  }
+  const names = cache.get('names')
+  for (const item of equipment?.equipped_items ?? []) {
+    for (const e of item?.enchantments ?? []) {
+      const id = e?.enchantment_id
+      if (!Number.isInteger(id) || id <= 0 || typeof e.display_string !== 'string') continue
+      const at = e.display_string.indexOf(': ')
+      const text = (at >= 0 ? e.display_string.slice(at + 2) : e.display_string).trim()
+      if (text) names.set(id, toBytes(text))
+    }
+  }
+}
+
+// What recipes make into GuildyDB.craftItems: pairs [[spellID, itemID]], positive integers only, at most
+// MAX_CRAFTS entries (Core/Upgrades.lua); Guildy drops what cannot be worn when it loads
+export const MAX_CRAFTS = 3000
+export function craftItems(db, pairs) {
+  const map = db.table('craftItems')
+  let count = map.keys().length
+  for (const [spell, item] of pairs) {
+    if (!Number.isInteger(spell) || spell <= 0 || !Number.isInteger(item) || item <= 0) continue
+    if (!map.has(spell)) {
+      if (count >= MAX_CRAFTS) continue
+      count++
+    }
+    map.set(spell, item)
+  }
+}
+
 // Stats.ReadGear on the /equipment response: { [gearID]: value }, {} with nothing equipped
 export function gearValues(equipment) {
   const bySlot = new Map()

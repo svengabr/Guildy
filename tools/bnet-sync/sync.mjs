@@ -13,7 +13,7 @@ import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes, gearRecord, updateGear, enchantTexts, craftItems } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -139,7 +139,10 @@ async function craftedItem(id) {
 
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
-const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, missing: [], failed: [] }
+const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, gear: 0, missing: [], failed: [] }
+// the equipment in the client's language, so its enchant texts can go into Guildy's cache
+const CLIENT_LOCALE = typeof db.get('clientLocale') === 'string' ? db.get('clientLocale') : undefined
+const crafts = [] // [spellID, itemID] of the guild's books: what each recipe makes (GuildyDB.craftItems)
 const unknownNames = new Map() // names no saved one matched -> a recipe ID: Guildy looks for them in the game
 
 for (const guildKey of db.get('guilds').keys()) {
@@ -178,9 +181,13 @@ for (const guildKey of db.get('guilds').keys()) {
       if (!profile?.last_login_timestamp) { totals.missing.push(key); return }
       const ts = Math.min(now, Math.floor(profile.last_login_timestamp / 1000))
       const [stats, equipment, profs] = await Promise.all([
-        api(`${base}/achievements/statistics`), api(`${base}/equipment`), api(`${base}/professions`, PROF_LOCALE)])
+        api(`${base}/achievements/statistics`), api(`${base}/equipment`, apiLocale(CLIENT_LOCALE)), api(`${base}/professions`, PROF_LOCALE)])
       totals.members++
       if (stats && updateStats(member, statValues(stats), equipment ? gearValues(equipment) : {}, ts)) totals.stats++
+      if (equipment) {
+        if (updateGear(guild, key, gearRecord(equipment, profile, ts))) totals.gear++
+        enchantTexts(db, equipment, CLIENT_LOCALE)
+      }
       if (profs) {
         const list = professions(profs)
         // the static namespace of this game version, from the profile's own links
@@ -194,6 +201,13 @@ for (const guildKey of db.get('guilds').keys()) {
           await Promise.all(entry.recipes.map(r => recipeName(r.id)))
           const ids = entry.recipes.map(r => r.id)
           entry.recipes = localize(entry.recipes, recipeNames) ?? undefined
+          // what each recipe makes, for every name that stands for exactly one spell of the game
+          for (const [i, name] of (entry.recipes ?? []).entries()) {
+            const spells = bridge.spells(name)
+            if (spells.length !== 1) continue
+            const item = await craftedItem(ids[i]).catch(() => null)
+            if (item) crafts.push([spells[0], item])
+          }
           if (!BOOK_SKILLS.has(entry.skillLine)) continue
           totals.bookCandidates++
           const unseen = entry.recipes ? entry.recipes.filter(name => bridge.spells(name).length === 0) : null
@@ -212,6 +226,9 @@ for (const guildKey of db.get('guilds').keys()) {
 
 console.log(`\n${totals.members} Charaktere gelesen (${requests} Anfragen), ${totals.added} neu aus dem Roster.`)
 console.log(`Statistiken/Ausrüstung aktualisiert: ${totals.stats}, Berufe aktualisiert: ${totals.profs}`)
+craftItems(db, crafts)
+const enchants = db.get('enchantText')?.get?.('names')?.keys?.().length ?? 0
+console.log(`Ausrüstung Stück für Stück: ${totals.gear} Charaktere, ${enchants} Verzauberungstexte, ${new Set(crafts.map(c => c[0])).size} Rezepte mit hergestelltem Gegenstand.`)
 if (totals.missing.length) console.log(`Kein API-Profil (umbenannt, gelöscht oder privat): ${totals.missing.map(fromBytes).join(', ')}`)
 if (totals.failed.length) console.log(`Fehlgeschlagen: ${totals.failed.join('; ')}`)
 if (bridge) {

@@ -33,6 +33,9 @@ them. Your own characters (`ownChars`) are skipped. Each character costs 4 reque
 |---|---|
 | `stats.v`: Blizzard statistics (kills, deaths, quests, dungeon end bosses, reputation counts 931/1466/529/378/377, …) | `/achievements/statistics` |
 | `stats.v`: equipment (item level, quality counts, quality per slot, the `Stats.GEAR` IDs) | `/equipment`, computed like `Stats.ReadGear` |
+| `gear[nameKey]`: the gear item by item (item ID, enchant ID, item level, quality; race and gender for the model), `src = "api"` | `/equipment` and the profile; the suffix ID stays 0 (not found in the response) |
+| `enchantText`: the enchant texts in the client's language, the part after the first ": " | `/equipment` `enchantments[].display_string`, asked in `clientLocale` |
+| `craftItems`: what each recipe of the guild's books makes, for names the bridge turns into exactly one spell | the static recipe entries (`crafted_item`), cached in `out/recipe-items.json` |
 | `profs[skillLine]`: rank and max | `/professions` |
 
 Records look like data that Guildy itself read in the game. Statistics carry `src = "seen"`,

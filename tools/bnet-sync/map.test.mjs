@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey, gearRecord, updateGear, enchantTexts, craftItems } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -259,4 +259,60 @@ test('wantNames hands Guildy the names it could not translate, to look for in th
   assert.equal(items.hash.size, 1)
   wantNames(db, [], 'deDE')
   assert.equal(db.get('wantedNames'), undefined) // nothing left to look for
+})
+
+const worn = (slot, id, level, quality, enchant) => ({ slot: { type: slot }, item: { id }, level: { value: level }, quality: { type: quality },
+  enchantments: enchant ? [{ enchantment_id: enchant[0], display_string: enchant[1] }] : undefined })
+
+test('gearRecord mirrors Core/Gear.lua', () => {
+  const rec = gearRecord({ equipped_items: [worn('HEAD', 101, 50, 'RARE'), worn('SHIRT', 38, 1, 'COMMON'),
+    worn('CHEST', 105, 48, 'UNCOMMON', [1887, 'Verzaubert: +4 Werte']), worn('MAIN_HAND', 116, 60, 'EPIC'), worn('TABARD', 119, 1, 'COMMON'),
+    worn('AMMO', 5, 1, 'COMMON')] },
+  { race: { id: 4 }, gender: { type: 'FEMALE' } }, 1800000000)
+  assert.deepEqual(rec, { ts: 1800000000, src: 'api', race: 4, sex: 3, items: {
+    1: { id: 101, e: 0, s: 0, l: 50, q: 3 }, 4: { id: 38, e: 0, s: 0, l: 1, q: 1 }, 5: { id: 105, e: 1887, s: 0, l: 48, q: 2 },
+    16: { id: 116, e: 0, s: 0, l: 60, q: 4 }, 19: { id: 119, e: 0, s: 0, l: 1, q: 1 } } })
+  assert.equal(gearRecord({ equipped_items: [] }, { gender: { type: 'MALE' } }, 1).sex, 2)
+  assert.equal(gearRecord({}, {}, 1), null)
+  assert.equal(gearRecord(null, {}, 1), null)
+})
+
+test('updateGear writes only a newer record', () => {
+  const guild = new LuaTable()
+  const rec = gearRecord({ equipped_items: [worn('HEAD', 101, 50, 'RARE')] }, { race: { id: 4 } }, 100)
+  assert.equal(updateGear(guild, 'au tsch', rec), true)
+  const stored = guild.get('gear').get('au tsch')
+  assert.equal(stored.get('src'), 'api')
+  assert.equal(stored.get('items').get(1).get('id'), 101)
+  assert.equal(updateGear(guild, 'au tsch', { ...rec, ts: 99 }), false)
+  assert.equal(updateGear(guild, 'au tsch', { ...rec, ts: 100 }), false)
+  assert.equal(updateGear(guild, 'au tsch', { ...rec, ts: 101 }), true)
+})
+
+test('enchantTexts keeps the text after the prefix, in the client language only', () => {
+  const equipment = { equipped_items: [worn('HANDS', 1, 40, 'RARE', [844, 'Verzaubert: Bergbau +2'])] }
+  const db = toLua({ clientLocale: 'deDE' })
+  enchantTexts(db, equipment, 'deDE')
+  assert.equal(db.get('enchantText').get('locale'), 'deDE')
+  assert.equal(db.get('enchantText').get('names').get(844), 'Bergbau +2')
+  const other = toLua({ clientLocale: 'frFR', enchantText: { locale: 'frFR', names: { 1: 'x' } } })
+  enchantTexts(other, equipment, 'deDE')
+  assert.equal(other.get('enchantText').get('names').get(844), undefined)
+  const stale = toLua({ clientLocale: 'deDE', enchantText: { locale: 'enUS', names: { 1: 'x' } } })
+  enchantTexts(stale, equipment, 'deDE')
+  assert.equal(stale.get('enchantText').get('names').get(1), undefined)
+  assert.equal(stale.get('enchantText').get('names').get(844), 'Bergbau +2')
+})
+
+test('craftItems writes integer pairs up to the cap', () => {
+  const db = new LuaTable()
+  craftItems(db, [[1, 10], [2, 0], [3, 1.5], [0, 5], [4, 40]])
+  const map = db.get('craftItems')
+  assert.equal(map.get(1), 10)
+  assert.equal(map.get(4), 40)
+  assert.equal(map.has(2), false)
+  assert.equal(map.has(3), false)
+  const many = Array.from({ length: 3100 }, (_, i) => [100 + i, 7])
+  craftItems(db, many)
+  assert.equal(db.get('craftItems').keys().length, 3000)
 })
