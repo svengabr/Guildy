@@ -39,12 +39,29 @@ Records look like data that Guildy itself read in the game. Statistics carry `sr
 professions carry `src = "relay"`, and the timestamp is the character's last login. Data read in the
 game after that login keeps winning, and Guildy shares everything with the guild as usual.
 
+| `profs[skillLine].recipes`: the recipe book as spell IDs | `/professions` `known_recipes`, through the name bridge |
+| `profs[skillLine].spec`: the specialization (`src = "api"`) | `/professions` `specialization` |
+
+**Recipe books and specializations need the name bridge.** The API numbers recipes differently from
+the game; the name is what both share. Guildy saves the names of every recipe it has seen, and of the
+specializations, in the client's language (`GuildyDB.recipeNames`, written at each login). The script
+asks the API for professions in that language and translates each name back to the game's spell ID.
+Checked on 2026-11-13: of the 52 alchemy recipes the API lists for one member, all 52 matched a spell
+Guildy had read in the game. Without saved names (a Guildy before this version, or not yet logged
+in), only ranks are written, as before.
+
+A book is written whole or not at all: if one name has no match, that profession's list stays as it
+was. A book read in the game after the member's last login is never replaced. Gathering professions
+get no list. Specializations follow the game's rules (`Core/Specs.lua`): the API replaces one
+inferred from a book, but not one the game itself reported later; "no specialization" from the API
+revokes one.
+
 The API has gaps:
 
 - It returns only part of the statistics, and none of the gold statistics. Stored values that the
   API leaves out are kept, and API values replace only the ones it returns.
-- The API gives recipe IDs, but Guildy stores spell IDs. Recipe lists are therefore never written,
-  and stored lists are kept.
+- A recipe whose name Guildy has never seen cannot be translated; its whole book waits until Guildy
+  has seen that recipe once, in any member's book.
 - A member whose first record comes from the API has no gold values until Guildy reads them in the
   game.
 

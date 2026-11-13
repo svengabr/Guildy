@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync, copyFileSync, readdirSync, unlinkSync } fr
 import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -60,10 +60,10 @@ async function token() {
 
 let accessToken
 let requests = 0
-async function api(path) {
+async function api(path, locale = 'en_US') {
   for (let attempt = 0; ; attempt++) {
     requests++
-    const r = await fetch(`https://${REGION}.api.blizzard.com${path}?namespace=${NAMESPACE}&locale=en_US`,
+    const r = await fetch(`https://${REGION}.api.blizzard.com${path}?namespace=${NAMESPACE}&locale=${locale}`,
       { headers: { Authorization: `Bearer ${accessToken}` } })
     if (r.ok) return r.json()
     if (r.status === 404 || r.status === 403) return null
@@ -92,6 +92,13 @@ const globals = parse(text)
 const db = globals.get('GuildyDB')
 if (!(db instanceof LuaTable) || !(db.get('guilds') instanceof LuaTable)) die('GuildyDB ohne Gilden – einmal mit Guildy einloggen.')
 const own = new Set((db.get('ownChars') instanceof LuaTable ? db.get('ownChars').keys() : []).map(String))
+
+// recipe books and specializations need the names Guildy saved in the client's language
+const bridge = nameBridge(db)
+const PROF_LOCALE = apiLocale(bridge?.locale)
+console.log(bridge
+  ? `Rezeptnamen von Guildy (${bridge.locale}): Bücher und Spezialisierungen werden mitgeschrieben.`
+  : 'Keine Rezeptnamen gespeichert – einmal mit diesem Guildy einloggen, dann schreibt das Skript auch Bücher.')
 
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
@@ -133,10 +140,10 @@ for (const guildKey of db.get('guilds').keys()) {
       if (!profile?.last_login_timestamp) { totals.missing.push(key); return }
       const ts = Math.min(now, Math.floor(profile.last_login_timestamp / 1000))
       const [stats, equipment, profs] = await Promise.all([
-        api(`${base}/achievements/statistics`), api(`${base}/equipment`), api(`${base}/professions`)])
+        api(`${base}/achievements/statistics`), api(`${base}/equipment`), api(`${base}/professions`, PROF_LOCALE)])
       totals.members++
       if (stats && updateStats(member, statValues(stats), equipment ? gearValues(equipment) : {}, ts)) totals.stats++
-      if (profs && updateProfessions(member, professions(profs), ts)) totals.profs++
+      if (profs && updateProfessions(member, professions(profs), ts, bridge)) totals.profs++
     } catch (e) {
       totals.failed.push(`${key} (${e.message})`)
     }

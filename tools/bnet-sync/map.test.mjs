@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -102,4 +102,87 @@ test('names and slugs', () => {
   const fileKey = Buffer.from('parsival prachtprügel', 'utf8').toString('latin1')
   assert.equal(nameKey('Parsival Prachtprügel'), fileKey)
   assert.equal(slugOf(fileKey), 'parsival-prachtprügel')
+})
+
+test('professions also gives the specialization and the recipe names', () => {
+  const list = professions({ primaries: [
+    { profession: { id: 202 }, specialization: { name: 'Goblin-Ingenieur' },
+      tiers: [{ skill_points: 264, max_skill_points: 300, known_recipes: [{ id: 1, name: 'Sappeurladung' }, { id: 2, name: 'Goblin-Mörser' }] }] },
+    { profession: { id: 164 }, tiers: [{ skill_points: 54, max_skill_points: 75 }] },
+  ] })
+  assert.deepEqual(list, [
+    { skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur', recipes: ['Sappeurladung', 'Goblin-Mörser'] },
+    { skillLine: 164, rank: 54, max: 75, spec: null }, // a profession with specializations, none taken
+  ])
+})
+
+// GuildyDB with the names Guildy saved in the client's language (bytes, like the file)
+const bridgeDb = () => toLua({ recipeNames: { locale: 'deDE', names: {
+  12760: Buffer.from('Sappeurladung', 'utf8').toString('latin1'),
+  12716: Buffer.from('Goblin-Mörser', 'utf8').toString('latin1'),
+  20222: Buffer.from('Goblin-Ingenieur', 'utf8').toString('latin1'),
+  20219: Buffer.from('Gnomen-Ingenieur', 'utf8').toString('latin1'),
+} } })
+
+test('nameBridge translates names Guildy saved into spell IDs', () => {
+  const bridge = nameBridge(bridgeDb())
+  assert.equal(bridge.locale, 'deDE')
+  assert.equal(apiLocale(bridge.locale), 'de_DE')
+  assert.equal(apiLocale(undefined), 'en_US')
+  assert.deepEqual(bridge.spells('Goblin-Mörser'), [12716])
+  assert.equal(bridge.specId('Goblin-Ingenieur'), 20222)
+  assert.equal(bridge.specId('Sappeurladung'), null) // a recipe is no specialization
+  assert.equal(bridge.specId('Goblin Engineer'), 20222) // the English name works without a saved one
+  assert.equal(nameBridge(toLua({})), null)
+})
+
+test('updateProfessions writes a complete book and the specialization', () => {
+  const member = toLua({ name: 'Au Tsch', profs: {} })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur',
+    recipes: ['Sappeurladung', 'Goblin-Mörser'] }], TS, nameBridge(bridgeDb()))
+  const rec = member.get('profs').get(202)
+  assert.deepEqual(rec.get('recipes').arr, [12716, 12760])
+  assert.equal(rec.get('spec').get('id'), 20222)
+  assert.equal(rec.get('spec').get('src'), 'api')
+  assert.equal(rec.get('spec').get('ts'), TS)
+})
+
+test('updateProfessions writes no book of which one recipe has no known name', () => {
+  const member = toLua({ name: 'Au Tsch', profs: {} })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, recipes: ['Sappeurladung', 'Unbekannt'] }], TS, nameBridge(bridgeDb()))
+  assert.equal(member.get('profs').get(202).get('recipes'), undefined)
+})
+
+test('updateProfessions leaves a book read in the game after the login alone', () => {
+  const member = toLua({ name: 'Au Tsch', profs: { 202: { rank: 265, max: 300, ts: TS + 50, src: 'link', recipes: [12760] } } })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, recipes: ['Sappeurladung', 'Goblin-Mörser'] }], TS, nameBridge(bridgeDb()))
+  assert.deepEqual(member.get('profs').get(202).get('recipes').arr, [12760])
+})
+
+test('updateProfessions fills a missing book of a record as new as the API', () => {
+  const member = toLua({ name: 'Au Tsch', profs: { 202: { rank: 264, max: 300, ts: TS, src: 'relay' } } })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, recipes: ['Sappeurladung'] }], TS, nameBridge(bridgeDb()))
+  assert.deepEqual(member.get('profs').get(202).get('recipes').arr, [12760])
+})
+
+test('updateProfessions writes no recipe list for a gathering profession', () => {
+  const db = bridgeDb()
+  db.get('recipeNames').get('names').set(2575, 'Bergbau')
+  const member = toLua({ name: 'X', profs: {} })
+  updateProfessions(member, [{ skillLine: 186, rank: 300, max: 300, recipes: ['Bergbau'] }], TS, nameBridge(db))
+  assert.equal(member.get('profs').get(186).get('recipes'), undefined)
+})
+
+test('updateProfessions follows the specialization rules of the game', () => {
+  const bridge = nameBridge(bridgeDb())
+  const member = toLua({ name: 'X', profs: { 202: { rank: 264, max: 300, ts: TS, src: 'relay', spec: { id: 20219, src: 'book', ts: TS + 99 } } } })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur' }], TS, bridge)
+  assert.equal(member.get('profs').get(202).get('spec').get('id'), 20222) // over a book, whatever its age
+  member.get('profs').get(202).set('spec', toLua({ id: 20219, src: 'known', ts: TS + 1 }))
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Goblin-Ingenieur' }], TS, bridge)
+  assert.equal(member.get('profs').get(202).get('spec').get('id'), 20219) // not over the game's newer word
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: null }], TS + 2, bridge)
+  assert.equal(member.get('profs').get(202).get('spec').get('id'), 0) // unlearned
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, spec: 'Etwas Fremdes' }], TS + 3, bridge)
+  assert.equal(member.get('profs').get(202).get('spec').get('id'), 0) // an unknown name changes nothing
 })

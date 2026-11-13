@@ -1,7 +1,7 @@
 // Battle.net profile API responses (WoW Forever, profile-forever-*) to Guildy's GuildyDB records.
 // Mirrors Core/Stats.lua (StatRec, gear IDs, Stats.Update) and Core/Professions.lua (ProfRec, Merge)
 // so the written records look exactly like ones read in the game ("seen" stats, "relay" professions).
-import { LuaTable } from './lua.mjs'
+import { LuaTable, toLua } from './lua.mjs'
 
 export const GEAR = { ILVL: 9900001, EPIC: 9900002, RARE: 9900003, UNCOMMON: 9900004, COUNT: 9900005,
   COMMON: 9900006, POOR: 9900007, EMPTY: 9900008, LEGENDARY: 9900009 }
@@ -18,6 +18,15 @@ const MONTHS_KEPT = 3
 const MAX_VALUES = 500
 export const SKILL_LINES = new Set([171, 164, 333, 202, 182, 165, 186, 393, 197, 185, 129, 356])
 const MAX_SKILL = 450
+// Professions with specializations on Forever (Core/Specs.lua) and those whose books Guildy shows
+const SPEC_SKILLS = new Set([202, 164, 165])
+const BOOK_SKILLS = new Set([171, 164, 333, 202, 165, 197, 185, 129])
+const SPEC_IDS = new Set([20219, 20222, 17039, 17040, 17041, 9787, 9788, 10656, 10658, 10660])
+// The API's English names, for a client that never saved its own (Core/Specs.lua)
+const EN_SPECS = { 'Gnomish Engineer': 20219, 'Goblin Engineer': 20222, Weaponsmith: 9787, Armorsmith: 9788,
+  'Master Swordsmith': 17039, 'Master Hammersmith': 17040, 'Master Axesmith': 17041,
+  'Dragonscale Leatherworking': 10656, 'Elemental Leatherworking': 10658, 'Tribal Leatherworking': 10660 }
+const SPEC_RANK = { known: 3, api: 2, book: 1 }
 
 // Stats.ReadGear on the /equipment response: { [gearID]: value }, {} with nothing equipped
 export function gearValues(equipment) {
@@ -71,7 +80,8 @@ export function statValues(response) {
   return values
 }
 
-// /professions response to [{ skillLine, rank, max }]
+// /professions response to [{ skillLine, rank, max, spec?, recipes? }]: spec is the specialization's name
+// (null for a profession that has them when none is taken), recipes the names of the known recipes
 export function professions(response) {
   const list = []
   for (const p of [...(response?.primaries ?? []), ...(response?.secondaries ?? [])]) {
@@ -80,7 +90,12 @@ export function professions(response) {
     const tier = (p.tiers ?? []).reduce((best, t) => (!best || (t.max_skill_points ?? 0) > (best.max_skill_points ?? 0) ? t : best), null)
     if (!tier) continue
     const clamp = x => Math.max(0, Math.min(MAX_SKILL, Math.floor(Number(x) || 0)))
-    list.push({ skillLine, rank: clamp(tier.skill_points), max: clamp(tier.max_skill_points) })
+    const entry = { skillLine, rank: clamp(tier.skill_points), max: clamp(tier.max_skill_points) }
+    if (typeof p.specialization?.name === 'string') entry.spec = p.specialization.name
+    else if (SPEC_SKILLS.has(skillLine)) entry.spec = null
+    const names = (p.tiers ?? []).flatMap(t => (t.known_recipes ?? []).map(r => r?.name)).filter(n => typeof n === 'string')
+    if (names.length) entry.recipes = names
+    list.push(entry)
   }
   return list
 }
@@ -156,24 +171,103 @@ function cap(values) {
   return Object.fromEntries(keep.map(id => [id, values[id]]))
 }
 
-// Stores profession ranks like Professions.Merge with src "relay" and no recipe list: a stored record
-// that is newer or as new wins, the stored recipes are kept. Returns true when anything changed.
-export function updateProfessions(member, list, ts) {
+// The recipe names Guildy saved in the client's language (GuildyDB.recipeNames, Game/TradeSkill.lua):
+// the API numbers recipes differently from the game, the name is the bridge. null when none are saved.
+export function nameBridge(db) {
+  const saved = db?.get?.('recipeNames')
+  const names = saved instanceof LuaTable ? saved.get('names') : null
+  if (!(names instanceof LuaTable)) return null
+  const byName = new Map()
+  const add = (id, name) => {
+    if (typeof id !== 'number' || typeof name !== 'string') return
+    const text = fromBytes(name)
+    if (!byName.has(text)) byName.set(text, [])
+    byName.get(text).push(id)
+  }
+  for (const id of names.keys()) add(id, names.get(id))
+  names.arr.forEach((name, i) => add(i + 1, name))
+  const spells = name => byName.get(name) ?? []
+  return {
+    locale: typeof saved.get('locale') === 'string' ? saved.get('locale') : undefined,
+    spells,
+    // the spell ID of a specialization's name, null when the name is none
+    specId(name) {
+      const ids = spells(name).filter(id => SPEC_IDS.has(id))
+      if (ids.length === 1) return ids[0]
+      return EN_SPECS[name] ?? null
+    },
+  }
+}
+
+// The API's locale for a client locale ("deDE" -> "de_DE")
+export function apiLocale(locale) {
+  return typeof locale === 'string' && /^[a-z]{2}[A-Z]{2}$/.test(locale) ? `${locale.slice(0, 2)}_${locale.slice(2)}` : 'en_US'
+}
+
+// The recipe names as spell IDs, all or nothing: a book with one unknown name would be wrong as a whole
+function translate(names, bridge) {
+  const count = new Map()
+  for (const name of names) count.set(name, (count.get(name) ?? 0) + 1)
+  const ids = []
+  for (const [name, n] of count) {
+    const found = bridge.spells(name)
+    if (found.length !== n) return null
+    ids.push(...found)
+  }
+  return [...new Set(ids)].sort((a, b) => a - b)
+}
+
+// Specialization like Specs.Merge with src "api": over a book whatever its age, over the game's own
+// word only when newer. Returns true when it changed.
+function writeSpec(rec, skillLine, name, bridge, ts) {
+  if (!SPEC_SKILLS.has(skillLine) || name === undefined) return false
+  const id = name === null ? 0 : bridge.specId(name)
+  if (id === null) return false
+  const have = rec.get('spec')
+  if (have instanceof LuaTable) {
+    const src = have.get('src'), at = have.get('ts')
+    if (have.get('id') === id && src === 'api' && at === ts) return false
+    if ((src === 'known' || src === 'api') && !(ts > at || (ts === at && SPEC_RANK.api > SPEC_RANK[src]))) return false
+  }
+  rec.set('spec', toLua({ id, src: 'api', ts }))
+  return true
+}
+
+// Stores profession ranks like Professions.Merge with src "relay": a stored record that is newer or as
+// new wins, the stored recipes and specialization are kept. With a name bridge it also writes the book
+// (complete or not at all, never over one read in the game after the login) and the specialization.
+// Returns true when anything changed.
+export function updateProfessions(member, list, ts, bridge = null) {
   const profs = member.table('profs')
   let changed = false
-  for (const { skillLine, rank, max } of list) {
-    const existing = profs.get(skillLine)
-    if (existing instanceof LuaTable && typeof existing.get('ts') === 'number' && existing.get('ts') >= ts) continue
-    if (existing instanceof LuaTable && existing.get('rank') === rank && existing.get('max') === max
-      && existing.get('src') !== 'note') continue
-    const rec = new LuaTable()
-    rec.set('rank', rank)
-    rec.set('max', max)
-    rec.set('ts', ts)
-    rec.set('src', 'relay')
-    if (existing instanceof LuaTable && existing.get('recipes') instanceof LuaTable) rec.set('recipes', existing.get('recipes'))
-    profs.set(skillLine, rec)
-    changed = true
+  for (const entry of list) {
+    const { skillLine, rank, max } = entry
+    let rec = profs.get(skillLine)
+    const renewed = !(rec instanceof LuaTable && typeof rec.get('ts') === 'number' && rec.get('ts') >= ts)
+    if (renewed && !(rec instanceof LuaTable && rec.get('rank') === rank && rec.get('max') === max && rec.get('src') !== 'note')) {
+      const fresh = new LuaTable()
+      fresh.set('rank', rank)
+      fresh.set('max', max)
+      fresh.set('ts', ts)
+      fresh.set('src', 'relay')
+      if (rec instanceof LuaTable && rec.get('recipes') instanceof LuaTable) fresh.set('recipes', rec.get('recipes'))
+      if (rec instanceof LuaTable && rec.get('spec') instanceof LuaTable) fresh.set('spec', rec.get('spec'))
+      profs.set(skillLine, fresh)
+      rec = fresh
+      changed = true
+    }
+    if (!bridge || !(rec instanceof LuaTable)) continue
+    // a book read in the game after the login is newer than anything the API knows
+    const readLater = rec.get('ts') > ts && rec.get('recipes') instanceof LuaTable
+    if (entry.recipes && BOOK_SKILLS.has(skillLine) && !readLater) {
+      const ids = translate(entry.recipes, bridge)
+      const have = rec.get('recipes')
+      if (ids && !(have instanceof LuaTable && have.arr.join(',') === ids.join(','))) {
+        rec.set('recipes', toLua(ids))
+        changed = true
+      }
+    }
+    if (writeSpec(rec, skillLine, entry.spec, bridge, ts)) changed = true
   }
   return changed
 }
