@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.0
+## 1.7.1
 
 - New: a banner when a guild member reaches level 60. A dark band across the upper middle of the screen
   with a gold seal showing the 60, under it the name, large and in the class colour, with the game's
