@@ -1424,11 +1424,16 @@ T.describe("Hall of Fame", function()
     end
     Toggle(lists.Twinks, true)
     T.eq(ns.Settings().memberTwinks, nil)
+    -- the chat's profession icons are opt-in: off until switched on
     local chatProfs = options.Panels.chat.ChatProfs
-    Toggle(chatProfs, false)
-    T.eq(ns.Settings().chatProfs, false)
-    ns.UI.SelectTab("chat")
+    ns.Settings().chatProfs = nil
+    options.Panels.chat:Refresh()
+    T.eq(chatProfs:GetChecked(), false)
     Toggle(chatProfs, true)
+    T.eq(ns.Settings().chatProfs, true)
+    ns.UI.SelectTab("chat")
+    Toggle(chatProfs, false)
+    T.eq(ns.Settings().chatProfs, nil)
     -- professions: sharing
     local share = options.Panels.professions.Share
     local shared = ns.Settings().share

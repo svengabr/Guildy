@@ -298,9 +298,9 @@ local function Build(panel)
     row.Level:SetText(m.level)
     row.Name:SetText(W.ClassName(m.name, m.classFile) .. (m.rankIndex == 0 and " |cffffd100*|r" or ""))
     row.Zone:SetText(m.zone or "")
-    -- the two primary professions as icons, unless switched off (settings.chatProfs, the options); the
-    -- name takes their room then
-    local icons = ns.Settings().chatProfs ~= false
+    -- the two primary professions as icons, when switched on (settings.chatProfs, the options; off by
+    -- default); without them the name takes their room
+    local icons = ns.Settings().chatProfs == true
     row.Name:SetPoint("RIGHT", row.Zone, "LEFT", icons and -36 or -6, 0)
     local profs = icons and ns.TradeSkill.ProfsOf(m)
     local shown = 0

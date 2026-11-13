@@ -385,7 +385,7 @@ local function BuildChat(panel)
   local head = W.Text(panel, "GameFontNormal", L.OPTIONS_CHAT_HEAD)
   head:SetPoint("TOPLEFT", 4, -2)
   panel.ChatProfs = Check(panel, L.OPTIONS_CHAT_PROFS, function(self)
-    ns.Settings().chatProfs = Off(self)
+    ns.Settings().chatProfs = self:GetChecked() and true or nil -- opt-in: nil is off
     RefreshTab("chat")
   end)
   panel.ChatProfs:SetPoint("TOPLEFT", head, "BOTTOMLEFT", 2, -8)
@@ -394,7 +394,7 @@ local function BuildChat(panel)
   tip:SetPoint("RIGHT", -12, 0)
 
   function panel:Refresh()
-    self.ChatProfs:SetChecked(ns.Settings().chatProfs ~= false)
+    self.ChatProfs:SetChecked(ns.Settings().chatProfs == true)
   end
 end
 
