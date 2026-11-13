@@ -26,6 +26,8 @@ local MODEL_SHARE = 0.6 -- the model area takes at most this share of the card
 local MODEL_MIN = 120   -- and at least this, the notes give up lines first
 local MODEL_INSET = 9   -- the picture's distance from the card's edge, room for its gold frame
 local CONTENT_GAP = 12  -- between the card's content and its buttons
+local FRAME_OUTSET = 4  -- the gold frame's reach beyond the model area
+local NAME_GAP = 11     -- air between the gold frame's outer bottom edge and the name
 local MODEL_ZOOM = 0.8
 local MODEL_SCENE = 596 -- the game's scene of a player in the shop and dressing room
 local MODEL_DRESS_AFTER = 0.5 -- s a donor's body needs before it takes the stored items (checked in game)
@@ -582,8 +584,8 @@ local function Build()
   -- a gold frame around the picture, as Blizzard frames its portraits: the picture sits in the card
   -- instead of running into its edge
   hero.ModelFrame = CreateFrame("Frame", nil, hero, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  hero.ModelFrame:SetPoint("TOPLEFT", hero.ModelArea, "TOPLEFT", -4, 4)
-  hero.ModelFrame:SetPoint("BOTTOMRIGHT", hero.ModelArea, "BOTTOMRIGHT", 4, -4)
+  hero.ModelFrame:SetPoint("TOPLEFT", hero.ModelArea, "TOPLEFT", -FRAME_OUTSET, FRAME_OUTSET)
+  hero.ModelFrame:SetPoint("BOTTOMRIGHT", hero.ModelArea, "BOTTOMRIGHT", FRAME_OUTSET, -FRAME_OUTSET)
   if hero.ModelFrame.SetBackdrop then
     hero.ModelFrame:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
     hero.ModelFrame:SetBackdropBorderColor(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
@@ -903,7 +905,7 @@ local function Build()
       h.title = title and TextHeight(hero.Title, inner) or 0
       h.ident = TextHeight(hero.Ident, inner)
       h.where = #where > 0 and TextHeight(hero.Where, inner) or 0
-      local total = 10 + h.name + (title and 2 + h.title or 0) + 4 + h.ident + (#where > 0 and 3 + h.where or 0)
+      local total = FRAME_OUTSET + NAME_GAP + h.name + (title and 2 + h.title or 0) + 4 + h.ident + (#where > 0 and 3 + h.where or 0)
       total = total + 10 + 1 + 10 -- the divider
       local facts = 0
       for _, key in ipairs(FACTS) do
@@ -936,8 +938,10 @@ local function Build()
       cardH - MODEL_INSET - bottomH - CONTENT_GAP - contentH))
     hero.ModelArea:SetHeight(modelH)
 
-    -- placed top-down: identity centred, the divider, facts, notes
-    local top = modelH + 10
+    -- placed top-down: identity centred, the divider, facts, notes. The name hangs under the gold
+    -- frame's outer bottom edge with air between them; the lines below count from the card's top.
+    local nameTop = MODEL_INSET + modelH + FRAME_OUTSET + NAME_GAP
+    local top = nameTop
     local function Centre(text, height)
       text:SetJustifyH("CENTER")
       text:SetWidth(inner)
@@ -946,6 +950,8 @@ local function Build()
       top = top + height
     end
     Centre(hero.Name, h.name)
+    hero.Name:ClearAllPoints()
+    hero.Name:SetPoint("TOP", hero.ModelFrame, "BOTTOM", 0, -NAME_GAP)
     hero.Title:SetShown(title ~= nil)
     if title then
       top = top + 2
@@ -998,7 +1004,7 @@ local function Build()
         blocks = blocks + 1
       end
     end
-    hero.layout = { model = modelH, content = top, buttons = cardH - bottomH }
+    hero.layout = { model = modelH, name = nameTop, content = top, buttons = cardH - bottomH }
     UI.Notes.Show(m)
   end
 

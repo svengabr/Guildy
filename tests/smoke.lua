@@ -3421,12 +3421,34 @@ T.describe("The hero card and the column on the character page", function()
     local lines = { hero.Name, hero.Ident, hero.Where }
     for _, text in ipairs(lines) do Spy(text) end
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    -- the name under the gold frame's bottom (its outset counts), the lines below on the card's top
+    local at = rawget(hero.Name, "at")
+    T.truthy(at and at[1] == "TOP" and at[2] == hero.ModelFrame and at[3] == "BOTTOM" and at[4] == 0, "the name under the frame")
     for i, text in ipairs(lines) do
       T.eq(rawget(text, "justify"), "CENTER")
-      local at = rawget(text, "at")
-      T.truthy(at and at[1] == "TOP" and at[2] == hero and at[3] == "TOP" and at[4] == 0, "line " .. i .. " on the card's axis")
+      at = rawget(text, "at")
+      if i > 1 then
+        T.truthy(at and at[1] == "TOP" and at[2] == hero and at[3] == "TOP" and at[4] == 0, "line " .. i .. " on the card's axis")
+      end
       Unspy(text)
     end
+    T.eq(errors, {})
+  end)
+
+  T.it("leaves 10 to 12 px of air between the gold frame and the name", function()
+    local page = ns.UI.MemberPage()
+    local hero = page.Hero
+    Spy(hero.Name)
+    page:SetSize(1130 - 22, 560 - 42)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local at = rawget(hero.Name, "at")
+    T.truthy(at and at[5] <= -10 and at[5] >= -12, "gap under the frame: " .. tostring(at and at[5]))
+    -- the layout agrees: the name starts that far under the frame's outer bottom edge
+    local fit = hero.layout
+    local frameBottom = 9 + fit.model + 4
+    T.truthy(fit.name - frameBottom >= 10 and fit.name - frameBottom <= 12, ("name at %s, frame ends at %d"):format(tostring(fit.name), frameBottom))
+    Unspy(hero.Name)
+    page:SetSize(100, 100)
     T.eq(errors, {})
   end)
 
