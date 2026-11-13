@@ -137,7 +137,11 @@ local function SceneTest(raceID)
   local tag = "modeltest scene: "
   local actor = SceneActor(tag)
   if not actor then return end
-  local unit = UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target") and "target" or "player"
+  -- the target's values may be secret (instances, combat): checked as Game/Gear.lua's FindDonor does
+  local exists = ns.Try(rawget(_G, "UnitExists"), "target")
+  local isPlayer = ns.Try(rawget(_G, "UnitIsPlayer"), "target")
+  local unit = not ns.IsSecret(exists) and not ns.IsSecret(isPlayer) and exists and isPlayer
+    and "target" or "player"
   local ready = rawget(_G, "IsUnitModelReadyForUI")
   if ready then Say(tag .. "IsUnitModelReadyForUI(" .. unit .. ") = " .. tostring(ns.Try(ready, unit))) end
   local ok, err = pcall(actor.SetModelByUnit, actor, unit, false, false, false, true, false, raceID)

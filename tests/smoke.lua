@@ -2152,6 +2152,20 @@ T.describe("Gear", function()
     T.eq(errors, {})
   end)
 
+  T.it("takes the own body for the scene test when the target's values are secret", function()
+    local printed, print = {}, ns.Print
+    ns.Print = function(text) printed[#printed + 1] = tostring(text) end
+    local exists, isPlayer = env.UnitExists, env.UnitIsPlayer
+    env.UnitExists = function() return SECRET end
+    env.UnitIsPlayer = function(unit) if unit == "target" then return SECRET end return true end
+    env.SlashCmdList.GUILDY("modeltest scene 4")
+    RunTimers()
+    env.UnitExists, env.UnitIsPlayer, ns.Print = exists, isPlayer, print
+    local all = table.concat(printed, "\n")
+    T.truthy(all:find("SetModelByUnit(player, race 4)", 1, true), all)
+    T.eq(errors, {})
+  end)
+
   -- item links of the test: id -> { quality, item level, equip location }
   local ITEMS = { [1001] = { 3, 52, "INVTYPE_HEAD" }, [1004] = { 1, 1, "INVTYPE_BODY" }, [1005] = { 2, 48, "INVTYPE_CHEST" },
     [1016] = { 4, 60, "INVTYPE_WEAPON" } }
