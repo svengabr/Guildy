@@ -2519,6 +2519,27 @@ T.describe("Activity score on the character page", function()
     T.eq(errors, {})
   end)
 
+  T.it("writes weekly values as the tiles do: thousands marked, no 0,0, \"pro Woche\" once", function()
+    local big = env.BreakUpLargeNumbers
+    env.BreakUpLargeNumbers = function(n) return (tostring(n):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")) end
+    local rates = { kills = 5474, honorKills = 4.6, quests = 436, raidBosses = 0, dungeonBosses = 7.3, dungeons = 19,
+      battlegrounds = 0.04 }
+    WithScore(84, { presence = 0, playing = 25, group = 34 }, Detail({ rates = rates, presence = 3 }), function(_, _, text)
+      local mark = L.DECIMAL_MARK
+      T.truthy(text:find("5.474", 1, true), "thousands marked: " .. text)
+      T.truthy(text:find("7" .. mark .. "3", 1, true), "a decimal below 10 stays")
+      T.truthy(text:find("4" .. mark .. "6", 1, true), "honor kills keep their decimal")
+      T.truthy(not text:find("0" .. mark .. "0", 1, true), "no 0,0")
+      T.truthy(text:find("\n3\n", 1, true) or text:find("3 ", 1, true), "whole days without a decimal")
+    end)
+    env.BreakUpLargeNumbers = big
+    local week = L.SCORE_PER_WEEK
+    for _, key in ipairs({ "SCORE_ROW_DAYS", "SCORE_PRESENCE_EXPLAIN", "SCORE_PLAYING_EXPLAIN", "SCORE_GROUP_EXPLAIN" }) do
+      T.truthy(not L[key]:find(week, 1, true), key .. " repeats " .. week)
+    end
+    T.eq(errors, {})
+  end)
+
   T.it("fills the three bars of the score panel to points over max", function()
     WithScore(63, { presence = 15, playing = 25, group = 22.5 }, Detail(), function(panel)
       for name, share in pairs({ presence = 0.5, playing = 1, group = 0.5 }) do

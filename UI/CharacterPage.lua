@@ -188,11 +188,14 @@ local function BucketColor(bucket)
   return 1 - green * 0.6, 0.35 + green * 0.5, 0.25
 end
 
--- A weekly count: one decimal below 10, whole above
+-- A weekly count as the tiles write numbers: whole from 10 on (thousands marked), one decimal below 10
+-- unless it is whole (0, not 0,0)
 local function Weekly(value)
   value = value or 0
-  if value < 10 then return (string.format("%.1f", value):gsub("%.", ns.L.DECIMAL_MARK)) end
-  return tostring(math.floor(value + 0.5))
+  if value >= 10 then return Number(math.floor(value + 0.5)) end
+  local tenths = math.floor(value * 10 + 0.5)
+  if tenths % 10 == 0 then return tostring(tenths / 10) end
+  return (string.format("%.1f", tenths / 10):gsub("%.", ns.L.DECIMAL_MARK))
 end
 
 local function Hex(color)
