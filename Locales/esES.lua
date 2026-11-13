@@ -297,6 +297,7 @@ ns.LocaleTables.esES = {
   UPGRADES_NO_DATA = "Aún no se conoce ninguna receta de la hermandad.",
   UPGRADES_NONE = "El equipo de %s es mejor que todo lo que la hermandad puede fabricar.",
   UPGRADES_NONE_OWN = "Tu equipo es mejor que todo lo que la hermandad puede fabricar.",
+  UPGRADES_NONE_YET = "Aún no se ha encontrado nada mejor.",
   MODEL_HINT = "Arrastra para girar · rueda para acercar",
   MODEL_WAIT_FEMALE = "La figura aparecerá en cuanto te cruces con una jugadora.",
   MODEL_WAIT_MALE = "La figura aparecerá en cuanto te cruces con un jugador.",

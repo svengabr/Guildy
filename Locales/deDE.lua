@@ -297,6 +297,7 @@ ns.LocaleTables.deDE = {
   UPGRADES_NO_DATA = "Noch keine Rezepte der Gilde bekannt.",
   UPGRADES_NONE = "Die Ausrüstung von %s ist besser als alles, was die Gilde herstellen kann.",
   UPGRADES_NONE_OWN = "Deine Ausrüstung ist besser als alles, was die Gilde herstellen kann.",
+  UPGRADES_NONE_YET = "Noch nichts Besseres gefunden.",
   MODEL_HINT = "Ziehen zum Drehen · Mausrad zum Zoomen",
   MODEL_WAIT_FEMALE = "Die Figur erscheint, sobald dir eine Spielerin begegnet.",
   MODEL_WAIT_MALE = "Die Figur erscheint, sobald dir ein Spieler begegnet.",

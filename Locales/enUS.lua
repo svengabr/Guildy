@@ -297,6 +297,7 @@ ns.LocaleTables.enUS = {
   UPGRADES_NO_DATA = "No guild recipes known yet.",
   UPGRADES_NONE = "%s's gear is better than anything the guild can craft.",
   UPGRADES_NONE_OWN = "Your gear is better than anything the guild can craft.",
+  UPGRADES_NONE_YET = "Nothing better found yet.",
   MODEL_HINT = "Drag to rotate · wheel to zoom",
   MODEL_WAIT_FEMALE = "The figure appears once you come across a female character.",
   MODEL_WAIT_MALE = "The figure appears once you come across a male character.",

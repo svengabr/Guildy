@@ -297,6 +297,7 @@ ns.LocaleTables.ptBR = {
   UPGRADES_NO_DATA = "Nenhuma receita da guilda conhecida ainda.",
   UPGRADES_NONE = "O equipamento de %s é melhor do que tudo o que a guilda pode fabricar.",
   UPGRADES_NONE_OWN = "Seu equipamento é melhor do que tudo o que a guilda pode fabricar.",
+  UPGRADES_NONE_YET = "Nada melhor encontrado ainda.",
   MODEL_HINT = "Arraste para girar · roda para zoom",
   MODEL_WAIT_FEMALE = "A figura aparece assim que você encontrar uma jogadora.",
   MODEL_WAIT_MALE = "A figura aparece assim que você encontrar um jogador.",

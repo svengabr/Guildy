@@ -297,6 +297,7 @@ ns.LocaleTables.frFR = {
   UPGRADES_NO_DATA = "Aucune recette de la guilde connue pour l'instant.",
   UPGRADES_NONE = "L'équipement de %s est meilleur que tout ce que la guilde peut fabriquer.",
   UPGRADES_NONE_OWN = "Ton équipement est meilleur que tout ce que la guilde peut fabriquer.",
+  UPGRADES_NONE_YET = "Rien de mieux trouvé pour l'instant.",
   MODEL_HINT = "Glisser pour tourner · molette pour zoomer",
   MODEL_WAIT_FEMALE = "Le personnage apparaîtra dès que vous croiserez une joueuse.",
   MODEL_WAIT_MALE = "Le personnage apparaîtra dès que vous croiserez un joueur.",

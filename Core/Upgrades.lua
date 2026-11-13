@@ -500,8 +500,9 @@ end
 -- the worn piece's score by MIN_RATIO and MIN_SCORE; with a weak profile and no spec weights (fewer than STRONG_ITEMS pieces with
 -- stats) instead when its top primary stat is the worn piece's (empty slot: the profile's) and its level is
 -- MIN_GAIN higher. Returns rows { { slot, itemID, quality, have, offer, gain, diff, makers = { { key, skillLine,
--- online } } } } (at most MAX_ROWS, largest gain first, one per slot) and missing { itemID } (info or stats
--- not loaded yet, or the tooltip of a piece that would be taken). A tooltip is read only for a piece that
+-- online } } } } (at most MAX_ROWS, largest gain first, one per slot), missing { itemID } (info or stats
+-- not loaded yet, or the tooltip of a piece that would be taken) and unknown (true when a slot with crafted
+-- pieces for it was skipped because its worn piece's stats cannot be known). A tooltip is read only for a piece that
 -- would be taken (better than the best so far): its requirements decide then.
 -- What a requirement the member does not meet asks for, as the probe names it
 local function ReqText(req)
@@ -525,7 +526,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
   local worn, armour, wornStats, list, missed = s.worn, s.armour, s.wornStats, s.list, s.missed
   local best, bestScore, bestArmor, bestHave, bestGain = s.best, s.bestScore, s.bestArmor, s.bestHave, s.bestGain
   for _, t in ipairs(s.all) do Clear(t) end
-  local missing = {}
+  local missing, unknown = {}, false
   local function Miss(itemID)
     if not missed[itemID] then
       missed[itemID] = true
@@ -591,6 +592,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
     for _, sl in ipairs(slots) do
       local item = items[sl]
       if item and not wornStats[sl] then
+        if not missed[item.id] then unknown = true end -- its worn stats cannot be known, not loading
         if trace then Slot(sl).count = Slot(sl).count + #entries end
         slot = nil
         break
@@ -711,7 +713,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
   end)
   for i = #rows, Upgrades.MAX_ROWS + 1, -1 do rows[i] = nil end
   for _, t in ipairs(s.all) do Clear(t) end
-  return rows, missing
+  return rows, missing, unknown
 end
 
 -- Upgrades.ForIndex with the index built from makers and craft for this one call (see Upgrades.Index)

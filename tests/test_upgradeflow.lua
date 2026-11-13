@@ -490,6 +490,32 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("praises the gear only when nothing waits and no slot was skipped as unknown", function()
+    local w = World()
+    local L = w.ns.L
+    local function Again()
+      local guild = w.ns.GuildData()
+      guild.gear["au tsch"].ts = guild.gear["au tsch"].ts + 1
+      local _, state = w.Offered()
+      return state, Page(w).Upgrades.Empty:GetText()
+    end
+    w.hidden[702] = true -- a crafted piece still loading
+    T.eq({ Again() }, { "open", L.UPGRADES_NONE_YET })
+    w.hidden[702] = nil
+    w.ns.Fire("GEAR_INFO") -- it came in
+    -- a worn chest without stats: they did not come through, its slot is skipped
+    w.INFO[7098] = { name = "Leeres Leder", level = 40, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    w.STATS[7098] = {}
+    w.ns.GuildData().gear["au tsch"].items[5] = { id = 7098, e = 0, s = 0, l = 40, q = 2 }
+    T.eq({ Again() }, { "open", L.UPGRADES_NONE_YET })
+    -- another chest, known and strong: nothing better, praise
+    w.INFO[7099] = { name = "Starkes Leder", level = 40, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    w.STATS[7099] = { [AGI] = 30, [STA] = 10 }
+    w.ns.GuildData().gear["au tsch"].items[5] = { id = 7099, e = 0, s = 0, l = 40, q = 2 }
+    T.eq({ Again() }, { "none", L.UPGRADES_NONE:format(w.Member().name) })
+    T.eq(w.errors, {})
+  end)
+
   T.it("names a worn piece that is not loaded yet, or shows dots", function()
     local w = World()
     local guild = w.ns.GuildData()

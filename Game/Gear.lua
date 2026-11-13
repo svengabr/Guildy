@@ -799,7 +799,8 @@ end
 
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
 -- "nodata" (no book of another member has a recipe whose item is known, or m's gear is unknown),
--- "none" (data, nothing better) or "rows", the items still loading, and the talent spec and main tree
+-- "none" (data, nothing better, everything known), "open" (nothing better so far: items still loading or
+-- a slot skipped as its worn stats are unknown) or "rows", the items still loading, and the talent spec and main tree
 -- the pieces were rated for (nil, nil: by the worn gear). Kept per member until their gear, talents or
 -- spec, the guild's books, the member list or their level change, or, while items were loading, until
 -- item infos come in. Spell IDs without an entry are asked from the game.
@@ -839,9 +840,10 @@ function GameGear.WorkOutUpgrades(m, spec)
   -- the items still loading were asked for by GameGear.ItemInfo already, once
   local who = GameGear.Who(m)
   who.weights = ns.StatWeights.For(spec)
-  local rows, missing = U.ForIndex(who, rec, built, GameGear.ItemInfo, GAME)
+  local rows, missing, unknown = U.ForIndex(who, rec, built, GameGear.ItemInfo, GAME)
   lap("upgrades:", "scoring")
-  return rows, #rows > 0 and "rows" or "none", missing
+  local state = #rows > 0 and "rows" or (#missing == 0 and not unknown) and "none" or "open"
+  return rows, state, missing
 end
 
 -- /guildy upgradeprobe [name] (the own character by default): per gear slot the box considers the worn
