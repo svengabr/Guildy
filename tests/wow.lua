@@ -80,6 +80,8 @@ return function(T, opts)
     end
     function methods:SetBackdropColor(r, g, b, a) self._backdrop = { r, g, b, a or 1 } end
     function methods:GetBackdropColor() return unpack(self._backdrop or { 0, 0, 0, 0 }) end
+    function methods:SetBackdropBorderColor(r, g, b, a) self._border = { r, g, b, a or 1 } end
+    function methods:GetBackdropBorderColor() return unpack(self._border or { 0, 0, 0, 0 }) end
     -- the height of the text wrapped to its width, as the game's fonts write it: the small fonts 5.5 px
     -- a character and 12 px a line, the huge ones 12 and 24, the others 6.5 and 14
     function methods:GetStringHeight()

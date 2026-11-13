@@ -2585,6 +2585,19 @@ T.describe("Activity score on the character page", function()
     T.eq(errors, {})
   end)
 
+  T.it("sets the score panel apart from the page: brighter border, darker ground, a shadow", function()
+    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel, page)
+      local pr, pg, pb = panel:GetBackdropBorderColor()
+      local br, bg, bb = page.Gear:GetBackdropBorderColor()
+      T.truthy(pr + pg + pb > (br + bg + bb) * 1.25, ("border %.2f vs page %.2f"):format(pr + pg + pb, br + bg + bb))
+      local r, g, b = panel:GetBackdropColor()
+      local gr, gg, gb = page.Gear:GetBackdropColor()
+      T.truthy(r + g + b < gr + gg + gb, "darker ground than the page's boxes")
+      T.truthy(panel.Shadow and panel.Shadow[1], "a shadow around the panel")
+    end)
+    T.eq(errors, {})
+  end)
+
   T.it("grows the score panel with its notes", function()
     local heights = {}
     for i, fields in ipairs({ {}, { scaled = true, presence = false }, { scaled = true, presence = false, fade = 0.5, away = 16 } }) do
