@@ -132,7 +132,10 @@ function GameGear.Store(request, links, unit, ids)
   end
 end
 
--- Upgrades' item info shape for itemID, or nil (then the game is asked to load it)
+local requestedItems = {} -- itemID -> true: asked from the game this session (never again)
+local unknownItems = {}   -- itemID -> true: the game answered it has no such item
+
+-- Upgrades' item info shape for itemID, or nil (then the game is asked to load it, once per session)
 function GameGear.ItemInfo(itemID)
   local getInfo = ItemInfoFunction()
   local name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind
@@ -141,7 +144,10 @@ function GameGear.ItemInfo(itemID)
   end
   if name == nil or ns.AnySecret(name, quality, level, reqLevel, equipLoc, classID, subclassID, bind) or type(level) ~= "number" then
     local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
-    if request then ns.Try(request, itemID) end
+    if request and itemID and not requestedItems[itemID] then
+      requestedItems[itemID] = true
+      ns.Try(request, itemID)
+    end
     return nil
   end
   return { name = name, equipLoc = equipLoc, level = level, reqLevel = reqLevel or 0, classID = classID,
@@ -302,7 +308,13 @@ end
 -- "none" (data, nothing better) or "rows". Spell IDs without an entry are asked from the game.
 function GameGear.UpgradesFor(m)
   local guild, db = ns.GuildData(), ns.DB()
-  local craft = db and type(db.craftItems) == "table" and db.craftItems or {}
+  local all = db and type(db.craftItems) == "table" and db.craftItems or {}
+  -- crafts whose item the game said it does not have are left out (bnet-sync may know items this
+  -- client has not)
+  local craft = setmetatable({}, { __index = function(_, spellID)
+    local itemID = all[spellID]
+    if itemID and not unknownItems[itemID] then return itemID end
+  end })
   local makers, unknown, known = {}, {}, false
   for _, other in ipairs(ns.Roster.Members()) do
     local record = guild and guild.members[other.key]
@@ -351,7 +363,15 @@ end
 
 -- Events ----------------------------------------------------------------------------------------------
 
-function GameGear.OnItemInfo() InfoChanged() end
+-- GET_ITEM_INFO_RECEIVED: a failed load (no such item) redraws nothing and drops that item; together
+-- with asking once per item this ends the GEAR_INFO -> render -> request loop
+function GameGear.OnItemInfo(itemID, success)
+  if success == false then
+    if itemID then unknownItems[itemID] = true end
+    return
+  end
+  InfoChanged()
+end
 
 -- Login: what the script wrote into the craft map that cannot be worn goes
 function GameGear.Start()

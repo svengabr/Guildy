@@ -2608,6 +2608,54 @@ T.describe("Upgrades from the guild on the character page", function()
     env.GuildyDB.craftItems = {}
     T.eq(errors, {})
   end)
+
+  local function Count(id)
+    local n = 0
+    for _, asked in ipairs(requested) do if asked == id then n = n + 1 end end
+    return n
+  end
+
+  T.it("asks the game for an item once per session, however often the page draws", function()
+    local restore = Stubs()
+    local guild = ns.GuildData()
+    guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 47, q = 2 } } }
+    guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
+    env.GuildyDB.craftItems = { [99001] = 50004 } -- never loads
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(Count(50004), 1)
+    -- the game answers for it, but it still has no info: the page draws again and asks nothing more
+    Fire("GET_ITEM_INFO_RECEIVED", 50004, true)
+    RunTimers()
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    ns.UI.MemberPage():Render()
+    RunTimers()
+    T.eq(Count(50004), 1)
+    restore()
+    guild.members["makira farron"].profs[197] = nil
+    env.GuildyDB.craftItems = {}
+    T.eq(errors, {})
+  end)
+
+  T.it("ignores failed item info and drops the craft whose item the game does not have", function()
+    local restore = Stubs()
+    local guild = ns.GuildData()
+    guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 47, q = 2 } } }
+    guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
+    env.GuildyDB.craftItems = { [99001] = 50005 } -- an item bnet-sync knows and Forever does not
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local redraws = 0
+    ns.On("GEAR_INFO", function() redraws = redraws + 1 end)
+    Fire("GET_ITEM_INFO_RECEIVED", 50005, false)
+    RunTimers()
+    T.eq(redraws, 0)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local box = ns.UI.MemberPage().Upgrades
+    T.eq(box.Empty:GetText(), L.UPGRADES_NO_DATA) -- the only craft is gone: no data, not "nothing better"
+    restore()
+    guild.members["makira farron"].profs[197] = nil
+    env.GuildyDB.craftItems = {}
+    T.eq(errors, {})
+  end)
 end)
 
 T.describe("The model on the character page", function()
