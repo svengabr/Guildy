@@ -514,3 +514,38 @@ T.describe("Upgrades with talent spec weights", function()
     T.eq(Offered(druid(ns.StatWeights.For("DRUID_CAT")), gear), { 561 })
   end)
 end)
+
+T.describe("Worn pieces without stats", function()
+  local function loc(id, equipLoc, quality)
+    INFO[id] = { equipLoc = equipLoc, level = 40, reqLevel = 35, classID = 4, subclassID = 0, bind = 2, quality = quality or 3 }
+    STATS[id] = {}
+  end
+
+  T.it("counts a trinket with only a use effect as known with score 0 (Sven's trinket 280766)", function()
+    loc(280766, "INVTYPE_TRINKET")
+    local worn = { id = 280766, e = 0, s = 0, l = 40, q = 3 }
+    T.eq(U.WornStats(worn, GAME, INFO[280766]), {})
+    local trace = {}
+    U.ForIndex({ key = "d", level = 47, classFile = "DRUID", weights = ns.StatWeights.For("DRUID_CAT") },
+      { items = { [13] = worn } }, U.Index({}, {}, info), info, GAME, trace)
+    T.eq(trace.slots[13].worn.source, "link")
+    T.eq(trace.slots[13].worn.score, 0)
+    T.eq(trace.slots[13].skipped, nil)
+  end)
+
+  T.it("counts plain rings, necks, shirts and tabards without stats as known", function()
+    for id, equipLoc in pairs({ [281] = "INVTYPE_FINGER", [282] = "INVTYPE_NECK", [283] = "INVTYPE_BODY", [284] = "INVTYPE_TABARD" }) do
+      loc(id, equipLoc)
+      T.eq(U.WornStats({ id = id, e = 0, s = 0, l = 40, q = 3 }, GAME, INFO[id]), {}, equipLoc)
+    end
+  end)
+
+  T.it("keeps a ring with bonus IDs and a chest without stats unknown: their stats did not come through", function()
+    loc(285, "INVTYPE_FINGER")
+    local stats, gone = U.WornStats({ id = 285, e = 0, s = 0, l = 40, q = 2, b = { 6655 } }, GAME, INFO[285])
+    T.eq({ stats, gone }, { nil, true })
+    loc(286, "INVTYPE_CHEST", 2)
+    stats, gone = U.WornStats({ id = 286, e = 0, s = 0, l = 40, q = 2 }, GAME, INFO[286])
+    T.eq({ stats, gone }, { nil, true })
+  end)
+end)

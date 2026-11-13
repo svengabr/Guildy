@@ -166,7 +166,19 @@ local storedStats = setmetatable({}, { __mode = "k" }) -- worn item table -> its
 -- a negative random suffix without the unique ID that carries its factor, or an uncommon or better piece
 -- without a suffix that the game says has no stats at all (a random-suffix item read without its suffix,
 -- as bnet-sync wrote them before it stored stats). A slot with such an item gets no offer.
-function Upgrades.WornStats(item, game)
+-- A piece that plausibly has no stats at all counts as known, with score 0: a trinket with only a use
+-- effect, a shirt, a tabard, and a ring or neck without bonus IDs (no suffix that could have been lost).
+-- info: the item's info (Upgrades' shape) when the caller has it, else game.info(item.id) where given.
+local NO_STATS_ALWAYS = { INVTYPE_TRINKET = true, INVTYPE_BODY = true, INVTYPE_TABARD = true }
+local NO_STATS_PLAIN = { INVTYPE_FINGER = true, INVTYPE_NECK = true }
+local function MayHaveNoStats(item, info)
+  local equipLoc = type(info) == "table" and info.equipLoc
+  if not equipLoc then return false end
+  if NO_STATS_ALWAYS[equipLoc] then return true end
+  return NO_STATS_PLAIN[equipLoc] == true and (type(item.b) ~= "table" or #item.b == 0)
+end
+
+function Upgrades.WornStats(item, game, info)
   if type(item.st) == "table" then
     local known = storedStats[item]
     if known then return known end
@@ -181,7 +193,10 @@ function Upgrades.WornStats(item, game)
   if s < 0 and u == 0 then return nil, true end
   local stats, gone = game.stats(item)
   if not stats then return nil, gone end
-  if s == 0 and (item.q or 0) >= 2 and not HasStats(stats) then return nil, true end
+  if s == 0 and (item.q or 0) >= 2 and not HasStats(stats) then
+    if info == nil and game.info then info = game.info(item.id) end
+    if not MayHaveNoStats(item, info) then return nil, true end
+  end
   return stats
 end
 
@@ -522,7 +537,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
     local info = itemInfo(item.id)
     if info and info.classID == ARMOR_CLASS and info.subclassID then worn[info.subclassID] = true end
     if IsArmour(info) then armour[#armour + 1] = info.subclassID end
-    local stats, gone = Upgrades.WornStats(item, game)
+    local stats, gone = Upgrades.WornStats(item, game, info)
     if stats then
       wornStats[slot] = stats
       list[#list + 1] = stats
