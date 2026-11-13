@@ -12,6 +12,7 @@ local GameGear = {}
 ns.GameGear = GameGear
 
 local CRAFT_BATCH = 20 -- spell IDs asked from the game per frame
+local REFRESH = 86400  -- unchanged own gear is stored and sent anew after this many seconds
 
 local function ItemInfoFunction()
   return rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
@@ -103,7 +104,10 @@ function GameGear.ReadOwn()
   local book = Book(guild)
   local have = book[key]
   local rec = { src = "self", race = race, sex = sex, items = items }
-  if type(have) == "table" and have.src == "self" and Same(have, rec) then return end
+  -- unchanged gear keeps its time for a day; then it moves up and is sent once more, so a member who
+  -- logs in daily never ages out of the guild's 60 days (Gear.MAX_AGE)
+  if type(have) == "table" and have.src == "self" and Same(have, rec) and type(have.ts) == "number"
+    and ns.Now() - have.ts < REFRESH then return end
   rec.ts = math.max(ns.Now(), type(have) == "table" and type(have.ts) == "number" and have.ts + 1 or 0)
   book[key] = rec
   ns.Fire("GEAR")

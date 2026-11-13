@@ -2181,6 +2181,30 @@ T.describe("Gear", function()
     T.eq(errors, {})
   end)
 
+  T.it("refreshes unchanged own gear once a day, so it never ages out", function()
+    local shared = {}
+    local share = ns.Sync.ShareGear
+    ns.Sync.ShareGear = function(key) shared[#shared + 1] = key end
+    local restore = GearStubs("player", OWN)
+    local rec = ns.GuildData().gear["ran fred"]
+    -- read an hour ago, unchanged: left alone, not sent again
+    rec.ts = ns.Now() - 3600
+    ns.GameStats.UpdateOwn()
+    T.eq(ns.GuildData().gear["ran fred"].ts, ns.Now() - 3600)
+    T.eq(#shared, 0)
+    -- read 70 days ago, unchanged (a member who logs in daily): the time moves up and it is sent once
+    ns.GuildData().gear["ran fred"].ts = ns.Now() - 70 * 86400
+    ns.GameStats.UpdateOwn()
+    T.eq(ns.GuildData().gear["ran fred"].ts, ns.Now())
+    T.eq(shared, { "ran fred" })
+    T.truthy(ns.Gear.Digest(ns.GuildData().gear, ns.Now())["ran fred"], "offered to the guild again")
+    ns.GameStats.UpdateOwn() -- the next read the same day sends nothing
+    T.eq(#shared, 1)
+    restore()
+    ns.Sync.ShareGear = share
+    T.eq(errors, {})
+  end)
+
   T.it("stores nothing from a secret link", function()
     local before = ns.GuildData().gear["ran fred"]
     local slots = { [1] = Link(1001), [5] = SECRET }
