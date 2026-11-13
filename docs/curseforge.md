@@ -78,7 +78,6 @@ Title and description per image (CurseForge allows 255 characters per descriptio
 12. `media/gallery/14-character.jpg`
    - Title: Character page
    - Description: New in 1.8: the member in their gear, every slot with enchantment and item level, better pieces the guild can craft for them, the activity score, member since, professions and twinks.
-   - The picture still shows the page before 1.8; take it anew with `/guildy shots` before uploading.
 13. `media/gallery/15-options-members.jpg`
    - Title: Options: Members
    - Description: The cog in the title bar opens the options next to the window, so you see a change while you make it. Here: how the member list tells online from offline, and whether twinks hang under their main.
