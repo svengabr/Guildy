@@ -229,14 +229,33 @@ T.describe("Gear", function()
     T.eq((G.Fit(17 * 18 + 52, 900)), 18)
     T.eq((G.Fit(300, 900)), 18)
     T.eq((G.Fit(17 * 24 + 52, 900)), 24)
-    local _, barW, enchantW = G.Fit(400, 900)
+    local _, barW, nameW, enchantW = G.Fit(400, 900)
     T.eq(barW, 130)
-    T.eq(enchantW, 200)
-    _, barW, enchantW = G.Fit(400, 560)
+    T.eq(nameW, G.NAME_MAX)
+    T.eq(enchantW, G.ENCHANT_MAX)
+    _, barW, nameW, enchantW = G.Fit(400, 560)
     T.eq(barW, 60)
     T.truthy(enchantW < 200, "enchant text narrower")
-    _, barW, enchantW = G.Fit(400, 300)
+    T.eq(nameW + G.GAP + enchantW + G.GAP + barW + G.NAME_X + G.LEVEL_W, 560 - 2 * G.PAD, "the row filled")
+    _, barW, nameW, enchantW = G.Fit(400, 300)
     T.eq(barW, 60)
     T.eq(enchantW, 0)
+  end)
+
+  T.it("keeps the columns of the gear list apart and still", function()
+    for width = 300, 1400, 7 do
+      for _, markW in ipairs({ 0, 40, 99, 180, 400 }) do
+        local _, barW, nameW, enchantW = G.Fit(400, width, markW)
+        local used = G.NAME_X + nameW + G.GAP + enchantW + G.GAP + barW + G.LEVEL_W
+        T.truthy(used <= math.max(width - 2 * G.PAD, G.NAME_X + G.LEVEL_W + 2 * G.GAP + 60), width .. ": inside the row")
+        T.truthy(enchantW <= G.ENCHANT_MAX and nameW <= G.NAME_MAX, width .. ": within the maxima")
+        T.truthy(barW >= 60, width .. ": the bar keeps its minimum")
+        if enchantW > 0 then T.truthy(nameW >= G.NAME_MIN, width .. ": the enchantment gives way before the name") end
+      end
+    end
+    -- the smallest window (gear box 509 px): the German mark "keine Verzauberung" whole
+    local _, _, nameW, enchantW = G.Fit(400, 509, 99)
+    T.eq(nameW, G.NAME_MIN)
+    T.truthy(enchantW >= 99, "the mark fits, " .. enchantW)
   end)
 end)

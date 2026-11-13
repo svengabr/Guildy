@@ -2606,6 +2606,109 @@ T.describe("Character page", function()
       T.eq(w.errors, {})
     end
   end)
+
+  -- the gear rows of Au Tsch in a fresh world in language, the small font measured at 5.5 px a
+  -- character; slot 1 a very long name with a very long enchantment, 5 a short one without, 17 a book
+  local function GearWorld(language, pageW)
+    local function Chars(text)
+      local n = 0
+      for _ in tostring(text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gmatch("[^\128-\191]") do n = n + 1 end
+      return n
+    end
+    local w = dofile(T.testsDir .. "/wow.lua")(T, { setup = function(e)
+      e.GuildyDB = { settings = { language = language } }
+    end })
+    w.Fire("ADDON_LOADED", "Guildy")
+    w.Fire("PLAYER_LOGIN")
+    w.Fire("GUILD_ROSTER_UPDATE")
+    w.RunTimers()
+    w.env.CommunitiesFrame:Show()
+    local names = { [2001] = "Schulterpolster des unerbittlichen Gladiators der Sturmwacht",
+      [2005] = "Hemd", [2017] = "Buch der Weisheit" }
+    w.env.C_Item = nil
+    w.env.GetItemInfo = function(link)
+      local id = type(link) == "number" and link or w.ns.Gear.ParseLink(link)
+      if names[id] then return names[id], link, 2, 40, 30, "Rüstung", "Platte", 1, "INVTYPE_HEAD", 134, 1, 4, 4, 2 end
+    end
+    w.env.GetItemInfoInstant = function(id) if names[id] then return id, "Rüstung", "Platte", "INVTYPE_HEAD" end end
+    w.ns.GameGear.EnchantText = function() return "Verzauberung: +15 Beweglichkeit und +10 Ausdauer der Bestie" end
+    local guild = w.ns.GuildData()
+    guild.gear = guild.gear or {}
+    guild.gear["au tsch"] = { ts = w.ns.Now(), src = "seen", items = {
+      [1] = { id = 2001, e = 1887, s = 0, l = 66, q = 4 }, [5] = { id = 2005, e = 0, s = 0, l = 40, q = 2 },
+      [17] = { id = 2017, e = 0, s = 0, l = 35, q = 2 } } }
+    w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+    local page = w.ns.UI.MemberPage()
+    local gear = page.Gear
+    local function Measure(text)
+      rawset(text, "GetUnboundedStringWidth", function(self) return Chars(self:GetText()) * 5.5 end)
+    end
+    for _, row in ipairs(gear.Rows) do
+      Measure(row.Name)
+      Measure(row.Enchant)
+      rawset(row.Enchant, "SetPoint", function(self, ...) self.at = { ... } end)
+    end
+    if rawget(gear, "EnchantRuler") then Measure(gear.EnchantRuler) end
+    page:SetSize(pageW, 560 - 42)
+    page:Render()
+    local rows = {}
+    for _, row in ipairs(gear.Rows) do rows[row.slot] = row end
+    return w, rows, Chars
+  end
+  -- the left x of a row's enchantment (anchored at the row's left edge)
+  local function EnchantX(row)
+    local at = rawget(row.Enchant, "at")
+    T.truthy(at and at[1] == "LEFT" and at[3] == "LEFT", "the enchantment anchored at the row's left edge")
+    return at[4]
+  end
+  local NAME_X, LEVEL_W = 96 + 16 + 6, 28 + 8 -- where the name starts; the level number and its gap
+
+  T.it("puts every enchantment in one column, names cut before it and the bar after it", function()
+    for _, pageW in ipairs({ 1130 - 22, 1500, 2400 }) do
+      local w, rows = GearWorld("deDE", pageW)
+      local x = EnchantX(rows[1])
+      for slot, row in pairs(rows) do
+        T.eq(EnchantX(row), x, pageW .. ": slot " .. slot .. " starts its enchantment where the others do")
+        T.truthy(NAME_X + row.Name:GetWidth() + 6 <= x, pageW .. ": slot " .. slot .. " name ends before the column")
+        local barLeft = row:GetWidth() - LEVEL_W - row.Track:GetWidth()
+        T.truthy(x + row.Enchant:GetWidth() + 6 <= barLeft, pageW .. ": slot " .. slot .. " enchantment ends before the bar")
+      end
+      T.truthy(rows[1].Name:GetWidth() >= 140, pageW .. ": the name keeps its minimum")
+      T.eq(rows[1].Enchant:IsShown(), true)
+      T.eq(w.errors, {})
+    end
+  end)
+
+  T.it("leaves the column blank for empty slots and slots that need no enchantment", function()
+    local w, rows = GearWorld("deDE", 1500)
+    local L = w.ns.L
+    T.eq(rows[5].Enchant:GetText(), L.NO_ENCHANT)
+    T.eq(rows[5].Enchant:IsShown(), true)
+    for _, slot in ipairs({ 17, 2, 16 }) do
+      T.truthy(not rows[slot].Enchant:IsShown() or (rows[slot].Enchant:GetText() or "") == "", "slot " .. slot .. " blank")
+    end
+    T.eq(w.errors, {})
+  end)
+
+  T.it("fits the enchantment column in the smallest window with the longest texts, in German and Russian", function()
+    for _, language in ipairs({ "deDE", "ruRU" }) do
+      local w, rows, Chars = GearWorld(language, 1130 - 22)
+      local L = w.ns.L
+      local x = EnchantX(rows[1])
+      for slot, row in pairs(rows) do
+        local barLeft = row:GetWidth() - LEVEL_W - row.Track:GetWidth()
+        T.truthy(NAME_X + row.Name:GetWidth() + 6 <= x, language .. ": slot " .. slot .. " name before the column")
+        T.truthy(x + row.Enchant:GetWidth() + 6 <= barLeft, language .. ": slot " .. slot .. " enchantment before the bar")
+        T.truthy(row.Track:GetWidth() >= 60, language .. ": the bar keeps its room")
+        T.eq(row.Level:GetWidth(), 28)
+      end
+      T.truthy(rows[5].Enchant:GetWidth() >= Chars(L.NO_ENCHANT) * 5.5,
+        language .. ": the missing mark whole, " .. Chars(L.NO_ENCHANT) * 5.5 .. " in " .. rows[5].Enchant:GetWidth())
+      T.truthy(rows[1].Enchant:GetWidth() < Chars(rows[1].Enchant:GetText()) * 5.5, language .. ": the long enchantment cut")
+      T.truthy(rows[1].Name:GetWidth() < Chars(rows[1].Name:GetText()) * 5.5, language .. ": the long name cut")
+      T.eq(w.errors, {})
+    end
+  end)
 end)
 
 T.describe("Activity score on the character page", function()

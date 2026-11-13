@@ -340,17 +340,30 @@ function Gear.EnchantCache(db, locale)
   return cache.names
 end
 
--- Layout of the gear list: row height, width of the level bar and of the enchant text for a box of
--- height x width. 17 rows of at least 18 px; the bar narrows first (130 to 60), then the enchant text
--- (200 to 0); the item name keeps at least NAME_MIN.
+-- Layout of the gear list for a box of height x width: row height, width of the level bar, of the
+-- item name column and of the enchantment column. 17 rows of at least 18 px. A row is the slot and the
+-- icon (NAME_X), the name, GAP, the enchantment, GAP, the bar, the level number (LEVEL_W). The bar
+-- narrows first (130 to 60). The two columns depend only on the width and markW (how wide the
+-- language writes "no enchantment"), never on one member's items, so they stand still while
+-- switching members: the enchantment wants ENCHANT_WANT or markW and at most ENCHANT_MAX, the name
+-- the rest, between NAME_MIN and NAME_MAX; room beyond both stays before the bar. When room is short
+-- the enchantment gives way down to 0, the name never below NAME_MIN, the bar and level never.
 Gear.ROWS = 17
 Gear.HEAD = 52       -- header and the line under the list
-Gear.FIXED = 170     -- slot name, icon, level number and the gaps
-Gear.NAME_MIN = 140
-function Gear.Fit(height, width)
+Gear.PAD = 12        -- the rows' inset on either side of the box
+Gear.NAME_X = 118    -- slot name 92, gap 4, icon 16, gap 6
+Gear.LEVEL_W = 36    -- gap 8, level number 28
+Gear.GAP = 8         -- between name and enchantment, and before the bar
+Gear.NAME_MIN, Gear.NAME_MAX = 140, 260
+Gear.ENCHANT_WANT, Gear.ENCHANT_MAX = 150, 200
+function Gear.Fit(height, width, markW)
   local rowH = math.max(18, math.floor((height - Gear.HEAD) / Gear.ROWS))
-  local room = width - Gear.FIXED - Gear.NAME_MIN
-  local barW = math.max(60, math.min(130, room - 200))
-  local enchantW = math.max(0, math.min(200, room - barW))
-  return rowH, barW, enchantW
+  local rowW = width - 2 * Gear.PAD
+  local fixed = Gear.NAME_X + Gear.LEVEL_W + 2 * Gear.GAP
+  local barW = math.max(60, math.min(130, rowW - fixed - Gear.NAME_MIN - Gear.ENCHANT_MAX))
+  local room = math.max(0, rowW - fixed - barW) -- name and enchantment
+  local want = math.min(Gear.ENCHANT_MAX, math.max(Gear.ENCHANT_WANT, math.ceil(markW or 0)))
+  local nameW = math.min(room, math.max(Gear.NAME_MIN, math.min(Gear.NAME_MAX, room - want)))
+  local enchantW = math.max(0, math.min(Gear.ENCHANT_MAX, room - nameW))
+  return rowH, barW, nameW, enchantW
 end

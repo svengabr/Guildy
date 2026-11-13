@@ -411,8 +411,7 @@ local function GearRow(parent)
   row.Name = W.Text(row, "GameFontHighlightSmall")
   row.Name:SetPoint("LEFT", row.Icon, "RIGHT", 6, 0)
   row.Name:SetWordWrap(false)
-  row.Enchant = W.Text(row, "GameFontHighlightSmall")
-  row.Enchant:SetPoint("LEFT", row.Name, "RIGHT", 6, 0)
+  row.Enchant = W.Text(row, "GameFontHighlightSmall") -- placed in its column by RenderGear
   row.Enchant:SetWordWrap(false)
   row.Level = W.Text(row, "GameFontHighlightSmall")
   row.Level:SetPoint("RIGHT", 0, 0)
@@ -669,6 +668,9 @@ local function Build()
   local gear = Section(right, L.GEAR)
   page.Gear = gear
   gear.Head = W.Text(gear, "GameFontDisableSmall", L.GEAR_LEVEL_HEAD)
+  -- never shown: how wide the rows' font writes "no enchantment", for the enchantment column
+  gear.EnchantRuler = W.Text(gear, "GameFontHighlightSmall", L.NO_ENCHANT)
+  gear.EnchantRuler:Hide()
   gear.Rows = {}
   for i, slot in ipairs(LIST) do
     local row = GearRow(gear)
@@ -1340,11 +1342,12 @@ local function Build()
     local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
     if type(rec) ~= "table" or type(rec.items) ~= "table" then rec = nil end
     local width, height = gear:GetWidth() or 400, gear:GetHeight() or 400
-    local rowH, barW, enchantW = G.Fit(height, width)
+    -- the columns from the width and the language alone, the same for every member
+    local rowH, barW, nameW, enchantW = G.Fit(height, width, TextWidth(gear.EnchantRuler))
+    local enchantX = G.NAME_X + nameW + G.GAP
     local ready, top = GuildGear(m.level)
     local missing, count = {}, 0
     if rec then missing, count = G.Unenchanted(rec, ns.GameGear.EquipLoc) end
-    local room = math.max(0, width - 24 - G.FIXED - barW) -- name and enchantment together
     -- the heading in one line: the title, the summary after it, the column label at the right over the
     -- bars, ending where they end; a summary too long for the room is cut, never wrapped
     local barsEnd = 12 + 28 + 8
@@ -1372,8 +1375,13 @@ local function Build()
       row.item = item
       row:ClearAllPoints()
       row:SetPoint("TOPLEFT", 12, -GEAR_TOP - (i - 1) * rowH)
-      row:SetSize(width - 24, rowH)
+      row:SetSize(width - 2 * G.PAD, rowH)
       row.Track:SetWidth(barW)
+      -- name and enchantment in fixed columns, each cut with "…" (the tooltip has the full name)
+      row.Name:SetWidth(math.max(1, nameW))
+      row.Enchant:ClearAllPoints()
+      row.Enchant:SetPoint("LEFT", row, "LEFT", enchantX, 0)
+      row.Enchant:SetWidth(math.max(1, enchantW))
       if item then
         local color = QUALITY[item.q] or QUALITY[1]
         row.Icon:SetTexture(ItemIcon(item.id) or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -1392,12 +1400,7 @@ local function Build()
         end
         row.Enchant:SetText(enchant or "")
         if enchantColor then row.Enchant:SetTextColor(enchantColor[1], enchantColor[2], enchantColor[3]) end
-        -- the item name takes what it needs; the enchantment gets the rest and is cut first
-        local wantEnchant = enchant and math.min(TextWidth(row.Enchant), enchantW) or 0
-        local nameW = math.max(math.min(G.NAME_MIN, room), math.min(TextWidth(row.Name) + 2, room - wantEnchant - (enchant and 6 or 0)))
-        row.Name:SetWidth(nameW)
-        row.Enchant:SetWidth(math.max(1, room - nameW - 6))
-        row.Enchant:SetShown(enchant ~= nil and room - nameW - 6 > 20)
+        row.Enchant:SetShown(enchant ~= nil and enchantW >= 20)
         row.Bar:SetColorTexture(color[1], color[2], color[3], 0.9)
         row.Bar:SetWidth(math.max(1, math.min(1, (item.l or 0) / top) * barW))
         row.Bar:Show()
@@ -1406,6 +1409,7 @@ local function Build()
         row.Icon:Hide()
         row.Name:SetText("")
         row.Enchant:SetText("")
+        row.Enchant:Hide()
         row.Bar:Hide()
         row.Level:SetText("–")
       end
