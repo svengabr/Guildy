@@ -470,10 +470,11 @@ local function Build()
   page.Hero = hero
   -- the model area: the character (below); wherever the game cannot show the member in their race and
   -- sex, the race portrait
+  -- its size is set, never left to anchors: the background reads it, and during a size change the
+  -- client does not know a size that only follows from anchors yet
   hero.ModelArea = CreateFrame("Frame", nil, hero)
   hero.ModelArea:SetPoint("TOPLEFT", MODEL_INSET, -MODEL_INSET)
-  hero.ModelArea:SetPoint("TOPRIGHT", -MODEL_INSET, -MODEL_INSET)
-  hero.ModelArea:SetHeight(200)
+  hero.ModelArea:SetSize(HERO_WIDTH - 2 * MODEL_INSET, 200)
   page.ModelArea = hero.ModelArea
   -- the race's dressing room art behind the model (Game/Gear.lua), up to four pieces, the bottom shaded
   hero.BgPieces = {}
@@ -938,7 +939,7 @@ local function Build()
     until lines < 1 or cardH - MODEL_INSET - bottomH - CONTENT_GAP - contentH >= MODEL_MIN
     local modelH = math.max(MODEL_MIN, math.min(math.floor(cardH * MODEL_SHARE) - MODEL_INSET,
       cardH - MODEL_INSET - bottomH - CONTENT_GAP - contentH))
-    hero.ModelArea:SetHeight(modelH)
+    hero.ModelArea:SetSize(HERO_WIDTH - 2 * MODEL_INSET, modelH)
 
     -- placed top-down: identity centred, the divider, facts, notes. The name hangs under the gold
     -- frame's outer bottom edge with air between them; the lines below count from the card's top.
@@ -1168,7 +1169,7 @@ local function Build()
     local w, h = area:GetWidth() or 0, area:GetHeight() or 0
     local key = ("%s:%s:%s:%s"):format(tostring(raceFile), tostring(m.classFile), w, h)
     if key == self.bgKey then return end
-    self.bgKey = key
+    self.bgKey = w > 0 and h > 0 and key or nil -- a size not known yet is drawn again next time
     local bg = ns.GameGear.ModelBackground(raceFile, m.classFile, hero.BgPieces[1])
     hero.Background = bg or {}
     local pieces, picW, picH = {}, 0, 0
@@ -1736,7 +1737,16 @@ local function Build()
     UI.ItemTips.Hide()
     UI.ScorePanel.Hide()
   end)
-  page:SetScript("OnSizeChanged", function(self) if self.member and self:IsShown() then self:Render() end end)
+  -- a size change draws on the next frame, once for a burst (dragging the grip), outside the client's
+  -- layout pass
+  page:SetScript("OnSizeChanged", function(self)
+    if not (self.member and self:IsShown()) or self.resizing then return end
+    self.resizing = true
+    C_Timer.After(0, function()
+      page.resizing = false
+      if page.member and page:IsShown() then ns.SafeCall(page.Render, page) end
+    end)
+  end)
 
   -- Which events concern what the page shows: data of the shown member (an event naming another member
   -- draws nothing; what it changes in rankings or the ready mark shows with the next render), the roster

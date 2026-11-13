@@ -3874,13 +3874,13 @@ T.describe("The background behind the model", function()
     rawset(hero.BgPieces[1], "SetTexture", function() return true end)
     hero = Open()
     T.eq(hero.Background.source, "race tiles")
-    for i = 1, 4 do T.eq(hero.BgPieces[i]:IsShown(), true) end
     -- the classic art fades to black in its lowest 64 rows (seen in game): never drawn, so no dark band
     local coords
     rawset(hero.BgPieces[3], "SetTexCoord", function(_, ...) coords = { ... } end)
     hero.ModelArea:SetSize(375, 480)
     ns.UI.MemberPage().bgKey = nil
     ns.UI.MemberPage():RenderBackground(ns.Roster.Find("Au Tsch"))
+    for i = 1, 4 do T.eq(hero.BgPieces[i]:IsShown(), true) end -- an area of the picture's shape shows every tile
     T.truthy(coords and coords[4] <= 0.5 + 1e-6, "bottom tiles cut at row 320: " .. tostring(coords and coords[4]))
     rawset(hero.BgPieces[3], "SetTexCoord", nil)
     rawset(hero.BgPieces[1], "SetTexture", nil)
@@ -3914,6 +3914,63 @@ T.describe("The background behind the model", function()
     for i = 1, 4 do T.truthy(math.abs(coords[i] - want[i]) < 1e-9, table.concat(coords, " ") .. " vs " .. table.concat(want, " ")) end
     T.truthy(vw < 400 or vh < 300, "cropped on one side")
     rawset(piece, "SetTexCoord", nil)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("fills the model area again after the window grew, with the race's tiles", function()
+    local back = Atlases({})
+    local page = ns.UI.MemberPage()
+    local hero = page.Hero
+    local coords = {}
+    rawset(hero.BgPieces[1], "SetTexture", function() return true end)
+    for i = 1, 4 do
+      rawset(hero.BgPieces[i], "SetTexCoord", function(_, ...) coords[i] = { ... } end)
+      rawset(hero.BgPieces[i], "SetPoint", function(self, ...) rawset(self, "at", { ... }) end)
+    end
+    -- as in the client during a size change: a width that only follows from anchors is not known yet
+    -- (0); a width the page set itself is
+    local area = hero.ModelArea
+    local oldW = rawget(area, "_w")
+    local pageW, pageH = page:GetWidth(), page:GetHeight()
+    rawset(area, "_w", 0)
+    page:SetSize(1108, 518)
+    Open()
+    local smallH = area:GetHeight()
+    page:SetSize(1850, 980)
+    local renders, Render = 0, page.Render
+    rawset(page, "Render", function(...) renders = renders + 1 return Render(...) end)
+    page:GetScript("OnSizeChanged")(page, 1850, 980)
+    page:GetScript("OnSizeChanged")(page, 1850, 980)
+    RunTimers()
+    rawset(page, "Render", Render)
+    T.eq(renders, 1, "a burst of size changes gives one render")
+    local w, h = area:GetWidth(), area:GetHeight()
+    T.eq(w, hero:GetWidth() - 18, "the model area spans the card between its insets")
+    T.truthy(h > smallH, "the model area grew: " .. smallH .. " to " .. h)
+    local shown, covered = 0, 0
+    for i = 1, 4 do
+      local piece = hero.BgPieces[i]
+      if piece:IsShown() then
+        shown = shown + 1
+        for _, c in ipairs(coords[i]) do T.truthy(c >= -1e-9 and c <= 1 + 1e-9, "piece " .. i .. " tex coord " .. c) end
+        local at = rawget(piece, "at")
+        T.truthy(at[2] == area and at[4] >= -1e-6 and at[4] + piece:GetWidth() <= w + 1e-6
+          and -at[5] >= -1e-6 and -at[5] + piece:GetHeight() <= h + 1e-6, "piece " .. i .. " inside the area")
+        covered = covered + piece:GetWidth() * piece:GetHeight()
+      end
+    end
+    T.truthy(shown > 0, "pieces shown")
+    T.truthy(math.abs(covered - w * h) < 1e-3, "the pieces cover the area: " .. covered .. " of " .. w * h)
+    T.eq(hero.BgShade:IsShown(), true)
+    rawset(area, "_w", oldW)
+    page:SetSize(pageW, pageH)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    for i = 1, 4 do
+      rawset(hero.BgPieces[i], "SetTexCoord", nil)
+      rawset(hero.BgPieces[i], "SetPoint", nil)
+    end
+    rawset(hero.BgPieces[1], "SetTexture", nil)
     back()
     T.eq(errors, {})
   end)
