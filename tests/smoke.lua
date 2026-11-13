@@ -2059,8 +2059,9 @@ T.describe("Members tab drill-downs of the endgame view", function()
 
   T.it("lists the players of an activity bar, sorted by the score", function()
     local view = Prepare()
-    local score = ns.GameActivity.ScoreOf("ran fred")
+    local score, _, detail = ns.GameActivity.ScoreOf("ran fred")
     T.truthy(score and score > 0, "a score")
+    T.eq(detail.chars[1], "ran fred") -- how the score was made, for the character page
     local bucket = ns.Activity.Bucket(score)
     view:SetFilter({ scoreBucket = bucket })
     local listed = Listed(view)

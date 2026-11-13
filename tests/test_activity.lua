@@ -293,3 +293,73 @@ T.describe("Activity and readings from the Battle.net sync", function()
     T.eq(A.IsCurrent({ ts = NOW - 22 * DAY }, { online = false, daysOffline = 20 }, NOW), false)
   end)
 end)
+
+T.describe("Activity score detail", function()
+  local function runner(ts)
+    return { ts = ts or NOW, v = { [107] = 2000, [932] = 20, [1095] = 20, [98] = 30 }, months = { ["2026-11"] = { ts = NOV, v = { [107] = 1 } } } }
+  end
+  local function world()
+    local members = { { key = "a", online = true, level = 60 }, { key = "b", online = false, daysOffline = 1 } }
+    local records = { a = { stats = runner() }, b = { stats = runner() } }
+    return members, records, function(m) return records[m.key] end
+  end
+
+  T.it("keeps the characters, their summed rates and the lead's window", function()
+    local members, records, recordOf = world()
+    local _, byKey = A.Players(members, { a = "a", b = "a" }, recordOf, NOW, date, nil)
+    local detail = byKey.a.detail
+    T.eq(detail.chars, { "a", "b" })
+    local ra, rb = A.Rates(records.a.stats, NOW, date), A.Rates(records.b.stats, NOW, date)
+    T.eq(detail.rates.kills, ra.kills + rb.kills)
+    T.eq(detail.rates.quests, ra.quests + rb.quests)
+    T.eq(detail.fromDay, ra.fromDay)
+    T.eq(detail.toDay, ra.toDay)
+    T.eq(detail.fade, nil)
+    T.eq(detail.away, nil)
+  end)
+
+  T.it("says when presence is not counted yet and how many days it counted", function()
+    local members, records, recordOf = world()
+    records.a.seen = { [TODAY] = true, [TODAY - 1] = true, [TODAY - 2] = true }
+    local _, byKey = A.Players(members, {}, recordOf, NOW, date, TODAY - 3)
+    T.eq(byKey.a.detail.presence, nil)
+    T.eq(byKey.a.detail.scaled, true)
+    _, byKey = A.Players(members, {}, recordOf, NOW, date, TODAY - 9)
+    T.eq(byKey.a.detail.presence, 3 * 7 / 10)
+    T.eq(byKey.a.detail.scaled, false)
+  end)
+
+  T.it("keeps the fade factor and the days away", function()
+    local members, records, recordOf = world()
+    members[1].online, members[1].daysOffline = false, 10
+    members[2] = nil
+    records.a.stats = runner(NOW - 10 * DAY)
+    records.a.stats.months["2026-11"].ts = NOV - DAY -- a window of three days before the last logout
+    local _, byKey = A.Players(members, {}, recordOf, NOW, date, nil)
+    local detail = byKey.a.detail
+    T.eq(detail.away, 10)
+    T.truthy(math.abs(detail.fade - (1 - (10 - 3) / (30 - 3))) < 1e-9, tostring(detail.fade))
+    local unfaded = A.Score(A.Rates(records.a.stats, NOW, date, NOW), nil)
+    T.eq(byKey.a.score, math.floor(unfaded * detail.fade + 0.5))
+  end)
+
+  T.it("leaves out a twink without a current reading", function()
+    local members, records, recordOf = world()
+    members[2].daysOffline = 20
+    records.b.stats = runner(NOW - 25 * DAY)
+    local _, byKey = A.Players(members, { a = "a", b = "a" }, recordOf, NOW, date, nil)
+    T.eq(byKey.a.detail.chars, { "a" })
+  end)
+
+  T.it("has no detail without a score", function()
+    local members, records, recordOf = world()
+    records.a.stats = nil
+    local _, byKey = A.Players(members, {}, recordOf, NOW, date, nil)
+    T.eq(byKey.a.score, nil)
+    T.eq(byKey.a.detail, nil)
+  end)
+
+  T.it("gives a time on the day for a date", function()
+    T.eq(A.Day(A.DayTime(A.Day(NOW))), A.Day(NOW))
+  end)
+end)

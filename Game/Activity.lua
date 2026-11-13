@@ -90,7 +90,7 @@ end
 function GameActivity.ScoreOf(memberKey)
   local player = GameActivity.Get().byKey[memberKey]
   if not player then return nil end
-  return player.score, player.parts
+  return player.score, player.parts, player.detail
 end
 
 -- One line for the chat: the pulse, the five bars and the median (/guildy activity)

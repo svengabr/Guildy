@@ -54,6 +54,7 @@ end
 local function Noon(day)
   return day * DAY + DAY / 2 - dayShift
 end
+Activity.DayTime = Noon
 
 -- The day a member was last online, from the roster: today when online, nil when the game does not say
 -- or says it too vaguely. The game gives whole hours, so the logout was up to an hour earlier: half an
@@ -192,6 +193,7 @@ local function ScorePlayer(player, recordOf, now, date, since)
   end
   player.lead = lead
   local sum, seen, ownDays
+  local chars = {}
   for _, m in ipairs(player.chars) do
     local record = recordOf(m)
     local stats = record and record.stats
@@ -202,6 +204,7 @@ local function ScorePlayer(player, recordOf, now, date, since)
     local rates = current and Activity.Rates(stats, now, date, stale and now or nil)
     if m == lead and not rates then return end
     if rates then
+      if m == lead then table.insert(chars, 1, m.key) else chars[#chars + 1] = m.key end
       -- the days of the player, not of each character: the most any of them counted
       if rates.ownDays then ownDays = math.max(ownDays or 0, rates.ownDays * 7 / rates.span) end
       if m == lead then
@@ -223,12 +226,19 @@ local function ScorePlayer(player, recordOf, now, date, since)
   -- who has not been online for days is less active than their last weeks say: from FADE_FROM days the
   -- score falls off evenly, down to 0 at GONE_DAYS
   local away = Away(lead)
+  local fade, awayDays
   if away > Activity.FADE_FROM and away ~= math.huge then
     local keep = math.max(0, 1 - (away - Activity.FADE_FROM) / (Activity.GONE_DAYS - Activity.FADE_FROM))
     score = math.floor(score * keep + 0.5)
     for name, points in pairs(parts) do parts[name] = points * keep end
+    fade, awayDays = keep, away
   end
   player.score, player.parts = score, parts
+  -- what the score was made of, for the character page's tooltip
+  local summed = {}
+  for name in pairs(COUNTS) do summed[name] = sum[name] or 0 end
+  player.detail = { rates = summed, presence = presence, scaled = presence == nil, fade = fade, away = awayDays,
+    chars = chars, fromDay = sum.fromDay, toDay = sum.toDay }
 end
 
 -- The players of a roster: a main with its twinks is one (mains = Family.Mains: { [key] = mainKey }), a
