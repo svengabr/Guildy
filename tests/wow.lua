@@ -106,7 +106,13 @@ return function(T, opts)
     end
     function methods:RegisterEvent(event)
       registered[event] = registered[event] or {}
+      for _, frame in ipairs(registered[event]) do if frame == self then return end end
       table.insert(registered[event], self)
+    end
+    function methods:UnregisterEvent(event)
+      for i, frame in ipairs(registered[event] or {}) do
+        if frame == self then table.remove(registered[event], i) return end
+      end
     end
     function methods:CreateTexture() return Stub() end
     function methods:CreateFontString(_, _, template)

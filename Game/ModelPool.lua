@@ -7,6 +7,9 @@
 -- on Forever), so the page later borrows the whole scene into its model area and dresses it there.
 -- The viewer's own sex needs no body ("player" is always a donor). At most BUILD_PER_RUN bodies per
 -- look, at most one look per THROTTLE seconds, nothing in combat, every unit value checked for secrets.
+-- What is missing is kept until the gear (GEAR), the member list (Roster.version) or the pool
+-- (MODEL_POOL) changes; while nothing is missing the pool does not listen for player units at all, so a
+-- crowded city walks no roster and seeks no donor.
 -- /guildy modeltest pool lists the bodies.
 local _, ns = ...
 
@@ -71,6 +74,38 @@ local function Missing()
   return missing, count
 end
 
+local EVENTS = { "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "GROUP_ROSTER_UPDATE" }
+local watcher = CreateFrame("Frame")
+local watching = false
+local wanted -- { missing, count, roster, guild } from Missing(); nil when stale
+
+-- Missing() as last worked out, again only when stale or the member list or guild changed
+local function Wanted()
+  local guild = ns.GuildData()
+  local w = wanted
+  if not (w and w.roster == ns.Roster.version and w.guild == guild) then
+    local missing, count = Missing()
+    w = { missing = missing, count = count, roster = ns.Roster.version, guild = guild }
+    wanted = w
+  end
+  return w.missing, w.count
+end
+
+-- Listens for player units in sight only while a body is missing
+local function Watch()
+  local _, count = Wanted()
+  local want = count > 0
+  if want == watching then return end
+  watching = want
+  local method = want and watcher.RegisterEvent or watcher.UnregisterEvent
+  for _, event in ipairs(EVENTS) do pcall(method, watcher, event) end
+end
+
+local function Stale()
+  wanted = nil
+  Watch()
+end
+
 -- A scene of the page's template, parked: scene, actor and the camera's distance; nil when the client
 -- has no such scene
 local function NewScene()
@@ -118,7 +153,7 @@ local function Look()
   pending = false
   if ns.Try(rawget(_G, "InCombatLockdown")) == true then return end
   lastLook = GetTime()
-  local missing, count = Missing()
+  local missing, count = Wanted()
   if count == 0 then return end
   local order = {}
   for key, pair in pairs(missing) do order[#order + 1] = { key = key, race = pair.race, sex = pair.sex } end
@@ -169,13 +204,12 @@ function ModelPool.Lines()
     lines[#lines + 1] = ("modeltest pool: race %d (%s), sex %d: %s%s"):format(b.race, ns.GameGear.RACE_FILES[b.race] or "?",
       b.sex, b.ready and "ready" or "loading", b.user and (", on the page for " .. b.user) or "")
   end
-  local _, count = Missing()
+  local _, count = Wanted()
   if count > 0 then lines[#lines + 1] = ("modeltest pool: %d more wanted, waiting for a player of that sex"):format(count) end
   return lines
 end
 
-local watcher = CreateFrame("Frame")
-for _, event in ipairs({ "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "GROUP_ROSTER_UPDATE" }) do
-  pcall(watcher.RegisterEvent, watcher, event)
-end
 watcher:SetScript("OnEvent", function() ns.SafeCall(ModelPool.Wake) end)
+ns.On("GEAR", Stale)
+ns.On("MODEL_POOL", Stale)
+ns.On("ROSTER", Watch) -- a new member list or guild makes Wanted work it out anew

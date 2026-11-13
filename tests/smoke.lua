@@ -3159,6 +3159,7 @@ T.describe("The model on the character page", function()
     local sexes = {}
     local back = Units(sexes)
     ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 2, items = Items() }
+    ns.Fire("GEAR", "au tsch")
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
     RunTimers(2)
     T.eq(calls.unit, {}) -- never the viewer's female body for a man
@@ -3363,7 +3364,16 @@ T.describe("The body pool for members of the other sex", function()
     gear["makira farron"] = { ts = w.ns.Now(), src = "seen", race = 4, sex = 3, items = Items() }
     gear["zu lu"] = { ts = w.ns.Now(), src = "seen", race = 7, sex = 3, items = Items() }
     gear["bo ris"] = { ts = w.ns.Now(), src = "seen", race = 3, sex = 2, items = Items() }
+    w.ns.Fire("GEAR")
     return w, sexes
+  end
+  -- counts roster walks and donor searches from here on
+  local function Count(w)
+    local n = { members = 0, donors = 0 }
+    local members, find = w.ns.Roster.Members, w.ns.GameGear.FindDonor
+    w.ns.Roster.Members = function(...) n.members = n.members + 1 return members(...) end
+    w.ns.GameGear.FindDonor = function(...) n.donors = n.donors + 1 return find(...) end
+    return n
   end
   local function Bodies(w)
     local found = {}
@@ -3512,6 +3522,41 @@ T.describe("The body pool for members of the other sex", function()
     T.eq(body.scene:IsShown(), true)
     T.truthy(rawget(body.scene, "_parent") == page.Hero.ModelArea, "on the page")
     T.eq(body.actor._log.tryOn[#body.actor._log.tryOn], DRESSED[2])
+    T.eq(w.errors, {})
+  end)
+
+  T.it("walks no roster and seeks no donor for player units in sight once every body is built", function()
+    local w, sexes = World(2)
+    sexes.nameplate1 = 3
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(Bodies(w), { "4:3", "7:3", "8:3" })
+    local n = Count(w)
+    for i = 1, 5 do
+      w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate" .. i)
+      w.Fire("UPDATE_MOUSEOVER_UNIT")
+      w.RunTimers()
+    end
+    T.eq(n, { members = 0, donors = 0 })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("watches player units only while members' gear needs a body, and again when new gear does", function()
+    local w, sexes = World(3) -- a woman views: only the man (race 3) needs a body
+    local gear = w.ns.GuildData().gear
+    gear["bo ris"] = nil
+    w.ns.Fire("GEAR", "bo ris")
+    local n = Count(w)
+    sexes.nameplate1 = 2
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(n, { members = 0, donors = 0 })
+    T.eq(Bodies(w), {})
+    gear["bo ris"] = { ts = w.ns.Now(), src = "seen", race = 3, sex = 2, items = Items() }
+    w.ns.Fire("GEAR", "bo ris")
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(Bodies(w), { "3:2" })
     T.eq(w.errors, {})
   end)
 
