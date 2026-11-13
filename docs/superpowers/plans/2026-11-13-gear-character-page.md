@@ -24,7 +24,7 @@
 - Upgrades: never main hand 16, off hand 17, ranged 18. Candidate must beat the stored level by at least 3, fit the slot, required level ≤ member level, wearable armour, not bind-on-pickup (bind type 1), from another member's book. At most 3 rows, sorted by gain; makers online first, then by last seen.
 - Per account: `GuildyDB.craftItems = { [spellID] = itemID }` (equippable only, cap 3000); `GuildyDB.enchantText = { locale, names = { [enchantID] = text } }`, reset on locale change.
 - `GEAR` wire: `{ m = name, g = { ts, src, r, x, i = { "slot:id:e:s:l:q", ... } } }`; `SUM.g = { [nameKey] = ts }` for records younger than 60 days; offers after 12–20 s random delay, at most `MAX_OFFERS`.
-- The dungeon collection leaves the character page completely. Where `SetCustomRace` is not supported, members not nearby keep today's race-icon portrait; gear is never shown on the viewer's own body.
+- The dungeon collection leaves the character page completely. Members not nearby are shown through a model scene's player actor on a player of their sex with their raceID (Probe results); without such a player, the race-icon portrait. Never the viewer's own body with someone else's race or sex.
 - Smallest window 1130 × 560: all 17 list rows visible, row height ≥ 18 px; the level bar narrows first, the enchant text truncates with "…" before the item name does.
 - Every new locale key exists in deDE, enUS, frFR, esES, ruRU, ptBR (no middle dot "·" in ruRU). German texts as players say them.
 - Activity score on the page: score 0–100 with its `Activity.Bucket` colour and label, "–" when there is none; the tooltip shows presence x/30, playing x/25, group play x/45, what fed each part per week, the scaled-to-100 line below `MIN_COUNTED` days, fade factor and days away beyond `FADE_FROM`, that the score is per player (characters named when several, through `ns.Anon.Name`) and its window. No new sync data.
@@ -70,8 +70,8 @@ The three checks the spec says the builder runs first. They depend on nothing el
 >
 > Record the answers in this plan under "Probe results" below before going on. Tasks 2–6 and 8–11 do not depend on them and may proceed while waiting; **Task 7 (CRAFT) and Task 12 (model) must not start before the results are recorded.**
 >
-> **Probe results:** _(to fill in)_
-> - SetCustomRace supported: ☐ yes ☐ no — gender values: male = __, female = __ — TryOn on custom body: ☐ yes ☐ no
+> **Probe results:**
+> - Model (Sven, 2026-11-13, `/guildy modeltest scene <race>`): `DressUpModel` has **no** `SetCustomRace`. Works: `CreateFrame("ModelScene", …, "ModelSceneMixinTemplate")`, `TransitionToModelSceneID(596, 1, 1, true)`, `GetPlayerActor()`, `actor:SetModelByUnit(unit, false, false, false, true, false, raceID)`, after ~0.5 s `Undress()` and `TryOn(link)` per item. Body of `raceID` with the **sex of `unit`**, hair and face from `unit`, all items worn (chest, legs, belt, boots too). Race 1 + "player" → human man; race 3 → dwarf; race 1 + a targeted female Horde player → human woman. The dressed body stays when the target changes. `SetModelByCreatureDisplayID` shows only attachments: not usable. Task 12 built on this (spec, "The model of a member who is not nearby").
 > - craftprobe resolved: __ % → CRAFT ☐ not built (≥ 95 %) ☐ built (< 95 %)
 > - Enchant text path: ☐ C_TooltipInfo ☐ hidden GameTooltip ☐ neither (fallback: show nothing, never the raw ID)
 

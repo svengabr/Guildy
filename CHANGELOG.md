@@ -29,8 +29,12 @@
   other, so one player in the capital fills the page for everyone. Your own gear is shared only while
   "share my data" is on. The Battle.net script fills the same fields, with enchantment texts.
 - The character itself stands in its gear on the page, turned with the mouse and zoomed with the wheel,
-  like the game's dressing room: your own character, a member nearby, or a member far away in the race
-  and gear Guildy knows. Where the game cannot show that, the race portrait stays.
+  in front of the dressing room art of its race: your own character and members nearby as they are,
+  other members in their race, sex and gear. Face and hair are not theirs unless they are nearby. A
+  member of the other sex than yours needs a player of that sex to have been in sight (target, group,
+  nameplates); until then the race portrait stands there, and the model comes as soon as one shows up.
+- `/guildy modeltest` with `scene`, `creature` and `bg` shows what the game offers for the model, for
+  checking.
 - New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
   member, with the crafter and whether they are online. A click on the crafter whispers them. Weapons,
   off hands and ranged are left out for now.

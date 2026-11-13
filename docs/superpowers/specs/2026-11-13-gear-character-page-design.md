@@ -79,16 +79,44 @@ Verified on 2026-11-13; not re-checked here.
 
 **The model of a member who is not nearby**
 
-1. *`SetUnit` only*, else the race icon. Always right, but nearly always the icon.
-2. *Custom race + try-on* (picked, gated on a check): a `DressUpModel` with `SetUnit(unit)` when a
-   unit token points at the member (target, mouseover, group, nameplate — `FindUnit` in
-   `Game/Stats.lua` already searches them); otherwise `SetCustomRace(raceID, gender)`, `Undress()`,
-   and `TryOn(itemString)` per stored slot. Race and gender are stored with the gear.
-3. *Player's own body wearing their gear* (`SetUnit("player")` + `TryOn`). Works everywhere, but
-   shows the viewer's race. Rejected: wrong character is worse than no model.
+Binding rule **(Sven)**: the model always shows the member's race and sex, never the viewer's own body
+with someone else's race or sex.
 
-If `/guildy modeltest` (§6) shows `SetCustomRace` is missing or ignored on Forever, approach 1 is the
-fallback, with the existing race-icon portrait in the model area. **(call)**
+Checked in game on Forever (2026-11-13, `/guildy modeltest scene <race>`): `DressUpModel` has no
+`SetCustomRace`. What works is a `ModelScene` from the template `ModelSceneMixinTemplate`,
+`TransitionToModelSceneID(596, 1, 1, true)`, its `GetPlayerActor()`, and
+`actor:SetModelByUnit(unit, false, false, false, true, false, raceID)`. That shows a body of `raceID`
+with the **sex of the unit passed**, hair and face from that unit; about 0.5 s later `Undress()` and
+`TryOn(link)` dress it in every item, chest, legs, belt and boots included (race 1 with "player" gave
+a human man, race 3 a dwarf, race 1 with a female Horde player targeted a human woman). A dressed body
+stays when that unit leaves (checked by changing target). A creature display
+(`SetModelByCreatureDisplayID`) shows only attachments (shoulders, weapon): not usable.
+
+The routes, in order (`GameGear.ModelRoute`, `Game/Gear.lua`):
+
+1. *Own page:* `SetModelByUnit("player")` without a race. The real look.
+2. *A unit token shows the member right now* (target, focus, mouseover, party, raid, nameplate —
+   `GameStats.FindUnitByGuid`): that unit, without a race. The real look.
+3. *Stored race and sex:* a donor, a player unit whose `UnitSex` is the member's sex — "player" first,
+   then target, focus, mouseover, party1-4, raid1-40, nameplate1-40, preferring units where
+   `IsUnitModelReadyForUI` says yes; secret values are skipped, never compared. `SetModelByUnit(donor,
+   …, member's raceID)` always with the race, so race and sex are the member's by construction; then
+   `Undress()` and `TryOn` of every stored slot after 0.5 s. Face and hair are the donor's.
+4. *No donor of that sex around:* the race portrait; while the page shows, Guildy looks again on
+   `PLAYER_TARGET_CHANGED`, `NAME_PLATE_UNIT_ADDED`, `GROUP_ROSTER_UPDATE`, `UPDATE_MOUSEOVER_UNIT`
+   (throttled to 0.5 s) and switches to the model once one is found. A body once dressed stays: new
+   gear without a donor keeps the old gear on it until a donor shows up.
+5. *No stored race or sex:* the portrait.
+
+`GameGear.ModelKey` names the member, the route (not the donor unit) and the gear's `ts`: the model is
+loaded again only when one of them changes. The earlier own-body file-ID check is gone: race and sex
+are set explicitly. Without the template the page keeps the portrait.
+
+Behind the model the race's dressing room art (game data): a race atlas if the client has one
+(`dressingroom-background-<race>`), else the classic four tiles `Interface\DressUpFrame\DressUpBackground-<RaceFile>1..4`
+(256×256, 64×256, 256×128, 64×128 over 320×384), else the class atlas `dressingroom-background-<class>`
+(renders on Forever), else the dark fill. Scaled to fill the area with its shape kept, cropped, the
+bottom edge shaded. `/guildy modeltest bg` prints which of them the client has.
 
 **Upgrades aus der Gilde: which items guild members can make**
 
@@ -187,7 +215,9 @@ header and the tick are left out. **(call — see open question 1)**
 
 - `/guildy modeltest [raceID sex]` — opens a test `DressUpModel` and prints which of `SetUnit`,
   `SetCustomRace`, `Undress`, `TryOn`, `SetSheathed` exist, then dresses each race/sex with the own
-  equipment. Settles approach 2 for the model, and whether `SetCustomRace` wants 0/1 or 2/3 for gender.
+  equipment. `modeltest scene <raceID>` tries the model scene route (target, else "player", with that
+  race), `modeltest creature <displayID>` a creature display, `modeltest bg` lists the backgrounds the
+  client has. Settled: no `SetCustomRace` on Forever; the model scene route works (see above).
 - `/guildy craftprobe` — for up to 200 spell IDs from relayed books: how many
   `GetRecipeOutputItemData` resolves without a window, and how many `GetItemInfoInstant` reports as
   equippable. Settles whether `CRAFT` is built.
@@ -259,8 +289,10 @@ All five questions settled as recommended:
    is a weapon or shield. Head, legs and shoulders show an enchantment when present but are never
    flagged as missing.
 4. The dungeon collection is dropped from the character page completely.
-5. Where `SetCustomRace` is not supported, members who are not nearby keep today's race-icon
-   portrait; the gear is never shown on the viewer's own body.
+5. Members who are not nearby stand in their race, sex and gear on a player of their sex (the
+   model scene route above); their face and hair are not theirs unless they are nearby. The opposite
+   sex of the viewer needs a player of that sex in sight; until then the race-icon portrait. Never the
+   viewer's own body with someone else's race or sex.
 
 ## Added by Sven (2026-11-13): activity score on the character page
 
@@ -286,7 +318,7 @@ is made up for this member.
 
 ## 7. Open, to settle while building
 
-- The three checks above: `SetCustomRace` on Forever and its gender values; whether
+- The three checks above: the model (settled 2026-11-13: model scene route, no `SetCustomRace`); whether
   `GetRecipeOutputItemData` answers without a window (decides `CRAFT`); the enchant-text path.
 - Whether `GetTradeSkillItemLink` answers in a link-opened window of someone else (expected yes,
   as recipe links do).
