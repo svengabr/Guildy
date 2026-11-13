@@ -15,7 +15,8 @@
 --   SUM also carries c = {nameKey = ts}, CD {m = name, c = {ts, cd = {{spellID, readyAt}, ...}}}
 --   (Core/Cooldowns.lua): a character's profession cooldowns as read in the game. Own ones are sent only
 --   with settings.share, others are relayed like the rest.
---   SUM also carries g = {nameKey = ts}, GEAR {m = name, g = {ts, src, r, x, i = {"slot:id:e:s:l:q", ...}}}
+--   SUM also carries g = {nameKey = ts}, GEAR {m = name, g = {ts, src, r, x, i = {"slot:id:e:s:l:q", ...},
+--   u = {"slot:uniqueID", ...}, t = {"slot:AGILITY=13,...", ...}}} (u and t optional; older clients ignore them)
 --   (Core/Gear.lua): a member's gear item by item, own or read nearby, records younger than 60 days.
 --   Own gear only with settings.share; older Guildy versions have no handler for GEAR and drop it.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
