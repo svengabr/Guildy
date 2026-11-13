@@ -1919,6 +1919,7 @@ local function Build()
     lap("character page:", "gear rows (enchant texts)")
     self:LayoutColumn(m, y, areaH, gearW, lap)
     self.rosterSig, self.rosterVersion = RosterSig(m), ns.Roster.version
+    self.books = ns.GameGear.books
   end
   ns.Perf.Wrap(page, "Render", "render", "character page")
 
@@ -1945,7 +1946,7 @@ local function Build()
   -- Which events concern what the page shows: data of the shown member (an event naming another member
   -- draws nothing; what it changes in rankings or the ready mark shows with the next render), the roster
   -- only when it shows something new of them or the member list changed, item infos only while the page
-  -- waits for one
+  -- waits for one or when the game named what a recipe makes since the last render (the books changed)
   local function Shown(key) return key == nil or (page.member ~= nil and page.member.key == key) end
   ns.On("ROSTER", function()
     local m = page:IsShown() and page.member and ns.Roster.Find(page.member.key)
@@ -1953,7 +1954,9 @@ local function Build()
   end)
   ns.On("STATS", function(key) if Shown(key) then page:Schedule() end end)
   ns.On("GEAR", function(key) if Shown(key) then page:Schedule() end end)
-  ns.On("GEAR_INFO", function() if page.waiting then page:Schedule() end end)
+  ns.On("GEAR_INFO", function()
+    if page.waiting or page.books ~= ns.GameGear.books then page:Schedule() end
+  end)
   ns.On("PROFS", function() page:Schedule() end)
   ns.On("FAMILY", function() page:Schedule() end)
 end

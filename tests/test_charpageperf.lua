@@ -116,6 +116,27 @@ T.describe("Character page renders", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("shows a piece the game names for a newly synced recipe without waiting for an item", function()
+    local w = World()
+    w.INFO[50002] = { "Gürtel der Neuen", 62, "INVTYPE_WAIST" }
+    w.env.C_Item.GetItemInfoInstant = function(item)
+      local it = w.INFO[IdOf(item)]
+      if it then return IdOf(item), "Rüstung", "Stoff", it[3] end
+    end
+    w.env.C_TradeSkillUI = { GetRecipeOutputItemData = function(spellID)
+      if spellID == 99002 then return { itemID = 50002 } end
+    end }
+    local prof = w.ns.GuildData().members["makira farron"].profs[197]
+    prof.recipes = { 99001, 99002 }
+    w.ns.Fire("PROFS")
+    w.RunTimers(1) -- the page draws; the recipe's item is asked from the game
+    T.eq(w.page.Upgrades.Rows[1].itemID, 50001)
+    T.eq(w.page.waiting, false)
+    w.RunTimers(10) -- the game names the item, GEAR_INFO
+    T.eq(w.page.Upgrades.Rows[1].itemID, 50002)
+    T.eq(w.errors, {})
+  end)
+
   T.it("builds rankings anew when statistics change, upgrades when gear or books change", function()
     local w = World()
     local rankings = w.rankings
