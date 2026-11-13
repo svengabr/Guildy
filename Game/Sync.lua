@@ -11,6 +11,10 @@
 --   SUM also carries j = {n, x, s} (Core/Tenure.lua: join dates known, those from the event log, the sum
 --   of their days), JOIN {j = {{name, day, 1 | 0}, ...}}: since when members are in the guild. Whoever
 --   sees a summary that differs from what they know offers their dates; both sides end on the same.
+--   PROF records carry spec = {id, src, ts} (Core/Specs.lua) where a specialization is known.
+--   SUM also carries c = {nameKey = ts}, CD {m = name, c = {ts, cd = {{spellID, readyAt}, ...}}}
+--   (Core/Cooldowns.lua): a character's profession cooldowns as read in the game. Own ones are sent only
+--   with settings.share, others are relayed like the rest.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
 --   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
@@ -37,6 +41,7 @@ local limiter = Proto.NewLimiter(30, 10)
 local seen = {}          -- nameKey -> newest ts seen on the channel (to skip duplicate offers)
 local seenStats = {}     -- same for statistics
 local seenFamilies = {}  -- same for families
+local seenCooldowns = {} -- same for cooldowns
 local seenBank, bankMessages = 0, 0 -- newest bank reading seen on the channel, how many of them
 local joinMessages = 0   -- JOIN messages seen on the channel
 local joinOffered = {}   -- nameKey of a member -> the state of my dates I offered on their summary
@@ -162,7 +167,8 @@ local function SendMember(key)
   local any = false
   for skillLine, rec in pairs(record.profs) do
     if rec.src ~= "note" then -- everyone reads guild notes themselves
-      profs[tostring(skillLine)] = { ts = rec.ts, src = rec.src, rank = rec.rank, max = rec.max, recipes = rec.recipes }
+      profs[tostring(skillLine)] = { ts = rec.ts, src = rec.src, rank = rec.rank, max = rec.max, recipes = rec.recipes,
+        spec = rec.spec }
       any = true
     end
   end
@@ -177,7 +183,8 @@ function Sync.SendSummary()
   if guild then
     -- (b also when nothing of the bank is known yet: "I can take it", so someone offers it)
     Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild),
-      b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 }, j = ns.Tenure.Digest(guild.joined) })
+      b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 }, j = ns.Tenure.Digest(guild.joined),
+      c = ns.Cooldowns.Digest(guild.cooldowns) })
   end
 end
 
@@ -236,6 +243,23 @@ local function SendFamily(ownerKey)
   local owner = guild.members[ownerKey] and guild.members[ownerKey].name or ownerKey
   Send("FAM", { m = owner, f = ns.Family.Wire(rec) })
   seenFamilies[ownerKey] = math.max(seenFamilies[ownerKey] or 0, rec.ts)
+end
+
+-- A character's profession cooldowns (own ones only with settings.share)
+local function SendCooldowns(key)
+  local guild = ns.GuildData()
+  local rec = guild and type(guild.cooldowns) == "table" and guild.cooldowns[key]
+  if type(rec) ~= "table" or type(rec.ts) ~= "number" or type(rec.cd) ~= "table" then return end
+  if IsOwnKey(key) and not ns.Settings().share then return end
+  local member, m = guild.members[key], ns.Roster.Find(key)
+  local name = (member and member.name) or (m and ns.Names.Normalize(m.fullName)) or key
+  Send("CD", { m = name, c = ns.Cooldowns.Wire(rec) })
+  seenCooldowns[key] = math.max(seenCooldowns[key] or 0, rec.ts)
+end
+
+-- Cooldowns of a character changed (the own ones, read in the game): share them
+function Sync.ShareCooldowns(key)
+  SendCooldowns(key)
 end
 
 local function SendStats(key)
@@ -307,6 +331,19 @@ local function OnSummary(data, sender)
         if joinMessages > before then return end -- someone else sent theirs meanwhile
         joinOffered[senderKey] = state
         SendJoins()
+      end)
+    end
+  end
+  -- cooldowns the same way (a Guildy before them sends no c and could not use them)
+  if type(data.c) == "table" then
+    local myCooldowns = ns.Cooldowns.Digest(guild.cooldowns)
+    local cdOffers = P.Outdated(myCooldowns, data.c)
+    for i = 1, math.min(#cdOffers, MAX_OFFERS) do
+      local key = cdOffers[i]
+      local myTs = myCooldowns[key]
+      C_Timer.After(10 + math.random() * 8 + i * 0.5, function()
+        if (seenCooldowns[key] or 0) >= myTs then return end
+        SendCooldowns(key)
       end)
     end
   end
@@ -389,6 +426,18 @@ local function OnBank(data, sender)
   if changed then ns.Fire("BANK") end
 end
 
+local function OnCooldowns(data)
+  local guild = ns.GuildData()
+  if not guild or (ns.Anon and ns.Anon.on) or type(data.m) ~= "string" then return end
+  if not ns.Roster.IsMember(data.m) and #ns.Roster.Members() > 0 then return end
+  local rec = ns.Cooldowns.Validate(data.c, ns.Now())
+  if not rec then return end
+  local key = ns.Names.Key(data.m)
+  seenCooldowns[key] = math.max(seenCooldowns[key] or 0, rec.ts)
+  if type(guild.cooldowns) ~= "table" then guild.cooldowns = {} end
+  if ns.Cooldowns.Merge(guild.cooldowns, key, rec) then ns.Fire("PROFS") end
+end
+
 local function OnJoined(data)
   local guild = ns.GuildData()
   if not guild or (ns.Anon and ns.Anon.on) then return end
@@ -437,6 +486,12 @@ local function OnProfessions(data, sender)
       end
       seen[key] = math.max(seen[key] or 0, record.ts)
       if P.Merge(member, skillLine, record, { isOwnChar = IsOwnKey(key) }) then changed = true end
+      -- the specialization has rules of its own; the own characters' come from the game alone
+      if not IsOwnKey(key) then
+        local rec = member.profs and member.profs[skillLine]
+        if ns.Specs.Merge(rec, ns.Specs.Validate(skillLine, raw.spec)) then changed = true end
+        if ns.TradeSkill.InferSpec(rec, skillLine) then changed = true end
+      end
     end
   end
   if changed then ns.Fire("PROFS") end
@@ -496,7 +551,8 @@ local function OnHello(data)
   end)
 end
 
-local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, BANK = OnBank, JOIN = OnJoined, HI = OnHello }
+local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, BANK = OnBank, JOIN = OnJoined, CD = OnCooldowns,
+  HI = OnHello }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)

@@ -198,6 +198,58 @@ T.describe("Smoke", function()
     T.eq(errors, {})
   end)
 
+  T.it("shares specializations and cooldowns with the guild", function()
+    local P, guild, now = ns.Protocol, ns.GuildData(), ns.Now()
+    local function Receive(kind, data, sender, id)
+      for _, part in ipairs(P.Chunk(id, P.Encode(kind, data))) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", sender) end
+    end
+    -- a member shares their own engineering with its specialization
+    Receive("PROF", { m = "Makira Farron", p = { ["202"] = { ts = now, src = "self", rank = 220, max = 300,
+      spec = { id = 20219, src = "known", ts = now } } } }, "Makira-Farron", "sp1")
+    T.eq(guild.members["makira farron"].profs[202].spec, { id = 20219, src = "known", ts = now })
+    -- a relayed book without a specialization: inferred on arrival (Au without his two other professions)
+    local auProfs = guild.members["au tsch"].profs
+    guild.members["au tsch"].profs = {}
+    Receive("PROF", { m = "Au Tsch", p = { ["202"] = { ts = now, src = "relay", rank = 210, recipes = { 1, 12760 } } } },
+      "Makira-Farron", "sp2")
+    T.eq(guild.members["au tsch"].profs[202].spec, { id = 20222, src = "book", ts = now })
+    -- a specialization of another profession is not taken
+    Receive("PROF", { m = "Au Tsch", p = { ["164"] = { ts = now, src = "relay", rank = 210,
+      spec = { id = 20222, src = "api", ts = now } } } }, "Makira-Farron", "sp3")
+    T.eq(guild.members["au tsch"].profs[164].spec, nil)
+    -- cooldowns of a member, and none of someone outside the guild
+    Receive("CD", { m = "Makira Farron", c = { ts = now, cd = { { 17187, now + 600 } } } }, "Makira-Farron", "cd1")
+    T.eq(guild.cooldowns["makira farron"], { ts = now, cd = { [17187] = now + 600 } })
+    Receive("CD", { m = "Not In Guild", c = { ts = now, cd = { { 17187, now + 600 } } } }, "Makira-Farron", "cd2")
+    T.eq(guild.cooldowns["not in guild"], nil)
+    -- what Guildy sends: the digest in the summary, the own cooldowns, the specialization with the profession
+    local sent = {}
+    local encode = P.Encode
+    P.Encode = function(kind, data, version)
+      sent[kind] = data
+      return encode(kind, data, version)
+    end
+    ns.Sync.SendSummary()
+    T.eq(sent.SUM.c["makira farron"], now)
+    guild.cooldowns["ran fred"] = { ts = now, cd = { [17187] = 0 } }
+    ns.Sync.ShareCooldowns("ran fred")
+    T.eq(sent.CD, { m = "Ran Fred", c = { ts = now, cd = { { 17187, 0 } } } })
+    guild.members["ran fred"].profs[202] = { ts = now, src = "scan", rank = 230, max = 300, spec = { id = 20222, src = "known", ts = now } }
+    ns.Sync.Share("ran fred")
+    T.eq(sent.PROF.p["202"].spec, { id = 20222, src = "known", ts = now })
+    -- nothing of the own cooldowns while sharing is off
+    sent.CD = nil
+    ns.Settings().share = false
+    ns.Sync.ShareCooldowns("ran fred")
+    T.eq(sent.CD, nil)
+    ns.Settings().share = true
+    P.Encode = encode
+    guild.members["ran fred"].profs[202], guild.members["au tsch"].profs = nil, auProfs
+    guild.members["makira farron"].profs[202] = nil
+    guild.cooldowns["ran fred"], guild.cooldowns["makira farron"] = nil, nil
+    T.eq(errors, {})
+  end)
+
   T.it("opens the window on the chat tab and every tab", function()
     env.CommunitiesFrame:Show() -- J opens Blizzard's guild window
     T.truthy(ns.UI.IsShown(), "Guildy shows inside Blizzard's guild window")
