@@ -157,7 +157,7 @@ local function Number(n)
 end
 
 -- What the page works out from the whole guild, kept until the statistics or the member list change
--- (GameStats.version, Roster.version): the entries, a ranking per statistic, the first title per member;
+-- (GameStats.version, Roster.version): the entries, a ranking per statistic, the first titles of the guild;
 -- the ready marks and the highest item level besides until stored gear changes (GEAR)
 local guildData = { stats = -1, roster = -1, gear = -1, rankings = {}, ready = {} }
 local gearVersion = 0
