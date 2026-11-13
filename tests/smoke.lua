@@ -2146,4 +2146,135 @@ T.describe("Gear", function()
     T.truthy(all:find("gearshow", 1, true), "gearshow prints")
     T.eq(errors, {})
   end)
+
+  -- item links of the test: id -> { quality, item level, equip location }
+  local ITEMS = { [1001] = { 3, 52, "INVTYPE_HEAD" }, [1004] = { 1, 1, "INVTYPE_BODY" }, [1005] = { 2, 48, "INVTYPE_CHEST" },
+    [1016] = { 4, 60, "INVTYPE_WEAPON" } }
+  local function Link(id, enchant) return ("|cff0070dd|Hitem:%d:%d:0:0:0:0:0:0:60|h[X]|h|r"):format(id, enchant or 0) end
+  local function GearStubs(unit, slots)
+    local saved = { env.GetInventoryItemLink, env.GetInventoryItemID, env.GetItemInfo, env.UnitRace, env.GetItemInfoInstant }
+    env.GetInventoryItemLink = function(u, slot) if u == unit and slots[slot] then return slots[slot] end end
+    env.GetInventoryItemID = function(u, slot) if u == unit and slots[slot] then return ns.Gear.ParseLink(slots[slot]) end end
+    env.GetItemInfo = function(link)
+      local id = ns.Gear.ParseLink(link)
+      local it = id and ITEMS[id]
+      if it then return "Item " .. id, link, it[1], it[2], 1, "Rüstung", "Stoff", 1, it[3], 134, 1, 4, 1, 2 end
+    end
+    env.GetItemInfoInstant = function(id) local it = ITEMS[id] if it then return id, "Rüstung", "Stoff", it[3] end end
+    env.UnitRace = function() return "Gnom", "Gnome", 7 end
+    return function()
+      env.GetInventoryItemLink, env.GetInventoryItemID, env.GetItemInfo, env.UnitRace, env.GetItemInfoInstant = unpack(saved, 1, 5)
+    end
+  end
+  local OWN = { [1] = Link(1001), [4] = Link(1004), [5] = Link(1005, 1887), [16] = Link(1016) }
+
+  T.it("stores the own gear item by item", function()
+    local restore = GearStubs("player", OWN)
+    ns.GameStats.UpdateOwn()
+    restore()
+    local rec = ns.GuildData().gear["ran fred"]
+    T.eq(rec.items[5], { id = 1005, e = 1887, s = 0, l = 48, q = 2 })
+    T.eq(rec.items[4].id, 1004)
+    T.eq(rec.src, "self")
+    T.eq(rec.race, 7)
+    T.eq(rec.sex, 3)
+    T.eq(errors, {})
+  end)
+
+  T.it("stores nothing from a secret link", function()
+    local before = ns.GuildData().gear["ran fred"]
+    local slots = { [1] = Link(1001), [5] = SECRET }
+    local restore = GearStubs("player", slots)
+    env.GetInventoryItemID = function(u, slot) if u == "player" and slot == 1 then return 1001 end end
+    ns.GameStats.UpdateOwn()
+    restore()
+    T.truthy(ns.GuildData().gear["ran fred"] == before, "own record unchanged")
+    T.eq(ns.GuildData().gear["ran fred"].items[5].e, 1887)
+    T.eq(errors, {})
+  end)
+
+  T.it("stores nothing for pictures", function()
+    ns.GuildData().gear["ran fred"] = nil
+    ns.Anon.Enable(true)
+    local restore = GearStubs("player", OWN)
+    ns.GameStats.UpdateOwn()
+    ns.Anon.Enable(false)
+    T.eq(ns.GuildData().gear["ran fred"], nil)
+    ns.GameStats.UpdateOwn()
+    restore()
+    T.truthy(ns.GuildData().gear["ran fred"], "stored again without pictures")
+    T.eq(errors, {})
+  end)
+
+  T.it("stores the gear of an inspected member", function()
+    local restore = GearStubs("target", { [1] = Link(1001), [16] = Link(1016, 2500) })
+    local saved = { env.SetAchievementComparisonUnit, env.ClearAchievementComparisonUnit, env.GetComparisonStatistic,
+      env.UnitExists, env.UnitIsPlayer, env.UnitIsUnit, env.UnitIsConnected, env.UnitName, env.UnitGUID, env.NotifyInspect, env.ClearInspectPlayer }
+    env.SetAchievementComparisonUnit = function() return true end
+    env.ClearAchievementComparisonUnit = function() end
+    env.GetComparisonStatistic = function(id) return id == 107 and "1077" or "--" end
+    env.UnitExists = function() return true end
+    env.UnitIsPlayer = function() return true end
+    env.UnitIsUnit = function() return false end
+    env.UnitIsConnected = function() return true end
+    env.UnitName = function(unit) if unit == "target" then return "Au", "Tsch" end return "Ran", "Fred" end
+    env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    env.NotifyInspect = function() end
+    env.ClearInspectPlayer = function() end
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.GameStats._ResetForTest()
+    Fire("PLAYER_TARGET_CHANGED")
+    Fire("INSPECT_ACHIEVEMENT_READY", "Player-1-03")
+    RunTimers(1)
+    Fire("INSPECT_READY", "Player-1-03")
+    RunTimers(1)
+    env.SetAchievementComparisonUnit, env.ClearAchievementComparisonUnit, env.GetComparisonStatistic, env.UnitExists,
+      env.UnitIsPlayer, env.UnitIsUnit, env.UnitIsConnected, env.UnitName, env.UnitGUID, env.NotifyInspect,
+      env.ClearInspectPlayer = unpack(saved, 1, 11)
+    restore()
+    local rec = ns.GuildData().gear["au tsch"]
+    T.eq(rec.src, "seen")
+    T.eq(rec.items[16], { id = 1016, e = 2500, s = 0, l = 60, q = 4 })
+    T.eq(rec.race, 7)
+    T.eq(errors, {})
+  end)
+
+  T.it("learns the item a recipe makes", function()
+    local restore = GearStubs("player", {})
+    local saved = { env.GetTradeSkillLine, env.GetNumTradeSkills, env.GetTradeSkillInfo, env.GetTradeSkillRecipeLink, env.GetTradeSkillItemLink }
+    env.GetTradeSkillLine = function() return "Alchemie", 120, 150 end
+    env.GetNumTradeSkills = function() return 2 end
+    env.GetTradeSkillInfo = function() return "Rezept", "optimal" end
+    env.GetTradeSkillRecipeLink = function(i) return "|Henchant:" .. (77000 + i) .. "|h[R]|h" end
+    env.GetTradeSkillItemLink = function(i) return i == 1 and Link(1005) or Link(4444) end
+    ns.TradeSkill.ScanOpen()
+    env.GetTradeSkillLine, env.GetNumTradeSkills, env.GetTradeSkillInfo, env.GetTradeSkillRecipeLink, env.GetTradeSkillItemLink = unpack(saved, 1, 5)
+    restore()
+    T.eq(env.GuildyDB.craftItems[77001], 1005)
+    T.eq(env.GuildyDB.craftItems[77002], nil) -- item 4444 has no equip location
+    T.eq(errors, {})
+  end)
+
+  T.it("prunes gear of members who left", function()
+    ns.GuildData().gear["gone member"] = { ts = 1, src = "seen", items = {} }
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    T.eq(ns.GuildData().gear["gone member"], nil)
+    T.truthy(ns.GuildData().gear["au tsch"], "members of the roster keep theirs")
+    T.eq(errors, {})
+  end)
+
+  T.it("makes the enchant text from the tooltip", function()
+    env.C_TooltipInfo = { GetHyperlink = function(link)
+      if link:find("^item:1005:1887") then return { lines = { { leftText = "Item" }, { leftText = "|cff00ff00+4 Werte|r" }, { leftText = "Stoff" } } } end
+      return { lines = { { leftText = "Item" }, { leftText = "Stoff" } } }
+    end }
+    T.eq(ns.GameGear.EnchantText(1005, 1887), "+4 Werte")
+    T.eq(env.GuildyDB.enchantText.names[1887], "+4 Werte")
+    env.C_TooltipInfo = nil
+    T.eq(ns.GameGear.EnchantText(1005, 1887), "+4 Werte") -- from the cache
+    T.eq(ns.GameGear.EnchantText(1005, 9999), nil)
+    env.SlashCmdList.GUILDY("gearshow Au Tsch")
+    T.eq(errors, {})
+  end)
 end)

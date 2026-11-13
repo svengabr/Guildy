@@ -156,6 +156,7 @@ function Roster.Scan()
       ns.Cooldowns.Prune(guild.cooldowns, keep)
       ns.Cooldowns.DropStale(guild.cooldowns, ns.Now())
     end
+    if type(guild.gear) == "table" then ns.Gear.Prune(guild.gear, keep) end
   end
   NoteJoins(guild)
   lap("scan roster:", "event log and prune")

@@ -53,6 +53,7 @@ local HANDLERS = {
     ns.Sync.Start()
     ns.GameStats.Start()
     ns.GameDing.Start()
+    C_Timer.After(9, function() ns.SafeCall(ns.GameGear.Start) end)
     ns.UI.ResumeShots() -- /guildy shots all goes on after its reload
   end,
   PLAYER_LOGOUT = function()
@@ -60,6 +61,7 @@ local HANDLERS = {
     ns.GameStats.UpdateOwn()
   end,
   PLAYER_LEVEL_UP = function(level) ns.GameDing.OnLevelUp(level) end,
+  GET_ITEM_INFO_RECEIVED = function() ns.GameGear.OnItemInfo() end,
   PLAYER_TARGET_CHANGED = function() ns.GameStats.TryUnit("target") end,
   PLAYER_EQUIPMENT_CHANGED = function() ns.GameStats.OnEquipmentChanged() end,
   UPDATE_MOUSEOVER_UNIT = function() ns.GameStats.TryUnit("mouseover") end,
@@ -244,7 +246,7 @@ SlashCmdList.GUILDY = function(msg)
   elseif msg == "craftprobe" then
     ns.GearProbe.CraftProbe()
   elseif msg:match("^gearshow") then
-    ns.GearProbe.GearShow(raw:sub(9))
+    ns.GameGear.Show(raw:sub(9))
   elseif msg:match("^statshow") then
     ns.GameStats.Show(raw:sub(10))
   elseif msg == "scanreset" then

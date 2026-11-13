@@ -88,12 +88,21 @@ local function ItemInfoFunction()
   return rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
 end
 
--- Equipment of unit ("player" or an inspected member), nil while item info is missing
+-- Equipment of unit ("player" or an inspected member), nil while item info is missing; also the links
+-- and item IDs of slots 1..19 it was read from (for Game/Gear.lua)
 local function ReadUnitGear(unit)
   local getLink, getInfo = rawget(_G, "GetInventoryItemLink"), ItemInfoFunction()
   if not getLink or not getInfo then return nil end
-  return S.ReadGear(function(slot) return ns.Try(getLink, unit, slot) end,
+  local values = S.ReadGear(function(slot) return ns.Try(getLink, unit, slot) end,
     function(link) return ns.Try(getInfo, link) end)
+  if not values then return nil end
+  local getID = rawget(_G, "GetInventoryItemID")
+  local links, ids = {}, {}
+  for slot = 1, 19 do
+    links[slot] = ns.Try(getLink, unit, slot)
+    ids[slot] = getID and ns.Try(getID, unit, slot) or nil
+  end
+  return values, links, ids
 end
 
 -- Asks the game to load the item info of unit's equipment
@@ -140,6 +149,7 @@ end
 
 function GameStats.UpdateOwn()
   lastOwnRead = GetTime()
+  if ns.GameGear then ns.SafeCall(ns.GameGear.ReadOwn) end -- the own gear item by item (Game/Gear.lua)
   local guild = ns.GuildData()
   local values = GameStats.ReadOwn()
   if not guild or not values then return end
@@ -410,6 +420,9 @@ local function Finish(job)
     noGear[key] = true
     tried[key] = GetTime() + RETRY
   end
+  if job.gear and job.gear[S.GEAR.ILVL] and ns.GameGear then
+    ns.SafeCall(ns.GameGear.Store, job.request, job.links, job.gearUnit, job.ids)
+  end
   Log(job.request.name .. (job.gear and job.gear[S.GEAR.ILVL]
     and (": equipment read (" .. tostring(job.gearUnit) .. "), item level " .. job.gear[S.GEAR.ILVL] / 10)
     or (": statistics stored without equipment (" .. (job.why or "no answer") .. "), next try in " .. RETRY .. " s")))
@@ -502,12 +515,12 @@ function GameStats.OnInspectReady(guid)
     local unit = FindUnit(job.request)
     if unit then
       local ids, links = CountSlots(unit)
-      local gear = ReadUnitGear(unit)
+      local gear, slotLinks, slotIds = ReadUnitGear(unit)
       local steady = links == last
       last = links
       if gear and gear[S.GEAR.ILVL] and links > 0 and links >= ids and steady then
         -- only a complete read is kept: never store part of the equipment
-        job.gear, job.gearUnit = gear, unit
+        job.gear, job.gearUnit, job.links, job.ids = gear, unit, slotLinks, slotIds
         Log(("%s: equipment complete after %d read(s), %d items"):format(job.request.name, n, links))
         return GearDone(job)
       end
@@ -543,7 +556,7 @@ function GameStats.CheckLateGear(unit)
   end
   if ns.Try(rawget(_G, "UnitGUID"), unit) ~= late.request.guid then return false end
   local ids, links = CountSlots(unit)
-  local gear = ReadUnitGear(unit)
+  local gear, slotLinks, slotIds = ReadUnitGear(unit)
   if not (gear and gear[S.GEAR.ILVL] and links > 0 and links >= ids) then
     LoadUnitItems(unit)
     Log(("%s: kept equipment not complete yet (%d of %d items)"):format(late.request.name, links, ids))
@@ -553,6 +566,7 @@ function GameStats.CheckLateGear(unit)
   for id, value in pairs(gear) do late.values[id] = value end
   noGear[late.request.key] = nil
   tried[late.request.key] = GetTime() + MEMBER_GAP
+  if ns.GameGear then ns.SafeCall(ns.GameGear.Store, late.request, slotLinks, unit, slotIds) end
   Log(("%s: equipment read on the next look (%s), item level %s, %d items"):format(
     late.request.name, unit, gear[S.GEAR.ILVL] / 10, links))
   ClearInspect()

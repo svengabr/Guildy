@@ -503,6 +503,7 @@ function TradeSkill.ScanOpen()
         if id then
           recipes[#recipes + 1] = id
           RememberIcon(id, ns.Try(rawget(_G, "GetTradeSkillIcon"), i))
+          if ns.GameGear then ns.GameGear.LearnCraft(id, ns.Try(rawget(_G, "GetTradeSkillItemLink"), i)) end
           local left = ns.Try(rawget(_G, "GetTradeSkillCooldown"), i)
           if not scanTarget and not ns.IsSecret(left) and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
         end
@@ -525,6 +526,7 @@ function TradeSkill.ScanOpen()
         if id then
           recipes[#recipes + 1] = id
           RememberIcon(id, ns.Try(rawget(_G, "GetCraftIcon"), i))
+          if ns.GameGear then ns.GameGear.LearnCraft(id, ns.Try(rawget(_G, "GetCraftItemLink"), i)) end
         end
       end
     end
@@ -544,6 +546,9 @@ function TradeSkill.ScanOpen()
       if recipe and recipe.learned then
         recipes[#recipes + 1] = id
         RememberIcon(id, recipe.icon)
+        local output = rawget(C_TradeSkillUI, "GetRecipeOutputItemData")
+        local made = output and ns.Try(output, id)
+        if ns.GameGear and type(made) == "table" then ns.GameGear.LearnCraft(id, made.itemID) end
         local left = ns.Try(rawget(C_TradeSkillUI, "GetRecipeCooldown"), id)
         if not scanTarget and not ns.IsSecret(left) and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
       end
