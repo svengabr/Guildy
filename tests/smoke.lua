@@ -2129,3 +2129,20 @@ T.describe("Endgame view before the guild is level 60", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Gear", function()
+  T.it("runs the gear probes without errors", function()
+    local printed, print = {}, ns.Print
+    ns.Print = function(text) printed[#printed + 1] = tostring(text) end
+    for _, command in ipairs({ "modeltest", "modeltest 1 2", "craftprobe", "gearshow", "gearshow Au Tsch" }) do
+      env.SlashCmdList.GUILDY(command)
+    end
+    RunTimers()
+    ns.Print = print
+    local all = table.concat(printed, "\n")
+    T.truthy(all:find("SetCustomRace", 1, true), "modeltest names SetCustomRace")
+    T.truthy(all:find("craftprobe:", 1, true), "craftprobe prints its count")
+    T.truthy(all:find("gearshow", 1, true), "gearshow prints")
+    T.eq(errors, {})
+  end)
+end)

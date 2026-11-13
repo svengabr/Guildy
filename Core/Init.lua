@@ -239,6 +239,12 @@ SlashCmdList.GUILDY = function(msg)
   elseif msg == "statdebug" then
     ns.GameStats.debug = not ns.GameStats.debug
     ns.Print("statdebug " .. (ns.GameStats.debug and "on" or "off"))
+  elseif msg:match("^modeltest") then
+    ns.GearProbe.ModelTest(raw:sub(10))
+  elseif msg == "craftprobe" then
+    ns.GearProbe.CraftProbe()
+  elseif msg:match("^gearshow") then
+    ns.GearProbe.GearShow(raw:sub(9))
   elseif msg:match("^statshow") then
     ns.GameStats.Show(raw:sub(10))
   elseif msg == "scanreset" then

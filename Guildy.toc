@@ -59,6 +59,7 @@ Game\Harvest.lua
 Game\Sync.lua
 Game\Bank.lua
 Game\Stats.lua
+Game\GearProbe.lua
 Game\Activity.lua
 Game\Ding.lua
 UI\Widgets.lua
