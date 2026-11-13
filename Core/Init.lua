@@ -44,6 +44,11 @@ local HANDLERS = {
     ns.Sync.Register()
     ns.Roster.Request(true)
     C_Timer.After(3, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end)
+    -- the client's language: tools/bnet-sync asks the profile API in it
+    GuildyDB.clientLocale = ns.Try(rawget(_G, "GetLocale"))
+    C_Timer.After(6, function() ns.SafeCall(ns.GameCooldowns.Read) end)
+    C_Timer.After(8, function() ns.SafeCall(ns.TradeSkill.InferAll) end)
+    C_Timer.After(12, function() ns.SafeCall(ns.TradeSkill.RememberNames) end)
     ns.Sync.Start()
     ns.GameStats.Start()
     ns.GameDing.Start()
@@ -125,6 +130,10 @@ local HANDLERS = {
   CRAFT_SHOW = ScheduleTradeScan,
   CRAFT_UPDATE = ScheduleTradeScan,
   SKILL_LINES_CHANGED = function() C_Timer.After(1, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end) end,
+  -- a specialization is a spell: learning one changes no skill line
+  LEARNED_SPELL_IN_TAB = function() C_Timer.After(1, function() ns.SafeCall(ns.TradeSkill.ScanSkills) end) end,
+  SPELL_UPDATE_COOLDOWN = function() ns.GameCooldowns.Schedule() end,
+  BAG_UPDATE_COOLDOWN = function() ns.GameCooldowns.Schedule() end,
 }
 
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -274,6 +283,10 @@ SlashCmdList.GUILDY = function(msg)
     end
     GuildyDB.statDump = dump
     ns.Print(("statdump: %d categories, %d statistics stored. /reload to write them to disk."):format(#dump, count))
+  elseif msg == "cd" then
+    ns.GameCooldowns.Debug()
+  elseif msg == "spec" then
+    ns.TradeSkill.SpecDebug()
   elseif msg == "profdump" then
     ns.TradeSkill.ProfDump()
   elseif msg == "debug" then

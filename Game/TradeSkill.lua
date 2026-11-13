@@ -120,6 +120,113 @@ local lastBook -- { key, skillLine, rank, recipes, at } of the last book read fr
 local rejected -- the scan in progress showed a book that is not the target's
 local SAME_BOOK_MIN, SAME_BOOK_SECONDS = 6, 120
 
+-- Whether the player knows a spell. Clients differ in which of these they have and answer for passive
+-- spells such as a specialization, so any of them saying yes counts (/guildy spec shows each one).
+local function KnownFns()
+  local book = rawget(_G, "C_SpellBook")
+  local fns = {}
+  for _, fn in ipairs({ book and rawget(book, "IsSpellKnown") or false, rawget(_G, "IsPlayerSpell") or false,
+    rawget(_G, "IsSpellKnown") or false }) do
+    if fn then fns[#fns + 1] = fn end
+  end
+  return fns
+end
+local function SpellKnown(id)
+  for _, fn in ipairs(KnownFns()) do
+    if ns.Try(fn, id) == true then return true end
+  end
+  return false
+end
+TradeSkill.SpellKnown = SpellKnown
+TradeSkill.KnownFns = KnownFns
+
+-- The specialization a book shows (Core/Specs.lua), merged into its record. Returns true when it changed.
+local function InferSpec(rec, skillLine)
+  if type(rec) ~= "table" or type(rec.recipes) ~= "table" or type(rec.ts) ~= "number" then return false end
+  local id = ns.Specs.FromBook(skillLine, rec.recipes)
+  return id ~= nil and ns.Specs.Merge(rec, { id = id, src = "book", ts = rec.ts })
+end
+TradeSkill.InferSpec = InferSpec
+
+-- Every stored book of the guild through InferSpec (after login: books read before this version)
+function TradeSkill.InferAll()
+  local guild = not ns.Anon.on and ns.GuildData() or nil
+  if not guild then return end
+  local changed = false
+  for _, member in pairs(guild.members) do
+    for skillLine, rec in pairs(type(member) == "table" and member.profs or {}) do
+      if InferSpec(rec, skillLine) then changed = true end
+    end
+  end
+  if changed then ns.Fire("PROFS") end
+end
+
+-- Names of every recipe in the guild's books and of the specializations, in the client's language:
+-- tools/bnet-sync matches the profile API's names against them (GuildyDB.recipeNames)
+function TradeSkill.RememberNames()
+  local db = ns.DB()
+  if not db then return end
+  local locale = ns.Try(rawget(_G, "GetLocale")) or "enUS"
+  if type(db.recipeNames) ~= "table" or db.recipeNames.locale ~= locale or type(db.recipeNames.names) ~= "table" then
+    db.recipeNames = { locale = locale, names = {} }
+  end
+  local names = db.recipeNames.names
+  local function Remember(id)
+    if names[id] == nil then
+      local name = SpellName(id)
+      if type(name) == "string" and name ~= "" and not ns.IsSecret(name) then names[id] = name end
+    end
+  end
+  for id in pairs(ns.Specs.SKILL_OF) do Remember(id) end
+  for _, guild in pairs(db.guilds or {}) do
+    for _, member in pairs(type(guild) == "table" and guild.members or {}) do
+      for _, rec in pairs(type(member) == "table" and member.profs or {}) do
+        for _, id in ipairs(type(rec) == "table" and rec.recipes or {}) do Remember(id) end
+      end
+    end
+  end
+end
+
+-- The own character's specializations, from the game itself: only it and the script may replace or
+-- revoke one (Core/Specs.lua). A changed specialization makes the record news for the others.
+local function NoteOwnSpecs(present)
+  if #KnownFns() == 0 then return end -- a client that cannot tell must not say "none"
+  local member = OwnMember()
+  if not member then return end
+  local now, changed = ns.Now(), false
+  for skillLine in pairs(present) do
+    local id = ns.Specs.Detect(skillLine, SpellKnown)
+    local rec = member.profs[skillLine]
+    if id and rec and ns.Specs.Merge(rec, { id = id, src = "known", ts = now }) then
+      rec.ts = math.max(rec.ts or 0, now)
+      changed = true
+    end
+  end
+  if changed then
+    ns.Fire("PROFS")
+    if ns.Sync then ns.Sync.OwnChanged() end
+  end
+end
+
+-- /guildy spec: what the client answers for each specialization spell
+function TradeSkill.SpecDebug()
+  local fns = KnownFns()
+  ns.Print(("spec: %d of C_SpellBook.IsSpellKnown, IsPlayerSpell, IsSpellKnown exist"):format(#fns))
+  for skillLine, spells in pairs(ns.Specs.ORDER) do
+    for _, id in ipairs(spells) do
+      local answers = {}
+      for _, fn in ipairs(fns) do answers[#answers + 1] = tostring(ns.Try(fn, id)) end
+      ns.Print(("spec %s %d %s: %s"):format(TradeSkill.Name(skillLine), id, tostring(SpellName(id)), table.concat(answers, "/")))
+    end
+  end
+  local member = OwnMember()
+  for skillLine, rec in pairs(member and member.profs or {}) do
+    if rec.spec then
+      ns.Print(("spec stored %s: %d (%s)"):format(TradeSkill.Name(skillLine), rec.spec.id, tostring(rec.spec.src)))
+    end
+  end
+end
+
 local function IsOwnChar(m)
   local db = ns.DB()
   return m and db and db.ownChars and db.ownChars[m.key] or (m and ns.Names.Same(m.name, ns.PlayerName())) or false
@@ -158,6 +265,7 @@ local function StoreOwn(skillLine, rank, max, recipes)
   local src = scanTarget and "link" or "scan"
   local record = P.ValidateRecord({ ts = ns.Now(), src = src, rank = rank, max = max, recipes = recipes })
   if record and P.Merge(member, skillLine, record, { isOwnChar = not scanTarget }) then
+    if scanTarget then InferSpec(member.profs[skillLine], skillLine) end
     ns.Fire("PROFS")
     if ns.Sync then
       if scanTarget then ns.Sync.Share(scanTarget.key) else ns.Sync.OwnChanged() end
@@ -247,7 +355,10 @@ function TradeSkill.ScanSkills()
     end
   end
   if seen then
-    if not scanTarget then PruneOwn(present) end
+    if not scanTarget then
+      PruneOwn(present)
+      NoteOwnSpecs(present)
+    end
     return
   end
   local count = ns.Try(rawget(_G, "GetNumSkillLines")) or 0
@@ -268,6 +379,7 @@ function TradeSkill.ScanSkills()
   -- the skill list always has headers and languages: with no lines it isn't loaded yet; a collapsed
   -- header (the player folded it in the skill window) hides its professions
   if lines > 0 and not collapsed and not scanTarget then PruneOwn(present) end
+  if not scanTarget then NoteOwnSpecs(present) end
 end
 
 local function IdFromLink(link)
@@ -286,6 +398,8 @@ function TradeSkill.ScanOpen()
     return
   end
 
+  -- crafts with a cooldown in the player's own window: spellID -> seconds left (Game/Cooldowns.lua)
+  local ownCooldowns = {}
   local lineName, rank, max = ns.Try(rawget(_G, "GetTradeSkillLine"))
   if lineName and lineName ~= "UNKNOWN" then
     local recipes = {}
@@ -296,9 +410,12 @@ function TradeSkill.ScanOpen()
         if id then
           recipes[#recipes + 1] = id
           RememberIcon(id, ns.Try(rawget(_G, "GetTradeSkillIcon"), i))
+          local left = ns.Try(rawget(_G, "GetTradeSkillCooldown"), i)
+          if not scanTarget and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
         end
       end
     end
+    if next(ownCooldowns) and ns.GameCooldowns then ns.GameCooldowns.FromWindow(SkillByName(lineName), ownCooldowns) end
     TradeSkill.lastScan = { path = "GetTradeSkillLine", name = lineName, skillLine = SkillByName(lineName), rank = rank,
       entries = ns.Try(rawget(_G, "GetNumTradeSkills")) or 0, recipes = #recipes,
       hasRecipeLink = rawget(_G, "GetTradeSkillRecipeLink") ~= nil, sample = ns.Try(rawget(_G, "GetTradeSkillRecipeLink"), 2) }
@@ -334,8 +451,11 @@ function TradeSkill.ScanOpen()
       if recipe and recipe.learned then
         recipes[#recipes + 1] = id
         RememberIcon(id, recipe.icon)
+        local left = ns.Try(rawget(C_TradeSkillUI, "GetRecipeCooldown"), id)
+        if not scanTarget and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
       end
     end
+    if next(ownCooldowns) and ns.GameCooldowns and skillLine then ns.GameCooldowns.FromWindow(skillLine, ownCooldowns) end
     TradeSkill.lastScan = { path = "C_TradeSkillUI", name = info.professionName, skillLine = skillLine,
       rank = info.skillLevel, recipes = #recipes }
     if skillLine and #recipes > 0 then StoreOwn(skillLine, info.skillLevel, info.maxSkillLevel, recipes) end

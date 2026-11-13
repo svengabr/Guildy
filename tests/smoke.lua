@@ -127,6 +127,77 @@ T.describe("Smoke", function()
     T.eq(errors, {})
   end)
 
+  T.it("reads own specializations and cooldowns, infers others from their books", function()
+    local guild = ns.GuildData()
+    local saved = { env.GetProfessions, env.GetProfessionInfo, env.IsSpellKnown, env.C_Spell, env.C_Container,
+      env.GetTradeSkillLine, env.GetNumTradeSkills, env.GetTradeSkillInfo, env.GetTradeSkillRecipeLink,
+      env.GetTradeSkillCooldown, env.C_TradeSkillUI }
+    local known = { [20222] = true, [17187] = true }
+    env.GetProfessions = function() return 1 end
+    env.GetProfessionInfo = function() return "Ingenieurskunst", nil, 230, 300, nil, nil, 202 end
+    env.IsSpellKnown = function(id) return known[id] == true end
+    env.C_Spell = {
+      GetSpellName = function(id) return "Rezept " .. id end,
+      GetSpellCooldown = function(id)
+        if id == 17187 then return { startTime = 990, duration = 3600 } end
+        return { startTime = 0, duration = 0 }
+      end,
+    }
+    local now = ns.Now()
+    -- the own specialization, from the game itself
+    ns.TradeSkill.ScanSkills()
+    local me = guild.members["ran fred"]
+    T.eq(me.profs[202].spec, { id = 20222, src = "known", ts = now })
+    -- unlearned: the game says so, and it counts
+    known[20222] = nil
+    env.GetServerTime = function() return now + 10 end
+    ns.TradeSkill.ScanSkills()
+    T.eq(me.profs[202].spec, { id = 0, src = "known", ts = now + 10 })
+    env.GetServerTime = function() return now end
+    known[20222] = true
+    -- cooldowns: Arcanite from the spell, the Salt Shaker from the bags
+    env.C_Container = {
+      GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end,
+      GetContainerItemID = function(bag, slot) return (bag == 0 and slot == 2) and 15846 or nil end,
+      GetContainerItemCooldown = function() return 400, 7200 end,
+    }
+    ns.GameCooldowns.Read()
+    T.eq(guild.cooldowns["ran fred"].cd[17187], now + 3590)
+    T.eq(guild.cooldowns["ran fred"].cd[19566], now + 6600)
+    T.eq(guild.cooldowns["ran fred"].cd[18560], nil) -- not known: not listed
+    -- a craft with a cooldown in the own window is learned and counts even when the spell says nothing
+    env.C_TradeSkillUI = { IsTradeSkillLinked = function() return false end }
+    env.GetTradeSkillLine = function() return "Ingenieurskunst", 230, 300 end
+    env.GetNumTradeSkills = function() return 1 end
+    env.GetTradeSkillInfo = function() return "Gadget", "optimal" end
+    env.GetTradeSkillRecipeLink = function() return "|cffffffff|Henchant:99999|h[Gadget]|h|r" end
+    env.GetTradeSkillCooldown = function() return 600 end
+    ns.TradeSkill.ScanOpen()
+    T.eq(env.GuildyDB.cooldownSpells[99999], 202)
+    ns.GameCooldowns.Read()
+    T.eq(guild.cooldowns["ran fred"].cd[99999], now + 600)
+    -- another member's book with a Goblin-only recipe: their specialization, inferred
+    env.C_TradeSkillUI = nil
+    local au = guild.members["au tsch"]
+    au.profs[202] = { ts = now, src = "relay", rank = 210, recipes = { 1, 12760 } }
+    ns.TradeSkill.InferAll()
+    T.eq(au.profs[202].spec, { id = 20222, src = "book", ts = now })
+    -- names for the script, in the client's language
+    env.GetLocale = function() return "deDE" end
+    ns.TradeSkill.RememberNames()
+    T.eq(env.GuildyDB.recipeNames.locale, "deDE")
+    T.eq(env.GuildyDB.recipeNames.names[12760], "Rezept 12760")
+    T.eq(env.GuildyDB.recipeNames.names[20222], "Rezept 20222") -- the specializations too
+    -- what the client answers, for checking in the game
+    env.SlashCmdList.GUILDY("cd")
+    env.SlashCmdList.GUILDY("spec")
+    env.GetProfessions, env.GetProfessionInfo, env.IsSpellKnown, env.C_Spell, env.C_Container,
+      env.GetTradeSkillLine, env.GetNumTradeSkills, env.GetTradeSkillInfo, env.GetTradeSkillRecipeLink,
+      env.GetTradeSkillCooldown, env.C_TradeSkillUI = unpack(saved, 1, 11)
+    me.profs[202], au.profs[202] = nil, nil
+    T.eq(errors, {})
+  end)
+
   T.it("opens the window on the chat tab and every tab", function()
     env.CommunitiesFrame:Show() -- J opens Blizzard's guild window
     T.truthy(ns.UI.IsShown(), "Guildy shows inside Blizzard's guild window")

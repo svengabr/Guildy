@@ -54,6 +54,7 @@ Game\Roster.lua
 Game\Chat.lua
 Game\Communities.lua
 Game\TradeSkill.lua
+Game\Cooldowns.lua
 Game\Harvest.lua
 Game\Sync.lua
 Game\Bank.lua
