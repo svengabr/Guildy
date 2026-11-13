@@ -169,6 +169,8 @@ function UI.MemberTooltip(owner, m, hint)
   else
     GameTooltip:AddDoubleLine(L.LAST_ONLINE, ns.Roster.LastOnlineText(m), 1, 0.82, 0, 1, 1, 1)
   end
+  local since = ns.Roster.TenureText(m, true)
+  if since then GameTooltip:AddDoubleLine(L.MEMBER_SINCE, since, 1, 0.82, 0, 1, 1, 1) end
   local guildy = UI.GuildyVersionText and UI.GuildyVersionText(m)
   if guildy then GameTooltip:AddDoubleLine(L.COL_GUILDY, guildy, 1, 0.82, 0, 1, 1, 1) end
   if m.note and m.note ~= "" then GameTooltip:AddDoubleLine(L.NOTE, m.note, 1, 0.82, 0, 1, 1, 1) end

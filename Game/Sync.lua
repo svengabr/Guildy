@@ -8,6 +8,9 @@
 --   SUM also carries b = {at, ts, n} (Core/Bank.lua: newest reading, newest entry, entries), BANK {at, by,
 --   money, tabs, logs}: what was read of the guild bank at a banker. Whoever knows more than a summary
 --   says offers the entries after its newest one; a reading is shared right after it was taken.
+--   SUM also carries j = {n, x, s} (Core/Tenure.lua: join dates known, those from the event log, the sum
+--   of their days), JOIN {j = {{name, day, 1 | 0}, ...}}: since when members are in the guild. Whoever
+--   sees a summary that differs from what they know offers their dates; both sides end on the same.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
 --   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
@@ -35,6 +38,8 @@ local seen = {}          -- nameKey -> newest ts seen on the channel (to skip du
 local seenStats = {}     -- same for statistics
 local seenFamilies = {}  -- same for families
 local seenBank, bankMessages = 0, 0 -- newest bank reading seen on the channel, how many of them
+local joinMessages = 0   -- JOIN messages seen on the channel
+local joinOffered = {}   -- nameKey of a member -> the state of my dates I offered on their summary
 local MAX_BYTES = 14000  -- a message of more parts than Protocol.MAX_PARTS is dropped by its receivers
 local warnedNewer = false
 local ownTimer
@@ -172,8 +177,20 @@ function Sync.SendSummary()
   if guild then
     -- (b also when nothing of the bank is known yet: "I can take it", so someone offers it)
     Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild),
-      b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 } })
+      b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 }, j = ns.Tenure.Digest(guild.joined) })
   end
+end
+
+-- Since when the members are in the guild, all that is known (a large guild in several messages)
+local function SendJoins()
+  local guild = ns.GuildData()
+  if not guild or type(guild.joined) ~= "table" then return end
+  local names = {}
+  for _, m in ipairs(ns.Roster.Members()) do names[m.key] = m.fullName end
+  for _, list in ipairs(ns.Tenure.Wire(guild.joined, names)) do
+    Send("JOIN", { j = list })
+  end
+  joinMessages = joinMessages + 1
 end
 
 -- The guild bank as far as it is newer than `since` (a time, nil: all of it). Too much for one message:
@@ -277,6 +294,22 @@ local function OnSummary(data, sender)
       end)
     end
   end
+  -- join dates: one offer for all of them, when the two know different things (an older Guildy sends
+  -- no j and could not use them). Once per state and member: a difference that stays (a member only
+  -- one of the two has in the roster yet) is not offered again on every summary.
+  if type(data.j) == "table" then
+    local digest = ns.Tenure.Digest(guild.joined)
+    local state = digest.n .. "/" .. digest.x .. "/" .. digest.s
+    local senderKey = ns.Names.Key(sender)
+    if digest.n > 0 and ns.Tenure.Differs(digest, data.j) and joinOffered[senderKey] ~= state then
+      local before = joinMessages
+      C_Timer.After(5 + math.random() * 8, function()
+        if joinMessages > before then return end -- someone else sent theirs meanwhile
+        joinOffered[senderKey] = state
+        SendJoins()
+      end)
+    end
+  end
   -- the guild bank: one offer for all of it. A Guildy before 1.6.0 sends no b and could not use it;
   -- 1.6.0 itself sent no b while it knew nothing of the bank, which is when it needs the offer most
   -- (found 2026-11-12: a member who installed 1.6.0 never got the bank), so its version counts too.
@@ -354,6 +387,17 @@ local function OnBank(data, sender)
   local changed = ns.Bank.Apply(ns.Bank.Get(guild), reading)
   Debug("bank from %s: %s", sender, changed and "taken in" or "nothing new in it")
   if changed then ns.Fire("BANK") end
+end
+
+local function OnJoined(data)
+  local guild = ns.GuildData()
+  if not guild or (ns.Anon and ns.Anon.on) then return end
+  joinMessages = joinMessages + 1
+  local known = #ns.Roster.Members() > 0
+  local changed = ns.Tenure.Apply(ns.Tenure.Book(guild), data.j, ns.Tenure.Day(ns.Now()), function(name)
+    return known and ns.Roster.IsMember(name)
+  end)
+  if changed then ns.Roster.JoinsChanged() end
 end
 
 -- Books read through a profession link are only taken from a Guildy that reads them right: before
@@ -452,7 +496,7 @@ local function OnHello(data)
   end)
 end
 
-local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, BANK = OnBank, HI = OnHello }
+local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, BANK = OnBank, JOIN = OnJoined, HI = OnHello }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)

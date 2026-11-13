@@ -40,6 +40,50 @@ local function ReadEventLog()
   end
 end
 
+-- Since when each member is in the guild (Core/Tenure.lua): a join the event log names is remembered
+-- as that day, a member Guildy knows no date of gets today ("since at least"). Members carry
+-- joinedDay and joinedExact. Without guild (names made up for pictures) only the log's joins show.
+local function NoteJoins(guild)
+  local Tenure = ns.Tenure
+  local now = ns.Now()
+  local today = Tenure.Day(now)
+  local book = guild and Tenure.Book(guild)
+  for _, m in ipairs(members) do
+    local ago = joined[m.key]
+    local logDay = ago and Tenure.Day(now - ago * 86400)
+    if book then
+      if logDay then
+        Tenure.Note(book, m.key, logDay, true, today)
+      elseif not book[m.key] then
+        Tenure.Note(book, m.key, today, false, today)
+      end
+      local entry = book[m.key]
+      m.joinedDay, m.joinedExact = entry and entry.d, entry and entry.x or nil
+    else
+      m.joinedDay, m.joinedExact = logDay or nil, logDay and true or nil
+    end
+  end
+end
+
+-- Join dates came in from another Guildy user (Game/Sync.lua): the members show them
+function Roster.JoinsChanged()
+  NoteJoins(not ns.Anon.on and ns.GuildData() or nil)
+  ns.Fire("ROSTER")
+end
+
+-- "Member since" of member m as text, nil when nothing is known. Short: the span ("3 mo", "3 mo+" for
+-- a member who is in the guild at least that long). Long: the date and the span.
+function Roster.TenureText(m, long)
+  if type(m.joinedDay) ~= "number" then return nil end
+  local L = ns.L
+  local unit, count = ns.Tenure.Span(ns.Tenure.Day(ns.Now()) - m.joinedDay)
+  local span = (unit == "d" and count == 0) and L.SPAN_TODAY or L["SPAN_" .. unit:upper()]:format(count)
+  if not long then return m.joinedExact and span or L.SPAN_MORE:format(span) end
+  -- (noon of that day: the same date in every time zone the guild plays in)
+  local date = ns.GameStats.Date(L.DATE_LONG, m.joinedDay * 86400 + 43200)
+  return (m.joinedExact and date or L.SINCE_AT_LEAST:format(date)) .. L.SEP .. span
+end
+
 -- The professions a member's two notes mention. Notes rarely change, and parsing them was two thirds
 -- of a roster scan (measured in game 2026-11-10: 6.7 of 10.3 ms with 98 members), so the result is
 -- kept per pair of note texts from one scan to the next. The set is shared: read it, never change it.
@@ -103,7 +147,9 @@ function Roster.Scan()
     local keep = {}
     for key in pairs(byKey) do keep[key] = true end
     ns.Store.Prune(guild, keep)
+    ns.Tenure.Prune(ns.Tenure.Book(guild), keep)
   end
+  NoteJoins(guild)
   lap("scan roster:", "event log and prune")
   -- professions mentioned in public and officer notes ("Herb/ Alch")
   local notesChanged = false

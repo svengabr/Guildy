@@ -116,6 +116,8 @@ local GETTERS = {
   ilvl = function(m) return m.ilvl or 0 end,
   -- set by the members tab: the activity score of the member's player, none below every score
   score = function(m) return m.score or -1 end,
+  -- the day the member joined (Core/Tenure.lua), members without one after everyone
+  joined = function(m) return m.joinedDay or math.huge end,
 }
 
 -- Sorts in place by field; desc reverses. Ties by name. Default directions: level high first.

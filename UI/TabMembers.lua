@@ -21,6 +21,7 @@ local COLUMNS = {
   { key = "score", width = 40, desc = true }, -- the activity score of the player (Core/Activity.lua)
   { key = "zone", width = 120 },
   { key = "lastOnline", width = 70 },
+  { key = "joined", width = 80 }, -- member since (Core/Tenure.lua); hidden until the player adds it
   { key = "guildy", width = 46, desc = true },
   { key = "note", width = 210 },
   { key = "officerNote", width = 200 }, -- only for those who may read officer notes
@@ -29,9 +30,12 @@ local UNSORTED = { note = true, officerNote = true }
 local X_FROM = 60 -- a heading at least this wide has room for its x while customizing
 -- The columns the player can hide (settings.memberColumns[key] = false); level and name always stay.
 -- The last column that shows reaches to the right edge, whatever its width.
-UI.MEMBER_COLUMNS = { "rank", "ilvl", "score", "zone", "lastOnline", "guildy", "note", "officerNote" }
+UI.MEMBER_COLUMNS = { "rank", "ilvl", "score", "zone", "lastOnline", "joined", "guildy", "note", "officerNote" }
+-- The columns that only show once the player adds them (settings.memberColumns[key] = true)
+local OPTIONAL = { joined = true }
 local function ColumnOff(key)
   local chosen = ns.Settings().memberColumns
+  if OPTIONAL[key] then return not (type(chosen) == "table" and chosen[key] == true) end
   return type(chosen) == "table" and chosen[key] == false
 end
 -- The player's choice of columns: their order, their widths, the hidden ones
@@ -239,6 +243,7 @@ local function Build(panel)
         view:Refresh()
       end)
     end
+    if column.key == "joined" then W.Tooltip(button, L.MEMBER_SINCE, L.JOINED_TIP) end
     x = x + column.width + 6
     view.Headers[column.key] = button
   end
@@ -312,7 +317,7 @@ local function Build(panel)
   function view:LayoutColumns()
     -- (self.trial: the columns as they would be while a heading is dragged)
     local list = ns.Columns.Arrange(COLUMNS, self.trial or SavedColumns(), function(key)
-      return key == "officerNote" and not self.viewOfficer
+      return (key == "officerNote" and not self.viewOfficer) or (OPTIONAL[key] and ColumnOff(key))
     end)
     local at, last, signature = 8, nil, self.editing and "edit," or ""
     self.hidden, self.columns, self.shown = {}, list, {}
@@ -451,7 +456,9 @@ local function Build(panel)
     if not known then return end
     local settings = ns.Settings()
     local off = type(settings.memberColumns) == "table" and settings.memberColumns or {}
-    if off[key] == false then off[key] = nil else off[key] = false end
+    if OPTIONAL[key] then
+      off[key] = off[key] ~= true and true or nil
+    elseif off[key] == false then off[key] = nil else off[key] = false end
     settings.memberColumns = next(off) ~= nil and off or nil
     self:Refresh()
   end
@@ -558,6 +565,7 @@ local function Build(panel)
     -- the score belongs to the player: on the main (or a character without family), not on its twinks
     c.score:SetText((m.score and not (m.mainKey and m.mainKey ~= m.key)) and tostring(m.score) or "")
     c.lastOnline:SetText(ns.Roster.LastOnlineText(m))
+    c.joined:SetText(ns.Roster.TenureText(m) or "")
     c.guildy:SetText(UI.GuildyVersionText(m) or "")
     c.note:SetText((m.note and m.note ~= "") and m.note or ("|cffff9a5a" .. L.NO_NOTE_CELL .. "|r"))
     c.officerNote:SetText(not view.viewOfficer and ""

@@ -392,6 +392,14 @@ T.describe("Smoke", function()
     local makira = ns.Roster.Find("Makira Farron")
     T.truthy(makira, "Makira in the roster")
     T.eq(#ns.Family.Of(makira.key, ns.Roster.Members(), ns.GuildData().families, {}), 1)
+    -- member since: another Guildy user knows since when Makira is in the guild
+    local longAgo = ns.Tenure.Day(ns.Now()) - 100
+    local joins = P.Encode("JOIN", { j = { { "Makira Farron", longAgo, 1 }, { "Not In Guild", longAgo, 1 }, "x" } })
+    for _, part in ipairs(P.Chunk("j1", joins)) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", "Au-Tsch") end
+    T.eq(ns.GuildData().joined["makira farron"], { d = longAgo, x = true })
+    T.eq(ns.GuildData().joined["not in guild"], nil)
+    T.eq({ makira.joinedDay, makira.joinedExact }, { longAgo, true })
+    T.truthy(ns.Roster.TenureText(makira, true), "a date on the character page")
     ns.UI.ShowMember(makira) -- the character page with a family card
     ns.UI.Hide()
     T.eq(ns.UI.IsShown(), false) -- closing closes Blizzard's window
@@ -669,6 +677,22 @@ T.describe("Harvest", function()
     ns.Roster.Scan()
     T.eq(#ns.Roster.Members(), before)
     env.GetNumGuildMembers = count
+    -- member since: the join the event log names is a date, everyone else is "since at least" today
+    ns.Roster.Scan()
+    local today = ns.Tenure.Day(ns.Now())
+    local logged, others = ns.Roster.Find("Au-Tsch"), 0
+    T.eq({ logged.joinedDay, logged.joinedExact }, { today - 1, true })
+    T.eq(ns.GuildData().joined[logged.key], { d = today - 1, x = true })
+    T.eq(ns.Roster.TenureText(logged), ns.L.SPAN_D:format(1))
+    T.truthy(ns.Roster.TenureText(logged, true):find(ns.L.SPAN_D:format(1), 1, true))
+    for _, m in ipairs(ns.Roster.Members()) do
+      if not m.joinedExact then -- (Makira's date came from another Guildy user above)
+        others = others + 1
+        T.eq({ m.joinedDay, m.joinedExact }, { today })
+        T.eq(ns.Roster.TenureText(m), ns.L.SPAN_MORE:format(ns.L.SPAN_TODAY))
+      end
+    end
+    T.truthy(others > 0, "members without a join in the log")
     -- a request that brings nothing older ends the loading: no new request on every render
     local requests = 0
     env.C_Club.IsBeginningOfStream = function() return false end
@@ -1179,7 +1203,16 @@ T.describe("Hall of Fame", function()
     T.eq(view.Reset:IsShown(), false)
     T.eq(view.OnlineCheck:IsShown(), false) -- the filters make room for the line of help
     T.eq(view.Summary:GetText(), ns.L.MEMBERS_HINT)
+    T.eq(view.AddColumn:IsShown(), true) -- "member since" only shows once it is added
+    T.eq(view.Headers.joined:IsShown(), false)
+    view:ToggleColumn("joined")
+    T.eq(settings.memberColumns, { joined = true })
+    T.eq(view.Headers.joined:IsShown(), true)
+    T.truthy(Shown():find("joined", 1, true), Shown())
     T.eq(view.AddColumn:IsShown(), false) -- nothing is hidden: nothing to add
+    view:ToggleColumn("joined")
+    T.eq(settings.memberColumns, nil)
+    T.eq(view.AddColumn:IsShown(), true)
     T.eq(view.Handles.rank:IsShown(), true)
     T.eq(view.Handles.level.Remove, false) -- level and name always stay
     T.eq(view.Handles.name.Remove, false)
@@ -1191,9 +1224,9 @@ T.describe("Hall of Fame", function()
     T.eq(Shown():find("rank", 1, true), nil)
     T.eq(view.AddColumn:IsShown(), true)
     local items = view:ColumnItems()
-    T.eq({ #items, items[1].isTitle, items[2].text }, { 2, true, ns.L.COL_RANK })
+    T.eq({ #items, items[1].isTitle, items[2].text, items[3].text }, { 3, true, ns.L.COL_RANK, ns.L.COL_JOINED })
     items[2].onClick()
-    T.eq(view.AddColumn:IsShown(), false)
+    T.eq(view.AddColumn:IsShown(), true)
     T.eq(settings.memberColumns, nil)
     T.eq(view.Headers.rank:IsShown(), true)
     view:ToggleColumn("name") -- not one of those that can go

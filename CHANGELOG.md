@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.0
+
+- New: member since. Guildy remembers when each member joined the guild and shows it in the member
+  tooltip and on the character page. The member list has a new column for it, sortable, so the members
+  who are longest in the guild stand on top: add it with "Customize" and the + at the headings.
+- The game itself keeps no join date. Guildy reads it from the guild's event log, which only reaches
+  back about a hundred events, and Guildy users share what they know with each other. For a member who
+  joined before anyone could read it, Guildy counts from the day it first saw them and marks the time
+  with a +: in the guild at least that long.
+- Fixed: on the Professions tab a skill like 278/300 broke into two lines.
+
 ## 1.7.1
 
 - New: a banner when a guild member reaches level 60. A dark band across the upper middle of the screen

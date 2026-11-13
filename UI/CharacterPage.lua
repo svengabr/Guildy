@@ -430,6 +430,8 @@ local function Build()
       (m.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(m)))
 
     local notes = {}
+    local since = ns.Roster.TenureText(m, true)
+    if since then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.MEMBER_SINCE, "|r" .. since) end
     if m.note and m.note ~= "" then notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.NOTE, "|r" .. m.note) end
     if can.viewOfficer and m.officerNote and m.officerNote ~= "" then
       notes[#notes + 1] = L.LABEL_VALUE:format("|cffffd100" .. L.OFFICER_NOTE, "|r" .. m.officerNote)
