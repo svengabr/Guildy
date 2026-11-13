@@ -5,12 +5,47 @@
 --   opts.width / height  size every stub frame reports (lists size their rows from it), default 100
 --   opts.setup(env)      changes the environment before the addon loads
 --   opts.afterFile(file, ns)  called after each file of the addon has run
+--   opts.items           the game's item client as it behaves (world.items, see ItemClient below):
+--                        { [itemID] = { name, level, equipLoc, reqLevel, quality, classID, subclassID, bind,
+--                        stats = { ITEM_MOD_* = n }, tip = { lines } } }; an ID the table lacks never resolves
+--   opts.noCachedCheck   with opts.items: the client has no C_Item.IsItemDataCachedByID
 return function(T, opts)
   opts = opts or {}
   local errors = {}
   local calls = { n = 0, objects = 0 } -- widget method calls and widgets created (tests/bench.lua)
   local registered = {}   -- event -> {frames}
   local timers = {}
+  local FireEvent -- set once the addon is loaded
+
+  -- The item client: nothing is known until asked; every call that makes the client ask the server for an
+  -- item it does not have (RequestLoadItemDataByID, GetItemInfo, GetItemStats, a tooltip, TryOn) while no
+  -- query for it is in flight counts in items.requests[itemID]; the answer comes on the next timer round as GET_ITEM_INFO_RECEIVED(itemID,
+  -- success), success false for an ID the game does not have (it stays unknown). GetItemStats hands out a
+  -- new table on every call. items.tips counts tooltip reads, items.Prime(id) marks an item as loaded.
+  local items
+  local function IdOf(item)
+    return type(item) == "number" and item or tonumber(tostring(item):match("item:(%d+)"))
+  end
+  if opts.items then
+    items = { data = opts.items, cached = {}, pending = {}, requests = {}, tips = 0 }
+    function items.Ask(id)
+      if not id or items.cached[id] or items.pending[id] then return end -- one query in flight per item
+      items.requests[id] = (items.requests[id] or 0) + 1
+      items.pending[id] = true
+      timers[#timers + 1] = function()
+        items.pending[id] = nil
+        local ok = items.data[id] ~= nil
+        if ok then items.cached[id] = true end
+        FireEvent("GET_ITEM_INFO_RECEIVED", id, ok)
+      end
+    end
+    function items.Prime(id) if items.data[id] then items.cached[id] = true end end
+    function items.Requests()
+      local n = 0
+      for _, count in pairs(items.requests) do n = n + count end
+      return n
+    end
+  end
 
   -- any other widget method: does nothing, but while calls.texts is a list every text handed to a
   -- widget is noted there (AddMessage, AddLine, SetTitle ...)
@@ -151,7 +186,10 @@ return function(T, opts)
         return true
       end)
       rawset(actor, "Undress", function() log.undress = log.undress + 1 end)
-      rawset(actor, "TryOn", function(_, item) log.tryOn[#log.tryOn + 1] = item end)
+      rawset(actor, "TryOn", function(_, item)
+        log.tryOn[#log.tryOn + 1] = item
+        if items then items.Ask(IdOf(item)) end
+      end)
       rawset(frame, "SetAlpha", function(self, a) rawset(self, "_alpha", a) end)
       rawset(frame, "GetAlpha", function(self) return rawget(self, "_alpha") or 1 end)
       rawset(frame, "EnableMouse", function(self, on) rawset(self, "_mouse", on and true or false) end)
@@ -233,6 +271,60 @@ return function(T, opts)
     return "Alchemie", false, nil, 120, 0, 0, 150
   end
 
+  if items then
+    local function Info(item)
+      local id = IdOf(item)
+      local it = id and items.data[id]
+      if not (it and items.cached[id]) then
+        items.Ask(id)
+        return nil
+      end
+      return it.name, "item:" .. id, it.quality or 2, it.level, it.reqLevel or 1, "Rüstung", "Leder", 1, it.equipLoc, 134, 1,
+        it.classID or 4, it.subclassID or 2, it.bind or 2
+    end
+    local function Tip(id, enchant)
+      items.tips = items.tips + 1
+      local it = id and items.data[id]
+      if not (it and items.cached[id]) then
+        items.Ask(id)
+        return { lines = {} }
+      end
+      local lines = {}
+      for i, text in ipairs(it.tip or { it.name }) do lines[i] = { leftText = text } end
+      if enchant then lines[#lines + 1] = { leftText = "+5 Ausdauer" } end
+      return { lines = lines }
+    end
+    env.GetItemInfo = Info
+    env.C_Item = {
+      GetItemInfo = Info,
+      RequestLoadItemDataByID = function(id) items.Ask(id) end,
+      IsItemDataCachedByID = not opts.noCachedCheck and function(id) return items.cached[id] == true end or nil,
+      GetItemStats = function(link)
+        local id = IdOf(link)
+        local it = id and items.data[id]
+        if not (it and items.cached[id]) then
+          items.Ask(id)
+          return nil
+        end
+        local copy = {}
+        for k, v in pairs(it.stats or {}) do copy[k] = v end
+        return copy
+      end,
+      GetItemInfoInstant = function(item)
+        local id = IdOf(item)
+        local it = id and items.data[id]
+        if it then return id, "Rüstung", "Leder", it.equipLoc end
+      end,
+    }
+    env.C_TooltipInfo = {
+      GetItemByID = function(id) return Tip(id) end,
+      GetHyperlink = function(link)
+        local id, enchant = tostring(link):match("item:(%d+):?(%d*)")
+        return Tip(tonumber(id), enchant ~= "" and enchant ~= "0")
+      end,
+    }
+  end
+
   setmetatable(env, { __index = _G })
   env._G = env
 
@@ -253,6 +345,7 @@ return function(T, opts)
       if handler then handler(frame, event, ...) end
     end
   end
+  FireEvent = Fire
 
   local function RunTimers(rounds)
     for _ = 1, rounds or 5 do
@@ -262,5 +355,6 @@ return function(T, opts)
     end
   end
 
-  return { env = env, ns = ns, errors = errors, Fire = Fire, RunTimers = RunTimers, SECRET = SECRET, calls = calls }
+  return { env = env, ns = ns, errors = errors, Fire = Fire, RunTimers = RunTimers, SECRET = SECRET, calls = calls,
+    items = items }
 end

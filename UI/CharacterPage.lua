@@ -366,14 +366,15 @@ local function ItemIcon(itemID)
   return get and ns.Try(get, itemID) or nil
 end
 
--- Name of a stored item (with its suffix) once the client has its info, else nil
+-- Name of a stored item (with its suffix) once the client has its info, else nil. The item info first:
+-- it asks the game once and reads nothing while the item loads (the page redraws on GEAR_INFO);
+-- GetItemInfo of an item the client lacks would ask the server again on every render.
 local function ItemName(item)
+  local info = ns.GameGear.ItemInfo(item.id)
+  if not info then return nil end
   local getInfo = rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
   local name = getInfo and ns.Try(getInfo, ns.Gear.ItemString(item))
-  if type(name) ~= "string" or ns.IsSecret(name) then
-    ns.GameGear.ItemInfo(item.id) -- asks the game to load it; the page redraws on GEAR_INFO
-    return nil
-  end
+  if type(name) ~= "string" or ns.IsSecret(name) then return nil end
   return name
 end
 

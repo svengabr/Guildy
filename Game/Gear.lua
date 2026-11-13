@@ -11,10 +11,18 @@ local G, U = ns.Gear, ns.Upgrades
 local GameGear = {}
 ns.GameGear = GameGear
 
--- What the upgrades are worked out from goes up when it changes: books (professions, the craft map,
--- items the game does not have) and item infos loaded
-GameGear.books, GameGear.info = 0, 0
-local function BooksChanged() GameGear.books = GameGear.books + 1 end
+-- What the upgrades are worked out from goes up when it changes: books (any PROFS: professions, ranks,
+-- cooldowns, the craft map; a member's upgrades are worked out anew), the craft map alone (crafts) and
+-- item infos loaded (info). The index of crafted pieces does not follow books: PROFS comes for
+-- cooldowns and notes too (Game/Cooldowns.lua, Game/Sync.lua, Game/Roster.lua), so it only marks the index
+-- to be checked; it is built again when the recipe lists really differ (CraftIndex).
+-- gone: items the game said it does not have (no redraw for those, but the index and the upgrades drop them)
+GameGear.books, GameGear.info, GameGear.crafts, GameGear.gone = 0, 0, 0, 0
+local indexStale = true
+local function BooksChanged()
+  GameGear.books = GameGear.books + 1
+  indexStale = true
+end
 ns.On("PROFS", BooksChanged)
 ns.On("GEAR_INFO", function() GameGear.info = GameGear.info + 1 end)
 
@@ -139,37 +147,79 @@ function GameGear.Store(request, links, unit, ids)
   end
 end
 
+-- Items and the game ---------------------------------------------------------------------------------
+-- Every call that reads an item the client does not have makes it ask the server (GetItemInfo,
+-- GetItemStats, a tooltip, TryOn), and every answer is a GET_ITEM_INFO_RECEIVED. Found in game
+-- 2026-11-13: 765 of them in 30 s, because each render read the items still loading, and the ones the
+-- game does not have (bnet-sync knows items Forever lacks) never stopped loading. So each item has a
+-- state for the session and is asked for at most once:
+--   nil       never looked at
+--   "wait"    asked, no answer yet: nothing reads it (unless C_Item.IsItemDataCachedByID says it is in)
+--   "answered" the game said it loaded it: read once more; still nothing then means "gone"
+--   "gone"    the game has no such item (success false): skipped everywhere, never asked again
+-- A loaded item's info, stats and requirements are cached at once, so the next render reads only those.
+local itemState = {}
 local requestedItems = {} -- itemID -> true: asked from the game this session (never again)
-local unknownItems = {}   -- itemID -> true: the game answered it has no such item
+
+local function IsItemId(id) return type(id) == "number" and id > 0 end
 
 -- Asks the game to load itemID, once per session
 local function Request(itemID)
+  if not IsItemId(itemID) or requestedItems[itemID] then return end
+  requestedItems[itemID] = true
   local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
-  if request and itemID and not requestedItems[itemID] then
-    requestedItems[itemID] = true
-    ns.Try(request, itemID)
-  end
+  if request then ns.Try(request, itemID) end
 end
+
+-- true / false when the client says whether it has itemID's data, nil when it cannot say
+local function IsCached(itemID)
+  local cached = C_Item and rawget(C_Item, "IsItemDataCachedByID")
+  if not cached then return nil end
+  local value = ns.Try(cached, itemID)
+  if ns.IsSecret(value) then return nil end
+  return value == true
+end
+
+-- Whether the game said it has no item itemID (asked once, never again this session)
+function GameGear.IsGone(itemID) return itemState[itemID] == "gone" end
 
 local infoCache = {} -- itemID -> item info of a loaded item, for the session (it does not change)
 
--- Upgrades' item info shape for itemID, or nil (then the game is asked to load it, once per session).
--- The same table on every call once loaded: callers must not change it.
+-- Upgrades' item info shape for itemID; nil while it loads (asked once per session), nil, true when the
+-- game has no such item. The same table on every call once loaded: callers must not change it.
 function GameGear.ItemInfo(itemID)
   local known = infoCache[itemID]
   if known then return known end
+  if not IsItemId(itemID) then return nil end
+  local state = itemState[itemID]
+  if state == "gone" then return nil, true end
+  local cached = IsCached(itemID)
+  if (cached == false and state ~= "answered") or (state == "wait" and cached == nil) then
+    -- not in the client: asking (once) is all; GetItemInfo would make it ask the server once more
+    if not state then itemState[itemID] = "wait" end
+    Request(itemID)
+    return nil
+  end
   local getInfo = ItemInfoFunction()
   local name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind
   if getInfo then
     name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind = ns.Try(getInfo, itemID)
   end
-  if name == nil or ns.AnySecret(name, quality, level, reqLevel, equipLoc, classID, subclassID, bind) or type(level) ~= "number" then
-    Request(itemID)
+  if ns.AnySecret(name, quality, level, reqLevel, equipLoc, classID, subclassID, bind) then return nil end
+  if type(name) ~= "string" or type(level) ~= "number" or type(equipLoc) ~= "string" then
+    if state == "answered" or cached == true then
+      -- the game says it has the item, and still gives nothing to work with: it never will
+      itemState[itemID] = "gone"
+      return nil, true
+    end
+    itemState[itemID] = "wait"
+    Request(itemID) -- in flight already when GetItemInfo above asked: the client asks the server once
     return nil
   end
-  local info = { name = name, equipLoc = equipLoc, level = level, reqLevel = reqLevel or 0, classID = classID,
-    subclassID = subclassID, bind = bind, quality = quality }
-  if itemID ~= nil then infoCache[itemID] = info end
+  local info = { name = name, equipLoc = equipLoc, level = level, reqLevel = type(reqLevel) == "number" and reqLevel or 0,
+    classID = classID, subclassID = subclassID, bind = bind, quality = quality }
+  infoCache[itemID] = info
+  itemState[itemID] = nil
   return info
 end
 
@@ -183,12 +233,15 @@ end
 
 -- The stats of itemID or of a stored worn item (its suffix counts) as GetItemStats gives them
 -- ({ ITEM_MOD_*_SHORT = n, RESISTANCE0_NAME = armor }); nil while the item is not loaded (asked once)
--- or anything about it is secret
+-- or anything about it is secret, nil, true when the game has no such item
 function GameGear.ItemStats(item)
   local isItem = type(item) == "table"
   local fast = (isItem and statsByItem or statsByID)[item]
   if fast then return fast end
   local id = isItem and item.id or item
+  -- nothing below reads an item the client does not have (that would ask the server again)
+  local info, gone = GameGear.ItemInfo(id)
+  if not info then return nil, gone end
   local key = isItem and G.ItemString(item) or ("item:" .. tostring(item))
   local known = statsCache[key]
   if known then
@@ -198,10 +251,7 @@ function GameGear.ItemStats(item)
   local getInfo = ItemInfoFunction()
   local name, link
   if getInfo then name, link = ns.Try(getInfo, key) end
-  if name == nil or ns.AnySecret(name, link) then
-    Request(id)
-    return nil
-  end
+  if ns.AnySecret(name, link) then return nil end
   local getStats = StatsFunction()
   local raw = getStats and ns.Try(getStats, type(link) == "string" and link or key)
   if ns.IsSecret(raw) then return nil end
@@ -224,34 +274,46 @@ local function Formats()
     reputation = rawget(_G, "ITEM_REQ_REPUTATION") }
 end
 
--- The text lines of itemID's tooltip; nil when there are none yet or any of them is secret
+-- The text lines of itemID's tooltip; nil when there are none yet, nil, true when any of them is secret
 local function TooltipLines(itemID)
   local byID = C_TooltipInfo and rawget(C_TooltipInfo, "GetItemByID")
   if byID then
     local data = ns.Try(byID, itemID)
-    if ns.IsSecret(data) then return nil end
+    if ns.IsSecret(data) then return nil, true end
     if type(data) == "table" and type(data.lines) == "table" then
       local lines = {}
       for _, line in ipairs(data.lines) do
         local text = type(line) == "table" and line.leftText or nil
-        if ns.IsSecret(text) then return nil end
+        if ns.IsSecret(text) then return nil, true end
         if type(text) == "string" then lines[#lines + 1] = text end
       end
       return #lines > 0 and lines or nil
     end
   end
   local lines, _, secret = ns.GearProbe.TooltipLines("item:" .. itemID)
-  if secret or #lines == 0 then return nil end
+  if secret then return nil, true end
+  if #lines == 0 then return nil end
   return lines
 end
 
+local TOOLTIP_TRIES = 3 -- empty tooltips of a loaded item before it counts as one the game never gives
+local emptyTips = {}    -- itemID -> empty tooltips read of it (loaded), this session
+
 -- What itemID needs (Upgrades.ParseRequirements: profession and rank, classes, reputation), read from
--- its tooltip once per session; nil while the tooltip is empty or secret (then nothing is kept)
+-- its tooltip once per session; nil while the item loads or the tooltip is secret (then nothing is kept),
+-- nil, true when the game has no such item or its tooltip stayed empty TOOLTIP_TRIES times. The tooltip
+-- is read only once the item is loaded: a tooltip of an item the client lacks asks the server again.
 function GameGear.ItemRequirements(itemID)
   local known = requirementsCache[itemID]
   if known then return known end
-  local lines = TooltipLines(itemID)
-  if not lines then return nil end
+  local info, gone = GameGear.ItemInfo(itemID)
+  if not info then return nil, gone end
+  if (emptyTips[itemID] or 0) >= TOOLTIP_TRIES then return nil, true end
+  local lines, secret = TooltipLines(itemID)
+  if not lines then
+    if not secret then emptyTips[itemID] = (emptyTips[itemID] or 0) + 1 end
+    return nil
+  end
   local req = U.ParseRequirements(lines, Formats())
   requirementsCache[itemID] = req
   return req
@@ -264,6 +326,7 @@ function GameGear.StatName(key)
 end
 
 local GAME = { stats = GameGear.ItemStats, requirements = GameGear.ItemRequirements }
+GameGear.GAME = GAME
 
 -- What recipes make -----------------------------------------------------------------------------------
 
@@ -292,7 +355,10 @@ function GameGear.LearnCraft(spellID, itemOrLink)
   end
   if equippable == nil then return false end
   local learned = U.Learn(map, spellID, itemID)
-  if learned then BooksChanged() end
+  if learned then
+    GameGear.crafts = GameGear.crafts + 1
+    BooksChanged()
+  end
   return learned
 end
 
@@ -473,7 +539,8 @@ function GameGear.DressStored(actor, m)
   pcall(actor.Undress, actor)
   for slot = 1, 19 do
     local item = rec.items and rec.items[slot]
-    if item then pcall(actor.TryOn, actor, G.ItemString(item)) end
+    -- an item the game does not have would only be asked for again
+    if item and not GameGear.IsGone(item.id) then pcall(actor.TryOn, actor, G.ItemString(item)) end
   end
 end
 
@@ -496,46 +563,109 @@ end
 
 local upgradesCache = {} -- member key -> { the inputs it was worked out from, rows, state, missing }
 
--- The index of crafted pieces (Upgrades.Index), built once per version of the books, the craft map and the
--- member list, not per member; items loading later are taken in when item infos come in
-local index = { books = -1 }
+-- The index of crafted pieces (Upgrades.Index), built once per guild, craft map (its table and
+-- GameGear.crafts) and set of recipe lists of the members, not per member and not per render. PROFS and a
+-- changed member list only mark it stale; when next needed the recipe lists are compared with the ones it
+-- was built from (by table, else by content: a relayed book is a new table with the same recipes) and it
+-- is built again only when they differ, at most once for a burst. Items loading later are taken in, and
+-- items the game does not have dropped, when item infos come in.
+local index = {}
+
+local function RecipesOf(prof)
+  return type(prof) == "table" and type(prof.recipes) == "table" and prof.recipes or nil
+end
+
+local function SameList(a, b)
+  if #a ~= #b then return false end
+  for i = 1, #a do
+    if a[i] ~= b[i] then return false end
+  end
+  return true
+end
+
+-- Whether the members' recipe lists are the ones of books ({ [key] = { [skillLine] = recipes } }, count
+-- lists in all); a list equal by content is taken over, so the next check is by table alone
+local function SameBooks(books, count, guild)
+  local seen = 0
+  for _, other in ipairs(ns.Roster.Members()) do
+    local record = guild and guild.members[other.key]
+    if type(record) == "table" and type(record.profs) == "table" then
+      for skillLine, prof in pairs(record.profs) do
+        local recipes = RecipesOf(prof)
+        if recipes then
+          seen = seen + 1
+          local lines = books[other.key]
+          local was = lines and lines[skillLine]
+          if not was then return false end
+          if was ~= recipes then
+            if not SameList(was, recipes) then return false end
+            lines[skillLine] = recipes
+          end
+        end
+      end
+    end
+  end
+  return seen == count
+end
 
 local function CraftIndex(guild, all)
   local c = index
-  if c.books == GameGear.books and c.all == all and c.guild == guild and c.roster == ns.Roster.version then
-    if #c.index.pending > 0 and c.info ~= GameGear.info then
-      c.info = GameGear.info
-      U.Resolve(c.index, GameGear.ItemInfo)
+  if c.index and c.guild == guild and c.all == all and c.crafts == GameGear.crafts then
+    local fresh = true
+    if indexStale or c.roster ~= ns.Roster.version then
+      fresh = SameBooks(c.books, c.count, guild)
+      if fresh then
+        indexStale, c.roster = false, ns.Roster.version
+      end
     end
-    return c.index
+    if fresh then
+      if #c.index.pending > 0 and (c.info ~= GameGear.info or c.gone ~= GameGear.gone) then
+        c.info, c.gone = GameGear.info, GameGear.gone
+        U.Resolve(c.index, GameGear.ItemInfo)
+      end
+      return c.index
+    end
   end
   local map = all or {}
   -- crafts whose item the game said it does not have are left out (bnet-sync may know items this
   -- client has not)
   local craft = setmetatable({}, { __index = function(_, spellID)
     local itemID = map[spellID]
-    if itemID and not unknownItems[itemID] then return itemID end
+    if itemID and itemState[itemID] ~= "gone" then return itemID end
   end })
-  local makers = {}
+  local makers, books, count = {}, {}, 0
   for _, other in ipairs(ns.Roster.Members()) do
     local record = guild and guild.members[other.key]
     if type(record) == "table" and type(record.profs) == "table" then
-      local profs = {}
+      local profs, lines = {}, {}
       for skillLine, prof in pairs(record.profs) do
-        if type(prof) == "table" and type(prof.recipes) == "table" then profs[skillLine] = prof end
+        local recipes = RecipesOf(prof)
+        if recipes then
+          profs[skillLine], lines[skillLine] = prof, recipes
+          count = count + 1
+        end
       end
       if next(profs) then
+        books[other.key] = lines
         makers[#makers + 1] = { key = other.key, online = other.online and true or false,
           offline = other.online and 0 or (type(other.daysOffline) == "number" and other.daysOffline * 24 or math.huge),
           profs = profs }
       end
     end
   end
-  local built = U.Index(makers, craft, GameGear.ItemInfo)
+  local built = ns.Perf.Call("upgrades:", "index build", U.Index, makers, craft, GameGear.ItemInfo)
   if #built.unknown > 0 then GameGear.ResolveCrafts(built.unknown) end
   built.unknown = nil
-  index = { books = GameGear.books, all = all, guild = guild, roster = ns.Roster.version, info = GameGear.info, index = built }
+  index = { guild = guild, all = all, crafts = GameGear.crafts, roster = ns.Roster.version, books = books, count = count,
+    info = GameGear.info, gone = GameGear.gone, index = built }
+  indexStale = false
   return built
+end
+
+-- The index as the character page would use it now (the warm-up, tests)
+function GameGear.CraftIndexNow()
+  local db = ns.DB()
+  return CraftIndex(ns.GuildData(), db and type(db.craftItems) == "table" and db.craftItems or nil)
 end
 
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
@@ -549,14 +679,15 @@ function GameGear.UpgradesFor(m)
   local all = db and type(db.craftItems) == "table" and db.craftItems or nil
   local c = upgradesCache[m.key]
   if c and c.rec == rec and c.ts == (rec and rec.ts) and c.level == m.level and c.books == GameGear.books
-    and c.all == all and c.guild == guild and c.roster == ns.Roster.version and (#c.missing == 0 or c.info == GameGear.info) then
+    and c.all == all and c.guild == guild and c.roster == ns.Roster.version
+    and (#c.missing == 0 or (c.info == GameGear.info and c.gone == GameGear.gone)) then
     Refresh(c.rows)
     return c.rows, c.state, c.missing
   end
   local rows, state, missing = GameGear.WorkOutUpgrades(m)
   Refresh(rows)
   upgradesCache[m.key] = { rec = rec, ts = rec and rec.ts, level = m.level, books = GameGear.books, all = all, guild = guild,
-    roster = ns.Roster.version, info = GameGear.info, rows = rows, state = state, missing = missing }
+    roster = ns.Roster.version, info = GameGear.info, gone = GameGear.gone, rows = rows, state = state, missing = missing }
   return rows, state, missing
 end
 
@@ -569,11 +700,89 @@ function GameGear.WorkOutUpgrades(m)
   lap("upgrades:", "index")
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
   if not U.HasMakers(built, m.key) or type(rec) ~= "table" then return {}, "nodata", {} end
+  -- the items still loading were asked for by GameGear.ItemInfo already, once
   local rows, missing = U.ForIndex(GameGear.Who(m), rec, built, GameGear.ItemInfo, GAME)
-  for _, itemID in ipairs(missing) do Request(itemID) end
   lap("upgrades:", "scoring")
   return rows, #rows > 0 and "rows" or "none", missing
 end
+
+-- The warm-up ---------------------------------------------------------------------------------------
+-- After the login (Core/Init.lua) the guild's crafted pieces and the stored gear are walked in small steps,
+-- so item infos, stats, requirements and the index are in before the character page is opened and its
+-- first render reads only caches. WARM_BATCH items per step, a step every WARM_STEP seconds; in combat it
+-- waits WARM_COMBAT seconds and tries again. Items still loading are walked once more after a pause, at
+-- most WARM_PASSES times in all; items the game does not have are skipped. It stops when done.
+GameGear.WARM_DELAY, GameGear.WARM_BATCH, GameGear.WARM_STEP, GameGear.WARM_COMBAT = 20, 5, 0.1, 2
+local WARM_PASSES, WARM_PAUSE = 3, 1
+
+local warm -- { list, pos, later, pass } while running; false when done
+
+local function InCombat()
+  local combat = ns.Try(rawget(_G, "InCombatLockdown"))
+  return combat == true
+end
+
+-- Every item of the guild's crafted pieces (the index) and of the stored gear: { itemID | worn item table }
+local function WarmList()
+  local list, seen = {}, {}
+  local built = GameGear.CraftIndexNow()
+  for _, entries in pairs(built.byLoc) do
+    for _, entry in ipairs(entries) do list[#list + 1] = entry.itemID end
+  end
+  for _, entry in ipairs(built.pending) do list[#list + 1] = entry.itemID end
+  local guild = ns.GuildData()
+  for _, rec in pairs(guild and type(guild.gear) == "table" and guild.gear or {}) do
+    for _, item in pairs(type(rec) == "table" and type(rec.items) == "table" and rec.items or {}) do
+      if type(item) == "table" and IsItemId(item.id) and not seen[item] then
+        seen[item] = true
+        list[#list + 1] = item
+      end
+    end
+  end
+  return list
+end
+
+-- Reads one item into the caches; false while it still loads
+local function WarmOne(entry)
+  local isItem = type(entry) == "table"
+  local info, gone = GameGear.ItemInfo(isItem and entry.id or entry)
+  if not info then return gone == true end
+  GameGear.ItemStats(entry)
+  if not isItem then GameGear.ItemRequirements(entry) end
+  return true
+end
+
+local WarmStep
+local function WarmLater(seconds) C_Timer.After(seconds, function() ns.SafeCall(WarmStep) end) end
+
+function WarmStep()
+  if not warm then return end
+  if InCombat() then return WarmLater(GameGear.WARM_COMBAT) end
+  if not warm.list then warm.list = WarmList() end
+  for _ = 1, GameGear.WARM_BATCH do
+    local entry = warm.list[warm.pos]
+    if entry == nil then break end
+    warm.pos = warm.pos + 1
+    if not WarmOne(entry) then warm.later[#warm.later + 1] = entry end
+  end
+  if warm.pos <= #warm.list then return WarmLater(GameGear.WARM_STEP) end
+  if #warm.later > 0 and warm.pass < WARM_PASSES then
+    warm.list, warm.pos, warm.later, warm.pass = warm.later, 1, {}, warm.pass + 1
+    return WarmLater(WARM_PAUSE)
+  end
+  warm = false
+  GameGear.CraftIndexNow() -- takes in what loaded on the way
+end
+
+-- Starts the warm-up (again, once a run is done)
+function GameGear.WarmUp()
+  if warm then return end
+  warm = { pos = 1, later = {}, pass = 1 }
+  WarmLater(0)
+end
+
+-- Whether a warm-up ran to its end
+function GameGear.WarmDone() return warm == false end
 
 -- Member m as Upgrades.For sees them: level, class (with the client's class names, for the class line
 -- of a tooltip) and the stored professions by their name in lower case, with the rank where known
@@ -610,6 +819,12 @@ function GameGear.EnchantText(itemID, enchantID)
   if names[enchantID] then return names[enchantID] end
   local misses = enchantMisses[enchantID]
   if misses and misses[itemID] then return nil end
+  -- a tooltip of an item the client lacks would ask the server again on every render
+  local info, gone = GameGear.ItemInfo(itemID)
+  if not info then
+    if gone then return nil end
+    return nil, true
+  end
   local with = ns.GearProbe.TooltipLines(("item:%d:%d"):format(itemID, enchantID))
   local without = ns.GearProbe.TooltipLines(("item:%d"):format(itemID))
   if #with == 0 or #without == 0 then return nil, true end -- the item is not loaded yet: asked again later
@@ -625,17 +840,21 @@ end
 
 -- Events ----------------------------------------------------------------------------------------------
 
--- GET_ITEM_INFO_RECEIVED: a failed load (no such item) redraws nothing and drops that item; together
--- with asking once per item this ends the GEAR_INFO -> render -> request loop
+-- GET_ITEM_INFO_RECEIVED: a failed load (no such item) marks that item gone for the session and redraws
+-- nothing (the index and the upgrades drop it when next asked, GameGear.gone); a good one lets an item
+-- that was loading be read once more, and the page hears it once per burst (GEAR_INFO). Together with
+-- asking once per item this ends the GEAR_INFO -> render -> request loop.
 function GameGear.OnItemInfo(itemID, success)
+  if not IsItemId(itemID) then return end
+  local state = itemState[itemID]
   if success == false then
-    if itemID and not unknownItems[itemID] then
-      unknownItems[itemID] = true
-      BooksChanged()
-    end
+    if state == "gone" then return end
+    itemState[itemID] = "gone"
+    if requestedItems[itemID] then GameGear.gone = GameGear.gone + 1 end
     return
   end
-  InfoChanged()
+  if state == "wait" then itemState[itemID] = "answered" end
+  InfoChanged() -- once per burst; the page draws only when it waits for an item
 end
 
 -- Login: what the script wrote into the craft map that cannot be worn goes

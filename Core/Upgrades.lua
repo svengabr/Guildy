@@ -246,19 +246,39 @@ function Upgrades.ParseRequirements(lines, formats)
   return req
 end
 
+-- The lower-case class names of member (member.classKeys, made once per member table)
+local function ClassKeys(member)
+  local keys = member.classKeys
+  if keys then return keys end
+  keys = {}
+  for name in pairs(member.classNames or {}) do keys[name:lower()] = true end
+  member.classKeys = keys
+  return keys
+end
+
 -- Whether member { classNames = { [name] = true }, profs = { [lower name] = rank | true } } meets req.
 -- A reputation cannot be checked for others: never met. A profession whose rank is not known counts.
+-- Lower-case names are kept on req and member, so checking many pieces builds no strings or tables.
 function Upgrades.Meets(req, member)
   if req.reputation then return false end
   if req.classes then
-    local names = {}
-    for name in pairs(member.classNames or {}) do names[name:lower()] = true end
+    local names, wanted = ClassKeys(member), req.classKeys
+    if not wanted then
+      wanted = {}
+      for i, name in ipairs(req.classes) do wanted[i] = name:lower() end
+      req.classKeys = wanted
+    end
     local ok = false
-    for _, name in ipairs(req.classes) do ok = ok or names[name:lower()] == true end
+    for _, name in ipairs(wanted) do ok = ok or names[name] == true end
     if not ok then return false end
   end
   if req.skill then
-    local have = (member.profs or {})[req.skill:lower()]
+    local key = req.skillKey
+    if not key then
+      key = req.skill:lower()
+      req.skillKey = key
+    end
+    local have = (member.profs or {})[key]
     if not have then return false end
     if type(have) == "number" and req.rank and have < req.rank then return false end
   end
@@ -282,16 +302,30 @@ local function NoRequirements() return {} end
 
 -- The index of crafted pieces -------------------------------------------------------------------------
 -- What the guild's books make, worked out once per version of the books (not per member):
---   { byLoc = { [equipLoc] = { entry } }, pending = { entry }, makerKeys = { [key] = true }, unknown = { spellID } }
+--   { byLoc = { [equipLoc] = { entry } }, pending = { entry }, makerKeys = { [key] = items }, unknown = { spellID } }
 --   entry = { itemID, info, makers = { { key, skillLine, online, offline } } }, a maker once per item
 -- byLoc holds only pieces that can ever be offered (a slot that is not left out, a level, not bind on
--- pickup); pending the items whose info is not loaded yet (Upgrades.Resolve takes them in later).
--- makerKeys: the makers with at least one recipe whose item is known; unknown: spell IDs without an item.
+-- pickup); pending the items whose info is not loaded yet (Upgrades.Resolve takes them in later). An item
+-- the game does not have (itemInfo's second result true) is in neither.
+-- makerKeys: the makers with at least one recipe whose item is known (and not gone), with how many such
+-- items; unknown: spell IDs without an item.
 
--- Puts entry into byLoc when its info is known now; true when it is out of pending
+-- Takes entry's makers off makerKeys (the game has no such item)
+local function Drop(index, entry)
+  for _, m in ipairs(entry.makers) do
+    local n = (index.makerKeys[m.key] or 1) - 1
+    index.makerKeys[m.key] = n > 0 and n or nil
+  end
+end
+
+-- Puts entry into byLoc when its info is known now; true when it is out of pending (also when itemInfo
+-- says, by a second result true, that the game has no such item: it is dropped with its makers)
 local function Place(index, entry, itemInfo)
-  local info = itemInfo(entry.itemID)
-  if not info then return false end
+  local info, gone = itemInfo(entry.itemID)
+  if not info then
+    if gone == true then Drop(index, entry) end
+    return gone == true
+  end
   entry.info = info
   local slots = Upgrades.SLOTS_OF[info.equipLoc]
   if slots and not Upgrades.LEFT_OUT[slots[1]] and type(info.level) == "number" and info.bind ~= 1 then
@@ -316,7 +350,6 @@ function Upgrades.Index(makers, craft, itemInfo)
       for _, spellID in ipairs(type(prof) == "table" and type(prof.recipes) == "table" and prof.recipes or {}) do
         local itemID = craft[spellID]
         if itemID then
-          index.makerKeys[maker.key] = true
           local entry = entries[itemID]
           if not entry then
             entry = { itemID = itemID, makers = {} }
@@ -328,6 +361,7 @@ function Upgrades.Index(makers, craft, itemInfo)
           if not known then
             entry.makers[#entry.makers + 1] = { key = maker.key, skillLine = skillLine,
               online = maker.online and true or false, offline = maker.online and 0 or (maker.offline or 0) }
+            index.makerKeys[maker.key] = (index.makerKeys[maker.key] or 0) + 1
           end
         else
           index.unknown[#index.unknown + 1] = spellID
@@ -389,7 +423,8 @@ end
 
 -- Better crafted pieces for member { key, level, classFile, classNames, profs } wearing gearRec (Core/Gear.lua
 -- record) out of index (Upgrades.Index), itemInfo as there, game { stats(itemID | worn item) -> stat table |
--- nil, requirements(itemID) -> req | nil } (nil: not loaded).
+-- nil, requirements(itemID) -> req | nil } (nil: not loaded; nil, true: the game never gives it, the piece
+-- is skipped and not missing).
 -- An offer counts when it fits the slot, level, armour and binding, its requirements are met and it beats
 -- the worn piece's score by MIN_RATIO and MIN_SCORE; with a weak profile (fewer than STRONG_ITEMS pieces with
 -- stats) instead when its top primary stat is the worn piece's (empty slot: the profile's) and its level is
@@ -416,11 +451,11 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
     local info = itemInfo(item.id)
     if info and info.classID == ARMOR_CLASS and info.subclassID then worn[info.subclassID] = true end
     if IsArmour(info) then armour[#armour + 1] = info.subclassID end
-    local stats = game.stats(item)
+    local stats, gone = game.stats(item)
     if stats then
       wornStats[slot] = stats
       list[#list + 1] = stats
-    else
+    elseif not gone then
       Miss(item.id)
     end
   end
@@ -458,8 +493,10 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
         if MadeByOther(entry, memberKey) and (info.reqLevel or 0) <= memberLevel
           and Upgrades.Wearable(member.classFile, member.level, info, worn)
           and not (prefer and IsArmour(info) and info.subclassID < prefer) then
-          local stats, req = game.stats(itemID), requirements(itemID)
-          if not stats or not req then
+          local stats, statsGone = game.stats(itemID)
+          local req, reqGone = requirements(itemID)
+          if statsGone or reqGone then -- the game never gives it: skipped, nothing asked
+          elseif not stats or not req then
             Miss(itemID)
           elseif Upgrades.Meets(req, member) then
             local score, gain

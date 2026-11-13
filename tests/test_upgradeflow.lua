@@ -21,6 +21,7 @@ local function World()
     setup = function(env)
       env.C_Item = {
         RequestLoadItemDataByID = function(id) w.requested[#w.requested + 1] = id end,
+        IsItemDataCachedByID = function(id) return w.INFO[id] ~= nil and not w.hidden[id] end,
         GetItemStats = function(link)
           local stats = w.STATS[IdOf(link)]
           if not stats then return nil end
@@ -176,6 +177,10 @@ T.describe("Upgrades from the guild in the game", function()
     w.ns.Fire("GEAR_INFO")
     w.ns.GameGear.UpgradesFor(w.ns.Roster.Find("Ran Fred"))
     T.eq(builds, 1)
+    w.ns.Fire("PROFS") -- cooldowns, a note: no recipe list changed
+    w.ns.GameGear.UpgradesFor(w.ns.Roster.Find("Ran Fred"))
+    T.eq(builds, 1)
+    w.ns.GuildData().members["makira farron"].profs[197].recipes = { 99700, 99701 }
     w.ns.Fire("PROFS")
     w.ns.GameGear.UpgradesFor(w.ns.Roster.Find("Ran Fred"))
     T.eq(builds, 2)

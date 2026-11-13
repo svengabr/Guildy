@@ -2161,7 +2161,7 @@ T.describe("Gear", function()
     env.GetInventoryItemLink = function(u, slot) if u == unit and slots[slot] then return slots[slot] end end
     env.GetInventoryItemID = function(u, slot) if u == unit and slots[slot] then return ns.Gear.ParseLink(slots[slot]) end end
     env.GetItemInfo = function(link)
-      local id = ns.Gear.ParseLink(link)
+      local id = type(link) == "number" and link or ns.Gear.ParseLink(link)
       local it = id and ITEMS[id]
       if it then return "Item " .. id, link, it[1], it[2], 1, "Rüstung", "Stoff", 1, it[3], 134, 1, 4, 1, 2 end
     end
@@ -2294,6 +2294,7 @@ T.describe("Gear", function()
   end)
 
   T.it("makes the enchant text from the tooltip", function()
+    local restore = GearStubs("player", OWN) -- the item is loaded: its tooltip is read
     env.C_TooltipInfo = { GetHyperlink = function(link)
       if link:find("^item:1005:1887") then return { lines = { { leftText = "Item" }, { leftText = "|cff00ff00+4 Werte|r" }, { leftText = "Stoff" } } } end
       return { lines = { { leftText = "Item" }, { leftText = "Stoff" } } }
@@ -2304,6 +2305,7 @@ T.describe("Gear", function()
     T.eq(ns.GameGear.EnchantText(1005, 1887), "+4 Werte") -- from the cache
     T.eq(ns.GameGear.EnchantText(1005, 9999), nil)
     env.SlashCmdList.GUILDY("gearshow Au Tsch")
+    restore()
     T.eq(errors, {})
   end)
 

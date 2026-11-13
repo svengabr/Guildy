@@ -54,6 +54,8 @@ local HANDLERS = {
     ns.GameStats.Start()
     ns.GameDing.Start()
     C_Timer.After(9, function() ns.SafeCall(ns.GameGear.Start) end)
+    -- items, stats and the index of the guild upgrades in before the character page is opened
+    C_Timer.After(ns.GameGear.WARM_DELAY, function() ns.SafeCall(ns.GameGear.WarmUp) end)
     ns.UI.ResumeShots() -- /guildy shots all goes on after its reload
   end,
   PLAYER_LOGOUT = function()
