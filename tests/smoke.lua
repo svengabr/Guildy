@@ -2326,3 +2326,87 @@ T.describe("Gear", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Character page", function()
+  local L = ns.L
+  local NAMES = { [2001] = "Visier des Zorns", [2005] = "Plattenrüstung", [2017] = "Buch der Weisheit" }
+  local LOCS = { [2001] = "INVTYPE_HEAD", [2005] = "INVTYPE_CHEST", [2017] = "INVTYPE_HOLDABLE" }
+  local function Stubs(loaded)
+    local saved = { env.GetItemInfo, env.GetItemInfoInstant, env.C_Item }
+    env.C_Item = nil
+    env.GetItemInfo = function(link)
+      if not loaded() then return nil end
+      local id = type(link) == "number" and link or ns.Gear.ParseLink(link)
+      if NAMES[id] then return NAMES[id], link, 2, 40, 30, "Rüstung", "Platte", 1, LOCS[id], 134, 1, 4, 4, 2 end
+    end
+    env.GetItemInfoInstant = function(id) if LOCS[id] then return id, "Rüstung", "Platte", LOCS[id] end end
+    return function() env.GetItemInfo, env.GetItemInfoInstant, env.C_Item = unpack(saved, 1, 3) end
+  end
+  local function Row(page, slot)
+    for _, row in ipairs(page.Gear.Rows) do if row.slot == slot then return row end end
+  end
+  local function Item(id, l, q, e) return { id = id, e = e or 0, s = 0, l = l, q = q or 2 } end
+
+  T.it("shows the gear on the character page", function()
+    local restore = Stubs(function() return true end)
+    env.CommunitiesFrame:Show()
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now() - 3 * 86400, src = "seen", race = 7, sex = 3,
+      items = { [1] = Item(2001, 42, 3), [5] = Item(2005, 40), [17] = Item(2017, 35) } }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local page = ns.UI.MemberPage()
+    T.eq(#page.Gear.Rows, 17)
+    T.eq(Row(page, 5).Enchant:GetText(), L.NO_ENCHANT)
+    T.truthy(Row(page, 17).Enchant:GetText() ~= L.NO_ENCHANT, "a held book needs no enchantment")
+    T.truthy(Row(page, 1).Enchant:GetText() ~= L.NO_ENCHANT, "the head is never flagged")
+    T.eq(Row(page, 1).Name:GetText():find("Visier des Zorns", 1, true) ~= nil, true)
+    T.eq(Row(page, 5).Level:GetText(), "40")
+    T.truthy(page.Gear.Note:GetText():find("39", 1, true), "header names the average")
+    T.truthy(page.Gear.Note:GetText():find(L.GEAR_UNENCHANTED:format(1), 1, true), "header counts the chest")
+    T.truthy(page.Gear.Foot:GetText():find("3", 1, true), "how old the reading is")
+    restore()
+    T.eq(errors, {})
+  end)
+
+  T.it("shows an empty gear list as finished", function()
+    ns.GuildData().gear["makira farron"] = nil
+    ns.UI.ShowMember(ns.Roster.Find("Makira Farron"))
+    local page = ns.UI.MemberPage()
+    for _, row in ipairs(page.Gear.Rows) do T.eq(row.Level:GetText(), "–") end
+    T.truthy(page.Gear.Foot:GetText():find("Makira Farron", 1, true), "the unseen line names the member")
+    T.eq(errors, {})
+  end)
+
+  T.it("draws before item info is loaded", function()
+    local loaded = false
+    local restore = Stubs(function() return loaded end)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local page = ns.UI.MemberPage()
+    T.eq(Row(page, 5).Name:GetText():find("…", 1, true) ~= nil, true)
+    T.eq(Row(page, 5).Level:GetText(), "40") -- from the stored level
+    loaded = true
+    Fire("GET_ITEM_INFO_RECEIVED", 2005, true)
+    RunTimers()
+    T.eq(Row(page, 5).Name:GetText():find("Plattenrüstung", 1, true) ~= nil, true)
+    restore()
+    T.eq(errors, {})
+  end)
+
+  T.it("has no dungeon collection any more", function()
+    T.eq(rawget(ns.UI.MemberPage(), "Dungeons"), nil)
+  end)
+
+  T.it("fits the smallest window", function()
+    local page = ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 560 - 42) -- the content area of the smallest window (UI/Main.lua)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local shown = 0
+    for _, row in ipairs(page.Gear.Rows) do
+      if row:IsShown() then shown = shown + 1 end
+      T.truthy(row:GetHeight() >= 18, "row height " .. row:GetHeight())
+    end
+    T.eq(shown, 17)
+    T.truthy(ns.Gear.HEAD + 17 * page.Gear.Rows[1]:GetHeight() <= page.Gear:GetHeight(), "all rows inside the box")
+    page:SetSize(100, 100)
+    T.eq(errors, {})
+  end)
+end)

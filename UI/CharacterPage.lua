@@ -1,9 +1,9 @@
--- Character page ("hero card"): opened by a left click on a member anywhere (chat names, the online
--- list, the members and ranks tab), shown in the content area instead of a tab, with a way back.
--- Left the hero card: portrait (race and gender), level, Hall of Fame title and medals, rank, notes,
--- whisper and invite, and for officers a bar with the rank menu, notes and removal. Right the family
--- (twinks, Core/Family.lua) as compact cards, the big numbers with the place in the guild, the
--- dungeon collection and the professions.
+-- Character page ("hero card"), variant A "readiness": opened by a left click on a member anywhere
+-- (chat names, the online list, the members and ranks tab), shown in the content area instead of a
+-- tab, with a way back. Left the hero card: the model area (today the race portrait), level, Hall of
+-- Fame title, race, gender and class, rank, notes, whisper and invite, and for officers the removal.
+-- Right the statistic tiles across, below them the gear slot by slot (Core/Gear.lua) beside a column
+-- with the family (Core/Family.lua), "Upgrades aus der Gilde" (Core/Upgrades.lua) and the professions.
 local _, ns = ...
 local W = ns.Widgets
 local UI = ns.UI
@@ -11,17 +11,42 @@ local UI = ns.UI
 local TEXTURES = "Interface\\AddOns\\Guildy\\Textures\\"
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local HERO_WIDTH = W.SIDE
-local FAMILY_COLS, FAMILY_ROWS = 4, 2
-local CARD_H = 58
-local MEDALS = 4
-local DUNGEON_ICON, DUNGEON_ICON_MAX, GAP = 24, 44, 5
+local TILE_H = 78
+local TILE_KEYS = { "kills", "quests", "deaths", "gear" }
+local FAMILY_LINES = 8
+local LINE_H = 18
 local PROF_ROWS = 6
-local MEDAL_COLORS = { { 1, 0.82, 0 }, { 0.78, 0.8, 0.84 }, { 0.78, 0.5, 0.27 } }
+local GEAR_SHARE = 0.62 -- of the room right of the hero card, the rest is the column
+local GEAR_TOP = 38     -- title and the column heading above the rows
+local QUALITY = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 } }
+local ENCHANT_COLOR = { 0.12, 1, 0 }
+local MISSING_COLOR = { 1, 0.5, 0.15 }
+-- slot names: the game's own globals, English where a client has none
+local SLOT_NAMES = {
+  [1] = { "HEADSLOT", "Head" }, [2] = { "NECKSLOT", "Neck" }, [3] = { "SHOULDERSLOT", "Shoulder" },
+  [15] = { "BACKSLOT", "Back" }, [5] = { "CHESTSLOT", "Chest" }, [9] = { "WRISTSLOT", "Wrist" },
+  [10] = { "HANDSSLOT", "Hands" }, [6] = { "WAISTSLOT", "Waist" }, [7] = { "LEGSSLOT", "Legs" },
+  [8] = { "FEETSLOT", "Feet" }, [11] = { "FINGER0SLOT", "Finger" }, [12] = { "FINGER1SLOT", "Finger" },
+  [13] = { "TRINKET0SLOT", "Trinket" }, [14] = { "TRINKET1SLOT", "Trinket" }, [16] = { "MAINHANDSLOT", "Main Hand" },
+  [17] = { "SECONDARYHANDSLOT", "Off Hand" }, [18] = { "RANGEDSLOT", "Ranged" },
+}
 -- achievement icons of the races: Interface\Icons\Achievement_Character_<Race>_<Male|Female>
 local RACE_ICON = { NightElf = "Nightelf", Human = "Human", Dwarf = "Dwarf", Gnome = "Gnome", Orc = "Orc",
   Scourge = "Undead", Undead = "Undead", Tauren = "Tauren", Troll = "Troll", BloodElf = "Bloodelf", Draenei = "Draenei" }
 
 local page
+
+local function SlotName(slot)
+  local names = SLOT_NAMES[slot]
+  local text = names and rawget(_G, names[1])
+  return type(text) == "string" and text or (names and names[2] or tostring(slot))
+end
+
+-- The gear list's slots in the character window's order
+local LIST = {}
+for _, group in ipairs(ns.Stats.GEAR_SLOT_GROUPS) do
+  for _, slot in ipairs(group) do LIST[#LIST + 1] = slot end
+end
 
 -- Race, gender and the race icon of a member from the game (known once the client saw the character)
 local function RaceInfo(m)
@@ -104,7 +129,7 @@ local function Portrait(parent, size, badge)
     end
     local r, g, b = W.ClassColor(m.classFile)
     self.Ring:SetVertexColor(r or 1, g or 1, b or 1)
-    if self.Level then self.Level:SetText(m.level or "") end
+    if rawget(self, "Level") then self.Level:SetText(m.level or "") end
     return info
   end
   return frame
@@ -124,31 +149,47 @@ local function Place(entries, key, id)
   return nil, #ranking
 end
 
--- Hall of Fame titles of member key: medals (places 1 to 3, best first) and the title of the first
--- place, from every page's title cards
-local function Medals(entries, key)
-  local S, list = ns.Stats, {}
-  for _, fame in ipairs(S.PAGES) do
+-- The title of member key's first places in the Hall of Fame (the best title card), or nil
+local function FirstTitle(entries, key)
+  for _, fame in ipairs(ns.Stats.PAGES) do
     for _, title in ipairs(fame.titles or {}) do
       local place, _, value = Place(entries, key, title.stat)
-      if place and place <= 3 and value and value > 0 then
-        list[#list + 1] = { place = place, title = title, value = value }
-      end
+      if place == 1 and value and value > 0 then return ns.L["FAME_TITLE_" .. title.key] end
     end
   end
-  table.sort(list, function(a, b) return a.place < b.place end)
-  local first = list[1] and list[1].place == 1 and list[1].title
-  return list, first and ns.L["FAME_TITLE_" .. first.key] or nil
+  return nil
 end
 
 local function ProfList(m)
   local record = ns.TradeSkill.Record(m)
   local list = {}
   for _, skillLine in ipairs(ns.Professions.ORDER) do
-    local prof = record and record.profs[skillLine]
+    local prof = record and record.profs and record.profs[skillLine]
     if prof then list[#list + 1] = { skillLine = skillLine, prof = prof } end
   end
   return list
+end
+
+-- the width of a text as written, not cut to its column
+local function TextWidth(text)
+  local fn = text.GetUnboundedStringWidth
+  local width = type(fn) == "function" and fn(text) or nil
+  if type(width) ~= "number" then width = text:GetStringWidth() end
+  return type(width) == "number" and width or 0
+end
+
+local function Hex(color)
+  return ("|cff%02x%02x%02x"):format(color[1] * 255, color[2] * 255, color[3] * 255)
+end
+
+-- "3 Tagen", "5 Std." ...: how long ago, for the line under the gear
+local function Span(seconds)
+  local L = ns.L
+  seconds = math.max(0, seconds)
+  if seconds < 3600 then return L.GEAR_SPAN_MIN:format(math.max(1, math.floor(seconds / 60))) end
+  if seconds < 86400 then return L.GEAR_SPAN_HOURS:format(math.floor(seconds / 3600)) end
+  if seconds < 2 * 86400 then return L.GEAR_SPAN_DAY end
+  return L.GEAR_SPAN_DAYS:format(math.floor(seconds / 86400))
 end
 
 -- Box with a title and a right-aligned note
@@ -160,95 +201,6 @@ local function Section(parent, title)
   box.Note:SetPoint("TOPRIGHT", -12, -11)
   box.Note:SetJustifyH("RIGHT")
   return box
-end
-
--- Family card: portrait, name, level and last seen, class icon, professions with their skill
-local function FamilyCard(parent)
-  local card = CreateFrame("Button", nil, parent)
-  card:SetHeight(CARD_H)
-  card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-  -- a card of its own: lighter ground, thin bronze frame (gold on hover), a stripe in the class color
-  local back = card:CreateTexture(nil, "BACKGROUND")
-  back:SetAllPoints()
-  back:SetColorTexture(0.11, 0.09, 0.065, 0.95)
-  local shine = card:CreateTexture(nil, "BACKGROUND", nil, 1)
-  shine:SetPoint("TOPLEFT")
-  shine:SetPoint("TOPRIGHT")
-  shine:SetHeight(CARD_H / 2)
-  shine:SetColorTexture(1, 1, 1, 0.025)
-  card.Edges = {}
-  for _, side in ipairs({ { "TOPLEFT", "TOPRIGHT", true }, { "BOTTOMLEFT", "BOTTOMRIGHT", true },
-    { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
-    local edge = card:CreateTexture(nil, "BORDER")
-    edge:SetPoint(side[1])
-    edge:SetPoint(side[2])
-    if side[3] then edge:SetHeight(1) else edge:SetWidth(1) end
-    card.Edges[#card.Edges + 1] = edge
-  end
-  function card:SetEdge(r, g, b, a)
-    for _, edge in ipairs(self.Edges) do edge:SetColorTexture(r, g, b, a) end
-  end
-  function card:RestEdge()
-    self:SetEdge(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.45)
-  end
-  card:RestEdge()
-  card.Stripe = card:CreateTexture(nil, "ARTWORK")
-  card.Stripe:SetPoint("TOPLEFT", 1, -1)
-  card.Stripe:SetPoint("BOTTOMLEFT", 1, 1)
-  card.Stripe:SetWidth(2)
-  local glow = card:CreateTexture(nil, "HIGHLIGHT")
-  glow:SetAllPoints()
-  glow:SetColorTexture(1, 0.82, 0, 0.06)
-  card.Portrait = Portrait(card, 36, 18)
-  card.Portrait:SetPoint("TOPLEFT", 9, -7)
-  card.Class = card:CreateTexture(nil, "ARTWORK")
-  card.Class:SetSize(16, 16)
-  card.Class:SetPoint("TOPRIGHT", -6, -6)
-  card.Name = W.Text(card, "GameFontHighlight")
-  card.Name:SetPoint("TOPLEFT", card.Portrait, "TOPRIGHT", 8, -2)
-  card.Name:SetPoint("RIGHT", card.Class, "LEFT", -4, 0)
-  card.Name:SetWordWrap(false)
-  card.Sub = W.Text(card, "GameFontDisableSmall")
-  card.Sub:SetPoint("TOPLEFT", card.Name, "BOTTOMLEFT", 0, -2)
-  card.Sub:SetPoint("RIGHT", -6, 0)
-  card.Sub:SetWordWrap(false)
-  card.Profs = W.Text(card, "GameFontHighlightSmall")
-  card.Profs:SetPoint("BOTTOMLEFT", card.Portrait, "BOTTOMRIGHT", 8, -4)
-  card.Profs:SetPoint("RIGHT", -6, 0)
-  card.Profs:SetWordWrap(false)
-  card:SetScript("OnClick", function(self, button)
-    if not self.member then return end
-    if button == "RightButton" then
-      UI.MemberMenu(self.member, self)
-    else
-      UI.MemberClick(self.member)
-    end
-  end)
-  card:SetScript("OnEnter", function(self)
-    self:SetEdge(1, 0.82, 0, 0.9)
-    if self.member then UI.MemberTooltip(self, self.member) end
-  end)
-  card:SetScript("OnLeave", function(self)
-    self:RestEdge()
-    GameTooltip:Hide()
-  end)
-  function card:SetMember(m)
-    self.member = m
-    self.Portrait:SetMember(m)
-    local r, g, b = W.ClassColor(m.classFile)
-    self.Stripe:SetColorTexture(r or 0.6, g or 0.6, b or 0.6, 0.9)
-    SetClassIcon(self.Class, m.classFile)
-    self.Name:SetText(W.ClassName(m.name, m.classFile))
-    self.Sub:SetText(ns.Roster.LastOnlineText(m))
-    local parts = {}
-    for _, p in ipairs(ProfList(m)) do
-      if #parts < 3 then
-        parts[#parts + 1] = "|T" .. ns.Professions.ICONS[p.skillLine] .. ":13|t " .. (p.prof.rank or "?")
-      end
-    end
-    self.Profs:SetText(table.concat(parts, "   "))
-  end
-  return card
 end
 
 -- Big number tile: label, value, a line under it (place in the guild)
@@ -265,6 +217,99 @@ local function Tile(parent, label)
   return tile
 end
 
+-- A line of the family list: name in the class color, level and class; click opens their page
+local function FamilyLine(parent)
+  local line = CreateFrame("Button", nil, parent)
+  line:SetHeight(LINE_H)
+  line:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  local glow = line:CreateTexture(nil, "HIGHLIGHT")
+  glow:SetAllPoints()
+  glow:SetColorTexture(1, 0.82, 0, 0.06)
+  line.Name = W.Text(line, "GameFontHighlightSmall")
+  line.Name:SetPoint("LEFT", 0, 0)
+  line.Name:SetWordWrap(false)
+  line.Info = W.Text(line, "GameFontDisableSmall")
+  line.Info:SetPoint("LEFT", line.Name, "RIGHT", 6, 0)
+  line.Info:SetPoint("RIGHT", 0, 0)
+  line.Info:SetWordWrap(false)
+  line:SetScript("OnClick", function(self, button)
+    if not self.member then return end
+    if button == "RightButton" then UI.MemberMenu(self.member, self) else UI.MemberClick(self.member) end
+  end)
+  line:SetScript("OnEnter", function(self) if self.member then UI.MemberTooltip(self, self.member) end end)
+  line:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  function line:SetMember(m)
+    self.member = m
+    self.Name:SetText(W.ClassName(m.name, m.classFile)) -- roster names are made up already for pictures
+    self.Name:SetWidth(math.min(TextWidth(self.Name) + 2, 150))
+    self.Info:SetText(ns.L.LEVEL_CLASS:format(m.level or 0, m.className or ""))
+  end
+  return line
+end
+
+-- A row of the gear list: slot, icon, item name, enchantment, item level bar with the ready tick, level
+local function GearRow(parent)
+  local row = CreateFrame("Button", nil, parent)
+  local shade = row:CreateTexture(nil, "BACKGROUND")
+  shade:SetAllPoints()
+  shade:SetColorTexture(1, 1, 1, 0.025)
+  row.Shade = shade
+  local glow = row:CreateTexture(nil, "HIGHLIGHT")
+  glow:SetAllPoints()
+  glow:SetColorTexture(1, 0.82, 0, 0.06)
+  row.Slot = W.Text(row, "GameFontDisableSmall")
+  row.Slot:SetPoint("LEFT", 0, 0)
+  row.Slot:SetWidth(92)
+  row.Slot:SetWordWrap(false)
+  row.Icon = row:CreateTexture(nil, "ARTWORK")
+  row.Icon:SetSize(16, 16)
+  row.Icon:SetPoint("LEFT", 96, 0)
+  row.Name = W.Text(row, "GameFontHighlightSmall")
+  row.Name:SetPoint("LEFT", row.Icon, "RIGHT", 6, 0)
+  row.Name:SetWordWrap(false)
+  row.Enchant = W.Text(row, "GameFontHighlightSmall")
+  row.Enchant:SetPoint("LEFT", row.Name, "RIGHT", 6, 0)
+  row.Enchant:SetWordWrap(false)
+  row.Level = W.Text(row, "GameFontHighlightSmall")
+  row.Level:SetPoint("RIGHT", 0, 0)
+  row.Level:SetWidth(28)
+  row.Level:SetJustifyH("RIGHT")
+  row.Track = row:CreateTexture(nil, "BORDER")
+  row.Track:SetHeight(6)
+  row.Track:SetPoint("RIGHT", row.Level, "LEFT", -8, 0)
+  row.Track:SetColorTexture(0, 0, 0, 0.45)
+  row.Bar = row:CreateTexture(nil, "ARTWORK")
+  row.Bar:SetHeight(6)
+  row.Bar:SetPoint("LEFT", row.Track, "LEFT", 0, 0)
+  row.Tick = row:CreateTexture(nil, "OVERLAY")
+  row.Tick:SetSize(2, 14)
+  row.Tick:SetColorTexture(1, 0.82, 0, 0.9)
+  row:SetScript("OnEnter", function(self)
+    if not self.item then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetHyperlink(ns.Gear.ItemString(self.item))
+    GameTooltip:Show()
+  end)
+  row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  return row
+end
+
+local function ItemIcon(itemID)
+  local get = (C_Item and rawget(C_Item, "GetItemIconByID")) or rawget(_G, "GetItemIconByID") or rawget(_G, "GetItemIcon")
+  return get and ns.Try(get, itemID) or nil
+end
+
+-- Name of a stored item (with its suffix) once the client has its info, else nil
+local function ItemName(item)
+  local getInfo = rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
+  local name = getInfo and ns.Try(getInfo, ns.Gear.ItemString(item))
+  if type(name) ~= "string" or ns.IsSecret(name) then
+    ns.GameGear.ItemInfo(item.id) -- asks the game to load it; the page redraws on GEAR_INFO
+    return nil
+  end
+  return name
+end
+
 local function Build()
   local L = ns.L
   page = CreateFrame("Frame", nil, UI.Content())
@@ -273,18 +318,38 @@ local function Build()
 
   local shell = W.Page(page) -- the same toolbar and body as every tab
   local body = shell.Body
+  page.Body = body
   page.Back = shell:Left(W.Button(shell.Bar, L.BACK, function() UI.SelectTab(page.backTab or "chat") end, 90, { small = true }))
 
   -- hero card --------------------------------------------------------------------------------------
   local hero = W.Box(body)
   hero:SetPoint("TOPLEFT", 0, 0)
-  hero:SetPoint("BOTTOMLEFT", 0, 0)
   hero:SetWidth(HERO_WIDTH)
   page.Hero = hero
-  hero.Portrait = Portrait(hero, 104, 30)
-  hero.Portrait:SetPoint("TOP", 0, -16)
+  -- the model area: the character itself comes in later; until then (and wherever the game cannot show
+  -- the member) the race portrait
+  hero.ModelArea = CreateFrame("Frame", nil, hero)
+  hero.ModelArea:SetPoint("TOPLEFT", 1, -1)
+  hero.ModelArea:SetPoint("TOPRIGHT", -1, -1)
+  hero.ModelArea:SetHeight(200)
+  page.ModelArea = hero.ModelArea
+  hero.Portrait = Portrait(hero.ModelArea, 104)
+  hero.Portrait:SetPoint("CENTER", 0, 0)
+  hero.ModelHint = W.Text(hero, "GameFontDisableSmall", L.MODEL_HINT)
+  hero.ModelHint:SetPoint("TOP", hero.ModelArea, "BOTTOM", 0, -2)
+  hero.ModelHint:Hide()
+  hero.LevelRing = CreateFrame("Frame", nil, hero)
+  hero.LevelRing:SetSize(34, 34)
+  hero.LevelRing:SetPoint("TOPRIGHT", -12, -12)
+  hero.LevelRing:SetFrameLevel(hero.ModelArea:GetFrameLevel() + 3)
+  Disc(hero.LevelRing, "BACKGROUND", 1, 0, W.GOLD[1], W.GOLD[2], W.GOLD[3])
+  Disc(hero.LevelRing, "BACKGROUND", 2, 2, 0.07, 0.06, 0.04)
+  hero.Level = W.Text(hero.LevelRing, "GameFontNormal")
+  hero.Level:SetPoint("CENTER", 0, 0)
   hero.Name = W.Text(hero, "GameFontNormalHuge")
-  hero.Name:SetPoint("TOP", hero.Portrait, "BOTTOM", 0, -10)
+  hero.Name:SetPoint("TOP", hero.ModelArea, "BOTTOM", 0, -18)
+  hero.Name:SetWidth(HERO_WIDTH - 24)
+  hero.Name:SetWordWrap(false)
   hero.Title = W.Text(hero, "GameFontNormal")
   hero.Title:SetPoint("TOP", hero.Name, "BOTTOM", 0, -4)
   hero.Ident = W.Text(hero, "GameFontHighlightSmall")
@@ -300,25 +365,6 @@ local function Build()
   hero.Where:SetSpacing(2)
   hero.Notes = W.Text(hero, "GameFontHighlightSmall")
   hero.Notes:SetSpacing(2)
-  hero.Medals = {}
-  for i = 1, MEDALS do
-    local medal = CreateFrame("Frame", nil, hero)
-    medal:SetSize(40, 40)
-    medal:EnableMouse(true)
-    medal.Icon = Portrait(medal, 40)
-    medal.Icon:SetAllPoints()
-    medal.Place = W.Text(medal, "GameFontNormalSmall")
-    medal.Place:SetPoint("BOTTOMRIGHT", 4, -2)
-    medal:SetScript("OnEnter", function(self)
-      if not self.info then return end
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText(L.MEDAL_TIP:format(self.info.place, L["FAME_TITLE_" .. self.info.title.key]))
-      GameTooltip:AddLine(UI.Fame.Format(self.info.title.stat, self.info.value) .. ns.L.SEP .. UI.Fame.StatName(self.info.title.stat), 1, 1, 1)
-      GameTooltip:Show()
-    end)
-    medal:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    hero.Medals[i] = medal
-  end
   hero.Whisper = W.Button(hero, L.WHISPER, function() if page.member then UI.Whisper(page.member.fullName) end end, 110)
   hero.Invite = W.Button(hero, L.GROUP_INVITE_SHORT, function() if page.member then ns.Roster.GroupInvite(page.member) end end, 110)
 
@@ -334,56 +380,60 @@ local function Build()
   -- right side -------------------------------------------------------------------------------------
   local right = CreateFrame("Frame", nil, body)
   right:SetPoint("TOPLEFT", hero, "TOPRIGHT", 8, 0)
-  right:SetPoint("BOTTOMRIGHT", 0, 0)
   page.Right = right
-
-  local family = Section(right, L.FAMILY)
-  page.Family = family
-  family.Empty = W.Text(family, "GameFontDisableSmall", L.FAMILY_EMPTY)
-  family.Empty:SetPoint("TOPLEFT", 12, -32)
-  family.Empty:SetPoint("RIGHT", -12, 0)
-  family.Cards = {}
-  for i = 1, FAMILY_COLS * FAMILY_ROWS do family.Cards[i] = FamilyCard(family) end
-  family.More = W.Text(family, "GameFontDisableSmall")
-  family.More:SetPoint("BOTTOMRIGHT", -12, 8)
 
   page.Tiles = {
     kills = Tile(right, L.STAT_KILLS), quests = Tile(right, L.STAT_QUESTS),
     deaths = Tile(right, L.STAT_DEATHS), gear = Tile(right, L.STAT_ILVL),
   }
-  -- equipment by quality: Guildy knows how many items of each quality, not the items
-  local gear = page.Tiles.gear
-  gear.Bars = {}
+  -- equipment by quality: a bar per quality under the item level tile
+  local gearTile = page.Tiles.gear
+  gearTile.Bars = {}
   for i, color in ipairs({ { 1, 0.5, 0 }, { 0.64, 0.21, 0.93 }, { 0, 0.44, 0.87 }, { 0.12, 1, 0 }, { 1, 1, 1 }, { 0.62, 0.62, 0.62 } }) do
-    local bar = gear:CreateTexture(nil, "ARTWORK")
-    bar:SetHeight(8)
+    local bar = gearTile:CreateTexture(nil, "ARTWORK")
+    bar:SetHeight(6)
     bar:SetColorTexture(color[1], color[2], color[3], 0.9)
-    gear.Bars[i] = bar
+    gearTile.Bars[i] = bar
   end
-  gear.Line:Hide()
 
-  local dungeons = Section(right, L.DUNGEON_COLLECTION)
-  page.Dungeons = dungeons
-  dungeons.Icons = {}
-  for i, dungeon in ipairs(ns.Stats.DUNGEONS or {}) do
-    local icon = CreateFrame("Frame", nil, dungeons)
-    icon:SetSize(DUNGEON_ICON, DUNGEON_ICON)
-    icon:EnableMouse(true)
-    icon.Texture = icon:CreateTexture(nil, "ARTWORK")
-    icon.Texture:SetAllPoints()
-    local path, cropped = UI.Fame.DungeonIcon(dungeon)
-    icon.Texture:SetTexture(path or "Interface\\Icons\\INV_Misc_QuestionMark")
-    if cropped then icon.Texture:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
-    icon.dungeon = dungeon
-    icon:SetScript("OnEnter", function(self)
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetText(UI.Fame.DungeonTitle(self.dungeon))
-      GameTooltip:AddLine(self.kills and self.kills > 0 and L.DUNGEON_KILLS:format(self.kills) or L.DUNGEON_OPEN, 1, 1, 1)
-      GameTooltip:Show()
-    end)
-    icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    dungeons.Icons[i] = icon
+  -- gear list
+  local gear = Section(right, L.GEAR)
+  page.Gear = gear
+  gear.Head = W.Text(gear, "GameFontDisableSmall", L.GEAR_LEVEL_HEAD)
+  gear.Rows = {}
+  for i, slot in ipairs(LIST) do
+    local row = GearRow(gear)
+    row.slot = slot
+    row.Slot:SetText(SlotName(slot))
+    row.Shade:SetShown(i % 2 == 1)
+    gear.Rows[i] = row
   end
+  gear.Foot = W.Text(gear, "GameFontDisableSmall")
+  gear.Foot:SetPoint("BOTTOMLEFT", 12, 8)
+  gear.Foot:SetPoint("RIGHT", -12, 0)
+  gear.Foot:SetWordWrap(false)
+
+  -- column: family, upgrades, professions
+  local family = Section(right, L.FAMILY)
+  page.Family = family
+  family.Empty = W.Text(family, "GameFontDisableSmall", L.FAMILY_EMPTY)
+  family.Empty:SetPoint("TOPLEFT", 12, -30)
+  family.Empty:SetPoint("RIGHT", -12, 0)
+  family.Lines = {}
+  for i = 1, FAMILY_LINES do
+    local line = FamilyLine(family)
+    line:SetPoint("TOPLEFT", 12, -28 - (i - 1) * LINE_H)
+    line:SetPoint("RIGHT", -12, 0)
+    family.Lines[i] = line
+  end
+  family.More = W.Text(family, "GameFontDisableSmall")
+
+  local upgrades = Section(right, L.UPGRADES)
+  page.Upgrades = upgrades
+  upgrades.Empty = W.Text(upgrades, "GameFontDisableSmall", L.UPGRADES_NO_DATA)
+  upgrades.Empty:SetPoint("TOPLEFT", 12, -30)
+  upgrades.Empty:SetPoint("RIGHT", -12, 0)
+  upgrades.want = 56
 
   local profs = Section(right, L.PROFESSIONS)
   page.Profs = profs
@@ -418,8 +468,9 @@ local function Build()
   function page:RenderHero(m, entries)
     local can = ns.Roster.Can()
     local info = hero.Portrait:SetMember(m)
+    hero.Level:SetText(m.level or "")
     hero.Name:SetText(W.ClassName(m.name, m.classFile))
-    local medals, title = Medals(entries, m.key)
+    local title = FirstTitle(entries, m.key)
     hero.Title:SetText(title and ("„" .. title .. "“") or "")
     local ident = {}
     if info and info.race then ident[#ident + 1] = info.race end
@@ -443,25 +494,6 @@ local function Build()
     hero.Notes:SetPoint("TOP", hero.Where, "BOTTOM", 0, -10)
     hero.Notes:SetWidth(HERO_WIDTH - 28)
 
-    local shown = math.min(#medals, MEDALS)
-    local width = shown * 40 + math.max(0, shown - 1) * 10
-    for i, medal in ipairs(hero.Medals) do
-      local entry = medals[i]
-      medal.info = entry
-      if entry and i <= MEDALS then
-        medal:ClearAllPoints()
-        medal:SetPoint("TOP", hero.Notes, "BOTTOM", -width / 2 + 20 + (i - 1) * 50, -12)
-        medal.Icon.Picture:SetTexture(UI.Fame.Icon(entry.title.icon))
-        medal.Icon.Picture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        local color = MEDAL_COLORS[entry.place]
-        medal.Icon.Ring:SetVertexColor(color[1], color[2], color[3])
-        medal.Place:SetText(entry.place)
-        medal:Show()
-      else
-        medal:Hide()
-      end
-    end
-
     local officer = can.remove
     hero.OfficerLabel:SetShown(officer)
     hero.Remove:SetShown(officer and can.remove)
@@ -483,41 +515,27 @@ local function Build()
     UI.Notes.Show(m)
   end
 
-  function page:RenderFamily(m)
+  -- the family as a list, as many lines as the box has room for (lines), "+N" after
+  function page:RenderFamily(m, lines)
     local guild, db = ns.GuildData(), ns.DB()
-    local members = ns.Roster.Members()
-    local list = ns.Family.Of(m.key, members, guild and guild.families, db and db.ownChars)
-    local width = (right:GetWidth() or 600) - 24
-    local cardW = math.floor((width - (FAMILY_COLS - 1) * 6) / FAMILY_COLS)
-    local maxCards = FAMILY_COLS * FAMILY_ROWS
-    for i, card in ipairs(family.Cards) do
-      local other = list[i]
-      if other and i <= maxCards then
-        card:ClearAllPoints()
-        card:SetWidth(cardW)
-        card:SetPoint("TOPLEFT", 12 + ((i - 1) % FAMILY_COLS) * (cardW + 6), -30 - math.floor((i - 1) / FAMILY_COLS) * (CARD_H + 6))
-        card:SetMember(other)
-        card:Show()
+    local list = ns.Family.Of(m.key, ns.Roster.Members(), guild and guild.families, db and db.ownChars)
+    lines = math.max(1, math.min(lines or FAMILY_LINES, FAMILY_LINES))
+    local shown = math.min(#list, lines)
+    for i, line in ipairs(family.Lines) do
+      if i <= shown then
+        line:SetMember(list[i])
+        line:Show()
       else
-        card:Hide()
+        line:Hide()
       end
     end
     family.Empty:SetShown(#list == 0)
-    family.More:SetText(#list > maxCards and L.FAMILY_MORE:format(#list - maxCards) or "")
-    local rows = math.min(FAMILY_ROWS, math.ceil(#list / FAMILY_COLS))
-    family:SetHeight(#list == 0 and 66 or (36 + rows * (CARD_H + 6) + (#list > maxCards and 12 or 0)))
-    if #list > 0 then
-      local levels, profsSeen, count = m.level or 0, {}, 0
-      for _, p in ipairs(ProfList(m)) do profsSeen[p.skillLine] = true end
-      for _, other in ipairs(list) do
-        levels = levels + (other.level or 0)
-        for _, p in ipairs(ProfList(other)) do profsSeen[p.skillLine] = true end
-      end
-      for _ in pairs(profsSeen) do count = count + 1 end
-      family.Note:SetText(L.FAMILY_SUMMARY:format(#list + 1, levels, count))
-    else
-      family.Note:SetText("")
-    end
+    family.More:ClearAllPoints()
+    family.More:SetPoint("TOPLEFT", 12, -28 - shown * LINE_H - 2)
+    family.More:SetText(#list > shown and L.FAMILY_MORE:format(#list - shown) or "")
+    family.Note:SetText("")
+    if #list == 0 then return 74 end
+    return 36 + shown * LINE_H + (#list > shown and 16 or 0)
   end
 
   function page:RenderStats(m, entries)
@@ -542,6 +560,8 @@ local function Build()
     local values = rec and rec.v or {}
     local ilvl = values[S.GEAR.ILVL]
     t.gear.Value:SetText(ilvl and UI.Fame.Format(S.GEAR.ILVL, ilvl) or "–")
+    place, count = Place(entries, m.key, S.GEAR.ILVL)
+    t.gear.Line:SetText(ilvl and place and L.PLACE_OF:format(place, count) or "")
     local counts = { values[S.GEAR.LEGENDARY] or 0, values[S.GEAR.EPIC] or 0, values[S.GEAR.RARE] or 0,
       values[S.GEAR.UNCOMMON] or 0, values[S.GEAR.COMMON] or 0, values[S.GEAR.POOR] or 0 }
     local total = 0
@@ -551,7 +571,7 @@ local function Build()
     for i, bar in ipairs(t.gear.Bars) do
       local w = total > 0 and math.floor(counts[i] / total * barWidth + 0.5) or 0
       bar:ClearAllPoints()
-      bar:SetPoint("BOTTOMLEFT", t.gear, "BOTTOMLEFT", x, 12)
+      bar:SetPoint("BOTTOMLEFT", t.gear, "BOTTOMLEFT", x, 10)
       bar:SetWidth(math.max(w, 0.01))
       bar:SetShown(w > 0)
       x = x + w
@@ -559,34 +579,111 @@ local function Build()
     return rec
   end
 
-  function page:RenderDungeons(rec)
-    -- as big as the panel allows with all dungeons in two rows (16 per row), within limits
-    local width = (dungeons:GetWidth() or 400) - 24
-    local perRow = math.ceil(#dungeons.Icons / 2)
-    local size = math.max(DUNGEON_ICON, math.min(DUNGEON_ICON_MAX, math.floor((width + GAP) / math.max(1, perRow)) - GAP))
-    perRow = math.max(1, math.floor((width + GAP) / (size + GAP)))
-    local cleared, known = 0, 0
-    for i, icon in ipairs(dungeons.Icons) do
-      local kills = rec and UI.Fame.DungeonKills(rec, icon.dungeon, "all")
-      icon.kills = kills
-      if kills ~= nil then known = known + 1 end
-      local done = kills and kills > 0
-      if done then cleared = cleared + 1 end
-      icon.Texture:SetDesaturated(not done)
-      icon:SetAlpha(done and 1 or 0.35)
-      icon:ClearAllPoints()
-      icon:SetSize(size, size)
-      icon:SetPoint("TOPLEFT", 12 + ((i - 1) % perRow) * (size + GAP), -32 - math.floor((i - 1) / perRow) * (size + GAP))
+  -- The guild's ready mark for level (median average item level of the roster members of that level,
+  -- tenths) and the highest stored item level (the bars' scale)
+  local function GuildGear(level)
+    local guild = ns.GuildData()
+    local list, top = {}, 1
+    for _, other in ipairs(ns.Roster.Members()) do
+      local record = guild and guild.members[other.key]
+      local stats = record and record.stats
+      local ilvl = type(stats) == "table" and type(stats.v) == "table" and stats.v[ns.Stats.GEAR.ILVL]
+      if ilvl then list[#list + 1] = { other.level, ilvl } end
+      local rec = guild and type(guild.gear) == "table" and guild.gear[other.key]
+      for _, slot in ipairs(LIST) do
+        local item = type(rec) == "table" and rec.items and rec.items[slot]
+        if item and (item.l or 0) > top then top = item.l end
+      end
     end
-    dungeons.Note:SetText(rec and L.DUNGEON_COUNT:format(cleared, #dungeons.Icons) or L.NO_STATS_SHORT)
+    return ns.Gear.ReadyMark(list, level), top
   end
 
-  -- the width of a name as written, not cut to its column
-  local function TextWidth(text)
-    local fn = text.GetUnboundedStringWidth
-    local width = type(fn) == "function" and fn(text) or nil
-    if type(width) ~= "number" then width = text:GetStringWidth() end
-    return type(width) == "number" and width or 0
+  function page:RenderGear(m)
+    local G = ns.Gear
+    local guild = ns.GuildData()
+    local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
+    if type(rec) ~= "table" or type(rec.items) ~= "table" then rec = nil end
+    local width, height = gear:GetWidth() or 400, gear:GetHeight() or 400
+    local rowH, barW, enchantW = G.Fit(height, width)
+    local ready, top = GuildGear(m.level)
+    local missing, count = {}, 0
+    if rec then missing, count = G.Unenchanted(rec, ns.GameGear.EquipLoc) end
+    local room = math.max(0, width - 24 - G.FIXED - barW) -- name and enchantment together
+    gear.Head:ClearAllPoints()
+    gear.Head:SetPoint("TOPRIGHT", -(12 + 28 + 8), -24) -- over the bars, ending where they end
+    for i, row in ipairs(gear.Rows) do
+      local item = rec and rec.items[row.slot]
+      row.item = item
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", 12, -GEAR_TOP - (i - 1) * rowH)
+      row:SetSize(width - 24, rowH)
+      row.Track:SetWidth(barW)
+      if item then
+        local color = QUALITY[item.q] or QUALITY[1]
+        row.Icon:SetTexture(ItemIcon(item.id) or "Interface\\Icons\\INV_Misc_QuestionMark")
+        row.Icon:Show()
+        local name = ItemName(item)
+        row.Name:SetText(Hex(color) .. (name or "…") .. "|r")
+        local enchant, enchantColor
+        if item.e ~= 0 then
+          enchant, enchantColor = ns.GameGear.EnchantText(item.id, item.e), ENCHANT_COLOR
+        elseif missing[row.slot] then
+          enchant, enchantColor = L.NO_ENCHANT, MISSING_COLOR
+        end
+        row.Enchant:SetText(enchant or "")
+        if enchantColor then row.Enchant:SetTextColor(enchantColor[1], enchantColor[2], enchantColor[3]) end
+        -- the item name takes what it needs; the enchantment gets the rest and is cut first
+        local wantEnchant = enchant and math.min(TextWidth(row.Enchant), enchantW) or 0
+        local nameW = math.max(math.min(G.NAME_MIN, room), math.min(TextWidth(row.Name) + 2, room - wantEnchant - (enchant and 6 or 0)))
+        row.Name:SetWidth(nameW)
+        row.Enchant:SetWidth(math.max(1, room - nameW - 6))
+        row.Enchant:SetShown(enchant ~= nil and room - nameW - 6 > 20)
+        row.Bar:SetColorTexture(color[1], color[2], color[3], 0.9)
+        row.Bar:SetWidth(math.max(1, math.min(1, (item.l or 0) / top) * barW))
+        row.Bar:Show()
+        row.Level:SetText(tostring(item.l or 0))
+      else
+        row.Icon:Hide()
+        row.Name:SetText("")
+        row.Enchant:SetText("")
+        row.Bar:Hide()
+        row.Level:SetText("–")
+      end
+      row.Track:SetShown(item ~= nil)
+      if ready and item then
+        row.Tick:ClearAllPoints()
+        row.Tick:SetPoint("CENTER", row.Track, "LEFT", math.min(1, ready / 10 / top) * barW, 0)
+        row.Tick:Show()
+      else
+        row.Tick:Hide()
+      end
+      row:Show()
+    end
+    -- header: average, ready mark, missing enchantments, each only when known
+    local parts = {}
+    local average = rec and G.Average(rec)
+    if average then parts[#parts + 1] = L.GEAR_AVG:format(UI.Fame.Format(ns.Stats.GEAR.ILVL, average)) end
+    if ready then parts[#parts + 1] = L.GEAR_READY:format(math.floor(ready / 10 + 0.5)) end
+    if rec and count > 0 then parts[#parts + 1] = L.GEAR_UNENCHANTED:format(count) end
+    gear.Note:SetText(table.concat(parts, ns.L.SEP))
+    -- under the list: how old the reading is and where it comes from, or why there is none
+    local name = m.name -- (made up for pictures by the roster itself, Game/Roster.lua)
+    if not rec then
+      gear.Foot:SetText(L.GEAR_UNSEEN:format(name))
+    elseif rec.src == "self" then
+      gear.Foot:SetText(L.GEAR_SELF_AGO:format(name, Span(ns.Now() - (rec.ts or 0))))
+    elseif rec.src == "api" then
+      gear.Foot:SetText(L.GEAR_API_AGO:format(Span(ns.Now() - (rec.ts or 0))))
+    else
+      gear.Foot:SetText(L.GEAR_SEEN_AGO:format(Span(ns.Now() - (rec.ts or 0))))
+    end
+    return rec
+  end
+
+  function page:RenderUpgrades()
+    upgrades.Empty:SetText(L.UPGRADES_NO_DATA)
+    upgrades.Empty:Show()
+    return upgrades.want
   end
 
   function page:RenderProfs(m)
@@ -613,7 +710,7 @@ local function Build()
         row.Trainer:SetShown(atCap)
         -- the bar takes the room between the number and the "Trainer" label
         local rowWidth = (profs:GetWidth() or 300) - 24
-        row.Bar:SetBarWidth(math.max(40, rowWidth - 16 - 6 - nameWidth - 4 - 56 - 8 - 8 - (row.Trainer:GetStringWidth() or 40)))
+        row.Bar:SetBarWidth(math.max(40, rowWidth - 16 - 6 - nameWidth - 4 - 56 - 8 - 8 - (atCap and (row.Trainer:GetStringWidth() or 40) or 0)))
         if prof.rank then
           row.Bar:SetSkill(prof.rank, prof.max)
           row.Bar:Show()
@@ -626,31 +723,50 @@ local function Build()
       end
     end
     profs.Empty:SetShown(#list == 0)
+    return 34 + math.max(1, #list) * 22
   end
 
+  -- sizes of everything from the page's own size (the smallest window is 1130 x 560: content 1108 x 518)
   function page:Layout()
-    local width = right:GetWidth() or 700
-    local top = page.Family:GetHeight() or 66
-    page.Family:ClearAllPoints()
-    page.Family:SetPoint("TOPLEFT", right, "TOPLEFT", 0, 0)
-    page.Family:SetPoint("RIGHT", right, "RIGHT", 0, 0)
-    local tileW = math.floor((width - 3 * 8) / 4)
-    local y = -(top + 8)
-    for i, key in ipairs({ "kills", "quests", "deaths", "gear" }) do
-      local tile = page.Tiles[key]
+    local pageW, pageH = self:GetWidth() or 0, self:GetHeight() or 0
+    local bodyH = math.max(200, pageH - (W.BAR_H + 6))
+    local rightW = math.max(400, pageW - HERO_WIDTH - W.GAP)
+    hero:SetSize(HERO_WIDTH, bodyH)
+    hero.ModelArea:SetHeight(math.floor(bodyH * 0.45))
+    right:SetSize(rightW, bodyH)
+    local tileW = math.floor((rightW - (#TILE_KEYS - 1) * W.GAP) / #TILE_KEYS)
+    for i, key in ipairs(TILE_KEYS) do
+      local tile = self.Tiles[key]
       tile:ClearAllPoints()
-      tile:SetSize(tileW, 78)
-      tile:SetPoint("TOPLEFT", right, "TOPLEFT", (i - 1) * (tileW + 8), y)
+      tile:SetSize(tileW, TILE_H)
+      tile:SetPoint("TOPLEFT", right, "TOPLEFT", (i - 1) * (tileW + W.GAP), 0)
     end
-    y = y - 78 - 8
-    local dungeonW = math.floor(width * 0.58)
-    page.Dungeons:ClearAllPoints()
-    page.Dungeons:SetPoint("TOPLEFT", right, "TOPLEFT", 0, y)
-    page.Dungeons:SetPoint("BOTTOM", right, "BOTTOM", 0, 0)
-    page.Dungeons:SetWidth(dungeonW)
-    page.Profs:ClearAllPoints()
-    page.Profs:SetPoint("TOPLEFT", page.Dungeons, "TOPRIGHT", 8, 0)
-    page.Profs:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0)
+    local y = -(TILE_H + W.GAP)
+    local areaH = bodyH - TILE_H - W.GAP
+    local gearW = math.floor((rightW - W.GAP) * GEAR_SHARE)
+    local colW = rightW - W.GAP - gearW
+    gear:ClearAllPoints()
+    gear:SetPoint("TOPLEFT", right, "TOPLEFT", 0, y)
+    gear:SetSize(gearW, areaH)
+    for _, box in ipairs({ family, upgrades, profs }) do box:SetWidth(colW) end
+    return y, areaH, gearW, colW
+  end
+
+  -- the column: family as tall as its lines, upgrades as they need, professions take the rest
+  function page:LayoutColumn(m, y, areaH, gearW)
+    local upH = self:RenderUpgrades(m)
+    local profsH = self:RenderProfs(m)
+    local free = areaH - upH - profsH - 2 * W.GAP - 36
+    local familyH = self:RenderFamily(m, math.floor(free / LINE_H))
+    family:ClearAllPoints()
+    family:SetPoint("TOPLEFT", right, "TOPLEFT", gearW + W.GAP, y)
+    family:SetHeight(familyH)
+    upgrades:ClearAllPoints()
+    upgrades:SetPoint("TOPLEFT", family, "BOTTOMLEFT", 0, -W.GAP)
+    upgrades:SetHeight(upH)
+    profs:ClearAllPoints()
+    profs:SetPoint("TOPLEFT", upgrades, "BOTTOMLEFT", 0, -W.GAP)
+    profs:SetHeight(math.max(profsH, areaH - familyH - upH - 2 * W.GAP))
   end
 
   function page:Render()
@@ -658,12 +774,11 @@ local function Build()
     self.member = m
     if not m then return end
     local entries = ns.GameStats.Entries()
+    local y, areaH, gearW = self:Layout()
     self:RenderHero(m, entries)
-    self:RenderFamily(m)
-    self:Layout()
-    local rec = self:RenderStats(m, entries)
-    self:RenderDungeons(rec)
-    self:RenderProfs(m)
+    self:RenderStats(m, entries)
+    self:RenderGear(m)
+    self:LayoutColumn(m, y, areaH, gearW)
   end
   ns.Perf.Wrap(page, "Render", "render", "character page")
   page:SetScript("OnHide", function()
@@ -671,7 +786,7 @@ local function Build()
   end)
   page:SetScript("OnSizeChanged", function(self) if self.member and self:IsShown() then self:Render() end end)
 
-  for _, event in ipairs({ "ROSTER", "PROFS", "STATS", "FAMILY" }) do
+  for _, event in ipairs({ "ROSTER", "PROFS", "STATS", "FAMILY", "GEAR", "GEAR_INFO" }) do
     ns.On(event, function() if page:IsShown() then page:Render() end end)
   end
 end
