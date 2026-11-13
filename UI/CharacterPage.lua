@@ -378,8 +378,8 @@ function Tips.Worn(tip, beside, name, item)
     if not item then
       tip:AddLine(ns.L.UPGRADE_EMPTY, 0.62, 0.62, 0.62)
     else
-      local name = not gone and ItemName(item)
-      tip:AddLine(name or "…", 1, 1, 1)
+      local itemName = not gone and ItemName(item)
+      tip:AddLine(itemName or "…", 1, 1, 1)
     end
   end
   tip:Show()
@@ -459,12 +459,12 @@ local function Build()
   page:Hide()
 
   local shell = W.Page(page) -- the same toolbar and body as every tab
-  local body = shell.Body
-  page.Body = body
+  local pageBody = shell.Body
+  page.Body = pageBody
   page.Back = shell:Left(W.Button(shell.Bar, L.BACK, function() UI.SelectTab(page.backTab or "chat") end, 90, { small = true }))
 
   -- hero card --------------------------------------------------------------------------------------
-  local hero = W.Box(body)
+  local hero = W.Box(pageBody)
   hero:SetPoint("TOPLEFT", 0, 0)
   hero:SetWidth(HERO_WIDTH)
   page.Hero = hero
@@ -487,8 +487,9 @@ local function Build()
   hero.BgShade:SetPoint("BOTTOMRIGHT")
   hero.BgShade:SetHeight(48)
   hero.BgShade:SetColorTexture(1, 1, 1, 1)
-  local color = rawget(_G, "CreateColor")
-  if not (color and pcall(hero.BgShade.SetGradient, hero.BgShade, "VERTICAL", color(0, 0, 0, 0.7), color(0, 0, 0, 0))) then
+  local createColor = rawget(_G, "CreateColor")
+  if not (createColor and pcall(hero.BgShade.SetGradient, hero.BgShade, "VERTICAL", createColor(0, 0, 0, 0.7),
+    createColor(0, 0, 0, 0))) then
     if not pcall(hero.BgShade.SetGradientAlpha, hero.BgShade, "VERTICAL", 0, 0, 0, 0.7, 0, 0, 0, 0) then
       hero.BgShade:SetColorTexture(0, 0, 0, 0.35)
     end
@@ -642,7 +643,7 @@ local function Build()
   end, 80, { small = true })
 
   -- right side -------------------------------------------------------------------------------------
-  local right = CreateFrame("Frame", nil, body)
+  local right = CreateFrame("Frame", nil, pageBody)
   right:SetPoint("TOPLEFT", hero, "TOPRIGHT", 8, 0)
   page.Right = right
 

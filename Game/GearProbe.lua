@@ -324,7 +324,8 @@ function GearProbe.GearShow(name)
     if ns.IsSecret(link) then return Say("gearshow: secret link, read stopped") end
     local loaded = link and getInfo and ns.Try(getInfo, link) ~= nil
     Say(("  %d: %s, item info %s"):format(slot, tostring(link), link and (loaded and "yes" or "no") or "-"))
-    local id, enchant = type(link) == "string" and link:match("item:(%-?%d+):(%-?%d*)")
+    local id, enchant
+    if type(link) == "string" then id, enchant = link:match("item:(%-?%d+):(%-?%d*)") end
     enchant = tonumber(enchant)
     if id and enchant and enchant ~= 0 then
       local with, used = GearProbe.TooltipLines("item:" .. id .. ":" .. enchant)

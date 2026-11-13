@@ -582,8 +582,8 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
   local tank = ns.StatWeights ~= nil and ns.StatWeights.IsTank(member.weights)
   local prefer = Upgrades.ArmorType(armour)
   local function Note(slot, entry, stats, verdict)
-    local list = Slot(slot).candidates
-    list[#list + 1] = { itemID = entry.itemID, level = entry.info.level, verdict = verdict,
+    local candidates = Slot(slot).candidates
+    candidates[#candidates + 1] = { itemID = entry.itemID, level = entry.info.level, verdict = verdict,
       score = stats and Weighted(weights, stats) or nil }
   end
   if trace then

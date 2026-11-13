@@ -397,8 +397,8 @@ local function ProbeConfig(label, configID)
       end
       if posX then xs[posX] = (xs[posX] or 0) + ranks end
       local entry = EntryOf(node)
-      local info = entry and entryInfo and ns.Try(entryInfo, configID, entry)
-      local cost = info and type(info.entryCost) == "table" and info.entryCost[1]
+      local entryData = entry and entryInfo and ns.Try(entryInfo, configID, entry)
+      local cost = entryData and type(entryData.entryCost) == "table" and entryData.entryCost[1]
       local cid = type(cost) == "table" and cost.ID or "-"
       if not ns.IsSecret(cid) then
         local s = costs[cid] or { n = 0, r = 0 }

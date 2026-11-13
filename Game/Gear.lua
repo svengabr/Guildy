@@ -33,6 +33,12 @@ local function ItemInfoFunction()
   return rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
 end
 
+-- The fields of GetItemInfo's returns Guildy uses: name, quality, item level, required level, equip
+-- location, class ID, subclass ID, bind type
+local function PickInfo(name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind)
+  return name, quality, level, reqLevel, equipLoc, classID, subclassID, bind
+end
+
 local function InstantFunction()
   return (C_Item and rawget(C_Item, "GetItemInfoInstant")) or rawget(_G, "GetItemInfoInstant")
 end
@@ -299,9 +305,9 @@ function GameGear.ItemInfo(itemID)
     retry = true
   end
   local getInfo = ItemInfoFunction()
-  local name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind
+  local name, quality, level, reqLevel, equipLoc, classID, subclassID, bind
   if getInfo then
-    name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind = ns.Try(getInfo, itemID)
+    name, quality, level, reqLevel, equipLoc, classID, subclassID, bind = PickInfo(ns.Try(getInfo, itemID))
   end
   if ns.AnySecret(name, quality, level, reqLevel, equipLoc, classID, subclassID, bind) then return nil end
   if type(name) ~= "string" or type(level) ~= "number" or type(equipLoc) ~= "string" then
