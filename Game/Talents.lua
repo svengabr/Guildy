@@ -6,9 +6,10 @@
 -- never inspects for the talents alone. A client without the talent API, or one that gives no points to an
 -- inspect, leaves the record alone. Any secret value stops a read: nothing secret is compared or stored.
 -- Classic Era reads GetTalentTabInfo; WoW Forever has none and gives the points through C_Traits (below).
--- The trees' names in the client's language are kept per class (GuildyDB.talentNames = { locale,
--- classes = { [classFile] = { name1, name2, name3 } } }) for the upgrades heading; tools/bnet-sync writes
--- them as well.
+-- The trees' names in the client's language come from Core/TalentTreeNames.lua (generated from the static
+-- game data by tools/bnet-sync/tree-names.mjs); for a language it lacks, the names the client gave are kept
+-- per class (GuildyDB.talentNames = { locale, classes = { [classFile] = { name1, name2, name3 } } });
+-- tools/bnet-sync writes them as well.
 local _, ns = ...
 local Tal = ns.Talents
 
@@ -38,10 +39,15 @@ end
 
 -- WoW Forever has no GetTalentTabInfo (and one specialization per class in C_SpecializationInfo): the
 -- talent points live in the trait system. A config (C_ClassTalents.GetActiveConfigID for the player,
--- Constants.TraitConsts.INSPECT_TRAIT_CONFIG_ID = -1 for the inspected unit) lists treeIDs; the three
--- classic tabs are either three trees (in the config's order) or one tree whose nodes name their tab by
--- subTreeID (on the node, or on its entry; ordered by ID). The real shape is not known yet: /guildy
--- talentprobe prints it. Anything secret stops the read.
+-- Constants.TraitConsts.INSPECT_TRAIT_CONFIG_ID = -1 for the inspected unit) lists treeIDs.
+-- The real shape (/guildy talentprobe, 2026-11, own feral druid 7/31/0): ONE tree (1089) with 52 nodes and
+-- no subtrees. The classic tabs are three blocks of node columns side by side: posX 1020-2820, 5020-6820,
+-- 9080-10880, four columns 600 apart in each block, about 2200 between the blocks. groupIDs are no clean
+-- per-tab key, every entry costs the same currency (3820), and C_SpecializationInfo.GetSpecIDs gives an
+-- empty table, so the trees' names come from Core/TalentTreeNames.lua. So the tabs are read by x position
+-- (TabsByX), for the own config and the inspect config alike. Three trees (in the config's order) and one
+-- tree whose nodes name their tab by subTreeID (on the node, or on its entry; ordered by ID) are read as
+-- well, should a client have them. Anything secret stops the read.
 
 -- A function of a C_ namespace, nil when there is none
 local function Api(space, name)
@@ -141,8 +147,48 @@ local function ReadConfig(configID)
   return read
 end
 
--- The three tabs { { name?, points } } of a config read (ReadConfig) and how they were found ("subtrees"
--- or "trees"), nil when it is neither three subtrees nor three trees
+-- The three tabs of one tree that has no subtrees, by the nodes' x position (the layout WoW Forever has):
+-- the distinct posX of all nodes, sorted, split at the gaps between them that are more than X_GAP times the
+-- median gap; { p1, p2, p3 } left to right, nil unless there are exactly two such gaps, or when a node has
+-- no readable posX
+local X_GAP = 2
+local function TabsByX(nodes)
+  local seen, xs = {}, {}
+  for _, node in ipairs(nodes) do
+    local x = Field(node, "posX")
+    if type(x) ~= "number" or ns.IsSecret(x) then return nil end
+    if not seen[x] then
+      seen[x] = true
+      xs[#xs + 1] = x
+    end
+  end
+  table.sort(xs)
+  if #xs < 3 then return nil end
+  local gaps, sorted = {}, {}
+  for i = 1, #xs - 1 do
+    gaps[i] = xs[i + 1] - xs[i]
+    sorted[i] = gaps[i]
+  end
+  table.sort(sorted)
+  local n = #sorted
+  local median = n % 2 == 1 and sorted[(n + 1) / 2] or (sorted[n / 2] + sorted[n / 2 + 1]) / 2
+  local cuts = {}
+  for i, gap in ipairs(gaps) do
+    if gap > X_GAP * median then cuts[#cuts + 1] = (xs[i] + xs[i + 1]) / 2 end
+  end
+  if #cuts ~= 2 then return nil end
+  local points = { 0, 0, 0 }
+  for _, node in ipairs(nodes) do
+    local x = node.posX
+    local tab = x < cuts[1] and 1 or x < cuts[2] and 2 or 3
+    points[tab] = points[tab] + (NodeRanks(node))
+  end
+  return points
+end
+
+-- The three tabs { { name?, points } } of a config read (ReadConfig) and how they were found ("subtrees",
+-- "trees" or "x position"), nil when it is neither three subtrees, nor three trees, nor one tree whose
+-- nodes stand in three blocks
 local function TabsOf(configID, read)
   if not read then return nil end
   if #read.subOrder == 3 then
@@ -152,6 +198,10 @@ local function TabsOf(configID, read)
   end
   if #read.trees == 3 then
     return { { points = read.trees[1].ranks }, { points = read.trees[2].ranks }, { points = read.trees[3].ranks } }, "trees"
+  end
+  if #read.trees == 1 and #read.subOrder == 0 then
+    local points = TabsByX(read.trees[1].nodes)
+    if points then return { { points = points[1] }, { points = points[2] }, { points = points[3] } }, "x position" end
   end
   return nil
 end
@@ -375,7 +425,7 @@ local function ProbeConfig(label, configID)
   if tabs then
     P(("%s: Guildy reads %d/%d/%d (by %s)"):format(label, tabs[1].points, tabs[2].points, tabs[3].points, how))
   else
-    P(("%s: Guildy reads nothing: %d trees, %d subTreeIDs (wants 3 of either)"):format(label, #read.trees, #read.subOrder))
+    P(("%s: Guildy reads nothing: %d trees, %d subTreeIDs (wants 3 of either, or one tree whose nodes stand in three blocks by x position)"):format(label, #read.trees, #read.subOrder))
   end
 end
 

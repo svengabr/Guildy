@@ -403,6 +403,102 @@ local function Traits(w, shape, points, names)
   }
 end
 
+-- The layout WoW Forever really has (/guildy talentprobe, feral druid 7/31/0): one tree (1089), no subtrees,
+-- 52 nodes in twelve columns; the three classic tabs are three blocks of four columns 600 apart, about 2200
+-- between the blocks. columns[config]: the ranks per column (12 values, left to right); xs: the columns'
+-- posX (the real ones by default). Each column has four nodes (the first five), its ranks on the first.
+local FOREVER_X = { 1020, 1620, 2220, 2820, 5020, 5620, 6220, 6820, 9080, 9680, 10280, 10880 }
+local function TraitsByX(w, columns, xs)
+  xs = xs or FOREVER_X
+  local env = w.env
+  env.GetTalentTabInfo, env.GetNumTalentTabs = nil, nil
+  env.Constants = { TraitConsts = { INSPECT_TRAIT_CONFIG_ID = -1 } }
+  w.active = 1280196
+  env.C_ClassTalents = { GetActiveConfigID = function() return w.active end }
+  local nodes, column = {}, {}
+  for c = 1, #xs do
+    for k = 1, c <= 4 and 5 or 4 do
+      local id = 4000 + c * 10 + k
+      nodes[#nodes + 1] = id
+      column[id] = { c = c, first = k == 1 }
+    end
+  end
+  env.C_Traits = {
+    GetConfigInfo = function(config)
+      if not columns[config] then return nil end
+      return { ID = config, type = 1, name = "", treeIDs = { 1089 } }
+    end,
+    GetTreeNodes = function() return nodes end,
+    GetNodeInfo = function(config, node)
+      local at, ranks = column[node], columns[config]
+      if not (at and ranks) then return nil end
+      local rank = at.first and ranks[at.c] or 0
+      return { ID = node, posX = xs[at.c], posY = 1200, ranksPurchased = rank, activeRank = rank, currentRank = rank,
+        maxRanks = 5, groupIDs = { 3000 + at.c % 2 }, entryIDs = { node * 10 }, activeEntry = { entryID = node * 10, rank = rank } }
+    end,
+    GetEntryInfo = function(_, entry) return { definitionID = entry + 1, type = 1, maxRanks = 5, entryCost = { { ID = 3820, amount = 1 } } } end,
+  }
+  return #nodes
+end
+local FERAL = { 0, 0, 5, 2, 8, 12, 1, 10, 0, 0, 0, 0 } -- 7/31/0
+
+T.describe("Talent points from one trait tree split by x position (WoW Forever)", function()
+  T.it("reads 7/31/0 from the real layout, tree 2, rated for Wilder Kampf (Katze)", function()
+    local w = World()
+    T.eq(TraitsByX(w, { [1280196] = FERAL }), 52)
+    w.ns.GuildData().talents = nil
+    w.env.GuildyDB.talentNames = nil
+    w.ns.GameTalents.ReadOwn()
+    T.eq(w.ns.GuildData().talents["ran fred"].trees, { 7, 31, 0 })
+    local spec, tree = w.ns.Talents.Decide("DRUID", 60, w.ns.GuildData().talents["ran fred"])
+    T.eq({ spec, tree }, { "DRUID_CAT", 2 })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("reads an inspected unit's points from the inspect config the same way", function()
+    local w = World()
+    TraitsByX(w, { [1280196] = FERAL, [-1] = { 0, 0, 0, 0, 3, 4, 7, 7, 10, 10, 10, 0 } })
+    w.env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    w.env.UnitClass = function(unit) if unit == "target" then return "Druide", "DRUID", 11 end return "Magier", "MAGE", 8 end
+    local read = w.ns.GameTalents.ReadInspect("target", "Player-1-03")
+    T.eq(read.trees, { 0, 21, 30 })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("reads nothing from evenly spaced columns, two blocks, or four blocks", function()
+    local w = World()
+    local even = {}
+    for c = 1, 12 do even[c] = 1000 + 600 * (c - 1) end
+    TraitsByX(w, { [1280196] = FERAL, [-1] = FERAL }, even)
+    w.env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    w.env.UnitClass = function() return "Druide", "DRUID", 11 end
+    w.ns.GuildData().talents = nil
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    T.eq(w.ns.GameTalents.ReadInspect("target", "Player-1-03"), nil)
+    -- two blocks of six
+    TraitsByX(w, { [1280196] = FERAL }, { 1020, 1620, 2220, 2820, 3420, 4020, 7020, 7620, 8220, 8820, 9420, 10020 })
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    -- four blocks of three
+    TraitsByX(w, { [1280196] = FERAL }, { 1020, 1620, 2220, 4420, 5020, 5620, 7820, 8420, 9020, 11220, 11820, 12420 })
+    w.ns.GameTalents.ReadOwn()
+    T.eq((w.ns.GuildData().talents or {})["ran fred"], nil)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("says in /guildy talentprobe that it read by x position", function()
+    local w = World()
+    local lines = {}
+    w.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) lines[#lines + 1] = text end }
+    TraitsByX(w, { [1280196] = FERAL })
+    w.env.SlashCmdList.GUILDY("talentprobe")
+    local all = table.concat(lines, "\n")
+    T.truthy(all:find("7/31/0 (by x position)", 1, true), all)
+    T.eq(w.errors, {})
+  end)
+end)
+
 T.describe("Talent points from the trait system (WoW Forever)", function()
   T.it("reads the own points per tree from three trait trees and shares them", function()
     local w = World()

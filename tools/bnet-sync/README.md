@@ -92,6 +92,17 @@ The API has gaps:
 - A member whose first record comes from the API has no gold values until Guildy reads them in the
   game.
 
+## Talent tree names
+
+`tree-names.mjs` writes `Core/TalentTreeNames.lua`, which ships with the addon: each class's three
+talent trees in tab order, their specialization IDs and their names in deDE, enUS, frFR, esES, ruRU and
+ptBR, from `/data/wow/playable-class/{classId}` in the static namespace. Run it again when the game
+version changes, with the new namespace:
+
+```bash
+node --env-file=<file with BATTLENET_CLIENT_ID/SECRET> tools/bnet-sync/tree-names.mjs [--namespace static-...-forever-eu]
+```
+
 ## Tests
 
 ```bash
