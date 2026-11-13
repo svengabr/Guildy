@@ -362,7 +362,8 @@ function Tips.Worn(tip, beside, name, item)
   tip:ClearAllPoints()
   tip:SetPoint("TOPLEFT", beside, "TOPRIGHT", 2, 0)
   local header = ns.L.UPGRADE_WORN:format(name or "")
-  local loaded, gone = item and ns.GameGear.ItemInfo(item.id)
+  local loaded, gone
+  if item then loaded, gone = ns.GameGear.ItemInfo(item.id) end
   if item and loaded then
     tip:SetHyperlink(ns.Gear.ItemString(item))
     local first = rawget(_G, (tip:GetName() or "") .. "TextLeft1")

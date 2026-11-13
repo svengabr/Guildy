@@ -453,6 +453,27 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("takes a worn piece the game does not have as gone and does not ask for its name again", function()
+    local w = World()
+    local page = Page(w)
+    local worn = Watch(w, "GuildyWornTooltip")
+    local info, asked = w.ns.GameGear.ItemInfo, 0
+    w.ns.GameGear.ItemInfo = function(id)
+      if id == 7007 then
+        asked = asked + 1
+        return nil, true
+      end
+      return info(id)
+    end
+    local row = page.Upgrades.Rows[1]
+    row.NameHit:GetScript("OnEnter")(row.NameHit)
+    w.ns.GameGear.ItemInfo = info
+    T.eq(asked, 1)
+    T.eq(worn.links, {})
+    T.truthy(worn.all():find("Trägt Au Tsch\n…", 1, true), worn.all())
+    T.eq(w.errors, {})
+  end)
+
   T.it("says the slot is empty when the member wears nothing there", function()
     local w = World()
     local guild = w.ns.GuildData()
