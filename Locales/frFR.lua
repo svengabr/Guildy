@@ -301,6 +301,7 @@ ns.LocaleTables.frFR = {
   MODEL_WAIT_MALE = "Le personnage apparaîtra dès que vous croiserez un joueur.",
   UPGRADE_EMPTY = "Emplacement vide",
   UPGRADE_COMPARE = "Par rapport à ce qui est porté :",
+  UPGRADE_WORN = "Porté par %s",
   UPGRADE_BY = "par",
   UPGRADES_COUNT = "Total : %d",
   UPGRADES_RATED_SPEC = "évalué pour %s",

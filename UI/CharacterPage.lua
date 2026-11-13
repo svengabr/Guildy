@@ -303,6 +303,79 @@ local function FamilyLine(parent)
   return line
 end
 
+-- Name of a stored item (with its suffix) once the client has its info, else nil. The item info first:
+-- it asks the game once and reads nothing while the item loads (the page redraws on GEAR_INFO);
+-- GetItemInfo of an item the client lacks would ask the server again on every render. nil, true when the
+-- game said it has no such item: nothing to wait for.
+local function ItemName(item)
+  local info, gone = ns.GameGear.ItemInfo(item.id)
+  if not info then return nil, gone end
+  local getInfo = rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
+  local name = getInfo and ns.Try(getInfo, ns.Gear.ItemString(item))
+  if type(name) ~= "string" or ns.IsSecret(name) then return nil end
+  return name
+end
+
+-- Guildy's own item tooltips: the item, and beside it the member's worn piece it is compared with.
+-- Blizzard's comparison (the shopping tooltips) hangs on GameTooltip and compares with the viewer's own
+-- gear, which misleads on another member's page; these frames never ask for it.
+local itemTip, wornTip
+local Tips = {}
+UI.ItemTips = Tips
+
+function Tips.Get()
+  if not itemTip then
+    itemTip = CreateFrame("GameTooltip", "GuildyItemTooltip", UIParent, "GameTooltipTemplate")
+    wornTip = CreateFrame("GameTooltip", "GuildyWornTooltip", UIParent, "GameTooltipTemplate")
+    for _, tip in ipairs({ itemTip, wornTip }) do
+      tip.supportsItemComparison = false
+      tip:SetClampedToScreen(true)
+    end
+  end
+  return itemTip, wornTip
+end
+
+function Tips.Hide()
+  if itemTip then itemTip:Hide() end
+  if wornTip then wornTip:Hide() end
+end
+
+-- The worn piece's tooltip beside the item's, on the side with room on the screen: a header line
+-- "Trägt <Name>" over the piece (G.ItemString with suffix and unique), "Platz leer" for an empty slot,
+-- the name or "…" while the client loads it (asked once, Game/Gear.lua)
+function Tips.Worn(tip, beside, name, item)
+  tip:SetOwner(beside, "ANCHOR_NONE")
+  tip:ClearAllPoints()
+  tip:SetPoint("TOPLEFT", beside, "TOPRIGHT", 2, 0)
+  local header = ns.L.UPGRADE_WORN:format(name or "")
+  local loaded, gone = item and ns.GameGear.ItemInfo(item.id)
+  if item and loaded then
+    tip:SetHyperlink(ns.Gear.ItemString(item))
+    local first = rawget(_G, (tip:GetName() or "") .. "TextLeft1")
+    local text = first and first:GetText()
+    if type(text) == "string" and text ~= "" and not ns.IsSecret(text) then
+      first:SetText(Hex(W.GOLD) .. header .. "|r\n" .. text)
+    else
+      tip:AddLine(header, W.GOLD[1], W.GOLD[2], W.GOLD[3])
+    end
+  else
+    tip:SetText(header, W.GOLD[1], W.GOLD[2], W.GOLD[3])
+    if not item then
+      tip:AddLine(ns.L.UPGRADE_EMPTY, 0.62, 0.62, 0.62)
+    else
+      local name = not gone and ItemName(item)
+      tip:AddLine(name or "…", 1, 1, 1)
+    end
+  end
+  tip:Show()
+  -- the left side when the right has no room for it on the screen (its size is known once shown)
+  local right, width, screen = beside:GetRight(), tip:GetWidth(), UIParent:GetWidth()
+  if type(right) == "number" and type(width) == "number" and type(screen) == "number" and right + 2 + width > screen then
+    tip:ClearAllPoints()
+    tip:SetPoint("TOPRIGHT", beside, "TOPLEFT", -2, 0)
+  end
+end
+
 -- A row of the gear list: slot, icon, item name, enchantment, item level bar with the ready tick, level
 local function GearRow(parent)
   local row = CreateFrame("Button", nil, parent)
@@ -342,30 +415,19 @@ local function GearRow(parent)
   row.Tick:SetColorTexture(1, 0.82, 0, 0.9)
   row:SetScript("OnEnter", function(self)
     if not self.item then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetHyperlink(ns.Gear.ItemString(self.item))
-    GameTooltip:Show()
+    local tip, worn = Tips.Get()
+    worn:Hide()
+    tip:SetOwner(self, "ANCHOR_RIGHT")
+    tip:SetHyperlink(ns.Gear.ItemString(self.item))
+    tip:Show()
   end)
-  row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  row:SetScript("OnLeave", Tips.Hide)
   return row
 end
 
 local function ItemIcon(itemID)
   local get = (C_Item and rawget(C_Item, "GetItemIconByID")) or rawget(_G, "GetItemIconByID") or rawget(_G, "GetItemIcon")
   return get and ns.Try(get, itemID) or nil
-end
-
--- Name of a stored item (with its suffix) once the client has its info, else nil. The item info first:
--- it asks the game once and reads nothing while the item loads (the page redraws on GEAR_INFO);
--- GetItemInfo of an item the client lacks would ask the server again on every render. nil, true when the
--- game said it has no such item: nothing to wait for.
-local function ItemName(item)
-  local info, gone = ns.GameGear.ItemInfo(item.id)
-  if not info then return nil, gone end
-  local getInfo = rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
-  local name = getInfo and ns.Try(getInfo, ns.Gear.ItemString(item))
-  if type(name) ~= "string" or ns.IsSecret(name) then return nil end
-  return name
 end
 
 -- The panel that explains the activity score, under the score tile -----------------------------------
@@ -511,6 +573,7 @@ end
 local function Build()
   local L = ns.L
   page = CreateFrame("Frame", nil, UI.Content())
+  UI.ItemTips.Get()
   page:SetAllPoints()
   page:Hide()
 
@@ -775,20 +838,24 @@ local function Build()
   upgrades.Basis:SetWordWrap(false)
   upgrades.want = 56
   upgrades.Rows = {}
-  -- the item's tooltip, under it how its stats differ from the worn piece's
+  -- the item's tooltip, under it how its stats differ from the worn piece's; beside it the member's
+  -- piece of the slot the comparison used
   local function ItemTooltip(self)
     local row = self:GetParent()
     local itemID = row.itemID
     if not itemID then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetHyperlink("item:" .. itemID)
+    local tip, worn = UI.ItemTips.Get()
+    tip:SetOwner(self, "ANCHOR_RIGHT")
+    tip:SetHyperlink("item:" .. itemID)
     local text = ns.Upgrades.DiffText(row.diff, ns.GameGear.StatName)
     if text then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(L.UPGRADE_COMPARE, W.GOLD[1], W.GOLD[2], W.GOLD[3])
-      GameTooltip:AddLine(text, 1, 1, 1, true)
+      tip:AddLine(" ")
+      tip:AddLine(L.UPGRADE_COMPARE, W.GOLD[1], W.GOLD[2], W.GOLD[3])
+      tip:AddLine(text, 1, 1, 1, true)
     end
-    GameTooltip:Show()
+    tip:Show()
+    local m = page.member
+    UI.ItemTips.Worn(worn, tip, m and m.name, row.worn)
   end
   -- a block per piece: the icon in its quality border, the item name over slot and makers, the gain
   -- big at the right over the levels it is made of
@@ -808,7 +875,7 @@ local function Build()
     row.Item:SetSize(UPGRADE_ICON, UPGRADE_ICON)
     row.Item:SetPoint("LEFT", 0, 0)
     row.Item:SetScript("OnEnter", ItemTooltip)
-    row.Item:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.Item:SetScript("OnLeave", UI.ItemTips.Hide)
     row.Border = row.Item:CreateTexture(nil, "BACKGROUND")
     row.Border:SetAllPoints()
     row.Icon = row.Item:CreateTexture(nil, "ARTWORK")
@@ -829,7 +896,7 @@ local function Build()
     row.NameHit = CreateFrame("Button", nil, row)
     row.NameHit:SetAllPoints(row.Name)
     row.NameHit:SetScript("OnEnter", ItemTooltip)
-    row.NameHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.NameHit:SetScript("OnLeave", UI.ItemTips.Hide)
     -- "Slot · von", the makers' names (a click whispers them), "(Beruf) · online"
     row.Sub = W.Text(row, "GameFontDisableSmall")
     row.Sub:SetWordWrap(false)
@@ -1780,6 +1847,9 @@ local function Build()
   -- box wants; LayoutColumn gives it the rest of the column and FitUpgrades drops what does not fit.
   function page:RenderUpgrades(m)
     local rows, state, missing, spec, tree = ns.GameGear.UpgradesFor(m)
+    local guild = ns.GuildData()
+    local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
+    local worn = type(rec) == "table" and type(rec.items) == "table" and rec.items or {}
     if missing and #missing > 0 then self.waiting = true end
     self.makers = rows
     local rowW = (upgrades:GetWidth() or 300) - 24
@@ -1789,7 +1859,7 @@ local function Build()
         local color = QUALITY[row.quality or 1] or QUALITY[1]
         local info, gone = ns.GameGear.ItemInfo(row.itemID)
         if not info and not gone then self.waiting = true end
-        line.itemID, line.diff = row.itemID, row.diff
+        line.itemID, line.diff, line.worn = row.itemID, row.diff, worn[row.slot]
         line.Icon:SetTexture(ItemIcon(row.itemID) or "Interface\\Icons\\INV_Misc_QuestionMark")
         line.Icon:Show()
         line.Border:SetColorTexture(color[1], color[2], color[3], 1)
@@ -1806,7 +1876,7 @@ local function Build()
         MakerLine(line, row, x0, width)
         line:Show()
       else
-        line.itemID, line.diff = nil, nil
+        line.itemID, line.diff, line.worn = nil, nil, nil
         line:Hide()
       end
     end
@@ -1975,6 +2045,7 @@ local function Build()
   end
   page:SetScript("OnHide", function()
     UI.Notes.Hide()
+    UI.ItemTips.Hide()
     local panel = rawget(page, "ScorePanel")
     if panel then panel:Hide() end
   end)

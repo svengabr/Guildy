@@ -301,6 +301,7 @@ ns.LocaleTables.enUS = {
   MODEL_WAIT_MALE = "The figure appears once you come across a male character.",
   UPGRADE_EMPTY = "Slot empty",
   UPGRADE_COMPARE = "Compared with what is worn now:",
+  UPGRADE_WORN = "Worn by %s",
   UPGRADE_BY = "by",
   UPGRADES_COUNT = "%d found",
   UPGRADES_RATED_SPEC = "rated for %s",

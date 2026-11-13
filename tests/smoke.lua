@@ -2901,12 +2901,12 @@ T.describe("Upgrades from the guild on the character page", function()
     T.eq(first.Border.color, { 0, 0.44, 0.87 }) -- rare
     T.truthy(first.Name:GetText():find("Kapuze des Sehers", 1, true), first.Name:GetText())
     T.truthy(first.Sub:GetText():find(L.UPGRADE_BY, 1, true), "the maker line: " .. first.Sub:GetText())
-    -- the item tooltip on the icon
+    -- the item tooltip on the icon, in Guildy's own tooltip
     local link
-    local setLink = env.GameTooltip.SetHyperlink
-    rawset(env.GameTooltip, "SetHyperlink", function(_, l) link = l end)
+    local setLink = env.GuildyItemTooltip.SetHyperlink
+    rawset(env.GuildyItemTooltip, "SetHyperlink", function(_, l) link = l end)
     first.Item:GetScript("OnEnter")(first.Item)
-    rawset(env.GameTooltip, "SetHyperlink", setLink)
+    rawset(env.GuildyItemTooltip, "SetHyperlink", setLink)
     T.eq(link, "item:50011")
     -- a click on the maker whispers them
     local whispered

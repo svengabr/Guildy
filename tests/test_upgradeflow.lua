@@ -255,20 +255,135 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
-  T.it("adds the stat comparison under the item tooltip", function()
-    local w = World()
-    local lines = {}
-    rawset(w.env.GameTooltip, "AddLine", function(_, text) lines[#lines + 1] = text end)
+  -- The page's item tooltips (GuildyItemTooltip, GuildyWornTooltip) noted: shown, links, texts
+  local function Watch(w, name)
+    local tip = w.env[name]
+    local log = { links = {}, texts = {} }
+    local function Text(_, text) if type(text) == "string" then log.texts[#log.texts + 1] = text end end
+    rawset(tip, "SetHyperlink", function(_, link)
+      log.links[#log.links + 1] = link
+      local first = w.env[name .. "TextLeft1"]
+      if first then first:SetText("Item " .. link) end
+    end)
+    rawset(tip, "SetText", function(self, text) log.texts = {} Text(self, text) end)
+    rawset(tip, "ClearLines", function() log.texts = {} end)
+    rawset(tip, "AddLine", Text)
+    rawset(tip, "AddDoubleLine", Text)
+    function log.all() return table.concat(log.texts, "\n") end
+    return log
+  end
+  local function Page(w)
     w.ns.UI.ShowMember(w.Member())
-    w.ns.UI.MemberPage():SetSize(1130 - 22, 760)
-    w.ns.UI.MemberPage():Render()
-    local row = w.ns.UI.MemberPage().Upgrades.Rows[1]
+    local page = w.ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 760)
+    page:Render()
+    return page
+  end
+
+  T.it("shows the offer with the stat comparison in Guildy's own item tooltip", function()
+    local w = World()
+    local page = Page(w)
+    local offer = Watch(w, "GuildyItemTooltip")
+    local row = page.Upgrades.Rows[1]
     T.eq(row:IsShown(), true)
+    local gameLink = false
+    rawset(w.env.GameTooltip, "SetHyperlink", function() gameLink = true end)
     row.Item:GetScript("OnEnter")(row.Item)
-    local all = table.concat(lines, "\n")
+    T.eq(offer.links, { "item:702" })
+    T.eq(w.env.GuildyItemTooltip:IsShown(), true)
+    local all = offer.all()
     T.truthy(all:find("+8 Beweglichkeit", 1, true), all)
     T.truthy(all:find("+3 Ausdauer", 1, true), all)
+    T.truthy(all:find("Beweglichkeit", 1, true) < all:find("Ausdauer", 1, true), "by weight: " .. all)
     T.truthy(all:find(w.ns.L.UPGRADE_COMPARE, 1, true), all)
+    T.eq(gameLink, false)
+    T.eq(w.env.GameTooltip:IsShown(), false)
+    T.eq(w.env.GuildyItemTooltip.supportsItemComparison, false) -- Blizzard's compare stays off
+    T.eq(w.errors, {})
+  end)
+
+  T.it("shows the member's worn piece of the compared slot beside the offer, headed with their name", function()
+    local w = World()
+    local page = Page(w)
+    local worn = Watch(w, "GuildyWornTooltip")
+    w.env.GuildyWornTooltipTextLeft1 = w.env.CreateFrame("Frame")
+    local row = page.Upgrades.Rows[1]
+    row.NameHit:GetScript("OnEnter")(row.NameHit)
+    T.eq(w.env.GuildyWornTooltip:IsShown(), true)
+    T.eq(worn.links, { "item:7007:0:0:0:0:0:0" }) -- the weak leather chest
+    local first = w.env.GuildyWornTooltipTextLeft1:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(first:find("Trägt Au Tsch\n", 1, true) == 1, first) -- the header line on top
+    T.truthy(first:find("Item item:7007", 1, true), first)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("says the slot is empty when the member wears nothing there", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    guild.gear["au tsch"].items[5] = nil
+    guild.gear["au tsch"].ts = guild.gear["au tsch"].ts + 1
+    local page = Page(w)
+    local worn = Watch(w, "GuildyWornTooltip")
+    local row = page.Upgrades.Rows[1]
+    row.Item:GetScript("OnEnter")(row.Item)
+    T.eq(w.env.GuildyWornTooltip:IsShown(), true)
+    T.eq(worn.links, {})
+    T.truthy(worn.all():find("Trägt Au Tsch", 1, true), worn.all())
+    T.truthy(worn.all():find("Platz leer", 1, true), worn.all())
+    T.eq(w.errors, {})
+  end)
+
+  T.it("names a worn piece that is not loaded yet, or shows dots", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    guild.gear["au tsch"].items[5].st = { [AGI] = 6, [STA] = 5 } -- compared by its stored stats
+    w.hidden[7007] = true
+    local page = Page(w)
+    local worn = Watch(w, "GuildyWornTooltip")
+    local row = page.Upgrades.Rows[1]
+    row.Item:GetScript("OnEnter")(row.Item)
+    T.eq(worn.links, {})
+    T.truthy(worn.all():find("…", 1, true), worn.all())
+    T.eq(w.errors, {})
+  end)
+
+  T.it("shows a gear row's item without any comparison", function()
+    local w = World()
+    local page = Page(w)
+    local item, worn = Watch(w, "GuildyItemTooltip"), Watch(w, "GuildyWornTooltip")
+    local gameLink = false
+    rawset(w.env.GameTooltip, "SetHyperlink", function() gameLink = true end)
+    local row
+    for _, r in ipairs(page.Gear.Rows) do if r.slot == 5 then row = r end end
+    row:GetScript("OnEnter")(row)
+    T.eq(item.links, { "item:7007:0:0:0:0:0:0" })
+    T.eq(w.env.GuildyItemTooltip:IsShown(), true)
+    T.eq(w.env.GuildyWornTooltip:IsShown(), false)
+    T.eq(worn.links, {})
+    T.eq(item.all():find(w.ns.L.UPGRADE_COMPARE, 1, true), nil)
+    T.eq(gameLink, false)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("hides both item tooltips on leave and when the page hides", function()
+    local w = World()
+    local page = Page(w)
+    local row = page.Upgrades.Rows[1]
+    row.Item:GetScript("OnEnter")(row.Item)
+    row.Item:GetScript("OnLeave")(row.Item)
+    T.eq(w.env.GuildyItemTooltip:IsShown(), false)
+    T.eq(w.env.GuildyWornTooltip:IsShown(), false)
+    row.NameHit:GetScript("OnEnter")(row.NameHit)
+    row.NameHit:GetScript("OnLeave")(row.NameHit)
+    T.eq(w.env.GuildyWornTooltip:IsShown(), false)
+    local gearRow = page.Gear.Rows[1]
+    gearRow:GetScript("OnEnter")(gearRow)
+    gearRow:GetScript("OnLeave")(gearRow)
+    T.eq(w.env.GuildyItemTooltip:IsShown(), false)
+    row.Item:GetScript("OnEnter")(row.Item)
+    page:Hide()
+    T.eq(w.env.GuildyItemTooltip:IsShown(), false)
+    T.eq(w.env.GuildyWornTooltip:IsShown(), false)
     T.eq(w.errors, {})
   end)
 end)

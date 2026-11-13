@@ -302,6 +302,7 @@ ns.LocaleTables.ruRU = {
   MODEL_WAIT_MALE = "Модель появится, как только вам встретится персонаж мужского пола.",
   UPGRADE_EMPTY = "Ячейка пуста",
   UPGRADE_COMPARE = "По сравнению с надетым сейчас:",
+  UPGRADE_WORN = "Носит: %s",
   UPGRADE_BY = "от",
   UPGRADES_COUNT = "Всего: %d",
   UPGRADES_RATED_SPEC = "оценка для: %s",

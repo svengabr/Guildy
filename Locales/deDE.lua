@@ -301,6 +301,7 @@ ns.LocaleTables.deDE = {
   MODEL_WAIT_MALE = "Die Figur erscheint, sobald dir ein Spieler begegnet.",
   UPGRADE_EMPTY = "Platz leer",
   UPGRADE_COMPARE = "Gegenüber dem, was jetzt getragen wird:",
+  UPGRADE_WORN = "Trägt %s",
   UPGRADE_BY = "von",
   UPGRADES_COUNT = "%d Treffer",
   UPGRADES_RATED_SPEC = "bewertet für %s",

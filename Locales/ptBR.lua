@@ -301,6 +301,7 @@ ns.LocaleTables.ptBR = {
   MODEL_WAIT_MALE = "A figura aparece assim que você encontrar um jogador.",
   UPGRADE_EMPTY = "Espaço vazio",
   UPGRADE_COMPARE = "Comparado ao que está equipado:",
+  UPGRADE_WORN = "Usado por %s",
   UPGRADE_BY = "por",
   UPGRADES_COUNT = "Total: %d",
   UPGRADES_RATED_SPEC = "avaliado para %s",
