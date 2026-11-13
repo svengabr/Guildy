@@ -349,6 +349,26 @@ T.describe("Upgrades for a feral druid", function()
     T.eq(U.WornStats({ id = 743, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }, game), { [STA] = 7 })
   end)
 
+  -- The same sash as the game may give it: healing and spell damage under keys without _SHORT, the belt's
+  -- combined "damage and healing up to 6" as spell power
+  T.it("counts stat keys the game gives without _SHORT under the weights of the _SHORT key", function()
+    INFO[752] = { equipLoc = "INVTYPE_WAIST", level = 30, reqLevel = 25, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    INFO[753] = { equipLoc = "INVTYPE_WAIST", level = 25, reqLevel = 20, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    STATS[752] = { [INT] = 9, ITEM_MOD_SPELL_HEALING_DONE = 26, ITEM_MOD_SPELL_DAMAGE_DONE = 9, [ARMOR] = 30 }
+    STATS[753] = { [INT] = 7, ITEM_MOD_SPELL_POWER_SHORT = 6, [ARMOR] = 20 }
+    local priest = { key = "maerith", level = 30, classFile = "PRIEST", weights = ns.StatWeights.For("PRIEST_HEAL") }
+    local sash = { id = 752, e = 0, s = 0, l = 30, q = 2, b = { 6655 }, st = { [INT] = 9 } }
+    T.eq(#For(priest, { items = { [6] = sash } }, { maker("t", { 9753 }) }, { [9753] = 753 }), 0)
+    -- the other way round the sash is offered, and the comparison carries the unknown keys
+    local belt = { id = 753, e = 0, s = 0, l = 25, q = 2 }
+    local rows = For(priest, { items = { [6] = belt } }, { maker("t", { 9752 }) }, { [9752] = 752 })
+    T.eq(#rows, 1)
+    T.eq(rows[1].diff[1], { key = "ITEM_MOD_SPELL_HEALING_DONE", delta = 26 })
+    local keys = {}
+    for _, d in ipairs(rows[1].diff) do keys[d.key] = d.delta end
+    T.eq(keys, { ITEM_MOD_SPELL_HEALING_DONE = 26, ITEM_MOD_SPELL_DAMAGE_DONE = 9, ITEM_MOD_SPELL_POWER_SHORT = -6, [INT] = 2 })
+  end)
+
   T.it("offers a tank a piece that is better by stamina alone, a damage dealer not", function()
     INFO[744] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 4, bind = 2, quality = 2 }
     STATS[744] = { [STA] = 10, [ARMOR] = 300 }

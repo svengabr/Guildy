@@ -87,6 +87,15 @@ end
 local function Counts(key) return type(key) == "string" and key:sub(1, 9) == "ITEM_MOD_" end
 Upgrades.Counts = Counts
 
+-- The weight of key under weights; a key the game gives without _SHORT (ITEM_MOD_SPELL_HEALING_DONE) by the
+-- _SHORT key's (the weight tables' keys), nil for none
+local function WeightOf(weights, key)
+  local weight = weights[key]
+  if weight == nil and Counts(key) and key:sub(-6) ~= "_SHORT" then weight = weights[key .. "_SHORT"] end
+  return weight
+end
+Upgrades.WeightOf = WeightOf
+
 local function HasStats(stats)
   for key, value in pairs(stats) do
     if Counts(key) and type(value) == "number" and value > 0 then return true end
@@ -127,7 +136,7 @@ end
 function Upgrades.Score(profile, stats)
   local score = 0
   for key, value in pairs(stats or {}) do
-    local weight = profile.weights[key]
+    local weight = WeightOf(profile.weights, key)
     if weight and type(value) == "number" then score = score + weight * value end
   end
   return score
@@ -150,7 +159,7 @@ function Upgrades.Diff(offer, worn, weights)
   end
   table.sort(list, function(x, y)
     if weights then
-      local ex, ey = math.abs(x.delta * (weights[x.key] or 0)), math.abs(y.delta * (weights[y.key] or 0))
+      local ex, ey = math.abs(x.delta * (WeightOf(weights, x.key) or 0)), math.abs(y.delta * (WeightOf(weights, y.key) or 0))
       if ex ~= ey then return ex > ey end
     end
     if math.abs(x.delta) ~= math.abs(y.delta) then return math.abs(x.delta) > math.abs(y.delta) end
@@ -487,7 +496,7 @@ local function Clear(t) for k in pairs(t) do t[k] = nil end end
 local function Weighted(weights, stats)
   local score = 0
   for key, value in pairs(stats) do
-    local weight = weights[key]
+    local weight = WeightOf(weights, key)
     if weight and type(value) == "number" then score = score + weight * value end
   end
   return score

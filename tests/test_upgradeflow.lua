@@ -587,3 +587,19 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 end)
+
+T.describe("Stat names in the comparison", function()
+  T.it("names a key by its global, the _SHORT global for a key without it, else leaves it to the key", function()
+    local w = World()
+    w.env.ITEM_MOD_SPELL_HEALING_DONE_SHORT = "Heilung"
+    w.env.ITEM_MOD_SPELL_POWER = "Zaubermacht"
+    local name = w.ns.GameGear.StatName
+    T.eq(name("ITEM_MOD_AGILITY_SHORT"), "Beweglichkeit")
+    T.eq(name("ITEM_MOD_SPELL_HEALING_DONE"), "Heilung")
+    T.eq(name("ITEM_MOD_SPELL_POWER"), "Zaubermacht")
+    T.eq(name("ITEM_MOD_NEW_THING"), nil)
+    T.eq(w.ns.Upgrades.DiffText({ { key = "ITEM_MOD_SPELL_HEALING_DONE", delta = -20 },
+      { key = "ITEM_MOD_NEW_THING", delta = 3 } }, name), "|cffff5a5a−20 Heilung|r, |cff4ce64c+3 ITEM_MOD_NEW_THING|r")
+    T.eq(w.errors, {})
+  end)
+end)

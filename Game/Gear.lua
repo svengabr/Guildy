@@ -437,8 +437,11 @@ end
 
 -- The stat name the client shows for an ITEM_MOD_* key
 function GameGear.StatName(key)
+  if type(key) ~= "string" then return nil end
   local name = rawget(_G, key)
-  return type(name) == "string" and name or nil
+  -- a key the game gives without _SHORT (ITEM_MOD_SPELL_HEALING_DONE) by the short label where it lacks one
+  if type(name) ~= "string" and key:sub(-6) ~= "_SHORT" then name = rawget(_G, key .. "_SHORT") end
+  return type(name) == "string" and not ns.IsSecret(name) and name or nil
 end
 
 local GAME = { stats = GameGear.ItemStats, requirements = GameGear.ItemRequirements, info = GameGear.ItemInfo }

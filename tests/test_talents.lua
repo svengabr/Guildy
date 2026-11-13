@@ -44,6 +44,24 @@ T.describe("Stat weights", function()
     T.eq(SW.For("NOPE"), nil)
   end)
 
+  T.it("weighs every spell key for the casters and healers: healers healing, casters damage, spell power both", function()
+    local SP, DMG, HEAL = "ITEM_MOD_SPELL_POWER_SHORT", "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT", "ITEM_MOD_SPELL_HEALING_DONE_SHORT"
+    local MP5, MP5B = "ITEM_MOD_MANA_REGENERATION_SHORT", "ITEM_MOD_POWER_REGEN0_SHORT"
+    local SCRIT, SHIT = "ITEM_MOD_CRIT_SPELL_RATING_SHORT", "ITEM_MOD_HIT_SPELL_RATING_SHORT"
+    local healers = { "PALADIN_HOLY", "SHAMAN_RESTO", "PRIEST_HEAL", "DRUID_RESTO" }
+    local casters = { "SHAMAN_ELE", "PRIEST_SHADOW", "DRUID_BALANCE", "MAGE", "WARLOCK" }
+    for _, spec in ipairs(healers) do
+      local w = SW.For(spec)
+      T.truthy(w[HEAL] == 1 and w[SP] == w[HEAL], spec .. ": healing and spell power alike")
+      for _, key in ipairs({ MP5, MP5B, SCRIT, SHIT }) do T.truthy((w[key] or 0) > 0, spec .. ": " .. key) end
+    end
+    for _, spec in ipairs(casters) do
+      local w = SW.For(spec)
+      T.truthy(w[DMG] == 1 and w[SP] == w[DMG] and (w[HEAL] or 0) == 0, spec .. ": damage and spell power alike")
+      for _, key in ipairs({ MP5, MP5B, SCRIT, SHIT }) do T.truthy((w[key] or 0) > 0, spec .. ": " .. key) end
+    end
+  end)
+
   T.it("maps every class's three trees to a spec", function()
     for classFile, trees in pairs(SW.TREES) do
       T.eq(#trees, 3, classFile)
