@@ -161,8 +161,8 @@ end
 
 local storedStats = setmetatable({}, { __mode = "k" }) -- worn item table -> its stored stats, checked
 
--- The stats of a worn item (Core/Gear.lua): the ones stored with it (st) when there are (armour from the
--- game where st lacks it), else the game's
+-- The stats of a worn item (Core/Gear.lua): the game's for its full item string, the ones stored with it (st)
+-- where the game has none or less, else the game's alone
 -- (game.stats). nil while they load; nil, true when the game never gives them or they cannot be known:
 -- a negative random suffix without the unique ID that carries its factor, or an uncommon or better piece
 -- without a suffix that the game says has no stats at all (a random-suffix item read without its suffix,
@@ -183,10 +183,11 @@ function Upgrades.WornStats(item, game, info)
   if type(item.st) == "table" then
     local known = storedStats[item]
     if known then return known end
-    -- the stored stats carry every ITEM_MOD_* key the API lists, but not always armour (written before
-    -- bnet-sync stored it): what they lack beside those (armour, resistances) comes from the game's reading of
-    -- the full item string. While that loads: the stored stats alone, not kept, and true as the third value
-    -- (the caller waits for the item); the stored stats alone when the game never gives it.
+    -- the game's reading of the full item string (bonus IDs included) is the truth: the stored stats lack
+    -- what the API lists elsewhere (healing and spell damage as equip effects, armour before bnet-sync
+    -- stored it). A stored value counts where the game has none or a lower one: a game that read the
+    -- base item without its random suffix. While the game's load: the stored stats alone, not kept, and
+    -- true as the third value (the caller waits for the item); the stored stats alone when it never gives them.
     local fromGame, gone = game.stats(item)
     known = {}
     for key, value in pairs(item.st) do
@@ -194,7 +195,9 @@ function Upgrades.WornStats(item, game, info)
     end
     if not fromGame and not gone then return known, nil, true end
     for key, value in pairs(fromGame or {}) do
-      if known[key] == nil and not Counts(key) and type(value) == "number" then known[key] = value end
+      if type(key) == "string" and type(value) == "number" and (known[key] == nil or value > known[key]) then
+        known[key] = value
+      end
     end
     storedStats[item] = known
     return known

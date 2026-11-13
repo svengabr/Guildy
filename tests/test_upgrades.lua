@@ -314,9 +314,26 @@ T.describe("Upgrades for a feral druid", function()
     T.eq(#tankRows({ id = 740, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 20 } }), 0)
   end)
 
-  T.it("keeps the stored stats over the game's for every ITEM_MOD key, also one the game adds", function()
+  T.it("takes every stat the game gives for the full item string, the stored value where it is higher", function()
     STATS[742] = { [STA] = 5, [AGI] = 9, [ARMOR] = 80 }
-    T.eq(U.WornStats({ id = 742, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }, GAME), { [STA] = 7, [ARMOR] = 80 })
+    -- the game read the base item (its suffix lost): the stored stamina is the worn one
+    T.eq(U.WornStats({ id = 742, e = 0, s = 0, l = 40, q = 2, st = { [STA] = 7 } }, GAME), { [STA] = 7, [AGI] = 9, [ARMOR] = 80 })
+  end)
+
+  -- Maerith (priest) wears "Salzige Schärpe": +9 intellect, 30 armour, equip +26 healing and +9 spell damage,
+  -- which the Battle.net API lists as equip effects, not in stats: st has the intellect alone. The
+  -- "Purpurroter Seidengürtel" (+7 intellect, +6 healing, +6 spell damage) is no upgrade.
+  T.it("scores a healer's worn sash with the healing and spell damage the game gives beside its stored stats", function()
+    local HEAL, DMG = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"
+    INFO[750] = { equipLoc = "INVTYPE_WAIST", level = 30, reqLevel = 25, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    INFO[751] = { equipLoc = "INVTYPE_WAIST", level = 25, reqLevel = 20, classID = 4, subclassID = 1, bind = 2, quality = 2 }
+    STATS[750] = { [INT] = 9, [HEAL] = 26, [DMG] = 9, [ARMOR] = 30 }
+    STATS[751] = { [INT] = 7, [HEAL] = 6, [DMG] = 6, [ARMOR] = 20 }
+    local priest = { key = "maerith", level = 30, classFile = "PRIEST", weights = ns.StatWeights.For("PRIEST_HEAL") }
+    local worn = { id = 750, e = 0, s = 0, l = 30, q = 2, b = { 6655 }, st = { [INT] = 9, [ARMOR] = 30 } }
+    T.eq(U.WornStats(worn, GAME), { [INT] = 9, [HEAL] = 26, [DMG] = 9, [ARMOR] = 30 })
+    local sash = { id = 750, e = 0, s = 0, l = 30, q = 2, b = { 6655 }, st = { [INT] = 9, [ARMOR] = 30 } }
+    T.eq(#For(priest, { items = { [6] = sash } }, { maker("t", { 9751 }) }, { [9751] = 751 }), 0)
   end)
 
   T.it("uses the stored stats alone while the game's load, and names the piece missing", function()
