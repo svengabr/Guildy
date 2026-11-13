@@ -2433,6 +2433,47 @@ T.describe("Character page", function()
     page:SetSize(100, 100)
     T.eq(errors, {})
   end)
+
+  T.it("keeps the gear heading in one line in the smallest window, in German and Russian", function()
+    local function Chars(text)
+      local n = 0
+      for _ in tostring(text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gmatch("[^\128-\191]") do n = n + 1 end
+      return n
+    end
+    for _, language in ipairs({ "deDE", "ruRU" }) do
+      local w = dofile(T.testsDir .. "/wow.lua")(T, { setup = function(e)
+        e.GuildyDB = { settings = { language = language } }
+      end })
+      w.Fire("ADDON_LOADED", "Guildy")
+      w.Fire("PLAYER_LOGIN")
+      w.Fire("GUILD_ROSTER_UPDATE")
+      w.RunTimers()
+      w.env.CommunitiesFrame:Show()
+      local L = w.ns.L
+      w.ns.UI.ShowMember(w.ns.Roster.Find("Au Tsch"))
+      local page = w.ns.UI.MemberPage()
+      local gear = page.Gear
+      -- widths as the game's fonts write them: title 7.5 px, the small grey font 5.5 px a character
+      local function Measure(text, per)
+        rawset(text, "GetUnboundedStringWidth", function(self) return Chars(self:GetText()) * per end)
+        rawset(text, "SetPoint", function(self, ...) self.at = { ... } end)
+      end
+      Measure(gear.Title, 7.5)
+      Measure(gear.Note, 5.5)
+      Measure(gear.Head, 5.5)
+      page:SetSize(1130 - 22, 560 - 42)
+      page:Render()
+      -- the longest summary there is: average, ready mark and missing enchantments
+      local summary = L.GEAR_AVG:format("38" .. L.DECIMAL_MARK .. "6") .. L.SEP .. L.GEAR_READY:format(40) .. L.SEP ..
+        L.GEAR_UNENCHANTED:format(6)
+      T.truthy(gear.Note:GetWidth() >= Chars(summary) * 5.5,
+        language .. ": summary " .. Chars(summary) * 5.5 .. " in " .. gear.Note:GetWidth())
+      local function Y(text) local at = text.at return at[#at] end
+      T.truthy(Y(gear.Head) > -16, language .. ": the column label on the title line, " .. Y(gear.Head))
+      T.truthy(Y(gear.Note) > -16, language .. ": the summary on the title line, " .. Y(gear.Note))
+      T.eq(w.errors, {})
+    end
+  end)
 end)
 
 T.describe("Activity score on the character page", function()

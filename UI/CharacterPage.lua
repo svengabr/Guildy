@@ -20,7 +20,7 @@ local UPGRADE_H = 34
 local MODEL_ZOOM = 0.8
 local MODEL_CHECKS, MODEL_CHECK_EVERY = 4, 0.5 -- re-checks of a dressed race model: 0.5 to 2 s
 local GEAR_SHARE = 0.62 -- of the room right of the hero card, the rest is the column
-local GEAR_TOP = 38     -- title and the column heading above the rows
+local GEAR_TOP = 32     -- the heading line (title, summary, column label) above the rows
 local QUALITY = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 } }
 local ENCHANT_COLOR = { 0.12, 1, 0 }
 local MISSING_COLOR = { 1, 0.5, 0.15 }
@@ -798,8 +798,16 @@ local function Build()
     local missing, count = {}, 0
     if rec then missing, count = G.Unenchanted(rec, ns.GameGear.EquipLoc) end
     local room = math.max(0, width - 24 - G.FIXED - barW) -- name and enchantment together
+    -- the heading in one line: the title, the summary after it, the column label at the right over the
+    -- bars, ending where they end; a summary too long for the room is cut, never wrapped
+    local barsEnd = 12 + 28 + 8
     gear.Head:ClearAllPoints()
-    gear.Head:SetPoint("TOPRIGHT", -(12 + 28 + 8), -24) -- over the bars, ending where they end
+    gear.Head:SetPoint("TOPRIGHT", -barsEnd, -11)
+    gear.Note:ClearAllPoints()
+    gear.Note:SetPoint("TOPLEFT", gear.Title, "TOPRIGHT", 10, -2)
+    gear.Note:SetJustifyH("LEFT")
+    gear.Note:SetWordWrap(false)
+    gear.Note:SetWidth(math.max(1, width - 12 - TextWidth(gear.Title) - 10 - 16 - TextWidth(gear.Head) - barsEnd))
     for i, row in ipairs(gear.Rows) do
       local item = rec and rec.items[row.slot]
       row.item = item
