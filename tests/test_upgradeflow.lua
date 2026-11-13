@@ -271,6 +271,69 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("reads a worn item with bonus IDs through its full item string: stats, name and offers", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    local full = "item:7400:0:0:0:0:0:0:0:0:0:0:0:1:6655"
+    w.INFO[7400] = { name = "Waldläufertunika", level = 39, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    local asked = {}
+    w.env.GetItemInfo = function(item)
+      local id = IdOf(item)
+      local it = w.INFO[id]
+      if not it then return nil end
+      -- the link keeps what the item string carried, as the game's does
+      local link = type(item) == "string" and "|cff1eff00|H" .. item .. "|h[Waldläufertunika des Tigers]|h|r" or ("item:" .. id)
+      return it.name, link, it.quality or 2, it.level, it.reqLevel or 1, "Rüstung", "Leder", 1, it.equipLoc, 134, 1,
+        it.classID or 4, it.subclassID or 2, it.bind or 2
+    end
+    local getStats = w.env.C_Item.GetItemStats
+    w.env.C_Item.GetItemStats = function(link)
+      if IdOf(link) == 7400 then
+        asked[#asked + 1] = link:match("item:[%-%d:]+")
+        if link:find(full, 1, true) then return { [STR] = 13, [AGI] = 13 } end
+        return {} -- the base item: no stats
+      end
+      return getStats(link)
+    end
+    guild.gear["au tsch"].items[5] = { id = 7400, e = 0, s = 0, l = 39, q = 2, b = { 6655 } }
+    guild.gear["au tsch"].ts = guild.gear["au tsch"].ts + 1
+    T.eq(w.ns.GameGear.ItemStats(guild.gear["au tsch"].items[5]), { [STR] = 13, [AGI] = 13 })
+    T.eq(asked, { full })
+    -- the tiger tunic beats the vest of 14 agility: no chest offered; without its bonus ID it was "unknown"
+    local ids = w.Offered()
+    T.eq(ids, {})
+    -- a weaker suffix: the vest is offered over it
+    w.env.C_Item.GetItemStats = function(link)
+      if IdOf(link) == 7400 then return link:find(":1:6000", 1, true) and { [AGI] = 3, [STA] = 3 } or {} end
+      return getStats(link)
+    end
+    guild.gear["au tsch"].items[5] = { id = 7400, e = 0, s = 0, l = 39, q = 2, b = { 6000 } }
+    guild.gear["au tsch"].ts = guild.gear["au tsch"].ts + 1
+    T.eq((w.Offered()), { 702 })
+    T.eq(w.errors, {})
+  end)
+
+  T.it("names a worn item with bonus IDs on its gear row in full", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    w.INFO[7500] = { name = "Waldläufertunika", level = 39, equipLoc = "INVTYPE_CHEST", subclassID = 2 }
+    w.STATS[7500] = { [AGI] = 1 }
+    local full = "item:7500:0:0:0:0:0:0:0:0:0:0:0:1:6655"
+    w.env.C_TooltipInfo.GetHyperlink = function(link)
+      if link == full then return { lines = { { leftText = "Waldläufertunika des Tigers" } } } end
+      return { lines = { { leftText = "Waldläufertunika" } } }
+    end
+    guild.gear["au tsch"].items[5] = { id = 7500, e = 0, s = 0, l = 39, q = 2, b = { 6655 } }
+    w.ns.UI.ShowMember(w.Member())
+    local page = w.ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 760)
+    page:Render()
+    local name
+    for _, r in ipairs(page.Gear.Rows) do if r.slot == 5 then name = r.Name:GetText() end end
+    T.truthy(name:find("Waldläufertunika des Tigers", 1, true), name)
+    T.eq(w.errors, {})
+  end)
+
   T.it("takes the stats bnet-sync stored with Sven's tiger tunic and offers no chest over it", function()
     local w = World()
     local guild = w.ns.GuildData()

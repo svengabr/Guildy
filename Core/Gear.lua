@@ -5,9 +5,11 @@
 --   slot 1..19 (shirt 4 and tabard 19 only for the model), e = enchantID or 0, s = suffixID or 0,
 --   u = the link's unique ID, only with a suffix (a negative Classic random suffix carries its factor
 --   there: without it the game gives the item without its suffix stats), l = item level, q = quality 0..5,
---   st = the item's stats { [ITEM_MOD_*_SHORT] = n } where the source listed them (bnet-sync), else nil
--- On the wire u and st travel beside the item list (u, t), so the list keeps its six fields and older
--- Guildy versions, which drop slots with more, read it as before and ignore u and t.
+--   st = the item's stats { [ITEM_MOD_*_SHORT] = n } where the source listed them (bnet-sync), else nil,
+--   b = the link's bonus IDs { n, ... } where it has any, else nil: WoW Forever runs the modern engine and
+--   puts a random suffix ("des Tigers") there, not in s; without them the game gives the base item
+-- On the wire u, st and b travel beside the item list (u, t, b), so the list keeps its six fields and older
+-- Guildy versions, which drop slots with more, read it as before and ignore u, t and b.
 --   GuildyDB.enchantText = { locale, names = { [enchantID] = text } } (per account, reset on a new locale)
 -- An incomplete read (a slot with an item ID but no link) is never stored.
 local _, ns = ...
@@ -30,7 +32,23 @@ local function IsInt(n)
 end
 local function IsId(n) return IsInt(n) and n > 0 end
 
--- id, enchant, suffix, unique ID of an item link or item string; nil when it is none
+Gear.MAX_BONUS = 16   -- bonus IDs kept per item
+Gear.BONUS_FIELD = 13 -- the field of a link that counts the bonus IDs (they follow it)
+
+-- The bonus IDs of a link's fields, nil for none or a count the fields do not hold
+local function Bonuses(fields)
+  local n = fields[Gear.BONUS_FIELD]
+  if not (IsInt(n) and n > 0 and n <= Gear.MAX_BONUS) then return nil end
+  local list = {}
+  for k = 1, n do
+    local b = fields[Gear.BONUS_FIELD + k]
+    if not IsId(b) then return nil end
+    list[k] = b
+  end
+  return list
+end
+
+-- id, enchant, suffix, unique ID, bonus IDs (nil for none) of an item link or item string; nil when it is none
 function Gear.ParseLink(link)
   if type(link) ~= "string" then return nil end
   local body = link:match("item:([%-%d:]+)")
@@ -43,13 +61,17 @@ function Gear.ParseLink(link)
   local id = fields[1]
   if not IsId(id) then return nil end
   local u = fields[8] or 0
-  return id, fields[2] or 0, fields[7] or 0, IsInt(u) and u or 0
+  return id, fields[2] or 0, fields[7] or 0, IsInt(u) and u or 0, Bonuses(fields)
 end
 
--- The item string of a stored item, with its suffix and the suffix's unique ID: the stats the game
--- gives for it are the item's own, suffix included
+-- The item string of a stored item, with its suffix, the suffix's unique ID and its bonus IDs: the stats,
+-- name and tooltip the game gives for it are the item's own, suffix included
 function Gear.ItemString(item)
-  local u = item.u
+  local u, b = item.u, item.b
+  if type(b) == "table" and #b > 0 then
+    return ("item:%d:%d:0:0:0:0:%d:%d:0:0:0:0:%d:%s"):format(item.id, item.e or 0, item.s or 0,
+      IsInt(u) and u or 0, #b, table.concat(b, ":"))
+  end
   if IsInt(u) and u ~= 0 then
     return ("item:%d:%d:0:0:0:0:%d:%d"):format(item.id, item.e or 0, item.s or 0, u)
   end
@@ -65,12 +87,13 @@ function Gear.FromLinks(links, ids, info)
     if link == nil then
       if ids and ids[slot] then return nil end
     else
-      local id, e, s, u = Gear.ParseLink(link)
+      local id, e, s, u, b = Gear.ParseLink(link)
       if not id then return nil end
       local quality, level = info(link)
       if type(quality) ~= "number" or type(level) ~= "number" then return nil end
       items[slot] = { id = id, e = e, s = s, l = math.max(0, math.floor(level)), q = math.max(0, math.min(5, math.floor(quality))) }
       if s ~= 0 and u ~= 0 then items[slot].u = u end
+      if b then items[slot].b = b end
     end
   end
   return items
@@ -114,8 +137,20 @@ local function ReadStats(text)
   return stats
 end
 
+-- "6655,1700" -> { 6655, 1700 }; nil when any part is wrong
+local function ReadBonuses(text)
+  local list = {}
+  for part in (text .. ","):gmatch("([^,]*),") do
+    local b = part:match("^%d+$") and tonumber(part)
+    if not IsId(b) or #list >= Gear.MAX_BONUS then return nil end
+    list[#list + 1] = b
+  end
+  return #list > 0 and list or nil
+end
+
 -- A record from the guild (wire form) as stored, or nil; nil too without a single valid item (an empty
--- record would wipe good gear). u and t (unique IDs, stored stats) are optional; a wrong entry is dropped.
+-- record would wipe good gear). u, t and b (unique IDs, stored stats, bonus IDs) are optional; a wrong
+-- entry is dropped.
 function Gear.Validate(raw, now)
   if type(raw) ~= "table" or not IsId(raw.ts) or raw.ts > now + 300 then return nil end
   local rec = { ts = raw.ts, src = Gear.SOURCES[raw.src] and raw.src or "relay", items = {} }
@@ -144,12 +179,20 @@ function Gear.Validate(raw, now)
       if stats then item.st = stats end
     end
   end
+  if type(raw.b) == "table" then
+    for n = 1, math.min(#raw.b, 19) do
+      local slot, rest = SlotOf(raw.b[n])
+      local item = slot and rec.items[slot]
+      local bonuses = item and ReadBonuses(rest)
+      if bonuses then item.b = bonuses end
+    end
+  end
   return rec
 end
 
 -- The wire form of a stored record
 function Gear.Wire(rec)
-  local slots, list, uniques, stats = {}, {}, {}, {}
+  local slots, list, uniques, stats, bonuses = {}, {}, {}, {}, {}
   for slot in pairs(rec.items or {}) do slots[#slots + 1] = slot end
   table.sort(slots)
   for _, slot in ipairs(slots) do
@@ -165,19 +208,39 @@ function Gear.Wire(rec)
       table.sort(parts)
       stats[#stats + 1] = slot .. ":" .. table.concat(parts, ",", 1, math.min(#parts, Gear.MAX_STATS))
     end
+    if type(it.b) == "table" and #it.b > 0 then
+      bonuses[#bonuses + 1] = slot .. ":" .. table.concat(it.b, ",", 1, math.min(#it.b, Gear.MAX_BONUS))
+    end
   end
   return { ts = rec.ts, src = rec.src, r = rec.race, x = rec.sex, i = list,
-    u = #uniques > 0 and uniques or nil, t = #stats > 0 and stats or nil }
+    u = #uniques > 0 and uniques or nil, t = #stats > 0 and stats or nil, b = #bonuses > 0 and bonuses or nil }
 end
 
--- Newer wins; at the same time the member's own reading wins. A record without items is never taken.
--- True when rec was taken.
+-- How much of its items a record carries beyond the six fields: bonus IDs, unique IDs, stored stats
+local function Detail(rec)
+  local n = 0
+  for _, it in pairs(type(rec) == "table" and type(rec.items) == "table" and rec.items or {}) do
+    if type(it) == "table" then
+      if type(it.b) == "table" and #it.b > 0 then n = n + 1 end
+      if IsInt(it.u) and it.u ~= 0 then n = n + 1 end
+      if type(it.st) == "table" then n = n + 1 end
+    end
+  end
+  return n
+end
+
+-- Newer wins; at the same time the one that carries more of its items (bonus IDs, unique IDs, stored
+-- stats: an older Guildy's reading of the same gear lacks them), else the member's own reading. A record
+-- without items is never taken. True when rec was taken.
 function Gear.Merge(book, key, rec)
   if type(rec) ~= "table" or type(rec.items) ~= "table" or not next(rec.items) then return false end
   local have = book[key]
   if type(have) == "table" and type(have.ts) == "number" then
     if have.ts > rec.ts then return false end
-    if have.ts == rec.ts and (rec.src ~= "self" or have.src == "self") then return false end
+    if have.ts == rec.ts then
+      local more, less = Detail(rec), Detail(have)
+      if more < less or (more == less and (rec.src ~= "self" or have.src == "self")) then return false end
+    end
   end
   book[key] = rec
   return true

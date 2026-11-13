@@ -33,6 +33,46 @@ T.describe("Gear", function()
     T.eq(items[1], { id = 10, e = 0, s = 0, l = 30, q = 2 }) -- no suffix: the unique ID is of no use
   end)
 
+  -- WoW Forever runs the modern engine: a random suffix ("des Tigers") is a bonus ID in the link
+  -- (item:id:enchant:gem1..4:suffix:unique:linkLevel:spec:modifiersMask:context:numBonusIDs:bonusID...),
+  -- not a suffix ID. Without it the game gives the base item: no stats, the bare name.
+  local TIGER_LINK = "|cff1eff00|Hitem:7484::::::::46::::2:6655:1700:::::|h[Waldläufertunika des Tigers]|h|r"
+  T.it("reads the bonus IDs of a modern item link and rebuilds the item string with them", function()
+    T.eq({ G.ParseLink(TIGER_LINK) }, { 7484, 0, 0, 0, { 6655, 1700 } })
+    T.eq(select(5, G.ParseLink("item:7484:0:0:0:0:0:-17:2752512:46")), nil) -- no bonus count: none
+    T.eq(select(5, G.ParseLink("item:7484::::::::46::::0")), nil)
+    T.eq(select(5, G.ParseLink("item:7484::::::::46::::3:1:2")), nil) -- fewer IDs than the count: not trusted
+    T.eq(G.ItemString({ id = 7484, e = 0, s = 0, b = { 6655, 1700 } }), "item:7484:0:0:0:0:0:0:0:0:0:0:0:2:6655:1700")
+    T.eq(G.ItemString({ id = 7484, e = 1887, s = -17, u = 5, b = { 6655 } }), "item:7484:1887:0:0:0:0:-17:5:0:0:0:0:1:6655")
+    T.eq({ G.ParseLink(G.ItemString({ id = 7484, e = 0, s = 0, b = { 6655, 1700 } })) }, { 7484, 0, 0, 0, { 6655, 1700 } })
+    local items = G.FromLinks({ [5] = TIGER_LINK }, { [5] = 7484 }, info({ [TIGER_LINK] = { 2, 39 } }))
+    T.eq(items[5], { id = 7484, e = 0, s = 0, l = 39, q = 2, b = { 6655, 1700 } })
+  end)
+
+  T.it("sends the bonus IDs beside the item list and reads them back", function()
+    local r = rec({ [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2, b = { 6655, 1700 } },
+      [6] = { id = 600, e = 0, s = 0, l = 39, q = 2 } }, NOW, "self")
+    local wire = G.Wire(r)
+    T.eq(wire.i, { "5:7484:0:0:39:2", "6:600:0:0:39:2" })
+    T.eq(wire.b, { "5:6655,1700" })
+    T.eq(G.Validate(wire, NOW), r)
+    T.eq(G.Wire(rec({ [6] = { id = 600, e = 0, s = 0, l = 39, q = 2 } })).b, nil)
+    local bad = G.Validate({ ts = NOW, i = { "5:7484:0:0:39:2", "6:600:0:0:39:2" }, b = { "5:x", "6:1.5", "9:7", "5" } }, NOW)
+    T.eq(bad.items[5].b, nil)
+    T.eq(bad.items[6].b, nil)
+  end)
+
+  T.it("takes a record of the same time that carries more of the items than the stored one", function()
+    local plain = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2 } }
+    local full = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2, b = { 6655 } } }
+    local book = { a = rec(plain, NOW, "self") }
+    T.eq(G.Merge(book, "a", rec(full, NOW, "relay")), true)
+    T.eq(book.a.items[5].b, { 6655 })
+    T.eq(G.Merge(book, "a", rec(plain, NOW, "self")), false) -- the poorer one never comes back at the same time
+    T.eq(G.Merge(book, "a", rec(full, NOW, "relay")), false) -- the same again: nothing new
+    T.eq(G.Merge(book, "a", rec(full, NOW - 1, "api")), false) -- older stays out, rich or not
+  end)
+
   T.it("sends the unique ID and stored stats beside the item list, which old clients read unchanged", function()
     local r = rec({ [5] = { id = 7484, e = 0, s = -17, u = 2752512, l = 39, q = 2 },
       [6] = { id = 600, e = 0, s = 0, l = 39, q = 2, st = { ITEM_MOD_AGILITY_SHORT = 13, ITEM_MOD_STRENGTH_SHORT = 13 } },

@@ -2229,6 +2229,30 @@ T.describe("Gear", function()
     T.eq(errors, {})
   end)
 
+  T.it("stores the own gear at once when the reading has bonus IDs the stored record lacks", function()
+    local shared = {}
+    local share = ns.Sync.ShareGear
+    ns.Sync.ShareGear = function(key) shared[#shared + 1] = key end
+    -- the chest as the modern engine links it: its random suffix is bonus ID 6655
+    local slots = {}
+    for slot, link in pairs(OWN) do slots[slot] = link end
+    slots[5] = "|cff1eff00|Hitem:1005:1887:::::::60::::1:6655:::::|h[X des Tigers]|h|r"
+    local restore = GearStubs("player", slots)
+    local before = ns.GuildData().gear["ran fred"]
+    before.items[5].b = nil -- written by a Guildy that dropped the bonus IDs, an hour ago
+    before.ts = ns.Now() - 3600
+    ns.GameStats.UpdateOwn()
+    local rec = ns.GuildData().gear["ran fred"]
+    T.eq(rec.items[5].b, { 6655 })
+    T.truthy(rec.ts > before.ts, "a new time, so the guild takes it")
+    T.eq(shared, { "ran fred" })
+    ns.GameStats.UpdateOwn() -- the same reading again: kept
+    T.eq(#shared, 1)
+    restore()
+    ns.Sync.ShareGear = share
+    T.eq(errors, {})
+  end)
+
   T.it("stores nothing from a secret link", function()
     local before = ns.GuildData().gear["ran fred"]
     local slots = { [1] = Link(1001), [5] = SECRET }

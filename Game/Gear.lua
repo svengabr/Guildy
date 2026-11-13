@@ -97,7 +97,9 @@ end
 local function Same(a, b)
   if type(a) ~= "table" or type(b) ~= "table" or a.race ~= b.race or a.sex ~= b.sex then return false end
   local wa, wb = G.Wire(a), G.Wire(b)
-  for _, field in ipairs({ "i", "u", "t" }) do
+  -- the fields beside the item list count too: a record without the bonus or unique IDs a reading now has
+  -- (written before Guildy kept them) is stored and shared again at once, not after a day
+  for _, field in ipairs({ "i", "u", "t", "b" }) do
     if table.concat(wa[field] or {}, ",") ~= table.concat(wb[field] or {}, ",") then return false end
   end
   return true
