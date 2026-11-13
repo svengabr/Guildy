@@ -94,9 +94,25 @@ export function updateGear(guild, key, record) {
   const book = guild.table('gear')
   const have = book.get(key)
   const stored = have instanceof LuaTable ? have.get('ts') : undefined
-  if (typeof stored === 'number' && stored >= record.ts) return false
+  if (typeof stored === 'number' && stored > record.ts) return false
+  // the same login again: replace only an API record that lacks what this one carries (bonus IDs and
+  // stats came later), never a member's own or seen reading
+  if (typeof stored === 'number' && stored === record.ts
+    && (have.get('src') !== 'api' || detail(have) >= detail(record))) return false
   book.set(key, toLua(record))
   return true
+}
+
+// How many worn items of a gear record (Lua table or plain object) carry bonus IDs or stored stats
+function detail(record) {
+  const get = (t, k) => t instanceof LuaTable ? t.get(k) : t?.[k]
+  const items = get(record, 'items')
+  let n = 0
+  for (let slot = 1; slot <= 19; slot++) {
+    const it = get(items, slot) ?? get(items, String(slot))
+    if (it && (get(it, 'b') !== undefined || get(it, 'st') !== undefined)) n++
+  }
+  return n
 }
 
 // Enchant texts of the response into GuildyDB.enchantText, the text after the first ": " of display_string

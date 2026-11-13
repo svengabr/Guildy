@@ -316,6 +316,21 @@ test('updateGear writes only a newer record', () => {
   assert.equal(updateGear(guild, 'au tsch', { ...rec, ts: 101 }), true)
 })
 
+test('updateGear refills an api record of the same login with bonus IDs and stats it lacked', () => {
+  const guild = new LuaTable()
+  const bare = { ts: 100, src: 'api', items: { 5: { id: 7477, e: 0, s: 0, l: 45, q: 2 } } }
+  assert.equal(updateGear(guild, 'au tsch', bare), true)
+  const rich = { ts: 100, src: 'api', items: { 5: { id: 7477, e: 0, s: 0, l: 45, q: 2, b: [12727], st: { ITEM_MOD_AGILITY_SHORT: 13 } } } }
+  assert.equal(updateGear(guild, 'au tsch', rich), true)
+  assert.deepEqual(guild.get('gear').get('au tsch').get('items').get(5).get('b').arr, [12727])
+  assert.equal(updateGear(guild, 'au tsch', rich), false) // nothing more to add
+  // a member's own reading of the same time is never replaced by the API
+  const own = new LuaTable()
+  updateGear(own, 'ran fred', bare)
+  own.get('gear').get('ran fred').set('src', 'self')
+  assert.equal(updateGear(own, 'ran fred', rich), false)
+})
+
 test('updateGear never writes a record without items over good gear', () => {
   const guild = new LuaTable()
   updateGear(guild, 'au tsch', gearRecord({ equipped_items: [worn('HEAD', 101, 50, 'RARE')] }, {}, 100))
