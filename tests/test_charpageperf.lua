@@ -322,3 +322,29 @@ T.describe("Character page item names", function()
     T.eq(w.errors, {})
   end)
 end)
+
+T.describe("Item answers", function()
+  -- the table of the last answer per item, an upvalue of GameGear.OnItemInfo
+  local function Heard(fn)
+    for i = 1, 50 do
+      local name, value = debug.getupvalue(fn, i)
+      if not name then break end
+      if name == "heard" then return value end
+    end
+  end
+
+  T.it("notes the answer only for items Guildy waits for, not for every item of every addon", function()
+    local w = World()
+    local heard = Heard(w.ns.GameGear.OnItemInfo)
+    T.truthy(type(heard) == "table", "heard found")
+    w.Fire("GET_ITEM_INFO_RECEIVED", 123456, true) -- another addon's item
+    w.Fire("ITEM_DATA_LOAD_RESULT", 123457, true)
+    T.eq(heard[123456], nil)
+    T.eq(heard[123457], nil)
+    w.ns.GuildData().gear["au tsch"].items[1] = { id = 7999, e = 0, s = 0, l = 46, q = 2 }
+    w.page:Render() -- asked from the game: Guildy waits for it
+    w.Fire("GET_ITEM_INFO_RECEIVED", 7999, false)
+    T.eq(heard[7999], "GET_ITEM_INFO_RECEIVED")
+    T.eq(w.errors, {})
+  end)
+end)

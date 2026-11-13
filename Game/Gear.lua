@@ -175,7 +175,7 @@ local itemState = {}
 local requestedItems = {} -- itemID -> true: asked from the game this session (only the retry asks again)
 local waitSince = {}      -- itemID -> GetTime() when it began waiting (or was asked again)
 local retried = {}        -- itemID -> true: asked a second time
-local heard = {}          -- itemID -> the last event that answered it ("GET_ITEM_INFO_RECEIVED" | "ITEM_DATA_LOAD_RESULT")
+local heard = {}          -- itemID Guildy tracks -> the last event that answered it ("GET_ITEM_INFO_RECEIVED" | "ITEM_DATA_LOAD_RESULT")
 local heardCount = { GET_ITEM_INFO_RECEIVED = 0, ITEM_DATA_LOAD_RESULT = 0 } -- answers this session, any item
 GameGear.WAIT_RETRY = 30
 
@@ -1105,7 +1105,8 @@ function GameGear.OnItemInfo(itemID, success, event)
   itemID = ToId(itemID)
   if not itemID then return end
   event = event or "GET_ITEM_INFO_RECEIVED"
-  heard[itemID] = event
+  -- noted per item only for the items Guildy tracks: the events come for every item of every addon
+  if itemState[itemID] or waitSince[itemID] then heard[itemID] = event end
   heardCount[event] = (heardCount[event] or 0) + 1
   local state = itemState[itemID]
   if success == false then
