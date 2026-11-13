@@ -184,6 +184,19 @@ T.describe("Smoke", function()
     T.eq(guild.cooldowns["ran fred"].cd[17187], now + 3590)
     T.eq(guild.cooldowns["ran fred"].cd[19566], now + 6600)
     env.C_Spell.GetSpellCooldown, env.C_Container.GetContainerItemCooldown = spellCooldown, itemCooldown
+    -- a cooldown begun before the client started: the game hands out a start that ran over 2^32 ms,
+    -- 49.7 days in the future (seen in game 2026-11-13: "in 51 Tg." for Arcanite)
+    local WRAP = 2 ^ 32 / 1000
+    env.C_Spell.GetSpellCooldown = function(id)
+      if id == 17187 then return { startTime = 1000 - 3600 + WRAP, duration = 47 * 3600 } end
+      return { startTime = 0, duration = 0 }
+    end
+    env.C_Container.GetContainerItemCooldown = function() return 1000 - 600 + WRAP, 71 * 3600 end
+    ns.GameCooldowns.Read()
+    T.eq(guild.cooldowns["ran fred"].cd[17187], now + 46 * 3600) -- begun an hour ago, 47 h long
+    T.eq(guild.cooldowns["ran fred"].cd[19566], now + 71 * 3600 - 600 - 1000 + 1000)
+    env.C_Spell.GetSpellCooldown, env.C_Container.GetContainerItemCooldown = spellCooldown, itemCooldown
+    ns.GameCooldowns.Read() -- back to the readings the steps below expect
     -- a craft with a cooldown in the own window is learned and counts even when the spell says nothing
     env.C_TradeSkillUI = { IsTradeSkillLinked = function() return false end }
     env.GetTradeSkillLine = function() return "Ingenieurskunst", 230, 300 end

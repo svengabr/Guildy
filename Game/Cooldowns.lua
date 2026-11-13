@@ -30,6 +30,17 @@ function GameCooldowns.Book()
   return guild.cooldowns
 end
 
+-- Seconds left of a cooldown from its start and duration (GetTime's clock). A cooldown begun before
+-- the client started can come with a start that ran over 2^32 milliseconds and lies 49.7 days in the
+-- future (seen in game 2026-11-13: "in 51 days" for Arcanite); it is turned back. Never more than the
+-- duration itself.
+local WRAP = 2 ^ 32 / 1000
+local function Remaining(start, duration)
+  local now = GetTime()
+  if start > now then start = start - WRAP end
+  return math.min(duration, math.max(0, start + duration - now))
+end
+
 local function SpellCooldown(id)
   local cs = rawget(_G, "C_Spell")
   local info = cs and ns.Try(rawget(cs, "GetSpellCooldown"), id)
@@ -46,7 +57,7 @@ local function SpellLeft(id)
   if ns.AnySecret(start, duration) then return SECRET end
   -- (two seconds and less is the global cooldown, not the craft's)
   if type(start) ~= "number" or type(duration) ~= "number" or duration <= 2 or start <= 0 then return 0 end
-  return math.max(0, start + duration - GetTime())
+  return Remaining(start, duration)
 end
 
 local function Container(name)
@@ -67,7 +78,7 @@ local function ItemLeft(itemID)
         local start, duration = ns.Try(cooldownOf, bag, slot)
         if ns.AnySecret(start, duration) then return SECRET end
         if type(start) ~= "number" or type(duration) ~= "number" or duration <= 2 or start <= 0 then return 0 end
-        return math.max(0, start + duration - GetTime())
+        return Remaining(start, duration)
       end
     end
   end
