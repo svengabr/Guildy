@@ -237,6 +237,42 @@ T.describe("Character page renders", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("works out the activity scores anew when a public or officer note links characters", function()
+    local w = World()
+    local players, ns = 0, w.ns
+    local fn = ns.Activity.Players
+    ns.Activity.Players = function(...)
+      players = players + 1
+      return fn(...)
+    end
+    local function Score() return ns.GameActivity.ScoreOf("au tsch") end
+    local notes = {}
+    local info = w.env.GetGuildRosterInfo
+    w.env.GetGuildRosterInfo = function(i)
+      local values = { info(i) }
+      if notes[i] then values[7], values[8] = notes[i][1], notes[i][2] end
+      return unpack(values, 1, 17)
+    end
+    local function Scan()
+      w.Fire("GUILD_ROSTER_UPDATE")
+      w.RunTimers()
+    end
+    Score()
+    T.eq(players, 0)
+    notes[3] = { "Twink von Ran", "" }
+    Scan()
+    Score()
+    T.eq(players, 1)
+    Scan() -- the same notes again: nothing new
+    Score()
+    T.eq(players, 1)
+    notes[2] = { "Heiler", "Twink von Ran" }
+    Scan()
+    Score()
+    T.eq(players, 2)
+    T.eq(w.errors, {})
+  end)
+
   T.it("reads an enchantment's text once per session, a missing one too", function()
     local w = World()
     local rec = w.ns.GuildData().gear["au tsch"]

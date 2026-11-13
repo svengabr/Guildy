@@ -24,11 +24,12 @@ end
 
 -- What the scores are worked out from besides the statistics and the member list (GameStats.version,
 -- Roster.version): goes up when a member's seen days, online state or whole days offline change, or a
--- family changes. A roster scan that shows nothing new of that (the usual one, every few seconds) leaves
+-- family changes (FAMILY, or a public or officer note: Family.Mains links characters through both). A roster scan that shows nothing new of that (the usual one, every few seconds) leaves
 -- the scores as they are; measured in game 2026-11-13: every scan threw them away and the next render of
 -- the character page worked them out anew for the whole guild (3.1 ms average, 10.9 ms max).
 local seenVersion, familyVersion = 0, 0
 local away = {} -- member key -> -1 online, whole days offline, -2 unknown (at the last scan)
+local notes = {} -- member key -> public and officer note joined (at the last scan)
 
 local function Away(m)
   if m.online then return -1 end
@@ -39,14 +40,20 @@ end
 -- Nothing while names are made up for pictures (the roster is the real one, but nothing new is kept).
 local function MarkRoster()
   local members = ns.Roster.Members()
-  local changed = false
+  local changed, linked = false, false
   for _, m in ipairs(members) do
     local now = Away(m)
     if away[m.key] ~= now then
       away[m.key] = now
       changed = true
     end
+    local note = (m.note or "") .. "" .. (m.officerNote or "")
+    if notes[m.key] ~= note then
+      if notes[m.key] ~= nil then linked = true end
+      notes[m.key] = note
+    end
   end
+  if linked then familyVersion = familyVersion + 1 end
   local guild = not ns.Anon.on and ns.GuildData() or nil
   if guild and #members > 0 then
     local now = ns.Now()
