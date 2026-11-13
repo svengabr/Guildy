@@ -196,6 +196,63 @@ function TradeSkill.RememberNames()
   end
 end
 
+-- Names tools/bnet-sync could not translate (GuildyDB.wantedNames): rare recipes no book Guildy read
+-- contained. Guildy looks for each among the spells where crafts lie (the classic ones, and Forever's own
+-- far above them) and keeps a name that belongs to exactly one spell; a name shared by several spells
+-- (a craft and a buff, say) is left out rather than guessed. A few thousand spells a frame, once a login.
+local SEARCH_RANGES = { { 1, 60000 }, { 1200000, 1400000 } }
+local SEARCH_CHUNK = 4000
+function TradeSkill.SearchNames()
+  local db = ns.DB()
+  local wanted = db and db.wantedNames
+  if not (db and type(db.settings) == "table" and db.settings.recipeNames and type(wanted) == "table"
+    and type(wanted.names) == "table") then
+    return
+  end
+  local locale = ns.Try(rawget(_G, "GetLocale")) or "enUS"
+  local want = {}
+  if wanted.locale == locale then
+    for _, name in ipairs(wanted.names) do
+      if type(name) == "string" and name ~= "" then want[name] = {} end
+    end
+  end
+  if not next(want) then
+    db.wantedNames = nil
+    return
+  end
+  if type(db.recipeNames) ~= "table" or db.recipeNames.locale ~= locale or type(db.recipeNames.names) ~= "table" then
+    db.recipeNames = { locale = locale, names = {} }
+  end
+  local names = db.recipeNames.names
+  local range, id = 1, SEARCH_RANGES[1][1]
+  local function Step()
+    local done = 0
+    while range <= #SEARCH_RANGES and done < SEARCH_CHUNK do
+      local name = SpellName(id)
+      if name and want[name] then table.insert(want[name], id) end
+      id, done = id + 1, done + 1
+      if id > SEARCH_RANGES[range][2] then
+        range = range + 1
+        id = SEARCH_RANGES[range] and SEARCH_RANGES[range][1]
+      end
+    end
+    if range <= #SEARCH_RANGES then
+      C_Timer.After(0, function() ns.SafeCall(Step) end)
+      return
+    end
+    local found = 0
+    for name, ids in pairs(want) do
+      if #ids == 1 then
+        names[ids[1]] = name
+        found = found + 1
+      end
+    end
+    db.wantedNames = nil
+    ns.Print(("bnet-sync: %d recipe names found in the game, the script's next run writes their books"):format(found))
+  end
+  Step()
+end
+
 -- The own character's specializations, from the game itself: only it and the script may replace or
 -- revoke one (Core/Specs.lua). A changed specialization makes the record news for the others.
 local confirmed = {} -- skill lines whose own specialization the game confirmed this session

@@ -223,6 +223,23 @@ T.describe("Smoke", function()
     T.eq(env.GuildyDB.recipeNames.locale, "deDE")
     T.eq(env.GuildyDB.recipeNames.names[12760], "Rezept 12760")
     T.eq(env.GuildyDB.recipeNames.names[20222], "Rezept 20222") -- the specializations too
+    -- names the script could not translate: Guildy looks for them among the game's spells and keeps
+    -- each that belongs to exactly one spell
+    local spellName = env.C_Spell.GetSpellName
+    env.C_Spell.GetSpellName = function(id)
+      if id == 100 or id == 200 then return "Doppelt" end
+      if id == 1250000 then return "Forever-Rezept" end
+      return spellName(id)
+    end
+    env.GuildyDB.wantedNames = { locale = "deDE", names = { "Rezept 4321", "Doppelt", "Forever-Rezept", "Gibt es nicht" } }
+    ns.TradeSkill.SearchNames()
+    RunTimers(80)
+    local names = env.GuildyDB.recipeNames.names
+    T.eq(names[4321], "Rezept 4321")
+    T.eq(names[1250000], "Forever-Rezept") -- Forever's own spells lie far above the classic ones
+    T.eq({ names[100], names[200] }, {}) -- two spells of that name: neither is taken
+    T.eq(env.GuildyDB.wantedNames, nil) -- looked for once
+    env.C_Spell.GetSpellName = spellName
     -- what the client answers, for checking in the game
     env.SlashCmdList.GUILDY("cd")
     env.SlashCmdList.GUILDY("spec")

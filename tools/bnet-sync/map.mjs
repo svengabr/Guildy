@@ -318,9 +318,13 @@ export function updateProfessions(member, list, ts, bridge = null) {
 }
 
 // Asks Guildy to save recipe names from the next login on (settings.recipeNames, Game/TradeSkill.lua):
-// only users of this script need them
-export function wantNames(db) {
+// only users of this script need them. unknown = names of the client's language no saved name matched:
+// Guildy looks for them among the game's spells at the next login (GuildyDB.wantedNames).
+const MAX_WANTED = 3000
+export function wantNames(db, unknown = [], locale = undefined) {
   db.table('settings').set('recipeNames', true)
+  if (unknown.length && locale) db.set('wantedNames', toLua({ locale, names: unknown.slice(0, MAX_WANTED).map(toBytes) }))
+  else db.set('wantedNames', null)
 }
 
 // The SavedVariables file is handled as bytes (latin1 strings); API text is real Unicode.

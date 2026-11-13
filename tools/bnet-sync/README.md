@@ -56,7 +56,13 @@ looks up each recipe's name in the client's language there, once: the names are 
 them, and one run took the guild from 66 books to 199. At the end the script says how many books it
 could translate.
 
-A recipe whose name Guildy has never seen in any book cannot be translated. A book that lacks at most
+A recipe whose name Guildy has never seen in any book cannot be translated at first. The script hands
+these names to Guildy (`GuildyDB.wantedNames`); at the next login Guildy looks for each among the
+game's spells where crafts lie (IDs 1–60000 and Forever's own 1200000–1400000, a few thousand a frame)
+and keeps every name that belongs to exactly one spell. A name shared by several spells is left out
+rather than guessed. The run after that login writes those books. (2026-11-13: 116 names handed over.)
+
+A book that still lacks recipes after that is handled like this: one that lacks at most
 three such recipes is still written for a member who has no book yet, marked `partial = <how many
 are missing>`. Such a partial book never replaces an existing list, and the next run completes it as
 soon as Guildy has seen the missing recipes once (checked 2026-11-13: 189 complete and 49 partial

@@ -126,6 +126,7 @@ function recipeName(id) {
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
 const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, missing: [], failed: [] }
+const unknownNames = new Set() // names no saved one matched: Guildy looks for them in the game
 
 for (const guildKey of db.get('guilds').keys()) {
   const guild = db.get('guilds').get(guildKey)
@@ -180,7 +181,9 @@ for (const guildKey of db.get('guilds').keys()) {
           entry.recipes = localize(entry.recipes, recipeNames) ?? undefined
           if (!BOOK_SKILLS.has(entry.skillLine)) continue
           totals.bookCandidates++
-          const unknown = entry.recipes ? entry.recipes.filter(name => bridge.spells(name).length === 0).length : Infinity
+          const unseen = entry.recipes ? entry.recipes.filter(name => bridge.spells(name).length === 0) : null
+          for (const name of unseen ?? []) unknownNames.add(name)
+          const unknown = unseen ? unseen.length : Infinity
           if (unknown === 0) totals.books++
           else if (unknown <= MAX_MISSING) totals.partial++
         }
@@ -203,7 +206,9 @@ if (bridge) {
   writeFileSync(NAMES_FILE, JSON.stringify(Object.fromEntries(recipeNames)))
 }
 
-wantNames(db) // from the next login on Guildy saves the names this needs
+// from the next login on Guildy saves the names this needs, and looks for those it never saw
+wantNames(db, [...unknownNames], bridge?.locale)
+if (unknownNames.size) console.log(`${unknownNames.size} unbekannte Rezeptnamen: Guildy sucht sie beim nächsten Login in den Spieldaten, der Lauf danach schreibt die Bücher.`)
 const out = serialize(globals)
 if (DRY) {
   const target = OUT ?? join(process.env.TEMP ?? dirname(SV), 'Guildy.bnet-dry-run.lua')

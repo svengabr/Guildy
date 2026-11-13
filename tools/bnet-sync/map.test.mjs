@@ -239,3 +239,13 @@ test('localize gives the recipes the names of the client language, or nothing wh
   assert.equal(localize([{ id: 1, name: 'Herb Baked Egg' }, { id: 3, name: 'Basic Campfire' }], names), null)
   assert.equal(localize(undefined, names), null)
 })
+
+test('wantNames hands Guildy the names it could not translate, to look for in the game', () => {
+  const db = toLua({ settings: {} })
+  wantNames(db, ['Gürtel der Wacht', 'Grüner Eisenhelm'], 'deDE')
+  const wanted = db.get('wantedNames')
+  assert.equal(wanted.get('locale'), 'deDE')
+  assert.deepEqual(wanted.get('names').arr.map(n => Buffer.from(n, 'latin1').toString('utf8')), ['Gürtel der Wacht', 'Grüner Eisenhelm'])
+  wantNames(db, [], 'deDE')
+  assert.equal(db.get('wantedNames'), undefined) // nothing left to look for
+})

@@ -49,6 +49,7 @@ local HANDLERS = {
     C_Timer.After(6, function() ns.SafeCall(ns.GameCooldowns.Read) end)
     C_Timer.After(8, function() ns.SafeCall(ns.TradeSkill.InferAll) end)
     C_Timer.After(12, function() ns.SafeCall(ns.TradeSkill.RememberNames) end)
+    C_Timer.After(15, function() ns.SafeCall(ns.TradeSkill.SearchNames) end)
     ns.Sync.Start()
     ns.GameStats.Start()
     ns.GameDing.Start()
