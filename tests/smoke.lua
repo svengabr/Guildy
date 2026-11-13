@@ -2867,216 +2867,207 @@ T.describe("Upgrades from the guild on the character page", function()
 end)
 
 T.describe("The model on the character page", function()
-  local function Watch(model)
-    local calls = { unit = {}, race = {}, tryOn = {}, undress = 0 }
-    rawset(model, "SetUnit", function(_, unit) calls.unit[#calls.unit + 1] = unit end)
-    rawset(model, "SetCustomRace", function(_, race, sex) calls.race[#calls.race + 1] = { race, sex } end)
-    rawset(model, "Undress", function() calls.undress = calls.undress + 1 end)
-    rawset(model, "TryOn", function(_, item) calls.tryOn[#calls.tryOn + 1] = item end)
-    rawset(model, "GetModelFileID", nil)
-    return calls
+  -- the page's scene hands out a watched player actor: SetModelByUnit calls as "unit:race"
+  local function Watch(page)
+    local calls = { unit = {}, tryOn = {}, undress = 0 }
+    local actor = {}
+    function actor:SetModelByUnit(unit, _, _, _, _, _, race) calls.unit[#calls.unit + 1] = unit .. ":" .. tostring(race) return true end
+    function actor:Undress() calls.undress = calls.undress + 1 end
+    function actor:TryOn(item) calls.tryOn[#calls.tryOn + 1] = item end
+    function actor:SetYaw(yaw) self.yaw = yaw end
+    function actor:GetYaw() return self.yaw or 0 end
+    rawset(page.Model, "GetPlayerActor", function() return actor end)
+    return calls, actor
   end
-  local function NoUnit() -- nobody shows the member right now
-    local guidOf = env.UnitGUID
+  -- the units the game shows: sexes = { unit = UnitSex } for player units besides the viewer (sex 3);
+  -- no unit shows a guild member
+  local function Units(sexes, mine)
+    local saved = { env.UnitGUID, env.UnitIsPlayer, env.UnitSex, env.UnitExists }
     env.UnitGUID = function() return nil end
-    return function() env.UnitGUID = guidOf end
+    env.UnitExists = function(unit) return unit == "player" or sexes[unit] ~= nil end
+    env.UnitIsPlayer = function(unit) return unit == "player" or sexes[unit] ~= nil end
+    env.UnitSex = function(unit)
+      if unit == "player" then return mine or 3 end
+      return sexes[unit]
+    end
+    return function() env.UnitGUID, env.UnitIsPlayer, env.UnitSex, env.UnitExists = unpack(saved, 1, 4) end
   end
   local function Items() return { [1] = { id = 2001, e = 0, s = 0, l = 42, q = 3 }, [4] = { id = 38, e = 0, s = 0, l = 1, q = 1 } } end
+  local DRESSED = { "item:2001:0:0:0:0:0:0", "item:38:0:0:0:0:0:0" }
+  local function Shown(page, shown)
+    T.eq(page.Model:IsShown(), shown)
+    T.eq(page.Hero.Portrait:IsShown(), not shown)
+    T.eq(page.Hero.ModelHint:IsShown(), shown)
+  end
 
-  T.it("shows the own character in its gear", function()
+  T.it("shows the own character through the player unit, without a race", function()
     local page = ns.UI.MemberPage()
-    local calls = Watch(page.Model)
+    local calls = Watch(page)
+    local back = Units({})
     ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
-    T.eq(calls.unit, { "player" })
-    T.eq(page.Model:IsShown(), true)
-    T.eq(page.Hero.Portrait:IsShown(), false)
-    T.eq(page.Hero.ModelHint:IsShown(), true)
+    T.eq(calls.unit, { "player:nil" })
+    Shown(page, true)
+    back()
     T.eq(errors, {})
   end)
 
-  T.it("shows a member nearby through their unit", function()
+  T.it("shows a member nearby through their unit, without a race", function()
     local page = ns.UI.MemberPage()
-    local calls = Watch(page.Model)
-    local guidOf = env.UnitGUID
+    local calls = Watch(page)
+    local back = Units({})
     env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    env.UnitGUID = guidOf
-    T.eq(calls.unit, { "target" })
-    T.eq(#calls.race, 0)
-    T.eq(errors, {})
-  end)
-
-  T.it("dresses the member's race in their stored gear, never the viewer's body", function()
-    local page = ns.UI.MemberPage()
-    local calls = Watch(page.Model)
-    local back = NoUnit()
-    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
-    rawset(page.Model, "GetModelFileID", function() return 9000 end) -- a troll, not the viewer's gnome
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(calls.unit, {}) -- never SetUnit("player") for someone else
-    T.eq(calls.race, { { 8, ns.GameGear.MODEL_SEX[3] } })
-    T.eq(calls.undress, 1)
-    T.eq(calls.tryOn, { "item:2001:0:0:0:0:0:0", "item:38:0:0:0:0:0:0" })
-    T.eq(page.Model:IsShown(), true)
-    T.eq(page.Hero.Portrait:IsShown(), false)
-    -- the game ignored the race: the model has the viewer's body, so the portrait comes back
-    rawset(page.Model, "GetModelFileID", function() return 4711 end)
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    RunTimers(1)
-    T.eq(page.Model:IsShown(), false)
-    T.eq(page.Hero.Portrait:IsShown(), true)
-    T.eq(page.Hero.ModelHint:IsShown(), false)
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
+    T.eq(calls.unit, { "target:nil" })
+    T.eq(calls.undress, 0)
+    Shown(page, true)
     back()
     T.eq(errors, {})
   end)
 
-  T.it("keeps the model when the page renders again without a change", function()
+  T.it("dresses a far member of the viewer's sex on the player unit with the member's race", function()
     local page = ns.UI.MemberPage()
-    local back = NoUnit()
+    local calls = Watch(page)
+    local back = Units({})
     ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
-    rawset(page.Model, "GetModelFileID", function() return 9000 end)
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    local calls = Watch(page.Model)
-    rawset(page.Model, "GetModelFileID", function() return 9000 end)
-    page:Render() -- a roster update, a sync message: nothing about the model changed
+    T.eq(calls.unit, { "player:8" }) -- the viewer's sex, the member's race
+    RunTimers(1)
+    T.eq(calls.undress, 1)
+    T.eq(calls.tryOn, DRESSED)
+    Shown(page, true)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("waits with the portrait for a player of the other sex, then dresses on them", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page)
+    local sexes = {}
+    local back = Units(sexes)
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 2, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    RunTimers(2)
+    T.eq(calls.unit, {}) -- never the viewer's female body for a man
+    Shown(page, false)
+    sexes.target = 2 -- a man in the target
+    Fire("PLAYER_TARGET_CHANGED")
+    RunTimers(2)
+    T.eq(calls.unit, { "target:8" })
+    T.eq(calls.tryOn, DRESSED)
+    Shown(page, true)
+    -- the donor leaves: the dressed body stays, nothing is dressed again
+    sexes.target = nil
+    Fire("PLAYER_TARGET_CHANGED")
+    RunTimers(2)
     page:Render()
-    T.eq(#calls.race, 0)
-    T.eq(calls.undress, 0)
-    T.eq(#calls.tryOn, 0)
-    T.eq(page.Model:IsShown(), true)
-    -- new gear arrives: dressed anew, once
+    T.eq(#calls.unit, 1)
+    Shown(page, true)
+    -- new gear without a donor: the body keeps its old gear, no portrait
     ns.GuildData().gear["au tsch"].ts = ns.Now() + 60
     page:Render()
-    page:Render()
-    T.eq(#calls.race, 1)
+    RunTimers(2)
+    T.eq(#calls.unit, 1)
     T.eq(calls.undress, 1)
-    -- the own page renders again: SetUnit("player") is not repeated either
-    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
-    calls = Watch(page.Model)
+    Shown(page, true)
+    -- a donor again: dressed anew, once
+    sexes.nameplate3 = 2
+    Fire("NAME_PLATE_UNIT_ADDED", "nameplate3")
+    RunTimers(2)
     page:Render()
-    T.eq(calls.unit, {})
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
+    RunTimers(2)
+    T.eq(calls.unit, { "target:8", "nameplate3:8" })
+    T.eq(calls.undress, 2)
+    Shown(page, true)
     back()
     T.eq(errors, {})
   end)
 
-  -- the states the model went through (SetShown calls), to see it never flickers
-  local function Track(model)
+  T.it("skips units whose sex is secret", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page)
+    local back = Units({ target = SECRET, focus = SECRET }, SECRET)
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    RunTimers(2)
+    T.eq(calls.unit, {})
+    Shown(page, false)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("prefers a donor whose model is ready", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page)
+    local back = Units({ target = 2, focus = 2 })
+    env.IsUnitModelReadyForUI = function(unit) return unit == "focus" end
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 2, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(calls.unit, { "focus:8" })
+    env.IsUnitModelReadyForUI = nil
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("dresses the model again only when what it shows changes", function()
+    local page = ns.UI.MemberPage()
+    local back = Units({})
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    RunTimers(1)
+    local calls = Watch(page)
+    page:Render() -- a roster update, a sync message: nothing about the model changed
+    page:Render()
+    RunTimers(2)
+    T.eq(#calls.unit, 0)
+    T.eq(calls.undress, 0)
+    Shown(page, true)
+    -- new gear arrives: dressed anew, once, and the model stays shown meanwhile
     local states = {}
-    rawset(model, "SetShown", function(self, v)
+    rawset(page.Model, "SetShown", function(self, v)
       states[#states + 1] = v and true or false
       if v then self:Show() else self:Hide() end
     end)
-    return states, function() rawset(model, "SetShown", nil) end
-  end
-
-  T.it("keeps the portrait while the own-body check cannot tell", function()
-    local page = ns.UI.MemberPage()
-    Watch(page.Model) -- no model file ID: the check cannot tell
-    local back = NoUnit()
-    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
-    local states, untrack = Track(page.Model)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(page.Model:IsShown(), false)
-    T.eq(page.Hero.Portrait:IsShown(), true)
-    RunTimers(10) -- every re-check stays undecided
-    T.eq(page.Model:IsShown(), false)
-    T.eq(page.Hero.Portrait:IsShown(), true)
-    T.eq(page.Hero.ModelHint:IsShown(), false)
-    for _, v in ipairs(states) do T.eq(v, false) end
-    untrack()
-    back()
-    T.eq(errors, {})
-  end)
-
-  T.it("shows the model as soon as a re-check tells it is not the viewer's body, without flicker", function()
-    local page = ns.UI.MemberPage()
-    local calls = Watch(page.Model)
-    local back = NoUnit()
-    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
-    local states, untrack = Track(page.Model)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(page.Model:IsShown(), false) -- not loaded yet
-    RunTimers(1)
-    T.eq(page.Model:IsShown(), false) -- still not loaded at the first re-check
-    rawset(page.Model, "GetModelFileID", function() return 9000 end) -- loaded: the member's troll
-    RunTimers(1)
-    T.eq(page.Model:IsShown(), true)
-    T.eq(page.Hero.Portrait:IsShown(), false)
-    RunTimers(10)
-    T.eq(page.Model:IsShown(), true)
-    T.eq(#calls.race, 1) -- dressed once
-    local seenShown = false
-    for _, v in ipairs(states) do
-      if v then seenShown = true else T.truthy(not seenShown, "hidden again after it was shown") end
-    end
-    untrack()
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
-    back()
-    T.eq(errors, {})
-  end)
-
-  T.it("keeps a shown model while new gear of the same member loads", function()
-    local page = ns.UI.MemberPage()
-    Watch(page.Model)
-    local back = NoUnit()
-    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
-    rawset(page.Model, "GetModelFileID", function() return 9000 end)
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(page.Model:IsShown(), true)
-    local states, untrack = Track(page.Model)
-    rawset(page.Model, "GetModelFileID", nil) -- loading the new gear: undecided for a moment
-    ns.GuildData().gear["au tsch"].ts = ns.Now() + 120
+    ns.GuildData().gear["au tsch"].ts = ns.Now() + 60
     page:Render()
-    rawset(page.Model, "GetModelFileID", function() return 9000 end)
-    RunTimers(1)
-    T.eq(page.Model:IsShown(), true)
-    for _, v in ipairs(states) do T.eq(v, true) end -- never hidden in between
-    -- another race stored: no keeping, the portrait until a check tells
-    rawset(page.Model, "GetModelFileID", nil)
-    ns.GuildData().gear["au tsch"].race = 2
     page:Render()
-    T.eq(page.Model:IsShown(), false)
-    untrack()
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
-    back()
-    T.eq(errors, {})
-  end)
-
-  T.it("never checks the body of a member shown through their unit, nor the own", function()
-    local page = ns.UI.MemberPage()
-    Watch(page.Model)
-    -- a member nearby of the viewer's race and sex, with no race stored: the files are the same
-    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", items = Items() }
-    rawset(page.Model, "GetModelFileID", function() return 4711 end)
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
-    local guidOf = env.UnitGUID
-    env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    RunTimers(10)
-    T.eq(page.Model:IsShown(), true)
-    T.eq(page.Hero.Portrait:IsShown(), false)
-    env.UnitGUID = guidOf
+    RunTimers(2)
+    T.eq(#calls.unit, 1)
+    T.eq(calls.undress, 1)
+    for _, v in ipairs(states) do T.eq(v, true) end
+    rawset(page.Model, "SetShown", nil)
+    -- the own page renders again: not loaded again either
     ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
-    RunTimers(10)
-    T.eq(page.Model:IsShown(), true)
-    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
+    calls = Watch(page)
+    page:Render()
+    T.eq(calls.unit, {})
+    back()
     T.eq(errors, {})
   end)
 
-  T.it("makes the hidden reference model when the page is built", function()
-    local made = 0
+  T.it("shows the portrait without a stored race or sex", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page)
+    local back = Units({})
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", sex = 3, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    RunTimers(2)
+    T.eq(calls.unit, {})
+    Shown(page, false)
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    RunTimers(2)
+    T.eq(calls.unit, {})
+    Shown(page, false)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("shows the portrait where the client has no model scene template", function()
     local fresh = dofile(T.testsDir .. "/wow.lua")(T, { setup = function(e)
       local create = e.CreateFrame
-      e.CreateFrame = function(kind, ...)
-        if kind == "DressUpModel" then made = made + 1 end
-        return create(kind, ...)
+      e.CreateFrame = function(kind, name, parent, template)
+        if template == "ModelSceneMixinTemplate" then error("unknown template") end
+        return create(kind, name, parent, template)
       end
     end })
     fresh.Fire("ADDON_LOADED", "Guildy")
@@ -3084,43 +3075,26 @@ T.describe("The model on the character page", function()
     fresh.Fire("GUILD_ROSTER_UPDATE")
     fresh.RunTimers()
     fresh.env.CommunitiesFrame:Show()
-    fresh.ns.UI.ShowMember(fresh.ns.Roster.Find("Ran Fred")) -- the own page never checks the body
-    T.eq(made, 2) -- the page's model and the reference, loading already
-    T.eq(fresh.errors, {})
-  end)
-
-  T.it("falls back to the portrait without a working custom race", function()
-    local page = ns.UI.MemberPage()
-    Watch(page.Model)
-    local back = NoUnit()
-    rawset(page.Model, "SetCustomRace", function() error("not on this client") end)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(page.Model:IsShown(), false)
+    fresh.ns.UI.ShowMember(fresh.ns.Roster.Find("Ran Fred"))
+    local page = fresh.ns.UI.MemberPage()
     T.eq(page.Hero.Portrait:IsShown(), true)
-    rawset(page.Model, "SetCustomRace", false)
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(page.Model:IsShown(), false)
-    -- no race stored: the portrait, no hint
-    local calls = Watch(page.Model)
-    ns.GuildData().gear["au tsch"].race = nil
-    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
-    T.eq(page.Model:IsShown(), false)
     T.eq(page.Hero.ModelHint:IsShown(), false)
-    T.eq(calls.unit, {})
-    back()
-    T.eq(errors, {})
+    T.eq(fresh.errors, {})
   end)
 
   T.it("turns and zooms the model", function()
     local page = ns.UI.MemberPage()
-    local facing, zoom = 0, nil
-    rawset(page.Model, "GetFacing", function() return facing end)
-    rawset(page.Model, "SetFacing", function(_, f) facing = f end)
-    rawset(page.Model, "SetPortraitZoom", function(_, z) zoom = z end)
+    local _, actor = Watch(page)
+    local camera = page.Model:GetActiveCamera()
+    local distance = 5
+    rawset(camera, "GetZoomDistance", function() return distance end)
+    rawset(camera, "SetZoomDistance", function(_, d) distance = d end)
+    local back = Units({})
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
     page.Model:GetScript("OnMouseWheel")(page.Model, 1)
-    T.eq(zoom, 0.1)
+    T.truthy(math.abs(distance - 4.5) < 1e-9, tostring(distance))
     for _ = 1, 20 do page.Model:GetScript("OnMouseWheel")(page.Model, 1) end
-    T.eq(zoom, 0.8)
+    T.truthy(math.abs(distance - 1) < 1e-9, tostring(distance)) -- at most 0.8 closer
     local x = 100
     local cursor = env.GetCursorPosition
     env.GetCursorPosition = function() return x, 100 end
@@ -3129,7 +3103,10 @@ T.describe("The model on the character page", function()
     page.Model:GetScript("OnUpdate")(page.Model, 0.1)
     page.Model:GetScript("OnMouseUp")(page.Model, "LeftButton")
     env.GetCursorPosition = cursor
-    T.truthy(math.abs(facing - 0.5) < 1e-9, tostring(facing))
+    T.truthy(math.abs(actor:GetYaw() - 0.5) < 1e-9, tostring(actor:GetYaw()))
+    rawset(camera, "GetZoomDistance", nil)
+    rawset(camera, "SetZoomDistance", nil)
+    back()
     T.eq(errors, {})
   end)
 end)

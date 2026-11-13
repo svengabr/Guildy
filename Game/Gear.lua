@@ -229,81 +229,90 @@ function GameGear.ResolveCrafts(spellIDs)
 end
 
 -- The model ------------------------------------------------------------------------------------------
--- Like the game's dressing room: the own character through SetUnit("player"); a member some unit token
--- shows right now through that unit; else the member's stored race and sex with SetCustomRace, undressed
--- and dressed in the stored items. That last one is shown only once a check tells it is not the viewer's
--- own body; where the client has no working SetCustomRace, the model shows the viewer's body or the
--- check cannot tell, the page keeps the race portrait: the gear is never shown on the viewer's body.
--- UnitSex values 2/3 -> SetCustomRace's gender (0 male, 1 female as in the game's dressing room; not yet
--- checked on Forever, /guildy modeltest shows it)
-GameGear.MODEL_SEX = { [2] = 0, [3] = 1 }
+-- A model scene's player actor (UI/CharacterPage.lua), as the game's shop uses it; checked in game on
+-- Forever with /guildy modeltest scene. SetModelByUnit(unit, ..., raceID) shows a body of raceID with the
+-- sex of unit, hair and face from unit; Undress and TryOn then dress it in any items. The routes:
+--   "player"  the own character: SetModelByUnit("player"), the real look
+--   "unit"    a member some unit token shows right now: that unit, the real look
+--   "donor"   else the stored race and sex: a player unit of the member's sex (the donor) with the
+--             member's raceID, undressed and dressed in the stored items. Race and sex are the
+--             member's by construction, never the viewer's body with someone else's race or sex.
+--   "wait"    race and sex stored, but no player of that sex around: the portrait until one shows up
+--   "none"    nothing stored: the portrait
+-- A dressed body stays when its donor leaves (checked in game).
 
-local reference -- a hidden model with the viewer's own body, to tell it apart
-function GameGear.ReferenceModel()
-  if not reference then
-    reference = CreateFrame("DressUpModel", nil, UIParent)
-    reference:SetSize(1, 1)
-    reference:SetAlpha(0)
-    pcall(reference.SetUnit, reference, "player")
+-- The units that may lend their body, the viewer first
+local DONORS = { "player", "target", "focus", "mouseover" }
+for i = 1, 4 do DONORS[#DONORS + 1] = "party" .. i end
+for i = 1, 40 do DONORS[#DONORS + 1] = "raid" .. i end
+for i = 1, 40 do DONORS[#DONORS + 1] = "nameplate" .. i end
+
+-- A player unit whose UnitSex is sex (2 or 3), one whose model is ready preferred; nil when none
+function GameGear.FindDonor(sex)
+  local isPlayer, unitSex = rawget(_G, "UnitIsPlayer"), rawget(_G, "UnitSex")
+  local ready = rawget(_G, "IsUnitModelReadyForUI")
+  local first
+  for _, unit in ipairs(DONORS) do
+    local player = unit == "player" or ns.Try(isPlayer, unit)
+    local found = ns.Try(unitSex, unit)
+    if not ns.AnySecret(player, found) and player == true and found == sex then
+      if not ready then return unit end
+      local isReady = ns.Try(ready, unit)
+      if not ns.IsSecret(isReady) and isReady == true then return unit end
+      first = first or unit
+    end
   end
-  return reference
+  return first
 end
 
-local function Call(model, method, ...)
-  local fn = model[method]
-  if type(fn) ~= "function" then return false end
-  return pcall(fn, model, ...)
-end
-
--- true when model shows the viewer's own body while it should show member m (their race or sex differ
--- from the viewer's), false when not, nil when the client cannot tell
-function GameGear.ShowsOwnBody(model, m)
+local function Record(m)
   local guild = ns.GuildData()
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
-  local _, _, myRace = ns.Try(rawget(_G, "UnitRace"), "player")
-  local mySex = ns.Try(rawget(_G, "UnitSex"), "player")
-  if type(rec) == "table" and rec.race == myRace and rec.sex == mySex then return false end
-  local ok, file = Call(model, "GetModelFileID")
-  local okMine, mine = Call(GameGear.ReferenceModel(), "GetModelFileID")
-  if not (ok and okMine) or ns.AnySecret(file, mine) or type(file) ~= "number" or type(mine) ~= "number"
-    or file <= 0 or mine <= 0 then return nil end -- a model still loading has no file yet
-  return file == mine
+  return type(rec) == "table" and rec or nil
 end
 
--- What DressModel would show for member m, as a string: the same string means the model already shows it
--- and is left alone (loading it again on every render makes it flicker)
-function GameGear.ModelKey(m)
-  local guild = ns.GuildData()
-  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
-  local ts = type(rec) == "table" and tostring(rec.ts) or "-"
-  if m.key == ns.Names.Key(ns.PlayerName()) then return "player:" .. ts end
+-- How the model shows member m: { kind = "player"|"unit"|"donor"|"wait"|"none", unit, race, sex }
+function GameGear.ModelRoute(m)
+  if m.key == ns.Names.Key(ns.PlayerName()) then return { kind = "player", unit = "player" } end
   local unit = m.guid and ns.GameStats.FindUnitByGuid(m.guid)
-  if unit and unit ~= "player" then return "unit:" .. unit .. ":" .. m.key end
-  if type(rec) ~= "table" then return "none:" .. m.key end
-  return ("race:%s:%s:%s:%s"):format(m.key, tostring(rec.race), tostring(rec.sex), ts)
+  if unit and unit ~= "player" then return { kind = "unit", unit = unit } end
+  local rec = Record(m)
+  if not rec or type(rec.race) ~= "number" or (rec.sex ~= 2 and rec.sex ~= 3) then return { kind = "none" } end
+  local donor = GameGear.FindDonor(rec.sex)
+  return { kind = donor and "donor" or "wait", unit = donor, race = rec.race, sex = rec.sex }
 end
 
--- Dresses model for roster member m: "show" when the game shows the member itself (the own character, a
--- member a unit token shows: no check, they may share the viewer's race and sex), "check" when it is the
--- stored race (shown only once GameGear.ShowsOwnBody says false), false for the portrait
-function GameGear.DressModel(model, m)
-  if m.key == ns.Names.Key(ns.PlayerName()) then
-    return Call(model, "SetUnit", "player") and "show" or false
-  end
-  local unit = m.guid and ns.GameStats.FindUnitByGuid(m.guid)
-  if unit and unit ~= "player" then
-    if Call(model, "SetUnit", unit) then return "show" end
-  end
-  local guild = ns.GuildData()
-  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
-  if type(rec) ~= "table" or not rec.race or not GameGear.MODEL_SEX[rec.sex or 0] then return false end
-  if not Call(model, "SetCustomRace", rec.race, GameGear.MODEL_SEX[rec.sex]) then return false end
-  Call(model, "Undress")
+-- What the model shows for member m on route (default: ModelRoute(m)), as a string: the same string means
+-- the model already shows it and is left alone (loading it again on every render makes it flicker). The
+-- donor unit is not part of it: another donor of the same sex shows the same.
+function GameGear.ModelKey(m, route)
+  route = route or GameGear.ModelRoute(m)
+  local rec = Record(m)
+  local ts = rec and tostring(rec.ts) or "-"
+  if route.kind == "player" then return "player:" .. ts end
+  if route.kind == "unit" then return "unit:" .. route.unit .. ":" .. m.key end
+  if route.kind == "none" then return "none:" .. m.key end
+  return ("%s:%s:%s:%s:%s"):format(route.kind, m.key, tostring(route.race), tostring(route.sex), ts)
+end
+
+-- Loads the body of route into actor: true when the game took it
+function GameGear.LoadModel(actor, route)
+  if not (route.unit and type(actor) == "table" and type(actor.SetModelByUnit) == "function") then return false end
+  local autoDress = route.kind ~= "donor" -- the real look wears its own gear; a donor's is replaced
+  local ok, result = pcall(actor.SetModelByUnit, actor, route.unit, false, autoDress, false, true, false,
+    route.kind == "donor" and route.race or nil)
+  return ok and result ~= false
+end
+
+-- Undresses actor and dresses it in member m's stored items
+function GameGear.DressStored(actor, m)
+  local rec = Record(m)
+  if not rec then return end
+  pcall(actor.Undress, actor)
   for slot = 1, 19 do
     local item = rec.items and rec.items[slot]
-    if item then Call(model, "TryOn", G.ItemString(item)) end
+    if item then pcall(actor.TryOn, actor, G.ItemString(item)) end
   end
-  return "check"
 end
 
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:

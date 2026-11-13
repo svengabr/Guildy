@@ -133,11 +133,18 @@ return function(T, opts)
     ACCEPT = "Annehmen", CANCEL = "Abbrechen", YES = "Ja", NO = "Nein",
   }
   env.UIParent._shown = true -- the screen itself: what hangs on it is visible when shown
-  env.CreateFrame = function(_, name, parent)
+  env.CreateFrame = function(kind, name, parent, template)
     local frame = Stub(name)
     frame._parent = parent
     if name then env[name] = frame end
     frame._fs = Stub()
+    -- a model scene of the game's template: scene IDs, a player actor and a camera (any method exists)
+    if kind == "ModelScene" and template == "ModelSceneMixinTemplate" then
+      local actor, camera = Stub(), Stub()
+      rawset(frame, "TransitionToModelSceneID", function() end)
+      rawset(frame, "GetPlayerActor", function() return actor end)
+      rawset(frame, "GetActiveCamera", function() return camera end)
+    end
     return frame
   end
   env.C_Timer = {

@@ -1,6 +1,6 @@
 -- Character page ("hero card"), variant A "readiness": opened by a left click on a member anywhere
 -- (chat names, the online list, the members and ranks tab), shown in the content area instead of a
--- tab, with a way back. Left the hero card: the model area (today the race portrait), level, Hall of
+-- tab, with a way back. Left the hero card: the model area (the character, else the race portrait), level, Hall of
 -- Fame title, race, gender and class, rank, notes, whisper and invite, and for officers the removal.
 -- Right the statistic tiles across, below them the gear slot by slot (Core/Gear.lua) beside a column
 -- with the family (Core/Family.lua), "Upgrades aus der Gilde" (Core/Upgrades.lua) and the professions.
@@ -18,7 +18,9 @@ local LINE_H = 18
 local PROF_ROWS = 6
 local UPGRADE_H = 34
 local MODEL_ZOOM = 0.8
-local MODEL_CHECKS, MODEL_CHECK_EVERY = 4, 0.5 -- re-checks of a dressed race model: 0.5 to 2 s
+local MODEL_SCENE = 596 -- the game's scene of a player in the shop and dressing room
+local MODEL_DRESS_AFTER = 0.5 -- s a donor's body needs before it takes the stored items (checked in game)
+local MODEL_RETRY_AFTER = 0.5 -- s between looks for a donor while one is missing
 local GEAR_SHARE = 0.62 -- of the room right of the hero card, the rest is the column
 local GEAR_TOP = 32     -- the heading line (title, summary, column label) above the rows
 local QUALITY = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 } }
@@ -482,8 +484,8 @@ local function Build()
   hero:SetPoint("TOPLEFT", 0, 0)
   hero:SetWidth(HERO_WIDTH)
   page.Hero = hero
-  -- the model area: the character itself comes in later; until then (and wherever the game cannot show
-  -- the member) the race portrait
+  -- the model area: the character (below); wherever the game cannot show the member in their race and
+  -- sex, the race portrait
   hero.ModelArea = CreateFrame("Frame", nil, hero)
   hero.ModelArea:SetPoint("TOPLEFT", 1, -1)
   hero.ModelArea:SetPoint("TOPRIGHT", -1, -1)
@@ -491,29 +493,45 @@ local function Build()
   page.ModelArea = hero.ModelArea
   hero.Portrait = Portrait(hero.ModelArea, 104)
   hero.Portrait:SetPoint("CENTER", 0, 0)
-  -- the character in its gear, like the game's dressing room (Game/Gear.lua): drag turns, the wheel zooms
-  local model = CreateFrame("DressUpModel", nil, hero.ModelArea)
-  model:SetAllPoints()
-  model:EnableMouse(true)
-  model:EnableMouseWheel(true)
-  model:Hide()
+  -- the character in its gear, a model scene with the game's player actor (Game/Gear.lua): drag turns the
+  -- actor, the wheel brings the camera closer. Without the template the page keeps the portrait.
+  local okScene, model = pcall(CreateFrame, "ModelScene", nil, hero.ModelArea, "ModelSceneMixinTemplate")
+  if not okScene or type(model) ~= "table" or type(model.TransitionToModelSceneID) ~= "function"
+    or type(model.GetPlayerActor) ~= "function" then
+    model = nil
+  end
   page.Model = model
-  ns.GameGear.ReferenceModel() -- the viewer's own body to compare with, loading from now on
-  model.zoom = 0
-  model:SetScript("OnMouseWheel", function(self, delta)
-    self.zoom = math.max(0, math.min(MODEL_ZOOM, math.floor((self.zoom + delta * 0.1) * 10 + 0.5) / 10))
-    self:SetPortraitZoom(self.zoom)
-  end)
-  model:SetScript("OnMouseDown", function(self, button)
-    if button ~= "LeftButton" then return end
-    self.dragX, self.dragFacing = GetCursorPosition(), self:GetFacing() or 0
-  end)
-  model:SetScript("OnMouseUp", function(self) self.dragX = nil end)
-  model:SetScript("OnHide", function(self) self.dragX = nil end)
-  model:SetScript("OnUpdate", function(self)
-    if not self.dragX then return end
-    self:SetFacing(self.dragFacing + (GetCursorPosition() - self.dragX) * 0.01)
-  end)
+  if model then
+    model:SetAllPoints()
+    model:EnableMouse(true)
+    model:EnableMouseWheel(true)
+    model:Hide()
+    model.zoom, model.yaw = 0, 0
+    model:SetScript("OnMouseWheel", function(self, delta)
+      self.zoom = math.max(0, math.min(MODEL_ZOOM, math.floor((self.zoom + delta * 0.1) * 10 + 0.5) / 10))
+      self:ApplyView()
+    end)
+    model:SetScript("OnMouseDown", function(self, button)
+      if button ~= "LeftButton" or not self.actor then return end
+      self.dragX, self.dragYaw = GetCursorPosition(), ns.Try(self.actor.GetYaw, self.actor) or 0
+    end)
+    model:SetScript("OnMouseUp", function(self) self.dragX = nil end)
+    model:HookScript("OnHide", function(self) self.dragX = nil end)
+    -- hooked: the template's own OnUpdate moves the camera
+    model:HookScript("OnUpdate", function(self)
+      if not (self.dragX and self.actor) then return end
+      self.yaw = self.dragYaw + (GetCursorPosition() - self.dragX) * 0.01
+      pcall(self.actor.SetYaw, self.actor, self.yaw)
+    end)
+    -- the turn and zoom of the viewer on the actor and the camera (again after each scene transition)
+    function model:ApplyView()
+      if self.actor then pcall(self.actor.SetYaw, self.actor, self.yaw) end
+      local camera = type(self.GetActiveCamera) == "function" and ns.Try(self.GetActiveCamera, self)
+      if type(camera) == "table" and self.distance and type(camera.SetZoomDistance) == "function" then
+        pcall(camera.SetZoomDistance, camera, self.distance * (1 - self.zoom))
+      end
+    end
+  end
   hero.ModelHint = W.Text(hero, "GameFontDisableSmall", L.MODEL_HINT)
   hero.ModelHint:SetPoint("TOP", hero.ModelArea, "BOTTOM", 0, -2)
   hero.ModelHint:Hide()
@@ -745,53 +763,89 @@ local function Build()
     UI.Notes.Show(m)
   end
 
-  -- the model where the game can show the member, else the portrait (never the viewer's own body)
+  -- the model where the game can show the member in their race and sex, else the portrait (never the
+  -- viewer's own body with someone else's race or sex)
   local function ShowModel(shown)
-    model:SetShown(shown)
+    if model then
+      model:SetShown(shown)
+      model:SetAlpha(1)
+    end
     hero.Portrait:SetShown(not shown)
     hero.ModelHint:SetShown(shown)
   end
 
+  -- true when the model shows member m's body already, in whatever gear: it stays while no player of
+  -- their sex is around (a dressed body needs no donor afterwards, checked in game)
+  local function ShowsBodyOf(m, route)
+    local body = page.modelBody
+    return model ~= nil and model:IsShown() and body ~= nil and body.key == m.key
+      and (body.race == nil or (body.race == route.race and body.sex == route.sex))
+  end
+
+  -- Shows member m (routes in Game/Gear.lua). Loaded again only when GameGear.ModelKey changes: the
+  -- member, the route or their gear.
   function page:RenderModel(m)
-    local key = ns.GameGear.ModelKey(m)
+    local route = ns.GameGear.ModelRoute(m)
+    self.modelWaiting = route.kind == "wait"
+    if route.kind == "wait" and ShowsBodyOf(m, route) then return end -- new gear waits for a donor
+    local key = ns.GameGear.ModelKey(m, route)
     if key == self.modelKey then return end
-    -- the same member's same race dressed anew (new gear) keeps the model shown until a check says
-    -- otherwise (keys "race:<member>:<race>:<sex>:<ts>", Game/Gear.lua)
-    local function Body(k) return type(k) == "string" and k:match("^(race:.*):[^:]*$") or nil end
-    local keep = model:IsShown() and Body(key) ~= nil and Body(key) == Body(self.modelKey)
     self.modelKey = key
-    if self.modelFor ~= m.key then
-      model.zoom = 0
-      pcall(model.SetPortraitZoom, model, 0)
-      pcall(model.SetFacing, model, 0)
-      self.modelFor = m.key
-    end
-    local how = ns.GameGear.DressModel(model, m)
     local token = {}
-    self.modelCheck = token -- a newer dressing ends the checks of this one
-    if how ~= "check" then
-      ShowModel(how == "show")
+    self.modelDress = token -- a newer dressing ends a pending one
+    if not model or route.kind == "wait" or route.kind == "none" then
+      self.modelBody = nil
+      ShowModel(false)
       return
     end
-    -- the stored race: shown once a check says it is not the viewer's own body. The model loads a moment
-    -- later, so while the check cannot tell it is asked again every MODEL_CHECK_EVERY seconds, at most
-    -- MODEL_CHECKS times; the portrait stays meanwhile and the model is never shown and hidden again
-    local function Check()
-      local own = ns.GameGear.ShowsOwnBody(model, m)
-      if own == nil then return false end
-      ShowModel(not own)
-      return true
+    if self.modelFor ~= m.key then
+      model.zoom, model.yaw = 0, 0
+      self.modelFor = m.key
     end
-    if Check() then return end
-    if not keep then ShowModel(false) end
-    local left = MODEL_CHECKS
-    local function Again()
-      if page.modelCheck ~= token then return end
-      left = left - 1
-      if not Check() and left > 0 then C_Timer.After(MODEL_CHECK_EVERY, Again) end
+    pcall(model.TransitionToModelSceneID, model, MODEL_SCENE, 1, 1, true)
+    local actor = ns.Try(model.GetPlayerActor, model)
+    model.actor = type(actor) == "table" and actor or nil
+    local camera = type(model.GetActiveCamera) == "function" and ns.Try(model.GetActiveCamera, model)
+    local distance = type(camera) == "table" and ns.Try(camera.GetZoomDistance, camera)
+    model.distance = type(distance) == "number" and not ns.IsSecret(distance) and distance or nil
+    if not (model.actor and ns.GameGear.LoadModel(model.actor, route)) then
+      self.modelBody = nil
+      ShowModel(false)
+      return
     end
-    C_Timer.After(MODEL_CHECK_EVERY, Again)
+    model:ApplyView()
+    if route.kind ~= "donor" then
+      self.modelBody = { key = m.key }
+      ShowModel(true)
+      return
+    end
+    -- the donor's body takes the stored items a moment later; until then a hidden model stays unseen
+    if not model:IsShown() then
+      model:SetAlpha(0)
+      model:Show()
+    end
+    C_Timer.After(MODEL_DRESS_AFTER, function()
+      if page.modelDress ~= token then return end
+      ns.SafeCall(ns.GameGear.DressStored, actor, m)
+      page.modelBody = { key = m.key, race = route.race, sex = route.sex }
+      ShowModel(true)
+    end)
   end
+
+  -- while the model waits for a player of the member's sex: looks again when one may have come in sight
+  local watcher = CreateFrame("Frame")
+  for _, event in ipairs({ "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED", "GROUP_ROSTER_UPDATE", "UPDATE_MOUSEOVER_UNIT" }) do
+    watcher:RegisterEvent(event)
+  end
+  watcher:SetScript("OnEvent", function()
+    if not page.modelWaiting or page.modelRetry or not page:IsShown() then return end
+    page.modelRetry = true
+    C_Timer.After(MODEL_RETRY_AFTER, function()
+      page.modelRetry = nil
+      local m = page.member and (ns.Roster.Find(page.member.key) or page.member)
+      if m and page.modelWaiting and page:IsShown() then ns.SafeCall(page.RenderModel, page, m) end
+    end)
+  end)
 
   -- the family as a list, as many lines as the box has room for (lines), "+N" after
   function page:RenderFamily(m, lines)
