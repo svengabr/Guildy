@@ -340,6 +340,17 @@ T.describe("Smoke", function()
     -- nobody specialized: no tooltip at all
     au.profs[202].spec = nil
     view:Refresh()
+    -- a list keeps room for its bar only while the bar shows (an empty strip stood right of the rail and
+    -- the member list, seen in game 2026-11-13)
+    local list, points, range = view.Members, {}, 0
+    rawset(list, "SetPoint", function(_, point, x, y) points[point] = { x, y } end)
+    rawset(list, "ScrollBar", env.CreateFrame("Frame"))
+    rawset(list, "GetVerticalScrollRange", function() return range end)
+    list.UpdateBar()
+    T.eq(points.BOTTOMRIGHT, { -4, 4 })
+    range = 200
+    list.UpdateBar()
+    T.eq(points.BOTTOMRIGHT, { -26, 4 })
     -- the member tooltip and the character page
     au.profs[202].spec = { id = 20222, src = "book", ts = now }
     guild.cooldowns["au tsch"] = { ts = now - 7200, cd = { [17187] = 0 } }

@@ -366,11 +366,27 @@ function W.ScrollList(parent, rowHeight, createRow, updateRow)
   local OVER = 2
   local round = 0 -- counts SetItems calls: a row filled in this round is not filled again while scrolling
   -- the bar (arrows, thumb) only while there is something to scroll: empty or short lists looked broken
+  local BAR_ROOM = 22 -- the bar and its gap, right of the list
+  local barShown
+  -- Where the list sits in its parent, the right edge as it is without the bar: a list placed this way
+  -- keeps room for the bar only while the bar shows (anchored by hand it always keeps the room)
+  function scroll:Place(left, top, right, bottom)
+    self.place = { left, top, right, bottom }
+    self:ClearAllPoints()
+    self:SetPoint("TOPLEFT", left, top)
+    self:SetPoint("BOTTOMRIGHT", right - (barShown and BAR_ROOM or 0), bottom)
+  end
   local function UpdateBar()
     local bar = scroll.ScrollBar
     if type(bar) ~= "table" or not bar.SetShown then return end
     local range = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange() or 0
-    bar:SetShown((range or 0) > 0.5)
+    local shown = (range or 0) > 0.5
+    bar:SetShown(shown)
+    if shown ~= barShown then
+      barShown = shown
+      local place = scroll.place
+      if place then scroll:Place(place[1], place[2], place[3], place[4]) end
+    end
   end
   scroll.UpdateBar = UpdateBar
   -- Builds and fills the rows in view that this round has not filled yet
