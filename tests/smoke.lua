@@ -690,6 +690,7 @@ T.describe("Harvest", function()
         others = others + 1
         T.eq({ m.joinedDay, m.joinedExact }, { today })
         T.eq(ns.Roster.TenureText(m), ns.L.SPAN_MORE:format(ns.L.SPAN_TODAY))
+        T.eq(ns.Roster.TenureText(m, true), ns.L.SINCE_AT_LEAST_TODAY) -- today needs no date beside it
       end
     end
     T.truthy(others > 0, "members without a join in the log")

@@ -325,6 +325,7 @@ ns.LocaleTables.ptBR = {
   COL_JOINED = "Antiguidade",
   MEMBER_SINCE = "Membro desde",
   SINCE_AT_LEAST = "pelo menos desde %s",
+  SINCE_AT_LEAST_TODAY = "pelo menos desde hoje",
   SPAN_D = "%d d",
   SPAN_MO = "%d meses",
   SPAN_Y = "%d a",

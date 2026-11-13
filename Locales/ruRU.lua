@@ -326,6 +326,7 @@ ns.LocaleTables.ruRU = {
   COL_JOINED = "В гильдии",
   MEMBER_SINCE = "В гильдии с",
   SINCE_AT_LEAST = "как минимум с %s",
+  SINCE_AT_LEAST_TODAY = "как минимум с сегодняшнего дня",
   SPAN_D = "%d дн.",
   SPAN_MO = "%d мес.",
   SPAN_Y = "%d г.",

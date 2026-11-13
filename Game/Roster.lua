@@ -79,6 +79,10 @@ function Roster.TenureText(m, long)
   local unit, count = ns.Tenure.Span(ns.Tenure.Day(ns.Now()) - m.joinedDay)
   local span = (unit == "d" and count == 0) and L.SPAN_TODAY or L["SPAN_" .. unit:upper()]:format(count)
   if not long then return m.joinedExact and span or L.SPAN_MORE:format(span) end
+  -- today needs no date beside it ("since at least 13.11.2026 · today" says it twice)
+  if unit == "d" and count == 0 then
+    return m.joinedExact and span or L.SINCE_AT_LEAST_TODAY
+  end
   -- (noon of that day: the same date in every time zone the guild plays in)
   local date = ns.GameStats.Date(L.DATE_LONG, m.joinedDay * 86400 + 43200)
   return (m.joinedExact and date or L.SINCE_AT_LEAST:format(date)) .. L.SEP .. span

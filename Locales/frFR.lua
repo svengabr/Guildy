@@ -325,6 +325,7 @@ ns.LocaleTables.frFR = {
   COL_JOINED = "Ancienneté",
   MEMBER_SINCE = "Membre depuis",
   SINCE_AT_LEAST = "au moins depuis le %s",
+  SINCE_AT_LEAST_TODAY = "au moins depuis aujourd'hui",
   SPAN_D = "%d j",
   SPAN_MO = "%d mois",
   SPAN_Y = "%d a",

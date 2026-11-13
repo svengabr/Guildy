@@ -325,6 +325,7 @@ ns.LocaleTables.esES = {
   COL_JOINED = "Antigüedad",
   MEMBER_SINCE = "Miembro desde",
   SINCE_AT_LEAST = "al menos desde el %s",
+  SINCE_AT_LEAST_TODAY = "al menos desde hoy",
   SPAN_D = "%d d",
   SPAN_MO = "%d meses",
   SPAN_Y = "%d a",

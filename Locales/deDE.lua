@@ -325,6 +325,7 @@ ns.LocaleTables.deDE = {
   COL_JOINED = "Dabei seit",
   MEMBER_SINCE = "Mitglied seit",
   SINCE_AT_LEAST = "mindestens seit %s",
+  SINCE_AT_LEAST_TODAY = "mindestens seit heute",
   SPAN_D = "%d Tg.",
   SPAN_MO = "%d Mon.",
   SPAN_Y = "%d J.",
