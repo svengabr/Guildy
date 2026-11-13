@@ -239,6 +239,27 @@ T.describe("Smoke", function()
     T.eq(names[1250000], "Forever-Rezept") -- Forever's own spells lie far above the classic ones
     T.eq({ names[100], names[200] }, {}) -- two spells of that name: neither is taken
     T.eq(env.GuildyDB.wantedNames, nil) -- looked for once
+    -- a craft named like its item's use effect (bombs, target dummies, fireworks): the script names
+    -- the made item, and the item's own spell is no candidate
+    env.C_Spell.GetSpellName = function(id)
+      if id == 300 or id == 301 then return "Bombe" end
+      if id == 400 or id == 401 or id == 402 then return "Dreifach" end
+      return spellName(id)
+    end
+    local requested = {}
+    env.C_Item = { RequestLoadItemDataByID = function(item) requested[#requested + 1] = item end,
+      GetItemSpell = function(item)
+        if item == 999 then return "Bombe", 301 end
+        if item == 998 then return "Dreifach", 402 end
+      end }
+    env.GuildyDB.wantedNames = { locale = "deDE", names = { "Bombe", "Dreifach" }, items = { Bombe = 999, Dreifach = 998 } }
+    ns.TradeSkill.SearchNames()
+    RunTimers(80)
+    T.eq(requested, { 999, 998 })
+    T.eq(names[300], "Bombe")
+    T.eq(names[301], nil)
+    T.eq({ names[400], names[401], names[402] }, {}) -- still two left: neither is taken
+    env.C_Item = nil
     env.C_Spell.GetSpellName = spellName
     -- what the client answers, for checking in the game
     env.SlashCmdList.GUILDY("cd")

@@ -20,7 +20,11 @@ export const SKILL_LINES = new Set([171, 164, 333, 202, 182, 165, 186, 393, 197,
 const MAX_SKILL = 450
 // Professions with specializations on Forever (Core/Specs.lua) and those whose books Guildy shows
 const SPEC_SKILLS = new Set([202, 164, 165])
-export const BOOK_SKILLS = new Set([171, 164, 333, 202, 165, 197, 185, 129])
+export const BOOK_SKILLS = new Set([171, 164, 333, 202, 165, 186, 197, 185, 129])
+// The professions' English names: the API lists the profession's own spell among its recipes (Mining's
+// ranks among the smelting), which no book in the game contains
+const EN_PROFESSIONS = { 171: 'Alchemy', 164: 'Blacksmithing', 333: 'Enchanting', 202: 'Engineering', 182: 'Herbalism',
+  165: 'Leatherworking', 186: 'Mining', 393: 'Skinning', 197: 'Tailoring', 185: 'Cooking', 129: 'First Aid', 356: 'Fishing' }
 const SPEC_IDS = new Set([20219, 20222, 17039, 17040, 17041, 9787, 9788, 10656, 10658, 10660])
 // The API's English names, for a client that never saved its own (Core/Specs.lua)
 const EN_SPECS = { 'Gnomish Engineer': 20219, 'Goblin Engineer': 20222, Weaponsmith: 9787, Armorsmith: 9788,
@@ -96,7 +100,9 @@ export function professions(response) {
     if (typeof p.specialization?.name === 'string') entry.spec = p.specialization.name
     else if (SPEC_SKILLS.has(skillLine)) entry.spec = null
     const recipes = (p.tiers ?? []).flatMap(t => t.known_recipes ?? [])
-      .filter(r => typeof r?.id === 'number' && typeof r?.name === 'string').map(r => ({ id: r.id, name: r.name }))
+      .filter(r => typeof r?.id === 'number' && typeof r?.name === 'string')
+      .filter(r => r.name !== EN_PROFESSIONS[skillLine] && r.name !== p.profession?.name)
+      .map(r => ({ id: r.id, name: r.name }))
     if (recipes.length) entry.recipes = recipes
     list.push(entry)
   }
@@ -319,12 +325,24 @@ export function updateProfessions(member, list, ts, bridge = null) {
 
 // Asks Guildy to save recipe names from the next login on (settings.recipeNames, Game/TradeSkill.lua):
 // only users of this script need them. unknown = names of the client's language no saved name matched:
-// Guildy looks for them among the game's spells at the next login (GuildyDB.wantedNames).
+// Guildy looks for them among the game's spells at the next login (GuildyDB.wantedNames). items = name ->
+// the item the recipe makes: its use effect often bears the same name, and Guildy leaves that spell out.
 const MAX_WANTED = 3000
-export function wantNames(db, unknown = [], locale = undefined) {
+export function wantNames(db, unknown = [], locale = undefined, items = new Map()) {
   db.table('settings').set('recipeNames', true)
-  if (unknown.length && locale) db.set('wantedNames', toLua({ locale, names: unknown.slice(0, MAX_WANTED).map(toBytes) }))
-  else db.set('wantedNames', null)
+  if (!unknown.length || !locale) {
+    db.set('wantedNames', null)
+    return
+  }
+  const names = unknown.slice(0, MAX_WANTED)
+  const wanted = toLua({ locale, names: names.map(toBytes) })
+  const made = new LuaTable()
+  for (const name of names) {
+    const item = items.get(name)
+    if (Number.isInteger(item) && item > 0) made.set(toBytes(name), item)
+  }
+  if (made.hash.size) wanted.set('items', made)
+  db.set('wantedNames', wanted)
 }
 
 // The SavedVariables file is handled as bytes (latin1 strings); API text is real Unicode.

@@ -123,10 +123,24 @@ function recipeName(id) {
   return lookups.get(id)
 }
 
+// The item each recipe makes, for the names Guildy has to look for in the game: the item's use effect
+// often bears the craft's name (bombs, target dummies, fireworks), and Guildy leaves that spell out.
+// Kept in out/ like the names; 0 for a recipe that makes no item.
+const ITEMS_FILE = join(dirname(NAMES_FILE), 'recipe-items.json')
+const recipeItems = new Map(existsSync(ITEMS_FILE)
+  ? Object.entries(JSON.parse(readFileSync(ITEMS_FILE, 'utf8'))).map(([id, item]) => [Number(id), item]) : [])
+async function craftedItem(id) {
+  if (!recipeItems.has(id) && staticNamespace) {
+    const body = await api(`/data/wow/recipe/${id}`, PROF_LOCALE, staticNamespace)
+    if (body) recipeItems.set(id, Number.isInteger(body.crafted_item?.id) ? body.crafted_item.id : 0)
+  }
+  return recipeItems.get(id) || null
+}
+
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
 const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, missing: [], failed: [] }
-const unknownNames = new Set() // names no saved one matched: Guildy looks for them in the game
+const unknownNames = new Map() // names no saved one matched -> a recipe ID: Guildy looks for them in the game
 
 for (const guildKey of db.get('guilds').keys()) {
   const guild = db.get('guilds').get(guildKey)
@@ -178,11 +192,12 @@ for (const guildKey of db.get('guilds').keys()) {
             continue
           }
           await Promise.all(entry.recipes.map(r => recipeName(r.id)))
+          const ids = entry.recipes.map(r => r.id)
           entry.recipes = localize(entry.recipes, recipeNames) ?? undefined
           if (!BOOK_SKILLS.has(entry.skillLine)) continue
           totals.bookCandidates++
           const unseen = entry.recipes ? entry.recipes.filter(name => bridge.spells(name).length === 0) : null
-          for (const name of unseen ?? []) unknownNames.add(name)
+          entry.recipes?.forEach((name, i) => { if (bridge.spells(name).length === 0) unknownNames.set(name, ids[i]) })
           const unknown = unseen ? unseen.length : Infinity
           if (unknown === 0) totals.books++
           else if (unknown <= MAX_MISSING) totals.partial++
@@ -202,12 +217,20 @@ if (totals.failed.length) console.log(`Fehlgeschlagen: ${totals.failed.join('; '
 if (bridge) {
   console.log(`Rezeptbücher: ${totals.books} vollständig, ${totals.partial} mit bis zu ${MAX_MISSING} fehlenden Rezepten, von ${totals.bookCandidates} (${namesLooked} Rezeptnamen neu nachgeschlagen).`)
   console.log('Ein Teilbuch wird vollständig, sobald Guildy die fehlenden Rezepte einmal in einem Buch im Spiel liest.')
-  mkdirSync(dirname(NAMES_FILE), { recursive: true })
-  writeFileSync(NAMES_FILE, JSON.stringify(Object.fromEntries(recipeNames)))
 }
 
 // from the next login on Guildy saves the names this needs, and looks for those it never saw
-wantNames(db, [...unknownNames], bridge?.locale)
+const madeItems = new Map()
+await pool([...unknownNames], async ([name, id]) => {
+  const item = await craftedItem(id).catch(() => null)
+  if (item) madeItems.set(name, item)
+})
+if (bridge) {
+  mkdirSync(dirname(NAMES_FILE), { recursive: true })
+  writeFileSync(NAMES_FILE, JSON.stringify(Object.fromEntries(recipeNames)))
+  writeFileSync(ITEMS_FILE, JSON.stringify(Object.fromEntries(recipeItems)))
+}
+wantNames(db, [...unknownNames.keys()], bridge?.locale, madeItems)
 if (unknownNames.size) console.log(`${unknownNames.size} unbekannte Rezeptnamen: Guildy sucht sie beim nächsten Login in den Spieldaten, der Lauf danach schreibt die Bücher.`)
 const out = serialize(globals)
 if (DRY) {

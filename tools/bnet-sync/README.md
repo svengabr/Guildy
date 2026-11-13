@@ -59,16 +59,22 @@ could translate.
 A recipe whose name Guildy has never seen in any book cannot be translated at first. The script hands
 these names to Guildy (`GuildyDB.wantedNames`); at the next login Guildy looks for each among the
 game's spells where crafts lie (IDs 1–60000 and Forever's own 1200000–1400000, a few thousand a frame)
-and keeps every name that belongs to exactly one spell. A name shared by several spells is left out
-rather than guessed. The run after that login writes those books. (2026-11-13: 116 names handed over.)
+and keeps every name that belongs to exactly one spell. Many crafts are named like their item's use
+effect: "Große Kupferbombe" is both the craft (3937) and what the bomb casts (4065), and the same goes
+for target dummies, fireworks and the like (2026-11-13: all nine names Lucky Striker's engineering
+lacked). The script therefore hands over the item each recipe makes (`wantedNames.items`, from
+`/data/wow/recipe/{id}` `crafted_item`, kept in `out/recipe-items.json`), and Guildy leaves that
+item's use spell out of the candidates. A name still shared by several spells is left out rather than
+guessed. The run after that login writes those books. (2026-11-13: 116 names handed over.)
 
 A book that still lacks recipes after that is handled like this: one that lacks at most
 three such recipes is still written for a member who has no book yet, marked `partial = <how many
 are missing>`. Such a partial book never replaces an existing list, and the next run completes it as
 soon as Guildy has seen the missing recipes once (checked 2026-11-13: 189 complete and 49 partial
 books, 242 of 250 in the crafting professions). A book read in the game after the member's last login
-is never replaced. Gathering professions
-get no list. Specializations follow the game's rules (`Core/Specs.lua`): the API replaces one
+is never replaced. Mining gets its smelting book; the API also lists Mining's own ranks among its
+recipes, which no book in the game contains, so the script drops recipes named like their profession.
+Herbalism, skinning and fishing get no list. Specializations follow the game's rules (`Core/Specs.lua`): the API replaces one
 inferred from a book, but not one the game itself reported later; "no specialization" from the API
 revokes one.
 

@@ -198,8 +198,10 @@ end
 
 -- Names tools/bnet-sync could not translate (GuildyDB.wantedNames): rare recipes no book Guildy read
 -- contained. Guildy looks for each among the spells where crafts lie (the classic ones, and Forever's own
--- far above them) and keeps a name that belongs to exactly one spell; a name shared by several spells
--- (a craft and a buff, say) is left out rather than guessed. A few thousand spells a frame, once a login.
+-- far above them) and keeps a name that belongs to exactly one spell. The script names the item each
+-- recipe makes (wantedNames.items): that item's use effect, often named like the craft (bombs, target
+-- dummies, fireworks), is no candidate. A name still shared by several spells (a craft and a buff, say)
+-- is left out rather than guessed. A few thousand spells a frame, once a login.
 local SEARCH_RANGES = { { 1, 60000 }, { 1200000, 1400000 } }
 local SEARCH_CHUNK = 4000
 function TradeSkill.SearchNames()
@@ -210,10 +212,20 @@ function TradeSkill.SearchNames()
     return
   end
   local locale = ns.Try(rawget(_G, "GetLocale")) or "enUS"
-  local want = {}
+  local want, items = {}, {}
+  local request = C_Item and C_Item.RequestLoadItemDataByID
   if wanted.locale == locale then
     for _, name in ipairs(wanted.names) do
-      if type(name) == "string" and name ~= "" then want[name] = {} end
+      if type(name) == "string" and name ~= "" then
+        want[name] = {}
+        -- the item the recipe makes: its use effect often bears the craft's name (bombs, dummies,
+        -- fireworks). Loaded now, read once the search is through.
+        local item = type(wanted.items) == "table" and wanted.items[name]
+        if type(item) == "number" and item > 0 then
+          items[name] = item
+          if request then ns.Try(request, item) end
+        end
+      end
     end
   end
   if not next(want) then
@@ -241,7 +253,14 @@ function TradeSkill.SearchNames()
       return
     end
     local found = 0
+    local itemSpell = (C_Item and C_Item.GetItemSpell) or rawget(_G, "GetItemSpell")
     for name, ids in pairs(want) do
+      if #ids > 1 and items[name] and itemSpell then
+        local _, useSpell = ns.Try(itemSpell, items[name])
+        for i = #ids, 1, -1 do
+          if ids[i] == useSpell then table.remove(ids, i) end
+        end
+      end
       if #ids == 1 then
         names[ids[1]] = name
         found = found + 1

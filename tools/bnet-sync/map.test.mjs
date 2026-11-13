@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -116,6 +116,13 @@ test('professions also gives the specialization and the recipe names', () => {
   ])
 })
 
+test("professions leaves out the profession's own spell, which the API lists among the recipes", () => {
+  const list = professions({ primaries: [{ profession: { id: 186, name: 'Bergbau' }, tiers: [{ skill_points: 300, max_skill_points: 300,
+    known_recipes: [{ id: 3324, name: 'Smelt Copper' }, { id: 1570, name: 'Mining' }, { id: 5487, name: 'Mining' }] }] }] })
+  assert.deepEqual(list[0].recipes, [{ id: 3324, name: 'Smelt Copper' }])
+  assert.ok(BOOK_SKILLS.has(186)) // smelting is a book Guildy shows
+})
+
 // GuildyDB with the names Guildy saved in the client's language (bytes, like the file)
 const bridgeDb = () => toLua({ recipeNames: { locale: 'deDE', names: {
   12760: Buffer.from('Sappeurladung', 'utf8').toString('latin1'),
@@ -198,10 +205,10 @@ test('updateProfessions fills a missing book of a record as new as the API', () 
 
 test('updateProfessions writes no recipe list for a gathering profession', () => {
   const db = bridgeDb()
-  db.get('recipeNames').get('names').set(2575, 'Bergbau')
+  db.get('recipeNames').get('names').set(2366, 'Kräuterkunde')
   const member = toLua({ name: 'X', profs: {} })
-  updateProfessions(member, [{ skillLine: 186, rank: 300, max: 300, recipes: ['Bergbau'] }], TS, nameBridge(db))
-  assert.equal(member.get('profs').get(186).get('recipes'), undefined)
+  updateProfessions(member, [{ skillLine: 182, rank: 300, max: 300, recipes: ['Kräuterkunde'] }], TS, nameBridge(db))
+  assert.equal(member.get('profs').get(182).get('recipes'), undefined)
 })
 
 test('updateProfessions follows the specialization rules of the game', () => {
@@ -246,6 +253,10 @@ test('wantNames hands Guildy the names it could not translate, to look for in th
   const wanted = db.get('wantedNames')
   assert.equal(wanted.get('locale'), 'deDE')
   assert.deepEqual(wanted.get('names').arr.map(n => Buffer.from(n, 'latin1').toString('utf8')), ['Gürtel der Wacht', 'Grüner Eisenhelm'])
+  wantNames(db, ['Große Kupferbombe', 'Gürtel der Wacht'], 'deDE', new Map([['Große Kupferbombe', 4370]]))
+  const items = db.get('wantedNames').get('items') // the made item, whose use effect bears the same name
+  assert.equal(items.get(Buffer.from('Große Kupferbombe', 'utf8').toString('latin1')), 4370)
+  assert.equal(items.hash.size, 1)
   wantNames(db, [], 'deDE')
   assert.equal(db.get('wantedNames'), undefined) // nothing left to look for
 })
