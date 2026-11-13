@@ -511,6 +511,24 @@ T.describe("Talent points from one trait tree split by x position (WoW Forever)"
     T.eq(w.errors, {})
   end)
 
+  T.it("prints /guildy talentprobe without touching secret node groups or positions", function()
+    local w = World()
+    local lines = {}
+    w.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) lines[#lines + 1] = text end }
+    TraitsByX(w, { [1280196] = FERAL })
+    local nodeInfo = w.env.C_Traits.GetNodeInfo
+    w.env.C_Traits.GetNodeInfo = function(...)
+      local info = nodeInfo(...)
+      if info and info.ID % 2 == 0 then info.groupIDs = w.SECRET end
+      if info and info.ID % 3 == 0 then info.posX = w.SECRET end
+      return info
+    end
+    w.env.SlashCmdList.GUILDY("talentprobe")
+    local all = table.concat(lines, " | ")
+    T.truthy(all:find("groups", 1, true), all)
+    T.eq(w.errors, {})
+  end)
+
   T.it("says in /guildy talentprobe that it read by x position", function()
     local w = World()
     local lines = {}

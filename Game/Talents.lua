@@ -383,15 +383,19 @@ local function ProbeConfig(label, configID)
     local groups, xs, costs = {}, {}, {}
     for _, node in ipairs(tree.nodes) do
       local ranks = type(node.ranksPurchased) == "number" and not ns.IsSecret(node.ranksPurchased) and node.ranksPurchased or 0
-      for _, g in ipairs(type(node.groupIDs) == "table" and node.groupIDs or {}) do
+      local posX = node.posX
+      if ns.IsSecret(posX) or type(posX) ~= "number" then posX = nil end
+      local groupIDs = node.groupIDs
+      if ns.IsSecret(groupIDs) or type(groupIDs) ~= "table" then groupIDs = {} end
+      for _, g in ipairs(groupIDs) do
         if not ns.IsSecret(g) then
           local s = groups[g] or { n = 0, r = 0 }
           s.n, s.r = s.n + 1, s.r + ranks
-          s.lo, s.hi = math.min(s.lo or node.posX or 0, node.posX or 0), math.max(s.hi or 0, node.posX or 0)
+          s.lo, s.hi = math.min(s.lo or posX or 0, posX or 0), math.max(s.hi or 0, posX or 0)
           groups[g] = s
         end
       end
-      if type(node.posX) == "number" and not ns.IsSecret(node.posX) then xs[node.posX] = (xs[node.posX] or 0) + ranks end
+      if posX then xs[posX] = (xs[posX] or 0) + ranks end
       local entry = EntryOf(node)
       local info = entry and entryInfo and ns.Try(entryInfo, configID, entry)
       local cost = info and type(info.entryCost) == "table" and info.entryCost[1]
