@@ -93,7 +93,72 @@ local function ListCalls(model)
   Say("modeltest: ModelScene actor has " .. (type(actor) == "table" and Calls(actor) or "(no ModelScene actors)"))
 end
 
+-- A model scene with its player actor, as the game's shop and dressing room use it; nil and why not
+local scene
+local function SceneActor(tag)
+  if not scene then
+    local ok, frame = pcall(CreateFrame, "ModelScene", "GuildyModelSceneTest", UIParent, "ModelSceneMixinTemplate")
+    if not ok or not frame then Say(tag .. "no ModelSceneMixinTemplate: " .. tostring(frame)) return nil end
+    frame:SetSize(300, 400)
+    frame:SetPoint("CENTER", 320, 0)
+    local back = frame:CreateTexture(nil, "BACKGROUND")
+    back:SetAllPoints()
+    back:SetColorTexture(0, 0, 0, 0.6)
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT")
+    close:SetScript("OnClick", function() frame:Hide() end)
+    scene = frame
+  end
+  scene:Show()
+  if type(scene.TransitionToModelSceneID) == "function" then
+    local ok, err = pcall(scene.TransitionToModelSceneID, scene, 596, 1, 1, true)
+    if not ok then Say(tag .. "TransitionToModelSceneID failed: " .. tostring(err)) end
+  else
+    Say(tag .. "no TransitionToModelSceneID")
+  end
+  local actor = type(scene.GetPlayerActor) == "function" and select(2, pcall(scene.GetPlayerActor, scene))
+  if type(actor) ~= "table" then Say(tag .. "no player actor") return nil end
+  return actor
+end
+
+-- Tries the own equipped items on actor, then says how many took
+local function TryOwn(actor, tag)
+  local okUndress = Call(actor, "Undress")
+  local count = DressOwn(actor)
+  Say(("%sUndress %s, %d own items tried on (look: does the body wear them, chest and legs too?)"):format(tag,
+    okUndress and "ok" or "failed", count))
+end
+
+-- /guildy modeltest scene <raceID>: a body of that race with the sex of the target (else the own),
+-- SetModelByUnit with the race override, as the game's shop does; the target may leave afterwards
+local function SceneTest(raceID)
+  local tag = "modeltest scene: "
+  local actor = SceneActor(tag)
+  if not actor then return end
+  local unit = UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target") and "target" or "player"
+  local ready = rawget(_G, "IsUnitModelReadyForUI")
+  if ready then Say(tag .. "IsUnitModelReadyForUI(" .. unit .. ") = " .. tostring(ns.Try(ready, unit))) end
+  local ok, err = pcall(actor.SetModelByUnit, actor, unit, false, false, false, true, false, raceID)
+  Say(("%sSetModelByUnit(%s, race %s): %s"):format(tag, unit, tostring(raceID), ok and tostring(err) or ("failed: " .. tostring(err))))
+  if not ok then return end
+  C_Timer.After(0.5, function() TryOwn(actor, tag) end)
+end
+
+-- /guildy modeltest creature <displayID>: a creature display (a townsperson of some race), dressed
+local function CreatureTest(displayID)
+  local tag = "modeltest creature: "
+  local actor = SceneActor(tag)
+  if not actor then return end
+  local ok, err = pcall(actor.SetModelByCreatureDisplayID, actor, displayID)
+  Say(("%sSetModelByCreatureDisplayID(%d): %s"):format(tag, displayID, ok and "ok" or ("failed: " .. tostring(err))))
+  if not ok then return end
+  C_Timer.After(0.5, function() TryOwn(actor, tag) end)
+end
+
 function GearProbe.ModelTest(args)
+  local mode, number = tostring(args or ""):match("^%s*(%a+)%s+(%d+)")
+  if mode == "scene" then return SceneTest(tonumber(number)) end
+  if mode == "creature" then return CreatureTest(tonumber(number)) end
   local model = Model()
   model:Show()
   cycle = cycle + 1

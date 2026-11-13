@@ -2135,7 +2135,8 @@ T.describe("Gear", function()
   T.it("runs the gear probes without errors", function()
     local printed, print = {}, ns.Print
     ns.Print = function(text) printed[#printed + 1] = tostring(text) end
-    for _, command in ipairs({ "modeltest", "modeltest 1 2", "craftprobe", "gearshow", "gearshow Au Tsch" }) do
+    for _, command in ipairs({ "modeltest", "modeltest 1 2", "modeltest scene 4", "modeltest creature 5444", "craftprobe",
+      "gearshow", "gearshow Au Tsch" }) do
       env.SlashCmdList.GUILDY(command)
     end
     RunTimers()
@@ -2144,6 +2145,8 @@ T.describe("Gear", function()
     T.truthy(all:find("SetCustomRace", 1, true), "modeltest names SetCustomRace")
     T.truthy(all:find("modeltest: DressUpModel has", 1, true), "lists the model's calls about race, display and files")
     T.truthy(all:find("modeltest: ModelScene actor has", 1, true), "lists the scene actor's calls")
+    T.truthy(all:find("modeltest scene:", 1, true), "the scene test reports its steps")
+    T.truthy(all:find("modeltest creature:", 1, true), "the creature test reports its steps")
     T.truthy(all:find("craftprobe:", 1, true), "craftprobe prints its count")
     T.truthy(all:find("gearshow", 1, true), "gearshow prints")
     T.eq(errors, {})
