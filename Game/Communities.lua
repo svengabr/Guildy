@@ -167,7 +167,7 @@ function Communities.Members(clubId)
         classFile = ClassFile(info.classID), zone = info.zone, presence = info.presence,
         online = Communities.IsOnline(info.presence), isSelf = info.isSelf or nil,
         memberId = info.memberId or memberId, guid = not ns.IsSecret(info.guid) and info.guid or nil,
-        note = type(info.memberNote) == "string" and info.memberNote ~= "" and not ns.IsSecret(info.memberNote)
+        note = type(info.memberNote) == "string" and not ns.IsSecret(info.memberNote) and info.memberNote ~= ""
           and info.memberNote or nil,
       }
     end

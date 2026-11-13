@@ -19,6 +19,17 @@ T.describe("Widgets", function()
   end)
 end)
 
+T.describe("Secret values", function()
+  T.it("checks a value for secret before comparing it", function()
+    for _, file in ipairs(T.tocFiles()) do
+      local source = T.readFile(T.addonDir .. "/" .. file)
+      for name, other, checked in source:gmatch("([%w_.]+) [~=<>]=? (%S+) and not ns%.IsSecret%(([%w_.]+)%)") do
+        T.truthy(other == "nil" or checked ~= name, file .. " compares " .. name .. " before checking it for secret")
+      end
+    end
+  end)
+end)
+
 T.describe("Smoke", function()
   T.it("loads and starts", function()
     Fire("ADDON_LOADED", "Guildy")

@@ -183,7 +183,7 @@ function TradeSkill.RememberNames()
   local function Remember(id)
     if names[id] == nil then
       local name = SpellName(id)
-      if type(name) == "string" and name ~= "" and not ns.IsSecret(name) then names[id] = name end
+      if type(name) == "string" and not ns.IsSecret(name) and name ~= "" then names[id] = name end
     end
   end
   for id in pairs(ns.Specs.SKILL_OF) do Remember(id) end

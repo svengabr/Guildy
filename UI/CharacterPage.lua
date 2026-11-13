@@ -367,7 +367,7 @@ function Tips.Worn(tip, beside, name, item)
     tip:SetHyperlink(ns.Gear.ItemString(item))
     local first = rawget(_G, (tip:GetName() or "") .. "TextLeft1")
     local text = first and first:GetText()
-    if type(text) == "string" and text ~= "" and not ns.IsSecret(text) then
+    if type(text) == "string" and not ns.IsSecret(text) and text ~= "" then
       first:SetText(Hex(W.GOLD) .. header .. "|r\n" .. text)
     else
       tip:AddLine(header, W.GOLD[1], W.GOLD[2], W.GOLD[3])
