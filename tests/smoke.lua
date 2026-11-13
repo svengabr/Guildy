@@ -165,6 +165,15 @@ T.describe("Smoke", function()
     T.eq(guild.cooldowns["ran fred"].cd[17187], now + 3590)
     T.eq(guild.cooldowns["ran fred"].cd[19566], now + 6600)
     T.eq(guild.cooldowns["ran fred"].cd[18560], nil) -- not known: not listed
+    -- the game hands out secret values at times (seen in game 2026-11-13): nothing is compared, the
+    -- stored reading stays as it was
+    local spellCooldown, itemCooldown = env.C_Spell.GetSpellCooldown, env.C_Container.GetContainerItemCooldown
+    env.C_Spell.GetSpellCooldown = function() return { startTime = SECRET, duration = SECRET } end
+    env.C_Container.GetContainerItemCooldown = function() return SECRET, SECRET end
+    ns.GameCooldowns.Read()
+    T.eq(guild.cooldowns["ran fred"].cd[17187], now + 3590)
+    T.eq(guild.cooldowns["ran fred"].cd[19566], now + 6600)
+    env.C_Spell.GetSpellCooldown, env.C_Container.GetContainerItemCooldown = spellCooldown, itemCooldown
     -- a craft with a cooldown in the own window is learned and counts even when the spell says nothing
     env.C_TradeSkillUI = { IsTradeSkillLinked = function() return false end }
     env.GetTradeSkillLine = function() return "Ingenieurskunst", 230, 300 end

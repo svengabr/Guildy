@@ -133,7 +133,8 @@ local function KnownFns()
 end
 local function SpellKnown(id)
   for _, fn in ipairs(KnownFns()) do
-    if ns.Try(fn, id) == true then return true end
+    local known = ns.Try(fn, id)
+    if not ns.IsSecret(known) and known == true then return true end
   end
   return false
 end
@@ -411,7 +412,7 @@ function TradeSkill.ScanOpen()
           recipes[#recipes + 1] = id
           RememberIcon(id, ns.Try(rawget(_G, "GetTradeSkillIcon"), i))
           local left = ns.Try(rawget(_G, "GetTradeSkillCooldown"), i)
-          if not scanTarget and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
+          if not scanTarget and not ns.IsSecret(left) and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
         end
       end
     end
@@ -452,7 +453,7 @@ function TradeSkill.ScanOpen()
         recipes[#recipes + 1] = id
         RememberIcon(id, recipe.icon)
         local left = ns.Try(rawget(C_TradeSkillUI, "GetRecipeCooldown"), id)
-        if not scanTarget and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
+        if not scanTarget and not ns.IsSecret(left) and type(left) == "number" and left > 0 then ownCooldowns[id] = left end
       end
     end
     if next(ownCooldowns) and ns.GameCooldowns and skillLine then ns.GameCooldowns.FromWindow(skillLine, ownCooldowns) end

@@ -9,6 +9,10 @@ local GameCooldowns = {}
 ns.GameCooldowns = GameCooldowns
 
 local fromWindow = {} -- spellID -> readyAt seen in the own window this session
+-- The game hands out secret values at times (seen in game 2026-11-13, "attempt to compare a secret
+-- number value"): addon code must not compare them. A reading that meets one is dropped as a whole,
+-- the next event reads again.
+local SECRET = {}
 local pending = false
 
 local function Learned()
@@ -37,6 +41,7 @@ end
 local function SpellLeft(id)
   if not ns.TradeSkill.SpellKnown(id) then return nil end
   local start, duration = SpellCooldown(id)
+  if ns.AnySecret(start, duration) then return SECRET end
   -- (two seconds and less is the global cooldown, not the craft's)
   if type(start) ~= "number" or type(duration) ~= "number" or duration <= 2 or start <= 0 then return 0 end
   return math.max(0, start + duration - GetTime())
@@ -54,8 +59,11 @@ local function ItemLeft(itemID)
   if not (slots and itemOf and cooldownOf) then return nil end
   for bag = 0, 4 do
     for slot = 1, ns.Try(slots, bag) or 0 do
-      if ns.Try(itemOf, bag, slot) == itemID then
+      local found = ns.Try(itemOf, bag, slot)
+      if ns.IsSecret(found) then return SECRET end
+      if found == itemID then
         local start, duration = ns.Try(cooldownOf, bag, slot)
+        if ns.AnySecret(start, duration) then return SECRET end
         if type(start) ~= "number" or type(duration) ~= "number" or duration <= 2 or start <= 0 then return 0 end
         return math.max(0, start + duration - GetTime())
       end
@@ -86,10 +94,12 @@ function GameCooldowns.Read()
   end
   for spell in pairs(C.Watched(Learned())) do
     local left = SpellLeft(spell)
+    if left == SECRET then return end
     if left then Put(spell, left) elseif fromWindow[spell] then Put(spell, 0) end
   end
   for item, spell in pairs(C.ITEMS) do
     local left = ItemLeft(item)
+    if left == SECRET then return end
     if left then Put(spell, left) end
   end
   local key = ns.Names.Key(ns.PlayerName())
@@ -118,12 +128,14 @@ end
 function GameCooldowns.Debug()
   for spell, skillLine in pairs(C.Watched(Learned())) do
     local start, duration = SpellCooldown(spell)
+    local secret = ns.AnySecret(start, duration)
     ns.Print(("cd %s %d %s: known=%s start=%s duration=%s window=%s"):format(ns.TradeSkill.Name(skillLine), spell,
-      tostring(ns.TradeSkill.RecipeName(spell)), tostring(ns.TradeSkill.SpellKnown(spell)), tostring(start),
-      tostring(duration), tostring(fromWindow[spell])))
+      tostring(ns.TradeSkill.RecipeName(spell)), tostring(ns.TradeSkill.SpellKnown(spell)),
+      secret and "secret" or tostring(start), secret and "secret" or tostring(duration), tostring(fromWindow[spell])))
   end
   for item, spell in pairs(C.ITEMS) do
-    ns.Print(("cd item %d (spell %d): left=%s"):format(item, spell, tostring(ItemLeft(item))))
+    local left = ItemLeft(item)
+    ns.Print(("cd item %d (spell %d): left=%s"):format(item, spell, left == SECRET and "secret" or tostring(left)))
   end
   local book = GameCooldowns.Book()
   local key = ns.Names.Key(ns.PlayerName())
