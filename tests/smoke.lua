@@ -3560,6 +3560,21 @@ T.describe("The body pool for members of the other sex", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("builds a body only from a player unit whose model is ready", function()
+    local w, sexes = World(2)
+    local ready = false
+    w.env.IsUnitModelReadyForUI = function(unit) return unit == "player" or ready end
+    sexes.nameplate1 = 3
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(Bodies(w), {})
+    ready = true
+    w.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    w.RunTimers()
+    T.eq(Bodies(w), { "4:3", "7:3", "8:3" })
+    T.eq(w.errors, {})
+  end)
+
   T.it("tells which bodies the pool holds", function()
     local w, sexes = World(2)
     local printed = {}

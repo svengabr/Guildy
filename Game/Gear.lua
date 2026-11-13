@@ -439,8 +439,10 @@ for i = 1, 4 do DONORS[#DONORS + 1] = "party" .. i end
 for i = 1, 40 do DONORS[#DONORS + 1] = "raid" .. i end
 for i = 1, 40 do DONORS[#DONORS + 1] = "nameplate" .. i end
 
--- A player unit whose UnitSex is sex (2 or 3), one whose model is ready preferred; nil when none
-function GameGear.FindDonor(sex)
+-- A player unit whose UnitSex is sex (2 or 3), one whose model is ready preferred; nil when none.
+-- readyOnly (the pool, Game/ModelPool.lua): only a unit whose model is ready, when the client can say; a
+-- body built from a model still loading may stay blank, and the pool keeps it for the session.
+function GameGear.FindDonor(sex, readyOnly)
   local isPlayer, unitSex = rawget(_G, "UnitIsPlayer"), rawget(_G, "UnitSex")
   local ready = rawget(_G, "IsUnitModelReadyForUI")
   local first
@@ -454,6 +456,7 @@ function GameGear.FindDonor(sex)
       first = first or unit
     end
   end
+  if readyOnly then return nil end
   return first
 end
 

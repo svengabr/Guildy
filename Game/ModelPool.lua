@@ -165,7 +165,7 @@ local function Look()
   local donors, built = {}, 0
   for _, pair in ipairs(order) do
     if built >= BUILD_PER_RUN then break end
-    if donors[pair.sex] == nil then donors[pair.sex] = ns.GameGear.FindDonor(pair.sex) or false end
+    if donors[pair.sex] == nil then donors[pair.sex] = ns.GameGear.FindDonor(pair.sex, true) or false end
     local unit = donors[pair.sex]
     if unit and Build(pair.race, pair.sex, unit) then built = built + 1 end
   end
