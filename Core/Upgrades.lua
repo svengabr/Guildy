@@ -207,38 +207,40 @@ local function Pattern(fmt)
   return pattern, order
 end
 
--- The arguments of fmt that line was written with, by their number; nil when it was not
+-- Whether line was written with fmt, and its first two arguments by their number (the formats read here
+-- have at most two). No tables: every line of every tooltip read goes through here.
 local function Match(fmt, line)
   local pattern, order = Pattern(fmt)
-  if not pattern then return nil end
-  local found = { line:match(pattern) }
-  if #found == 0 then return nil end
-  local args = {}
-  for i, arg in ipairs(order) do args[arg] = found[i] end
-  return args
+  if not pattern then return false end
+  local a, b = line:match(pattern)
+  if a == nil then return false end
+  if order[1] == 2 then a, b = b, a end
+  return true, a, b
 end
 
-local function Trim(text) return (text:gsub("^%s+", ""):gsub("%s+$", "")) end
+local function Trim(text) return text:match("^%s*(.-)%s*$") end
 
 -- What the tooltip lines say an item needs: { skill, rank, classes = { names }, reputation = true }
 function Upgrades.ParseRequirements(lines, formats)
   local req = {}
   for _, raw in ipairs(lines or {}) do
-    local line = Trim((tostring(raw):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")))
+    local line = tostring(raw)
+    if line:find("|", 1, true) then line = line:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
+    line = Trim(line)
     if not Match(formats.minLevel, line) then -- the required level is in the item info already
-      local args = Match(formats.minSkill, line)
-      if args then
-        req.skill, req.rank = Trim(args[1] or ""), tonumber(args[2])
+      local skill, a, b = Match(formats.minSkill, line)
+      if skill then
+        req.skill, req.rank = Trim(a or ""), tonumber(b)
       elseif Match(formats.reputation, line) then
         req.reputation = true
       else
-        args = Match(formats.classes, line)
-        if args then
+        local classes, names = Match(formats.classes, line)
+        if classes then
           req.classes = {}
-          for name in (args[1] or ""):gmatch("[^,]+") do req.classes[#req.classes + 1] = Trim(name) end
+          for name in (names or ""):gmatch("[^,]+") do req.classes[#req.classes + 1] = Trim(name) end
         else
-          args = Match(formats.reqSkill, line)
-          if args then req.skill = Trim(args[1] or "") end
+          local only, name = Match(formats.reqSkill, line)
+          if only then req.skill = Trim(name or "") end
         end
       end
     end
@@ -429,8 +431,9 @@ end
 -- the worn piece's score by MIN_RATIO and MIN_SCORE; with a weak profile (fewer than STRONG_ITEMS pieces with
 -- stats) instead when its top primary stat is the worn piece's (empty slot: the profile's) and its level is
 -- MIN_GAIN higher. Returns rows { { slot, itemID, quality, have, offer, gain, diff, makers = { { key, skillLine,
--- online } } } } (at most MAX_ROWS, largest gain first, one per slot) and missing { itemID } (info, stats or
--- tooltip not loaded yet).
+-- online } } } } (at most MAX_ROWS, largest gain first, one per slot) and missing { itemID } (info or stats
+-- not loaded yet, or the tooltip of a piece that would be taken). A tooltip is read only for a piece that
+-- would be taken (better than the best so far): its requirements decide then.
 function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
   local items = gearRec and gearRec.items or {}
   local requirements = game.requirements or NoRequirements
@@ -494,11 +497,10 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
           and Upgrades.Wearable(member.classFile, member.level, info, worn)
           and not (prefer and IsArmour(info) and info.subclassID < prefer) then
           local stats, statsGone = game.stats(itemID)
-          local req, reqGone = requirements(itemID)
-          if statsGone or reqGone then -- the game never gives it: skipped, nothing asked
-          elseif not stats or not req then
+          if statsGone then -- the game never gives it: skipped, nothing asked
+          elseif not stats then
             Miss(itemID)
-          elseif Upgrades.Meets(req, member) then
+          else
             local score, gain
             if strong then
               score = Weighted(weights, stats)
@@ -519,6 +521,18 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
                 elseif armor ~= bestArmor[slot] then better = armor > bestArmor[slot]
                 elseif info.level ~= other.info.level then better = info.level > other.info.level
                 else better = itemID < other.itemID end
+              end
+              -- the tooltip only for a piece that would be taken: reading one is the costliest part of a
+              -- piece the client has but Guildy has not read yet (a table of lines from the game)
+              if better then
+                local req, reqGone = requirements(itemID)
+                if reqGone then better = false
+                elseif not req then
+                  Miss(itemID)
+                  better = false
+                else
+                  better = Upgrades.Meets(req, member)
+                end
               end
               if better then
                 best[slot], bestScore[slot], bestArmor[slot], bestHave[slot], bestGain[slot] = entry, score, armor, have, gain

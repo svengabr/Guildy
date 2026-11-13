@@ -276,10 +276,12 @@ end
 local requirementsCache = {} -- itemID -> what its tooltip says it needs, for the session
 
 -- The client's own format strings of the requirement lines
+local formats
 local function Formats()
-  return { minLevel = rawget(_G, "ITEM_MIN_LEVEL"), minSkill = rawget(_G, "ITEM_MIN_SKILL"),
+  formats = formats or { minLevel = rawget(_G, "ITEM_MIN_LEVEL"), minSkill = rawget(_G, "ITEM_MIN_SKILL"),
     reqSkill = rawget(_G, "ITEM_REQ_SKILL"), classes = rawget(_G, "ITEM_CLASSES_ALLOWED"),
     reputation = rawget(_G, "ITEM_REQ_REPUTATION") }
+  return formats
 end
 
 -- The text lines of itemID's tooltip; nil when there are none yet, nil, true when any of them is secret

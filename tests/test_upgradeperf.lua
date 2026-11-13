@@ -263,4 +263,39 @@ T.describe("Guild upgrades against the game's item client", function()
     T.eq(calls, 0)
     T.eq(w.errors, {})
   end)
+
+  -- What /guildy perf measures as "upgrades: scoring" (the member as Upgrades sees them and the scoring), each
+  -- run for a member whose upgrades are not kept yet
+  local function Scoring(w, runs)
+    local ns = w.ns
+    local members = {}
+    for i, name in ipairs(SWITCH) do members[i] = ns.Roster.Find(name) end
+    collectgarbage("collect")
+    collectgarbage("stop")
+    local before, start = collectgarbage("count"), os.clock()
+    for r = 1, runs do ns.GameGear.WorkOutUpgrades(members[(r - 1) % #members + 1]) end
+    local kb, ms = (collectgarbage("count") - before) / runs, (os.clock() - start) * 1000 / runs
+    collectgarbage("restart")
+    return kb, ms
+  end
+
+  T.it("allocates under 30 kB and takes under 1 ms per scoring run once warm, as the page runs it", function()
+    local w = World(400)
+    w.Warm()
+    Scoring(w, 4)
+    local kb, ms = Scoring(w, 20)
+    T.truthy(kb < 30, ("%.1f kB per run (%.2f ms)"):format(kb, ms))
+    T.truthy(ms < 1, ("%.2f ms per run"):format(ms))
+    T.eq(w.errors, {})
+  end)
+
+  T.it("reads an item the client has into the caches with little garbage besides the game's own tables", function()
+    local w = World(400)
+    for id in pairs(w.items.data) do w.items.Prime(id) end -- the client has every item, Guildy read none yet
+    local kb = Scoring(w, 1)
+    local per = kb / 400
+    -- measured in game 2026-11-13: about 350 kB per first run, most of it tooltips read for every piece
+    T.truthy(per < 2, ("%.2f kB per piece"):format(per))
+    T.eq(w.errors, {})
+  end)
 end)

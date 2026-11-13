@@ -279,20 +279,31 @@ return function(T, opts)
         items.Ask(id)
         return nil
       end
-      return it.name, "item:" .. id, it.quality or 2, it.level, it.reqLevel or 1, "Rüstung", "Leder", 1, it.equipLoc, 134, 1,
+      -- the link as the game writes it: colour, the item string and the name
+      local link = ("|cff1eff00|Hitem:%d::::::::%d:::::::|h[%s]|h|r"):format(id, it.level, it.name)
+      return it.name, link, it.quality or 2, it.level, it.reqLevel or 1, "Rüstung", "Leder", 1, it.equipLoc, 134, 1,
         it.classID or 4, it.subclassID or 2, it.bind or 2
+    end
+    -- a tooltip as C_TooltipInfo hands it out: a new table per call, each line with its colours and args
+    local function Line(text)
+      local color = { r = 1, g = 1, b = 1, a = 1 }
+      return { type = 0, leftText = text, leftColor = color, wrapText = false,
+        args = { { field = "type", intVal = 0 }, { field = "leftText", stringVal = text }, { field = "leftColor", colorVal = color } } }
     end
     local function Tip(id, enchant)
       items.tips = items.tips + 1
       local it = id and items.data[id]
       if not (it and items.cached[id]) then
         items.Ask(id)
-        return { lines = {} }
+        return { type = 0, id = id, lines = {}, args = {} }
       end
       local lines = {}
-      for i, text in ipairs(it.tip or { it.name }) do lines[i] = { leftText = text } end
-      if enchant then lines[#lines + 1] = { leftText = "+5 Ausdauer" } end
-      return { lines = lines }
+      for i, text in ipairs(it.tip or { it.name }) do lines[i] = Line(text) end
+      lines[#lines + 1] = Line("Binden beim Ausrüsten")
+      lines[#lines + 1] = Line("Benötigt Stufe " .. (it.reqLevel or 1))
+      lines[#lines + 1] = Line("Haltbarkeit 40 / 40")
+      if enchant then lines[#lines + 1] = Line("+5 Ausdauer") end
+      return { type = 0, id = id, lines = lines, args = { { field = "hyperlink", stringVal = "item:" .. id } }, dataInstanceID = id }
     end
     env.GetItemInfo = Info
     env.C_Item = {

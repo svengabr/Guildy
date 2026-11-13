@@ -71,11 +71,15 @@ function ns.AnySecret(...)
 end
 
 -- Calls fn(...) only if it exists; returns its results, or nil when missing or failing
+-- (no table for the results: it is called for every item read, and a table per call was a third of the
+-- garbage of reading an item's info)
+local function Passed(ok, ...)
+  if not ok then return nil end
+  return ...
+end
 function ns.Try(fn, ...)
   if type(fn) ~= "function" then return nil end
-  local result = { pcall(fn, ...) }
-  if not result[1] then return nil end
-  return unpack(result, 2, table.maxn(result))
+  return Passed(pcall(fn, ...))
 end
 
 -- Internal events: "ROSTER" (roster changed), "PROFS" (profession data changed), "CHAT" (new chat line)
