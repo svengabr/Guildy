@@ -21,6 +21,24 @@
   its cooldown, Guildy says so. Your own cooldowns are shared only while "share my data" is on.
 - Crafts with a cooldown that Forever adds are learned from your own profession window.
 - `/guildy cd` and `/guildy spec` show what the game answers, for checking.
+- New: the character page shows each member's gear slot by slot: item, enchantment ("keine
+  Verzauberung" in orange where the slot should have one), item level as a bar. A tick on the bar marks
+  "bereit ab": the middle item level of the guild's members at the same level, once at least five of
+  them are known.
+- Gear comes from targeting members nearby, as for the statistics, and Guildy users share it with each
+  other, so one player in the capital fills the page for everyone. Your own gear is shared only while
+  "share my data" is on. The Battle.net script fills the same fields, with enchantment texts.
+- The character itself stands in its gear on the page, turned with the mouse and zoomed with the wheel,
+  like the game's dressing room: your own character, a member nearby, or a member far away in the race
+  and gear Guildy knows. Where the game cannot show that, the race portrait stays.
+- New: "Upgrades aus der Gilde" on the character page: better pieces a guild member can craft for this
+  member, with the crafter and whether they are online. A click on the crafter whispers them. Weapons,
+  off hands and ranged are left out for now.
+- New: the activity score has a tile on the character page. Its tooltip explains how the score is made:
+  presence, playing and group play with what fed each of them per week, which characters count, and the
+  time it covers.
+- The dungeon collection left the character page (it stays in the Hall of Fame), and so did the medals.
+- `/guildy gearshow [name]` lists what Guildy knows of a member's gear, for checking.
 - Fixed: on the Professions tab a skill like 278/300 broke into two lines.
 
 ## 1.7.1
