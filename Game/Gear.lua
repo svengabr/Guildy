@@ -218,6 +218,68 @@ function GameGear.ResolveCrafts(spellIDs)
   end
 end
 
+-- The model ------------------------------------------------------------------------------------------
+-- Like the game's dressing room: the own character through SetUnit("player"); a member some unit token
+-- shows right now through that unit; else the member's stored race and sex with SetCustomRace, undressed
+-- and dressed in the stored items. Where the client has no working SetCustomRace, or the model still
+-- shows the viewer's own body, the page keeps the race portrait: the gear is never shown on the
+-- viewer's body.
+-- UnitSex values 2/3 -> SetCustomRace's gender (0 male, 1 female as in the game's dressing room; not yet
+-- checked on Forever, /guildy modeltest shows it)
+GameGear.MODEL_SEX = { [2] = 0, [3] = 1 }
+
+local reference -- a hidden model with the viewer's own body, to tell it apart
+function GameGear.ReferenceModel()
+  if not reference then
+    reference = CreateFrame("DressUpModel", nil, UIParent)
+    reference:SetSize(1, 1)
+    reference:SetAlpha(0)
+    pcall(reference.SetUnit, reference, "player")
+  end
+  return reference
+end
+
+local function Call(model, method, ...)
+  local fn = model[method]
+  if type(fn) ~= "function" then return false end
+  return pcall(fn, model, ...)
+end
+
+-- true when model shows the viewer's own body while it should show member m (their race or sex differ
+-- from the viewer's), false when not, nil when the client cannot tell
+function GameGear.ShowsOwnBody(model, m)
+  local guild = ns.GuildData()
+  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
+  local _, _, myRace = ns.Try(rawget(_G, "UnitRace"), "player")
+  local mySex = ns.Try(rawget(_G, "UnitSex"), "player")
+  if type(rec) == "table" and rec.race == myRace and rec.sex == mySex then return false end
+  local ok, file = Call(model, "GetModelFileID")
+  local okMine, mine = Call(GameGear.ReferenceModel(), "GetModelFileID")
+  if not (ok and okMine) or type(file) ~= "number" or type(mine) ~= "number" or ns.AnySecret(file, mine) then return nil end
+  return file == mine
+end
+
+-- Dresses model for roster member m; false when the page is to show the portrait instead
+function GameGear.DressModel(model, m)
+  if m.key == ns.Names.Key(ns.PlayerName()) then
+    return (Call(model, "SetUnit", "player"))
+  end
+  local unit = m.guid and ns.GameStats.FindUnitByGuid(m.guid)
+  if unit and unit ~= "player" then
+    if Call(model, "SetUnit", unit) then return true end
+  end
+  local guild = ns.GuildData()
+  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
+  if type(rec) ~= "table" or not rec.race or not GameGear.MODEL_SEX[rec.sex or 0] then return false end
+  if not Call(model, "SetCustomRace", rec.race, GameGear.MODEL_SEX[rec.sex]) then return false end
+  Call(model, "Undress")
+  for slot = 1, 19 do
+    local item = rec.items and rec.items[slot]
+    if item then Call(model, "TryOn", G.ItemString(item)) end
+  end
+  return GameGear.ShowsOwnBody(model, m) ~= true
+end
+
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
 -- "nodata" (no book of another member has a recipe whose item is known, or m's gear is unknown),
 -- "none" (data, nothing better) or "rows". Spell IDs without an entry are asked from the game.

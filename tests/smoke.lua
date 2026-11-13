@@ -2569,3 +2569,113 @@ T.describe("Upgrades from the guild on the character page", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("The model on the character page", function()
+  local function Watch(model)
+    local calls = { unit = {}, race = {}, tryOn = {}, undress = 0 }
+    rawset(model, "SetUnit", function(_, unit) calls.unit[#calls.unit + 1] = unit end)
+    rawset(model, "SetCustomRace", function(_, race, sex) calls.race[#calls.race + 1] = { race, sex } end)
+    rawset(model, "Undress", function() calls.undress = calls.undress + 1 end)
+    rawset(model, "TryOn", function(_, item) calls.tryOn[#calls.tryOn + 1] = item end)
+    rawset(model, "GetModelFileID", nil)
+    return calls
+  end
+  local function NoUnit() -- nobody shows the member right now
+    local guidOf = env.UnitGUID
+    env.UnitGUID = function() return nil end
+    return function() env.UnitGUID = guidOf end
+  end
+  local function Items() return { [1] = { id = 2001, e = 0, s = 0, l = 42, q = 3 }, [4] = { id = 38, e = 0, s = 0, l = 1, q = 1 } } end
+
+  T.it("shows the own character in its gear", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page.Model)
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+    T.eq(calls.unit, { "player" })
+    T.eq(page.Model:IsShown(), true)
+    T.eq(page.Hero.Portrait:IsShown(), false)
+    T.eq(page.Hero.ModelHint:IsShown(), true)
+    T.eq(errors, {})
+  end)
+
+  T.it("shows a member nearby through their unit", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page.Model)
+    local guidOf = env.UnitGUID
+    env.UnitGUID = function(unit) if unit == "target" then return "Player-1-03" end end
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    env.UnitGUID = guidOf
+    T.eq(calls.unit, { "target" })
+    T.eq(#calls.race, 0)
+    T.eq(errors, {})
+  end)
+
+  T.it("dresses the member's race in their stored gear, never the viewer's body", function()
+    local page = ns.UI.MemberPage()
+    local calls = Watch(page.Model)
+    local back = NoUnit()
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = Items() }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(calls.unit, {}) -- never SetUnit("player") for someone else
+    T.eq(calls.race, { { 8, ns.GameGear.MODEL_SEX[3] } })
+    T.eq(calls.undress, 1)
+    T.eq(calls.tryOn, { "item:2001:0:0:0:0:0:0", "item:38:0:0:0:0:0:0" })
+    T.eq(page.Model:IsShown(), true)
+    T.eq(page.Hero.Portrait:IsShown(), false)
+    -- the game ignored the race: the model has the viewer's body, so the portrait comes back
+    rawset(page.Model, "GetModelFileID", function() return 4711 end)
+    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", function() return 4711 end)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    RunTimers(1)
+    T.eq(page.Model:IsShown(), false)
+    T.eq(page.Hero.Portrait:IsShown(), true)
+    T.eq(page.Hero.ModelHint:IsShown(), false)
+    rawset(ns.GameGear.ReferenceModel(), "GetModelFileID", nil)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("falls back to the portrait without a working custom race", function()
+    local page = ns.UI.MemberPage()
+    Watch(page.Model)
+    local back = NoUnit()
+    rawset(page.Model, "SetCustomRace", function() error("not on this client") end)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(page.Model:IsShown(), false)
+    T.eq(page.Hero.Portrait:IsShown(), true)
+    rawset(page.Model, "SetCustomRace", false)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(page.Model:IsShown(), false)
+    -- no race stored: the portrait, no hint
+    local calls = Watch(page.Model)
+    ns.GuildData().gear["au tsch"].race = nil
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(page.Model:IsShown(), false)
+    T.eq(page.Hero.ModelHint:IsShown(), false)
+    T.eq(calls.unit, {})
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("turns and zooms the model", function()
+    local page = ns.UI.MemberPage()
+    local facing, zoom = 0, nil
+    rawset(page.Model, "GetFacing", function() return facing end)
+    rawset(page.Model, "SetFacing", function(_, f) facing = f end)
+    rawset(page.Model, "SetPortraitZoom", function(_, z) zoom = z end)
+    page.Model:GetScript("OnMouseWheel")(page.Model, 1)
+    T.eq(zoom, 0.1)
+    for _ = 1, 20 do page.Model:GetScript("OnMouseWheel")(page.Model, 1) end
+    T.eq(zoom, 0.8)
+    local x = 100
+    local cursor = env.GetCursorPosition
+    env.GetCursorPosition = function() return x, 100 end
+    page.Model:GetScript("OnMouseDown")(page.Model, "LeftButton")
+    x = 150
+    page.Model:GetScript("OnUpdate")(page.Model, 0.1)
+    page.Model:GetScript("OnMouseUp")(page.Model, "LeftButton")
+    env.GetCursorPosition = cursor
+    T.truthy(math.abs(facing - 0.5) < 1e-9, tostring(facing))
+    T.eq(errors, {})
+  end)
+end)

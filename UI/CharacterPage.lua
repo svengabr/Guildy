@@ -17,6 +17,7 @@ local FAMILY_LINES = 8
 local LINE_H = 18
 local PROF_ROWS = 6
 local UPGRADE_H = 34
+local MODEL_ZOOM = 0.8
 local GEAR_SHARE = 0.62 -- of the room right of the hero card, the rest is the column
 local GEAR_TOP = 38     -- title and the column heading above the rows
 local QUALITY = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 } }
@@ -350,6 +351,28 @@ local function Build()
   page.ModelArea = hero.ModelArea
   hero.Portrait = Portrait(hero.ModelArea, 104)
   hero.Portrait:SetPoint("CENTER", 0, 0)
+  -- the character in its gear, like the game's dressing room (Game/Gear.lua): drag turns, the wheel zooms
+  local model = CreateFrame("DressUpModel", nil, hero.ModelArea)
+  model:SetAllPoints()
+  model:EnableMouse(true)
+  model:EnableMouseWheel(true)
+  model:Hide()
+  page.Model = model
+  model.zoom = 0
+  model:SetScript("OnMouseWheel", function(self, delta)
+    self.zoom = math.max(0, math.min(MODEL_ZOOM, math.floor((self.zoom + delta * 0.1) * 10 + 0.5) / 10))
+    self:SetPortraitZoom(self.zoom)
+  end)
+  model:SetScript("OnMouseDown", function(self, button)
+    if button ~= "LeftButton" then return end
+    self.dragX, self.dragFacing = GetCursorPosition(), self:GetFacing() or 0
+  end)
+  model:SetScript("OnMouseUp", function(self) self.dragX = nil end)
+  model:SetScript("OnHide", function(self) self.dragX = nil end)
+  model:SetScript("OnUpdate", function(self)
+    if not self.dragX then return end
+    self:SetFacing(self.dragFacing + (GetCursorPosition() - self.dragX) * 0.01)
+  end)
   hero.ModelHint = W.Text(hero, "GameFontDisableSmall", L.MODEL_HINT)
   hero.ModelHint:SetPoint("TOP", hero.ModelArea, "BOTTOM", 0, -2)
   hero.ModelHint:Hide()
@@ -576,6 +599,33 @@ local function Build()
     hero.Whisper:SetEnabled(m.online or false)
     hero.Invite:SetEnabled(m.online or false)
     UI.Notes.Show(m)
+  end
+
+  -- the model where the game can show the member, else the portrait (never the viewer's own body)
+  local function ShowModel(shown)
+    model:SetShown(shown)
+    hero.Portrait:SetShown(not shown)
+    hero.ModelHint:SetShown(shown)
+  end
+
+  function page:RenderModel(m)
+    if self.modelFor ~= m.key then
+      model.zoom = 0
+      pcall(model.SetPortraitZoom, model, 0)
+      pcall(model.SetFacing, model, 0)
+      self.modelFor = m.key
+    end
+    local shown = ns.GameGear.DressModel(model, m)
+    ShowModel(shown)
+    if shown then
+      -- a model loads a moment later: check once more that it is not the viewer's own body
+      C_Timer.After(0.5, function()
+        if page.member and page.member.key == m.key and m.key ~= ns.Names.Key(ns.PlayerName()) and model:IsShown()
+          and ns.GameGear.ShowsOwnBody(model, m) then
+          ShowModel(false)
+        end
+      end)
+    end
   end
 
   -- the family as a list, as many lines as the box has room for (lines), "+N" after
@@ -928,6 +978,7 @@ local function Build()
     local entries = ns.GameStats.Entries()
     local y, areaH, gearW = self:Layout()
     self:RenderHero(m, entries)
+    self:RenderModel(m)
     self:RenderStats(m, entries)
     self:RenderScore(m)
     self:RenderGear(m)

@@ -204,6 +204,24 @@ local function FindUnit(request)
   return nil
 end
 
+-- A unit token that shows the character with guid right now (target, focus, mouseover, group,
+-- nameplates), or nil (the character page's model, Game/Gear.lua)
+function GameStats.FindUnitByGuid(guid)
+  if not guid or guid == "" then return nil end
+  local guidOf = rawget(_G, "UnitGUID")
+  local function Is(unit)
+    local found = ns.Try(guidOf, unit)
+    return not ns.IsSecret(found) and found == guid -- (secret in instances: never compared)
+  end
+  for _, unit in ipairs({ "target", "focus", "mouseover" }) do
+    if Is(unit) then return unit end
+  end
+  for i = 1, 4 do if Is("party" .. i) then return "party" .. i end end
+  for i = 1, 40 do if Is("raid" .. i) then return "raid" .. i end end
+  for i = 1, 40 do if Is("nameplate" .. i) then return "nameplate" .. i end end
+  return nil
+end
+
 -- Blizzard's achievement window answers every INSPECT_ACHIEVEMENT_READY once it is loaded, and on
 -- Forever that breaks (GetCategoryNumAchievements with the "summary" category, error in
 -- Blizzard_AchievementUI). While Guildy asks, its frames don't get the event; afterwards they do again.
