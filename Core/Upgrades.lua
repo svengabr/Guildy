@@ -3,7 +3,8 @@
 -- items whose info, stats and tooltip the game gave, levels stored with the gear (Core/Gear.lua).
 --   GuildyDB.craftItems = { [spellID] = itemID } (per account, equippable items only, at most MAX_CRAFTS)
 -- Weapons, off hands and ranged are left out in this version (weapon skills and specs make "better" a guess).
--- "Better" is the member's own stat profile: the stats of what they wear, as weights (Upgrades.Profile).
+-- "Better" is by the stat weights of the member's talent spec where it is known (Core/Talents.lua,
+-- Core/StatWeights.lua), else by their own stat profile: the stats of what they wear, as weights (Upgrades.Profile).
 local _, ns = ...
 
 local Upgrades = {}
@@ -459,12 +460,14 @@ local function Weighted(weights, stats)
   return score
 end
 
--- Better crafted pieces for member { key, level, classFile, classNames, profs } wearing gearRec (Core/Gear.lua
+-- Better crafted pieces for member { key, level, classFile, classNames, profs, weights } wearing gearRec (Core/Gear.lua
 -- record) out of index (Upgrades.Index), itemInfo as there, game { stats(itemID | worn item) -> stat table |
 -- nil, requirements(itemID) -> req | nil } (nil: not loaded; nil, true: the game never gives it, the piece
 -- is skipped and not missing).
+-- Scores are Σ weight × stat under member.weights (the talent spec's, Core/StatWeights.lua) when given, else
+-- under the profile of the worn pieces (the fallback while the spec is unknown).
 -- An offer counts when it fits the slot, level, armour and binding, its requirements are met and it beats
--- the worn piece's score by MIN_RATIO and MIN_SCORE; with a weak profile (fewer than STRONG_ITEMS pieces with
+-- the worn piece's score by MIN_RATIO and MIN_SCORE; with a weak profile and no spec weights (fewer than STRONG_ITEMS pieces with
 -- stats) instead when its top primary stat is the worn piece's (empty slot: the profile's) and its level is
 -- MIN_GAIN higher. Returns rows { { slot, itemID, quality, have, offer, gain, diff, makers = { { key, skillLine,
 -- online } } } } (at most MAX_ROWS, largest gain first, one per slot) and missing { itemID } (info or stats
@@ -501,6 +504,8 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
   local profile = Upgrades.Profile(list)
   local weights = profile.weights
   local strong = profile.items >= Upgrades.STRONG_ITEMS and profile.sum > 0
+  -- the talent spec's weights (Core/StatWeights.lua) where it is known: they need no worn pieces to be trusted
+  if type(member.weights) == "table" then weights, strong = member.weights, true end
   local prefer = Upgrades.ArmorType(armour)
 
   for _, entry in ipairs(index.pending) do

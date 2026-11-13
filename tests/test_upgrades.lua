@@ -411,3 +411,42 @@ T.describe("Upgrades requirements", function()
     T.eq(U.Meets({ reputation = true }, who), false)
   end)
 end)
+
+T.describe("Upgrades with talent spec weights", function()
+  -- waists: a cloth caster piece, a leather agility piece, a leather stamina pile
+  INFO[560] = { equipLoc = "INVTYPE_WAIST", level = 58, reqLevel = 50, classID = 4, subclassID = 1, bind = 2, quality = 3 }
+  INFO[561] = { equipLoc = "INVTYPE_WAIST", level = 50, reqLevel = 45, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+  INFO[562] = { equipLoc = "INVTYPE_WAIST", level = 52, reqLevel = 45, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+  STATS[560] = { [INT] = 12, [SPI] = 6, [STA] = 6 }
+  STATS[561] = { [AGI] = 10, [STR] = 4, [STA] = 3 }
+  STATS[562] = { [STA] = 20, [AGI] = 1 }
+  local makers = { maker("crafter", { 9060, 9061, 9062 }) }
+  local craft = { [9060] = 560, [9061] = 561, [9062] = 562 }
+  local function Offered(member, gear)
+    local ids = {}
+    for _, row in ipairs(For(member, gear or caster(), makers, craft)) do ids[#ids + 1] = row.itemID end
+    return ids
+  end
+  local druid = function(weights) return { key = "d", level = 52, classFile = "DRUID", weights = weights } end
+
+  T.it("scores a feral cat by cat weights: the cloth caster piece and the stamina pile lose", function()
+    T.eq(Offered(druid(nil)), { 560 }) -- by the worn caster gear (the fallback)
+    T.eq(Offered(druid(ns.StatWeights.For("DRUID_CAT"))), { 561 })
+  end)
+
+  T.it("scores a bear by bear weights: the stamina pile wins", function()
+    T.eq(Offered(druid(ns.StatWeights.For("DRUID_BEAR"))), { 562 })
+  end)
+
+  T.it("orders the comparison by the spec weights", function()
+    local rows = For(druid(ns.StatWeights.For("DRUID_CAT")), caster(), makers, craft)
+    T.eq(rows[1].diff[1].key, AGI)
+  end)
+
+  T.it("trusts spec weights with few worn pieces known", function()
+    -- one worn piece: too few for a profile, which goes by item level and the worn piece's top stat
+    local gear = { items = { [6] = item(1, 51) } }
+    T.eq(Offered(druid(nil), gear), { 560 })
+    T.eq(Offered(druid(ns.StatWeights.For("DRUID_CAT")), gear), { 561 })
+  end)
+end)
