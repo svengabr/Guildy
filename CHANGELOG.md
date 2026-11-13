@@ -58,6 +58,10 @@
 - The same score panel shows when you hover the activity column on the Members tab and a member in the
   overview's list of comings and goings.
 - The profession icons in the chat's member list are now off unless you switch them on in the options.
+- Talents on WoW Forever: Guildy reads the points per talent tree from the game's trait system (your own,
+  and a member's in Guildy's inspect), so the upgrades are rated for the spec ("bewertet für Wilder
+  Kampf (Katze)") instead of only by the worn gear. `/guildy talentprobe` prints what the game gives.
+- The gear rows name a worn piece with its random suffix ("Waldläufertunika des Tigers").
 - The dungeon collection left the character page (it stays in the Hall of Fame), and so did the medals.
 - `/guildy gearshow [name]` lists what Guildy knows of a member's gear, for checking.
 - Fixed: on the Professions tab a skill like 278/300 broke into two lines.
