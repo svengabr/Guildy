@@ -5,6 +5,9 @@ local _, ns = ...
 
 local Roster = {}
 ns.Roster = Roster
+-- goes up when the members themselves change (who is in the guild, names, levels, classes), not with
+-- every scan: what is worked out from the member list (rankings, the ready mark) is kept until then
+Roster.version = 0
 
 local members, byKey, byGuid = {}, {}, {}
 local joined = {} -- nameKey -> days ago (from the event log)
@@ -141,6 +144,15 @@ function Roster.Scan()
       if guid then guids[guid] = m end
     end
   end
+  local changed = #list ~= #members
+  for _, m in ipairs(changed and {} or list) do
+    local old = byKey[m.key]
+    if not old or old.name ~= m.name or old.level ~= m.level or old.classFile ~= m.classFile then
+      changed = true
+      break
+    end
+  end
+  if changed then Roster.version = Roster.version + 1 end
   members, byKey, byGuid = list, keys, guids
   lap("scan roster:", "read members")
   ReadEventLog()

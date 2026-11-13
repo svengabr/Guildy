@@ -11,6 +11,13 @@ local G, U = ns.Gear, ns.Upgrades
 local GameGear = {}
 ns.GameGear = GameGear
 
+-- What the upgrades are worked out from goes up when it changes: books (professions, the craft map,
+-- items the game does not have) and item infos loaded
+GameGear.books, GameGear.info = 0, 0
+local function BooksChanged() GameGear.books = GameGear.books + 1 end
+ns.On("PROFS", BooksChanged)
+ns.On("GEAR_INFO", function() GameGear.info = GameGear.info + 1 end)
+
 local CRAFT_BATCH = 20 -- spell IDs asked from the game per frame
 local REFRESH = 86400  -- unchanged own gear is stored and sent anew after this many seconds
 
@@ -110,7 +117,7 @@ function GameGear.ReadOwn()
     and ns.Now() - have.ts < REFRESH then return end
   rec.ts = math.max(ns.Now(), type(have) == "table" and type(have.ts) == "number" and have.ts + 1 or 0)
   book[key] = rec
-  ns.Fire("GEAR")
+  ns.Fire("GEAR", key)
   if ns.Settings().share then Share(key) end
 end
 
@@ -127,7 +134,7 @@ function GameGear.Store(request, links, unit, ids)
   local race, sex = RaceSex(unit, request.guid)
   local rec = { ts = ns.Now(), src = "seen", race = race, sex = sex, items = items }
   if G.Merge(Book(guild), request.key, rec) then
-    ns.Fire("GEAR")
+    ns.Fire("GEAR", request.key)
     Share(request.key)
   end
 end
@@ -268,7 +275,9 @@ function GameGear.LearnCraft(spellID, itemOrLink)
     return false
   end
   if equippable == nil then return false end
-  return U.Learn(map, spellID, itemID)
+  local learned = U.Learn(map, spellID, itemID)
+  if learned then BooksChanged() end
+  return learned
 end
 
 local infoTimer
@@ -452,10 +461,47 @@ function GameGear.DressStored(actor, m)
   end
 end
 
+-- The makers of cached rows as the roster shows them now: online first, then the ones seen last
+local function SortMakers(a, b)
+  if a.online ~= b.online then return a.online end
+  if a.offline ~= b.offline then return a.offline < b.offline end
+  return a.key < b.key
+end
+local function Refresh(rows)
+  for _, row in ipairs(rows) do
+    for _, maker in ipairs(row.makers) do
+      local other = ns.Roster.Find(maker.key)
+      maker.online = other and other.online and true or false
+      maker.offline = maker.online and 0 or (other and type(other.daysOffline) == "number" and other.daysOffline * 24 or math.huge)
+    end
+    table.sort(row.makers, SortMakers)
+  end
+end
+
+local upgradesCache = {} -- member key -> { the inputs it was worked out from, rows, state, missing }
+
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
 -- "nodata" (no book of another member has a recipe whose item is known, or m's gear is unknown),
--- "none" (data, nothing better) or "rows". Spell IDs without an entry are asked from the game.
+-- "none" (data, nothing better) or "rows", and the items still loading. Kept per member until their
+-- gear, the guild's books, the member list or their level change, or, while items were loading, until
+-- item infos come in. Spell IDs without an entry are asked from the game.
 function GameGear.UpgradesFor(m)
+  local guild, db = ns.GuildData(), ns.DB()
+  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
+  local all = db and type(db.craftItems) == "table" and db.craftItems or nil
+  local c = upgradesCache[m.key]
+  if c and c.rec == rec and c.ts == (rec and rec.ts) and c.level == m.level and c.books == GameGear.books
+    and c.all == all and c.guild == guild and c.roster == ns.Roster.version and (#c.missing == 0 or c.info == GameGear.info) then
+    Refresh(c.rows)
+    return c.rows, c.state, c.missing
+  end
+  local rows, state, missing = GameGear.WorkOutUpgrades(m)
+  upgradesCache[m.key] = { rec = rec, ts = rec and rec.ts, level = m.level, books = GameGear.books, all = all, guild = guild,
+    roster = ns.Roster.version, info = GameGear.info, rows = rows, state = state, missing = missing }
+  return rows, state, missing
+end
+
+function GameGear.WorkOutUpgrades(m)
   local guild, db = ns.GuildData(), ns.DB()
   local all = db and type(db.craftItems) == "table" and db.craftItems or {}
   -- crafts whose item the game said it does not have are left out (bnet-sync may know items this
@@ -486,7 +532,7 @@ function GameGear.UpgradesFor(m)
   end
   if #unknown > 0 then GameGear.ResolveCrafts(unknown) end
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
-  if not known or type(rec) ~= "table" then return {}, "nodata" end
+  if not known or type(rec) ~= "table" then return {}, "nodata", {} end
   local rows, missing = U.For(GameGear.Who(m), rec, makers, craft, GameGear.ItemInfo, GAME)
   for _, itemID in ipairs(missing) do Request(itemID) end
   return rows, #rows > 0 and "rows" or "none", missing
@@ -517,16 +563,26 @@ local function Locale() return ns.Try(rawget(_G, "GetLocale")) or "enUS" end
 
 -- The text of enchantID on itemID in this client's language: from the cache, else the line the tooltip of
 -- the enchanted item has that the plain one lacks; nil when neither gives one (never the raw ID)
+-- the enchantment's tooltip names nothing: { [enchantID] = { [itemID] = true } }, for the session
+local enchantMisses = {}
+
 function GameGear.EnchantText(itemID, enchantID)
   local db = ns.DB()
   if not db or type(enchantID) ~= "number" or enchantID == 0 then return nil end
   local names = G.EnchantCache(db, Locale())
   if names[enchantID] then return names[enchantID] end
+  local misses = enchantMisses[enchantID]
+  if misses and misses[itemID] then return nil end
   local with = ns.GearProbe.TooltipLines(("item:%d:%d"):format(itemID, enchantID))
   local without = ns.GearProbe.TooltipLines(("item:%d"):format(itemID))
-  if #with == 0 or #without == 0 then return nil end
+  if #with == 0 or #without == 0 then return nil, true end -- the item is not loaded yet: asked again later
   local text = G.EnchantLine(with, without)
-  if text then names[enchantID] = text end
+  if text then
+    names[enchantID] = text
+  else
+    enchantMisses[enchantID] = misses or {}
+    enchantMisses[enchantID][itemID] = true
+  end
   return text
 end
 
@@ -536,7 +592,10 @@ end
 -- with asking once per item this ends the GEAR_INFO -> render -> request loop
 function GameGear.OnItemInfo(itemID, success)
   if success == false then
-    if itemID then unknownItems[itemID] = true end
+    if itemID and not unknownItems[itemID] then
+      unknownItems[itemID] = true
+      BooksChanged()
+    end
     return
   end
   InfoChanged()

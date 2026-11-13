@@ -434,7 +434,7 @@ local function OnStats(data, sender)
   end
   local key = ns.Names.Key(data.m)
   seenStats[key] = math.max(seenStats[key] or 0, record.ts)
-  if ns.Stats.Merge(ns.Store.Member(guild, data.m), record) then ns.Fire("STATS") end
+  if ns.Stats.Merge(ns.Store.Member(guild, data.m), record) then ns.Fire("STATS", key) end
 end
 
 local function OnFamily(data)
@@ -488,7 +488,7 @@ local function OnGear(data, sender)
   local key = ns.Names.Key(data.m)
   seenGear[key] = math.max(seenGear[key] or 0, rec.ts)
   if type(guild.gear) ~= "table" then guild.gear = {} end
-  if ns.Gear.Merge(guild.gear, key, rec) then ns.Fire("GEAR") end
+  if ns.Gear.Merge(guild.gear, key, rec) then ns.Fire("GEAR", key) end
 end
 
 local function OnJoined(data)

@@ -51,7 +51,12 @@ local function GameDate(fmt, ts)
   return date(fmt, ts)
 end
 
-local function Fire() ns.Fire("STATS") end
+-- STATS carries the key of the member whose statistics changed
+local function Fire(key) ns.Fire("STATS", key) end
+
+-- goes up whenever statistics are stored or merged: what is worked out from them is kept until then
+GameStats.version = 0
+ns.On("STATS", function() GameStats.version = GameStats.version + 1 end)
 
 -- Own statistics: { [statID] = number } for EVERY statistic the game reports (zeros left out), and
 -- the list of all statistic IDs is remembered (GuildyDB.statIds) to ask for the same ones by comparison
@@ -162,7 +167,7 @@ function GameStats.UpdateOwn()
       if before[id] ~= value then differs = true break end
     end
   end
-  if changed then Fire() end
+  if changed then Fire(ns.Names.Key(ns.PlayerName())) end
   -- share at most every 10 minutes and only when something changed
   if differs and ns.Settings().share and GetTime() - lastOwnSend > OWN_INTERVAL - 5 then
     lastOwnSend = GetTime()
@@ -413,7 +418,7 @@ local function StoreRead(request, values)
   if not guild then return end
   local member = ns.Store.Member(guild, request.name)
   if S.Update(member, values, ns.Now(), "seen", GameDate) then
-    Fire()
+    Fire(request.key)
     ns.Sync.ShareStats(request.key)
   end
 end
@@ -601,7 +606,7 @@ function GameStats.CheckLateGear(unit)
     if month and type(month.v) == "table" and month.v[id] == nil then month.v[id] = value end
   end
   rec.ts = math.max((rec.ts or 0) + 1, ns.Now()) -- newer than the copy without equipment others got
-  Fire()
+  Fire(late.request.key)
   ns.Sync.ShareStats(late.request.key)
   return true
 end

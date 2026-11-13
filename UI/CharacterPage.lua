@@ -156,24 +156,58 @@ local function Number(n)
   return big and big(n) or tostring(n)
 end
 
--- Place of member key in the guild for statistic id: place, count (nil when the member has no value)
-local function Place(entries, key, id)
-  local ranking = ns.Stats.Ranking(entries, id, "all", ns.Now(), ns.GameStats.Date)
-  for i, row in ipairs(ranking) do
-    if row.key == key then return i, #ranking, row.value end
+-- What the page works out from the whole guild, kept until the statistics or the member list change
+-- (GameStats.version, Roster.version): the entries, a ranking per statistic, the first title per member;
+-- the ready marks and the highest item level besides until stored gear changes (GEAR)
+local guildData = { stats = -1, roster = -1, gear = -1, rankings = {}, titles = {}, ready = {} }
+local gearVersion = 0
+ns.On("GEAR", function() gearVersion = gearVersion + 1 end)
+
+local function GuildData()
+  local d = guildData
+  local guild = ns.GuildData()
+  if d.stats ~= ns.GameStats.version or d.roster ~= ns.Roster.version or d.guild ~= guild or d.anon ~= ns.Anon.on then
+    d.stats, d.roster, d.guild, d.anon = ns.GameStats.version, ns.Roster.version, guild, ns.Anon.on
+    d.entries, d.rankings, d.titles, d.ready, d.gear = ns.GameStats.Entries(), {}, {}, {}, -1
   end
-  return nil, #ranking
+  if d.gear ~= gearVersion then d.gear, d.ready, d.top = gearVersion, {}, nil end
+  return d
+end
+
+-- Place of member key in the guild for statistic id: place, count (nil when the member has no value)
+local function Place(key, id)
+  local d = GuildData()
+  local ranking = d.rankings[id]
+  if not ranking then
+    local list = ns.Stats.Ranking(d.entries, id, "all", ns.Now(), ns.GameStats.Date)
+    local places = {}
+    for i, row in ipairs(list) do places[row.key] = i end
+    ranking = { list = list, places = places }
+    d.rankings[id] = ranking
+  end
+  local i = ranking.places[key]
+  if i then return i, #ranking.list, ranking.list[i].value end
+  return nil, #ranking.list
 end
 
 -- The title of member key's first places in the Hall of Fame (the best title card), or nil
-local function FirstTitle(entries, key)
+local function FirstTitle(key)
+  local d = GuildData()
+  local known = d.titles[key]
+  if known ~= nil then return known or nil end
+  local found = false
   for _, fame in ipairs(ns.Stats.PAGES) do
     for _, title in ipairs(fame.titles or {}) do
-      local place, _, value = Place(entries, key, title.stat)
-      if place == 1 and value and value > 0 then return ns.L["FAME_TITLE_" .. title.key] end
+      local place, _, value = Place(key, title.stat)
+      if place == 1 and value and value > 0 then
+        found = ns.L["FAME_TITLE_" .. title.key]
+        break
+      end
     end
+    if found then break end
   end
-  return nil
+  d.titles[key] = found
+  return found or nil
 end
 
 local function ProfList(m)
@@ -849,14 +883,14 @@ local function Build()
   profs.Empty:SetPoint("TOPLEFT", 12, -31)
 
   -- render -----------------------------------------------------------------------------------------
-  function page:RenderHero(m, entries)
+  function page:RenderHero(m)
     local can = ns.Roster.Can()
     local info = hero.Portrait:SetMember(m)
     local SEP = ns.L.SEP
     local inner = HERO_WIDTH - 24
     hero.Level:SetText(m.level or "")
     hero.Name:SetText(W.ClassName(m.name, m.classFile))
-    local title = FirstTitle(entries, m.key)
+    local title = FirstTitle(m.key)
     hero.Title:SetText(title and ("„" .. title .. "“") or "")
     local ident = {}
     if info and info.race then ident[#ident + 1] = info.race end
@@ -1274,7 +1308,7 @@ local function Build()
     return 36 + shown * LINE_H + (#list > shown and 16 or 0)
   end
 
-  function page:RenderStats(m, entries)
+  function page:RenderStats(m)
     local S = ns.Stats
     local guild = ns.GuildData()
     local record = guild and guild.members[m.key]
@@ -1283,7 +1317,7 @@ local function Build()
     local function Fill(tile, id)
       local value = S.Value(rec, id, "all", ns.Now(), ns.GameStats.Date)
       tile.Value:SetText(value and Number(value) or "–")
-      local place, count = Place(entries, m.key, id)
+      local place, count = Place(m.key, id)
       return value, place, count
     end
     local _, place, count = Fill(t.kills, 107)
@@ -1296,7 +1330,7 @@ local function Build()
     local values = rec and rec.v or {}
     local ilvl = values[S.GEAR.ILVL]
     t.gear.Value:SetText(ilvl and UI.Fame.Format(S.GEAR.ILVL, ilvl) or "–")
-    place, count = Place(entries, m.key, S.GEAR.ILVL)
+    place, count = Place(m.key, S.GEAR.ILVL)
     t.gear.Line:SetText(ilvl and place and L.PLACE_OF:format(place, count) or "")
     local counts = { values[S.GEAR.LEGENDARY] or 0, values[S.GEAR.EPIC] or 0, values[S.GEAR.RARE] or 0,
       values[S.GEAR.UNCOMMON] or 0, values[S.GEAR.COMMON] or 0, values[S.GEAR.POOR] or 0 }
@@ -1518,8 +1552,11 @@ local function Build()
   end
 
   -- The guild's ready mark for level (median average item level of the roster members of that level,
-  -- tenths) and the highest stored item level (the bars' scale)
+  -- tenths) and the highest stored item level (the bars' scale); kept until statistics, members or gear
+  -- change
   local function GuildGear(level)
+    local d = GuildData()
+    if d.top and d.ready[level] ~= nil then return d.ready[level] or nil, d.top end
     local guild = ns.GuildData()
     local list, top = {}, 1
     for _, other in ipairs(ns.Roster.Members()) do
@@ -1533,7 +1570,9 @@ local function Build()
         if item and (item.l or 0) > top then top = item.l end
       end
     end
-    return ns.Gear.ReadyMark(list, level), top
+    local ready = ns.Gear.ReadyMark(list, level)
+    d.ready[level], d.top = ready or false, top
+    return ready, top
   end
 
   function page:RenderGear(m)
@@ -1581,10 +1620,14 @@ local function Build()
         row.Icon:SetTexture(ItemIcon(item.id) or "Interface\\Icons\\INV_Misc_QuestionMark")
         row.Icon:Show()
         local name = ItemName(item)
+        if not name then self.waiting = true end
         row.Name:SetText(Hex(color) .. (name or "…") .. "|r")
         local enchant, enchantColor
         if item.e ~= 0 then
-          enchant, enchantColor = ns.GameGear.EnchantText(item.id, item.e), ENCHANT_COLOR
+          local loading
+          enchant, loading = ns.GameGear.EnchantText(item.id, item.e)
+          enchantColor = ENCHANT_COLOR
+          if loading then self.waiting = true end
         elseif missing[row.slot] then
           enchant, enchantColor = L.NO_ENCHANT, MISSING_COLOR
         end
@@ -1712,13 +1755,16 @@ local function Build()
   -- "Upgrades aus der Gilde": up to five better crafted pieces with their makers. Returns the height the
   -- box wants; LayoutColumn gives it the rest of the column and FitUpgrades drops what does not fit.
   function page:RenderUpgrades(m)
-    local rows, state = ns.GameGear.UpgradesFor(m)
+    local rows, state, missing = ns.GameGear.UpgradesFor(m)
+    if missing and #missing > 0 then self.waiting = true end
+    self.makers = rows
     local rowW = (upgrades:GetWidth() or 300) - 24
     for i, line in ipairs(upgrades.Rows) do
       local row = rows[i]
       if row then
         local color = QUALITY[row.quality or 1] or QUALITY[1]
         local info = ns.GameGear.ItemInfo(row.itemID)
+        if not info then self.waiting = true end
         line.itemID, line.diff = row.itemID, row.diff
         line.Icon:SetTexture(ItemIcon(row.itemID) or "Interface\\Icons\\INV_Misc_QuestionMark")
         line.Icon:Show()
@@ -1821,11 +1867,15 @@ local function Build()
 
   -- the column: professions only as tall as their rows, family as many lines as remain after what the
   -- upgrades want, the upgrades take the rest
-  function page:LayoutColumn(m, y, areaH, gearW)
+  function page:LayoutColumn(m, y, areaH, gearW, lap)
+    lap = lap or ns.Perf.Lap()
     local upWant = self:RenderUpgrades(m)
+    lap("character page:", "upgrades")
     local profsH = self:RenderProfs(m)
+    lap("character page:", "professions")
     local free = areaH - upWant - profsH - 2 * W.GAP - 36
     local familyH = self:RenderFamily(m, math.floor(free / LINE_H))
+    lap("character page:", "family")
     local upH = math.max(0, areaH - familyH - profsH - 2 * W.GAP)
     family:ClearAllPoints()
     family:SetPoint("TOPLEFT", right, "TOPLEFT", gearW + W.GAP, y)
@@ -1837,23 +1887,64 @@ local function Build()
     profs:ClearAllPoints()
     profs:SetPoint("TOPLEFT", upgrades, "BOTTOMLEFT", 0, -W.GAP)
     profs:SetHeight(profsH)
+    lap("character page:", "column layout")
   end
 
+  -- What the roster shows of member m and of the makers of their upgrades: the page draws again on a
+  -- roster update only when this changed
+  local function RosterSig(m)
+    local parts = { m.name, m.level, m.online and 1 or 0, m.zone, m.rank, m.note, m.officerNote, m.className,
+      m.classFile, m.daysOffline, m.joinedDay, m.joinedExact and 1 or 0, m.guid, m.isMobile and 1 or 0 }
+    for i = 1, 14 do parts[i] = tostring(parts[i]) end
+    for _, row in ipairs(page.makers or {}) do
+      for _, maker in ipairs(row.makers) do
+        local other = ns.Roster.Find(maker.key)
+        parts[#parts + 1] = maker.key .. (other and other.online and "+" or "-")
+      end
+    end
+    return table.concat(parts, "\031")
+  end
+
+  -- Each part is measured on its own while /guildy perf runs ("character page: hero (first title)" ...)
   function page:Render()
+    local lap = ns.Perf.Lap()
     local m = self.member and ns.Roster.Find(self.member.key) or self.member
     self.member = m
+    self.dirty = false
     if not m then return end
-    local entries = ns.GameStats.Entries()
+    self.waiting = false
     local y, areaH, gearW = self:Layout()
-    self:RenderHero(m, entries)
+    lap("character page:", "layout")
+    self:RenderHero(m)
+    lap("character page:", "hero (first title)")
     self:RenderModel(m)
+    lap("character page:", "model")
     self:RenderBackground(m)
-    self:RenderStats(m, entries)
+    lap("character page:", "background")
+    self:RenderStats(m)
+    lap("character page:", "stats tiles (places)")
     self:RenderScore(m)
+    lap("character page:", "score")
     self:RenderGear(m)
-    self:LayoutColumn(m, y, areaH, gearW)
+    lap("character page:", "gear rows (enchant texts)")
+    self:LayoutColumn(m, y, areaH, gearW, lap)
+    self.rosterSig, self.rosterVersion = RosterSig(m), ns.Roster.version
   end
   ns.Perf.Wrap(page, "Render", "render", "character page")
+
+  -- A render a moment later: the events of a burst (a roster update, items loading) give one render.
+  -- An explicit show draws at once and makes a pending one void.
+  local RENDER_AFTER = 0.2
+  function page:Schedule()
+    if not self:IsShown() then return end
+    self.dirty = true
+    if self.pending then return end
+    self.pending = true
+    C_Timer.After(RENDER_AFTER, function()
+      page.pending = false
+      if page.dirty and page:IsShown() then ns.SafeCall(page.Render, page) end
+    end)
+  end
   page:SetScript("OnHide", function()
     UI.Notes.Hide()
     local panel = rawget(page, "ScorePanel")
@@ -1861,9 +1952,20 @@ local function Build()
   end)
   page:SetScript("OnSizeChanged", function(self) if self.member and self:IsShown() then self:Render() end end)
 
-  for _, event in ipairs({ "ROSTER", "PROFS", "STATS", "FAMILY", "GEAR", "GEAR_INFO" }) do
-    ns.On(event, function() if page:IsShown() then page:Render() end end)
-  end
+  -- Which events concern what the page shows: data of the shown member (an event naming another member
+  -- draws nothing; what it changes in rankings or the ready mark shows with the next render), the roster
+  -- only when it shows something new of them or the member list changed, item infos only while the page
+  -- waits for one
+  local function Shown(key) return key == nil or (page.member ~= nil and page.member.key == key) end
+  ns.On("ROSTER", function()
+    local m = page:IsShown() and page.member and ns.Roster.Find(page.member.key)
+    if m and (page.rosterVersion ~= ns.Roster.version or page.rosterSig ~= RosterSig(m)) then page:Schedule() end
+  end)
+  ns.On("STATS", function(key) if Shown(key) then page:Schedule() end end)
+  ns.On("GEAR", function(key) if Shown(key) then page:Schedule() end end)
+  ns.On("GEAR_INFO", function() if page.waiting then page:Schedule() end end)
+  ns.On("PROFS", function() page:Schedule() end)
+  ns.On("FAMILY", function() page:Schedule() end)
 end
 
 -- Open the character page of roster member m (left click on a member anywhere)
