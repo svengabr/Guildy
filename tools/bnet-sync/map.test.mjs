@@ -277,6 +277,20 @@ test('gearRecord mirrors Core/Gear.lua', () => {
   assert.equal(gearRecord(null, {}, 1), null)
 })
 
+test('gearRecord stores the stats the response lists per worn item, in the client keys', () => {
+  const stat = (type, value, extra = {}) => ({ type: { type, name: type }, value, display: { display_string: `+${value} ${type}` }, ...extra })
+  const tunic = { ...worn('CHEST', 7484, 39, 'UNCOMMON'), name: 'Waldläufertunika des Tigers',
+    stats: [stat('STRENGTH', 13), stat('AGILITY', 13), stat('FIRE_RESISTANCE', 5), stat('STAMINA', 4, { is_negated: true })] }
+  const ring = { ...worn('FINGER_1', 900, 40, 'RARE'), stats: [stat('INTELLECT', 3), stat('SPIRIT', 2), stat('ATTACK_POWER', 20), stat('STAMINA', 6)] }
+  const plain = { ...worn('SHIRT', 38, 1, 'COMMON'), stats: [] }
+  const rec = gearRecord({ equipped_items: [tunic, ring, plain, worn('HEAD', 101, 50, 'RARE')] }, {}, 1)
+  assert.deepEqual(rec.items[5].st, { ITEM_MOD_STRENGTH_SHORT: 13, ITEM_MOD_AGILITY_SHORT: 13 })
+  assert.deepEqual(rec.items[11].st, { ITEM_MOD_INTELLECT_SHORT: 3, ITEM_MOD_SPIRIT_SHORT: 2, ITEM_MOD_ATTACK_POWER_SHORT: 20,
+    ITEM_MOD_STAMINA_SHORT: 6 })
+  assert.deepEqual(rec.items[4].st, {}) // listed, none: known to have no stats
+  assert.equal('st' in rec.items[1], false) // no list in the response: nothing known
+})
+
 test('updateGear writes only a newer record', () => {
   const guild = new LuaTable()
   const rec = gearRecord({ equipped_items: [worn('HEAD', 101, 50, 'RARE')] }, { race: { id: 4 } }, 100)

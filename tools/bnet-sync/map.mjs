@@ -32,9 +32,32 @@ const EN_SPECS = { 'Gnomish Engineer': 20219, 'Goblin Engineer': 20222, Weaponsm
   'Dragonscale Leatherworking': 10656, 'Elemental Leatherworking': 10658, 'Tribal Leatherworking': 10660 }
 const SPEC_RANK = { known: 3, api: 2, book: 1 }
 
+// The API's stat types as the client's GetItemStats keys. Others (resistances above all) are left out:
+// Guildy's upgrades count every ITEM_MOD_* key, so a guessed key would count where the client's does not.
+export const STAT_KEYS = { STRENGTH: 'ITEM_MOD_STRENGTH_SHORT', AGILITY: 'ITEM_MOD_AGILITY_SHORT',
+  STAMINA: 'ITEM_MOD_STAMINA_SHORT', INTELLECT: 'ITEM_MOD_INTELLECT_SHORT', SPIRIT: 'ITEM_MOD_SPIRIT_SHORT',
+  ATTACK_POWER: 'ITEM_MOD_ATTACK_POWER_SHORT', RANGED_ATTACK_POWER: 'ITEM_MOD_RANGED_ATTACK_POWER_SHORT',
+  SPELL_POWER: 'ITEM_MOD_SPELL_POWER_SHORT', MANA_REGENERATION: 'ITEM_MOD_MANA_REGENERATION_SHORT',
+  CRIT_RATING: 'ITEM_MOD_CRIT_RATING_SHORT', HIT_RATING: 'ITEM_MOD_HIT_RATING_SHORT',
+  DEFENSE_SKILL_RATING: 'ITEM_MOD_DEFENSE_SKILL_RATING_SHORT', DODGE_RATING: 'ITEM_MOD_DODGE_RATING_SHORT',
+  PARRY_RATING: 'ITEM_MOD_PARRY_RATING_SHORT', BLOCK_RATING: 'ITEM_MOD_BLOCK_RATING_SHORT' }
+
+// { [ITEM_MOD_*_SHORT]: value } of a worn item's stats list (random suffix included: the API lists the
+// item's stats as worn), negated ones left out; undefined without a list
+function storedStats(list) {
+  if (!Array.isArray(list)) return undefined
+  const st = {}
+  for (const s of list) {
+    const key = STAT_KEYS[s?.type?.type]
+    if (key && !s.is_negated && Number.isInteger(s.value)) st[key] = (st[key] ?? 0) + s.value
+  }
+  return st
+}
+
 // Core/Gear.lua's record from the /equipment response and the profile: { ts, src: 'api', race, sex,
-// items: { [slot]: { id, e, s, l, q } } }, null without a list of equipped items. The suffix ID is not in
-// the response as far as known (2026-11-13), so it is 0; the game fills it in when it reads the member.
+// items: { [slot]: { id, e, s, l, q, st } } }, null without a list of equipped items. The suffix ID is not
+// in the response as far as known (2026-11-13), so it is 0; st holds the stats the response lists for the
+// item (its random suffix included), which Guildy takes for the worn item instead of the game's.
 export function gearRecord(equipment, profile, ts) {
   if (!Array.isArray(equipment?.equipped_items)) return null
   const items = {}
@@ -46,6 +69,8 @@ export function gearRecord(equipment, profile, ts) {
     const level = item.level?.value ?? item.item_level ?? 0
     items[slot] = { id, e: enchant, s: 0, l: Number.isInteger(level) && level > 0 ? level : 0,
       q: Math.max(0, Math.min(QUALITY[item.quality?.type] ?? 1, 5)) }
+    const st = storedStats(item.stats)
+    if (st) items[slot].st = st
   }
   const race = profile?.race?.id
   const sex = { MALE: 2, FEMALE: 3 }[profile?.gender?.type]
