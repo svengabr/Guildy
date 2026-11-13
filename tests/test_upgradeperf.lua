@@ -191,6 +191,45 @@ T.describe("Guild upgrades against the game's item client", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("counts its own item requests in /guildy perf, not those of other addons", function()
+    local w = World()
+    local ns = w.ns
+    ns.Perf.Enable(true)
+    ns.Perf.Reset()
+    -- another addon (KeepOrSell, Baganator ...) asks for items of its own, and their answers come in
+    for id = 7001, 7003 do w.env.C_Item.RequestLoadItemDataByID(id) end
+    w.RunTimers()
+    local others = w.items.Requests()
+    for i = 1, 8 do w.Show(SWITCH[(i - 1) % 4 + 1]) end
+    w.Warm()
+    local guildy = w.items.Requests() - others
+    T.truthy(guildy > 0, "Guildy asked for items")
+    local counted
+    for _, row in ipairs(ns.Perf.Rows()) do
+      if row.label == "item requests (Guildy)" then counted = row.n end
+    end
+    ns.Perf.Enable(false)
+    T.eq(counted, guildy)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("shows in /guildy perf when the warm-up runs and when it is done", function()
+    local w = World()
+    local ns = w.ns
+    ns.Perf.Enable(true)
+    ns.Perf.Reset()
+    w.Warm()
+    local steps, done
+    for _, row in ipairs(ns.Perf.Rows()) do
+      if row.label == "warm-up: step" then steps = row.n end
+      if row.label:match("^warm%-up: done") then done = row.label end
+    end
+    ns.Perf.Enable(false)
+    T.truthy(steps and steps > 0, "steps measured")
+    T.truthy(done and done:find("items"), tostring(done))
+    T.eq(w.errors, {})
+  end)
+
   T.it("allocates under 50 kB per scoring run once warm, with 400 crafted pieces", function()
     local w = World(400)
     w.Warm()

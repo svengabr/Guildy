@@ -163,10 +163,18 @@ local requestedItems = {} -- itemID -> true: asked from the game this session (n
 
 local function IsItemId(id) return type(id) == "number" and id > 0 end
 
+-- Notes that the client asks the server for itemID because of Guildy (counted in /guildy perf as
+-- "item requests (Guildy)"); true the first time this session
+local function Asked(itemID)
+  if requestedItems[itemID] then return false end
+  requestedItems[itemID] = true
+  ns.Perf.ItemRequest()
+  return true
+end
+
 -- Asks the game to load itemID, once per session
 local function Request(itemID)
-  if not IsItemId(itemID) or requestedItems[itemID] then return end
-  requestedItems[itemID] = true
+  if not IsItemId(itemID) or not Asked(itemID) then return end
   local request = C_Item and rawget(C_Item, "RequestLoadItemDataByID")
   if request then ns.Try(request, itemID) end
 end
@@ -540,7 +548,11 @@ function GameGear.DressStored(actor, m)
   for slot = 1, 19 do
     local item = rec.items and rec.items[slot]
     -- an item the game does not have would only be asked for again
-    if item and not GameGear.IsGone(item.id) then pcall(actor.TryOn, actor, G.ItemString(item)) end
+    if item and not GameGear.IsGone(item.id) then
+      -- trying on an item the client does not have makes it ask the server
+      if IsItemId(item.id) and not infoCache[item.id] and IsCached(item.id) ~= true then Asked(item.id) end
+      pcall(actor.TryOn, actor, G.ItemString(item))
+    end
   end
 end
 
@@ -755,10 +767,15 @@ end
 local WarmStep
 local function WarmLater(seconds) C_Timer.After(seconds, function() ns.SafeCall(WarmStep) end) end
 
-function WarmStep()
+-- One step; measured as "warm-up: step" while /guildy perf runs, and the end as "warm-up: done ..."
+-- with how long it took, so a measurement shows whether the caches were in yet
+local function WarmBody()
   if not warm then return end
   if InCombat() then return WarmLater(GameGear.WARM_COMBAT) end
-  if not warm.list then warm.list = WarmList() end
+  if not warm.list then
+    warm.list = WarmList()
+    warm.items = #warm.list
+  end
   for _ = 1, GameGear.WARM_BATCH do
     local entry = warm.list[warm.pos]
     if entry == nil then break end
@@ -770,14 +787,20 @@ function WarmStep()
     warm.list, warm.pos, warm.later, warm.pass = warm.later, 1, {}, warm.pass + 1
     return WarmLater(WARM_PAUSE)
   end
+  local took, items, passes = (ns.Try(rawget(_G, "GetTime")) or 0) - warm.started, warm.items or 0, warm.pass
   warm = false
   GameGear.CraftIndexNow() -- takes in what loaded on the way
+  ns.Perf.Count("warm-up:", ("done after %.0f s (begun %d s after login), %d items, %d passes"):format(took,
+    GameGear.WARM_DELAY, items, passes))
 end
+
+function WarmStep() ns.Perf.Call("warm-up:", "step", WarmBody) end
 
 -- Starts the warm-up (again, once a run is done)
 function GameGear.WarmUp()
   if warm then return end
-  warm = { pos = 1, later = {}, pass = 1 }
+  warm = { pos = 1, later = {}, pass = 1, started = ns.Try(rawget(_G, "GetTime")) or 0 }
+  ns.Perf.Count("warm-up:", "begun")
   WarmLater(0)
 end
 

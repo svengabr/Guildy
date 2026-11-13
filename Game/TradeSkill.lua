@@ -223,7 +223,10 @@ function TradeSkill.SearchNames()
         local item = type(wanted.items) == "table" and wanted.items[name]
         if type(item) == "number" and item > 0 then
           items[name] = item
-          if request then ns.Try(request, item) end
+          if request then
+            ns.Perf.ItemRequest()
+            ns.Try(request, item)
+          end
         end
       end
     end

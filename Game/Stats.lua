@@ -93,13 +93,20 @@ local function ItemInfoFunction()
   return rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
 end
 
+-- GetItemInfo's results, counted as one of Guildy's item requests when it had nothing (the client asks the
+-- server then)
+local function Counted(name, ...)
+  if name == nil then ns.Perf.ItemRequest() end
+  return name, ...
+end
+
 -- Equipment of unit ("player" or an inspected member), nil while item info is missing; also the links
 -- and item IDs of slots 1..19 it was read from (for Game/Gear.lua)
 local function ReadUnitGear(unit)
   local getLink, getInfo = rawget(_G, "GetInventoryItemLink"), ItemInfoFunction()
   if not getLink or not getInfo then return nil end
   local values = S.ReadGear(function(slot) return ns.Try(getLink, unit, slot) end,
-    function(link) return ns.Try(getInfo, link) end)
+    function(link) return Counted(ns.Try(getInfo, link)) end)
   if not values then return nil end
   local getID = rawget(_G, "GetInventoryItemID")
   local links, ids = {}, {}
@@ -117,7 +124,10 @@ local function LoadUnitItems(unit)
   if not request or not getID then return end
   for _, slot in ipairs(S.GEAR_SLOTS) do
     local itemID = ns.Try(getID, unit, slot)
-    if itemID then ns.Try(request, itemID) end
+    if itemID then
+      ns.Perf.ItemRequest()
+      ns.Try(request, itemID)
+    end
   end
 end
 

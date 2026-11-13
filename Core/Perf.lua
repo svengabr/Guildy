@@ -45,6 +45,18 @@ function Perf.Add(kind, name, ms, kb)
   if kb and kb > 0 then mark.kb = mark.kb + kb end
 end
 
+-- Counts one occurrence of "kind name" (no time, no memory) while measuring is on: how often something
+-- happened, such as Guildy asking the game for an item ("item requests (Guildy)")
+function Perf.Count(kind, name)
+  if Perf.on then Perf.Add(kind, name, 0, 0) end
+end
+
+-- Every item Guildy makes the client ask the server for (C_Item.RequestLoadItemDataByID, GetItemInfo or
+-- TryOn of an item it does not have): GET_ITEM_INFO_RECEIVED comes for every addon's requests, this line
+-- tells Guildy's own apart
+Perf.ITEM_REQUESTS = "item requests (Guildy)"
+function Perf.ItemRequest() Perf.Count(Perf.ITEM_REQUESTS) end
+
 local function Done(kind, name, start, memory, ...)
   Perf.Add(kind, name, Perf.Clock() - start, Perf.Memory() - memory)
   return ...
