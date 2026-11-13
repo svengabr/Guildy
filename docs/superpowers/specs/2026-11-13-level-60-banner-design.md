@@ -77,11 +77,10 @@ No message between clients is needed for this: guild chat itself is the signal,
 and it also works with Guildy users on an older version (they neither post nor
 get in the way).
 
-**Not checked yet:** whether Forever lets an addon send to guild chat from a timer,
-without a key press. Guildy's own chat line sends after Enter, which proves
-nothing for this. The send is wrapped so a refusal breaks nothing, and it is
-tried in game first; if the game refuses, this part is dropped and the banner
-stays.
+**Checked in game (2026-11-13, version 1.7.1):** Forever lets an addon send to
+guild chat from a timer, without a key press. Two members reached 60 in the same
+minute; one client sent one line for each, and no line came twice. The send stays
+wrapped so a refusal would break nothing.
 
 **Banner — `UI/Ding.lua`.** One frame in the upper middle of the screen, not part
 of Guildy's window and shown whether or not that is open:
