@@ -291,6 +291,19 @@ test('gearRecord stores the stats the response lists per worn item, in the clien
   assert.equal('st' in rec.items[1], false) // no list in the response: nothing known
 })
 
+test('gearRecord keeps the bonus IDs of each worn item, so Guildy rebuilds the item with its random suffix', () => {
+  const tunic = { ...worn('CHEST', 7484, 39, 'UNCOMMON'), bonus_list: [6655, 1700] }
+  const rec = gearRecord({ equipped_items: [tunic, { ...worn('HEAD', 101, 50, 'RARE'), bonus_list: [] },
+    { ...worn('LEGS', 102, 50, 'RARE'), bonus_list: [7, 'x', -1, 2.5] }, worn('FEET', 103, 50, 'RARE')] }, {}, 1)
+  assert.deepEqual(rec.items[5].b, [6655, 1700])
+  assert.equal('b' in rec.items[1], false) // an empty list: none
+  assert.deepEqual(rec.items[7].b, [7]) // only whole positive IDs
+  assert.equal('b' in rec.items[8], false) // no list: none
+  const lua = new LuaTable()
+  updateGear(lua, 'ran fred', rec)
+  assert.deepEqual(lua.get('gear').get('ran fred').get('items').get(5).get('b').arr, [6655, 1700]) // a Lua list
+})
+
 test('updateGear writes only a newer record', () => {
   const guild = new LuaTable()
   const rec = gearRecord({ equipped_items: [worn('HEAD', 101, 50, 'RARE')] }, { race: { id: 4 } }, 100)
