@@ -357,10 +357,11 @@ end
 
 -- Name of a stored item (with its suffix) once the client has its info, else nil. The item info first:
 -- it asks the game once and reads nothing while the item loads (the page redraws on GEAR_INFO);
--- GetItemInfo of an item the client lacks would ask the server again on every render.
+-- GetItemInfo of an item the client lacks would ask the server again on every render. nil, true when the
+-- game said it has no such item: nothing to wait for.
 local function ItemName(item)
-  local info = ns.GameGear.ItemInfo(item.id)
-  if not info then return nil end
+  local info, gone = ns.GameGear.ItemInfo(item.id)
+  if not info then return nil, gone end
   local getInfo = rawget(_G, "GetItemInfo") or (C_Item and C_Item.GetItemInfo)
   local name = getInfo and ns.Try(getInfo, ns.Gear.ItemString(item))
   if type(name) ~= "string" or ns.IsSecret(name) then return nil end
@@ -1609,8 +1610,8 @@ local function Build()
         local color = QUALITY[item.q] or QUALITY[1]
         row.Icon:SetTexture(ItemIcon(item.id) or "Interface\\Icons\\INV_Misc_QuestionMark")
         row.Icon:Show()
-        local name = ItemName(item)
-        if not name then self.waiting = true end
+        local name, gone = ItemName(item)
+        if not name and not gone then self.waiting = true end
         row.Name:SetText(Hex(color) .. (name or "…") .. "|r")
         local enchant, enchantColor
         if item.e ~= 0 then
@@ -1753,8 +1754,8 @@ local function Build()
       local row = rows[i]
       if row then
         local color = QUALITY[row.quality or 1] or QUALITY[1]
-        local info = ns.GameGear.ItemInfo(row.itemID)
-        if not info then self.waiting = true end
+        local info, gone = ns.GameGear.ItemInfo(row.itemID)
+        if not info and not gone then self.waiting = true end
         line.itemID, line.diff = row.itemID, row.diff
         line.Icon:SetTexture(ItemIcon(row.itemID) or "Interface\\Icons\\INV_Misc_QuestionMark")
         line.Icon:Show()

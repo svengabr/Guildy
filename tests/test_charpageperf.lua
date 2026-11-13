@@ -273,6 +273,21 @@ T.describe("Character page renders", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("does not wait for a worn item the game says it does not have", function()
+    local w = World()
+    w.ns.GuildData().gear["au tsch"].items[1] = { id = 7999, e = 0, s = 0, l = 46, q = 2 }
+    w.page:Render()
+    T.eq(w.page.waiting, true) -- asked from the game
+    w.Fire("GET_ITEM_INFO_RECEIVED", 7999, false)
+    w.page:Render()
+    T.eq(w.page.waiting, false)
+    w.renders = 0
+    w.ns.Fire("GEAR_INFO") -- items of another addon loading
+    w.RunTimers()
+    T.eq(w.renders, 0)
+    T.eq(w.errors, {})
+  end)
+
   T.it("reads an enchantment's text once per session, a missing one too", function()
     local w = World()
     local rec = w.ns.GuildData().gear["au tsch"]
