@@ -329,7 +329,7 @@ function Tips.Get()
     wornTip = CreateFrame("GameTooltip", "GuildyWornTooltip", UIParent, "GameTooltipTemplate")
     for _, tip in ipairs({ itemTip, wornTip }) do
       tip.supportsItemComparison = false
-      tip:SetClampedToScreen(true)
+      W.FloatingPanel(tip, { tooltip = true })
     end
   end
   return itemTip, wornTip
@@ -496,20 +496,8 @@ end
 -- Built once on the first hover, then reused: opaque, above everything, kept on the screen
 local function BuildScorePanel()
   local L = ns.L
-  local panel = W.Box(UIParent)
   -- set apart from the page's boxes it lies on: full gold border, a darker ground, a soft shadow around
-  panel:SetBackdropColor(0.035, 0.03, 0.022, 1)
-  panel:SetBackdropBorderColor(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
-  panel.Shadow = {}
-  for i, alpha in ipairs({ 0.55, 0.35, 0.2, 0.1 }) do
-    local shadow = panel:CreateTexture(nil, "BACKGROUND", nil, -8)
-    shadow:SetColorTexture(0, 0, 0, alpha)
-    shadow:SetPoint("TOPLEFT", -i * 2 + 1, i * 2 - 1)
-    shadow:SetPoint("BOTTOMRIGHT", i * 2 + 1, -i * 2 - 3)
-    panel.Shadow[i] = shadow
-  end
-  panel:SetFrameStrata("TOOLTIP")
-  panel:SetClampedToScreen(true)
+  local panel = W.FloatingPanel(W.Box(UIParent))
   panel:SetWidth(PANEL_W)
   panel:Hide()
   panel.Value = W.Text(panel, "GameFontNormalHuge")

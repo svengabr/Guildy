@@ -35,6 +35,47 @@ function W.Box(parent, shade, border)
   return box
 end
 
+-- The look of Guildy's floating panels (the activity score panel, the item tooltips): an opaque dark
+-- ground, a full gold border, soft shadow rings around it, above everything and kept on the screen.
+-- frame: a W.Box, or with opts.tooltip a GameTooltip whose own NineSlice/backdrop is hidden for a ground
+-- of Guildy's beneath its lines (frame.Ground; a W.Box is its own). frame.Shadow holds the rings.
+local FLOAT_GROUND = { 0.035, 0.03, 0.022 }
+local FLOAT_SHADOW = { 0.55, 0.35, 0.2, 0.1 }
+
+local function HideBlizzardBackdrop(frame)
+  local nine = rawget(frame, "NineSlice")
+  if type(nine) == "table" and nine.SetAlpha then nine:SetAlpha(0) end
+  if frame.SetBackdrop then pcall(frame.SetBackdrop, frame, nil) end
+end
+
+function W.FloatingPanel(frame, opts)
+  local ground = frame
+  if opts and opts.tooltip then
+    HideBlizzardBackdrop(frame)
+    -- the game sets its tooltip style again when one is shown: hidden again each time
+    frame:HookScript("OnShow", HideBlizzardBackdrop)
+    ground = CreateFrame("Frame", nil, frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    ground:SetAllPoints(frame)
+    local level = frame:GetFrameLevel()
+    ground:SetFrameLevel(math.max(0, (type(level) == "number" and level or 1) - 1))
+    if ground.SetBackdrop then ground:SetBackdrop(BACKDROP) end
+  end
+  frame.Ground = ground
+  ground:SetBackdropColor(FLOAT_GROUND[1], FLOAT_GROUND[2], FLOAT_GROUND[3], 1)
+  ground:SetBackdropBorderColor(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
+  frame.Shadow = {}
+  for i, alpha in ipairs(FLOAT_SHADOW) do
+    local shadow = ground:CreateTexture(nil, "BACKGROUND", nil, -8)
+    shadow:SetColorTexture(0, 0, 0, alpha)
+    shadow:SetPoint("TOPLEFT", -i * 2 + 1, i * 2 - 1)
+    shadow:SetPoint("BOTTOMRIGHT", i * 2 + 1, -i * 2 - 3)
+    frame.Shadow[i] = shadow
+  end
+  frame:SetFrameStrata("TOOLTIP")
+  frame:SetClampedToScreen(true)
+  return frame
+end
+
 function W.SetAtlasOr(texture, atlas, r, g, b)
   if C_Texture and C_Texture.GetAtlasExists and C_Texture.GetAtlasExists(atlas) then
     texture:SetAtlas(atlas)

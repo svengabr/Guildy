@@ -386,4 +386,21 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.env.GuildyWornTooltip:IsShown(), false)
     T.eq(w.errors, {})
   end)
+
+  T.it("gives both item tooltips the look of Guildy's floating panels", function()
+    local w = World()
+    Page(w)
+    local gold = w.ns.Widgets.GOLD
+    for _, name in ipairs({ "GuildyItemTooltip", "GuildyWornTooltip" }) do
+      local tip = w.env[name]
+      local ground = tip.Ground
+      T.eq(type(ground), "table", name .. ": its own ground")
+      local _, _, _, alpha = ground:GetBackdropColor()
+      T.eq(alpha, 1)
+      local r, g, b, a = ground:GetBackdropBorderColor()
+      T.eq({ r, g, b, a }, { gold[1], gold[2], gold[3], 1 })
+      T.truthy(tip.Shadow and tip.Shadow[1], name .. ": a shadow around it")
+    end
+    T.eq(w.errors, {})
+  end)
 end)
