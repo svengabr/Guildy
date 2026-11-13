@@ -2733,6 +2733,16 @@ T.describe("Activity score on the character page", function()
     T.eq(errors, {})
   end)
 
+  T.it("frames the model area with a gold border, inset from the card", function()
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+    local hero = ns.UI.MemberPage().Hero
+    T.truthy(hero.ModelFrame and hero.ModelFrame:IsShown(), "a frame around the model")
+    local r, g, b, a = hero.ModelFrame:GetBackdropBorderColor()
+    T.truthy(a == 1 and r > 0.7 and g > 0.55, ("gold border %.2f %.2f %.2f %.2f"):format(r, g, b, a))
+    T.truthy(hero.ModelFrame:GetFrameLevel() < hero.LevelRing:GetFrameLevel(), "the level ring lies over the frame")
+    T.eq(errors, {})
+  end)
+
   T.it("fits five tiles in the smallest window", function()
     local page = ns.UI.MemberPage()
     page:SetSize(1130 - 22, 560 - 42)

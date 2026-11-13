@@ -24,6 +24,7 @@ local FACTS = { "since", "last", "guildy" }
 local NOTE_LINES = 3
 local MODEL_SHARE = 0.6 -- the model area takes at most this share of the card
 local MODEL_MIN = 120   -- and at least this, the notes give up lines first
+local MODEL_INSET = 9   -- the picture's distance from the card's edge, room for its gold frame
 local CONTENT_GAP = 12  -- between the card's content and its buttons
 local MODEL_ZOOM = 0.8
 local MODEL_SCENE = 596 -- the game's scene of a player in the shop and dressing room
@@ -495,8 +496,8 @@ local function Build()
   -- the model area: the character (below); wherever the game cannot show the member in their race and
   -- sex, the race portrait
   hero.ModelArea = CreateFrame("Frame", nil, hero)
-  hero.ModelArea:SetPoint("TOPLEFT", 1, -1)
-  hero.ModelArea:SetPoint("TOPRIGHT", -1, -1)
+  hero.ModelArea:SetPoint("TOPLEFT", MODEL_INSET, -MODEL_INSET)
+  hero.ModelArea:SetPoint("TOPRIGHT", -MODEL_INSET, -MODEL_INSET)
   hero.ModelArea:SetHeight(200)
   page.ModelArea = hero.ModelArea
   -- the race's dressing room art behind the model (Game/Gear.lua), up to four pieces, the bottom shaded
@@ -578,10 +579,21 @@ local function Build()
       hero.ModelHint:Hide()
     end)
   end
+  -- a gold frame around the picture, as Blizzard frames its portraits: the picture sits in the card
+  -- instead of running into its edge
+  hero.ModelFrame = CreateFrame("Frame", nil, hero, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  hero.ModelFrame:SetPoint("TOPLEFT", hero.ModelArea, "TOPLEFT", -4, 4)
+  hero.ModelFrame:SetPoint("BOTTOMRIGHT", hero.ModelArea, "BOTTOMRIGHT", 4, -4)
+  if hero.ModelFrame.SetBackdrop then
+    hero.ModelFrame:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
+    hero.ModelFrame:SetBackdropBorderColor(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
+  end
+  hero.ModelFrame:SetFrameLevel(hero.HintLayer:GetFrameLevel() + 1)
+  hero.ModelFrame:Show()
   hero.LevelRing = CreateFrame("Frame", nil, hero)
   hero.LevelRing:SetSize(34, 34)
-  hero.LevelRing:SetPoint("TOPRIGHT", -12, -12)
-  hero.LevelRing:SetFrameLevel(hero.HintLayer:GetFrameLevel() + 1)
+  hero.LevelRing:SetPoint("TOPRIGHT", hero.ModelArea, "TOPRIGHT", -8, -8)
+  hero.LevelRing:SetFrameLevel(hero.ModelFrame:GetFrameLevel() + 1)
   Disc(hero.LevelRing, "BACKGROUND", 1, 0, W.GOLD[1], W.GOLD[2], W.GOLD[3])
   Disc(hero.LevelRing, "BACKGROUND", 2, 2, 0.07, 0.06, 0.04)
   hero.Level = W.Text(hero.LevelRing, "GameFontNormal")
@@ -919,8 +931,9 @@ local function Build()
     repeat
       contentH, h = Measure(lines)
       lines = lines - 1
-    until lines < 1 or cardH - bottomH - CONTENT_GAP - contentH >= MODEL_MIN
-    local modelH = math.max(MODEL_MIN, math.min(math.floor(cardH * MODEL_SHARE), cardH - bottomH - CONTENT_GAP - contentH))
+    until lines < 1 or cardH - MODEL_INSET - bottomH - CONTENT_GAP - contentH >= MODEL_MIN
+    local modelH = math.max(MODEL_MIN, math.min(math.floor(cardH * MODEL_SHARE) - MODEL_INSET,
+      cardH - MODEL_INSET - bottomH - CONTENT_GAP - contentH))
     hero.ModelArea:SetHeight(modelH)
 
     -- placed top-down: identity centred, the divider, facts, notes

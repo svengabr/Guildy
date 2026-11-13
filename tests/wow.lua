@@ -35,7 +35,8 @@ return function(T, opts)
     function methods:GetStringWidth() return 50 end
     function methods:GetFont() return "Fonts\\FRIZQT__.TTF", 12, "" end
     function methods:GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
-    function methods:GetFrameLevel() return 1 end
+    function methods:GetFrameLevel() return rawget(self, "_level") or 1 end
+    function methods:SetFrameLevel(level) self._level = level end
     function methods:IsShown() return self._shown end
     function methods:IsVisible()
       local parent = rawget(self, "_parent")
