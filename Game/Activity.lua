@@ -47,7 +47,7 @@ local function MarkRoster()
       away[m.key] = now
       changed = true
     end
-    local note = (m.note or "") .. "" .. (m.officerNote or "")
+    local note = (m.note or "") .. "\031" .. (m.officerNote or "")
     if notes[m.key] ~= note then
       if notes[m.key] ~= nil then linked = true end
       notes[m.key] = note
