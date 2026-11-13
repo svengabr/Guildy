@@ -327,6 +327,132 @@ local function ItemName(item)
   return name
 end
 
+-- The panel that explains the activity score, under the score tile -----------------------------------
+local PANEL_W, PANEL_PAD = 380, 14
+local PANEL_IN = PANEL_W - 2 * PANEL_PAD
+local GREY = 0.68
+local PARTS = {
+  { key = "presence", title = "SCORE_PRESENCE", explain = "SCORE_PRESENCE_EXPLAIN", rows = 1 },
+  { key = "playing", title = "SCORE_PLAYING", explain = "SCORE_PLAYING_EXPLAIN", rows = 3 },
+  { key = "group", title = "SCORE_GROUP", explain = "SCORE_GROUP_EXPLAIN", rows = 4 },
+}
+local NOTE_COLORS = { scaled = { 1, 0.82, 0 }, faded = { 1, 0.5, 0.25 } }
+
+local function Grey(text)
+  text:SetTextColor(GREY, GREY, GREY)
+  return text
+end
+
+-- the height of a text wrapped to width
+local function TextHeight(text, width)
+  text:SetWidth(width)
+  local h = text:GetStringHeight()
+  return type(h) == "number" and h > 0 and math.ceil(h) or 12
+end
+
+local function ScoreBlock(panel)
+  local block = CreateFrame("Frame", nil, panel)
+  block.Divider = block:CreateTexture(nil, "ARTWORK")
+  block.Divider:SetHeight(1)
+  block.Divider:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 0.3)
+  block.Title = W.Text(block, "GameFontNormal")
+  block.Points = W.Text(block, "GameFontHighlight")
+  block.Points:SetJustifyH("RIGHT")
+  block.Track = block:CreateTexture(nil, "BORDER")
+  block.Track:SetHeight(6)
+  block.Track:SetColorTexture(0, 0, 0, 0.7)
+  block.Fill = block:CreateTexture(nil, "ARTWORK")
+  block.Fill:SetHeight(6)
+  block.Explain = Grey(W.Text(block, "GameFontHighlightSmall"))
+  block.Explain:SetSpacing(1)
+  block.PerWeek = Grey(W.Text(block, "GameFontHighlightSmall"))
+  block.PerWeek:SetJustifyH("RIGHT")
+  block.Rows = {}
+  return block
+end
+
+local function ScoreNote(panel, color)
+  local note = CreateFrame("Frame", nil, panel)
+  local tint = note:CreateTexture(nil, "BACKGROUND")
+  tint:SetAllPoints()
+  tint:SetColorTexture(color[1], color[2], color[3], 0.1)
+  local edge = note:CreateTexture(nil, "ARTWORK")
+  edge:SetPoint("TOPLEFT")
+  edge:SetPoint("BOTTOMLEFT")
+  edge:SetWidth(2)
+  edge:SetColorTexture(color[1], color[2], color[3], 0.9)
+  note.Text = W.Text(note, "GameFontHighlightSmall")
+  note.Text:SetTextColor(color[1], color[2], color[3])
+  note.Text:SetSpacing(1)
+  note.Text:SetPoint("TOPLEFT", 10, -4)
+  return note
+end
+
+-- Built once on the first hover, then reused: opaque, above everything, kept on the screen
+local function BuildScorePanel()
+  local L = ns.L
+  local panel = W.Box(UIParent)
+  panel:SetBackdropColor(0.08, 0.068, 0.048, 1)
+  panel:SetFrameStrata("TOOLTIP")
+  panel:SetClampedToScreen(true)
+  panel:SetWidth(PANEL_W)
+  panel:Hide()
+  panel.Value = W.Text(panel, "GameFontNormalHuge")
+  panel.Value:SetPoint("TOPLEFT", PANEL_PAD, -PANEL_PAD)
+  panel.Of = Grey(W.Text(panel, "GameFontHighlightSmall", L.SCORE_OF))
+  panel.Of:SetPoint("BOTTOMLEFT", panel.Value, "BOTTOMRIGHT", 5, 3)
+  panel.Label = W.Text(panel, "GameFontNormal")
+  panel.Label:SetPoint("TOPRIGHT", -PANEL_PAD, -PANEL_PAD - 6)
+  panel.Label:SetJustifyH("RIGHT")
+  -- the scale 0-100 in the four bucket colours, a marker at the score, the bucket names under it
+  panel.Segments, panel.ScaleLabels = {}, {}
+  for i = 1, 4 do
+    local bucket = 5 - i -- left the lowest
+    local segment = panel:CreateTexture(nil, "BORDER")
+    local r, g, b = BucketColor(bucket)
+    segment:SetColorTexture(r * 0.55, g * 0.55, b * 0.55, 1)
+    segment:SetHeight(8)
+    panel.Segments[i] = segment
+    local label = Grey(W.Text(panel, "GameFontHighlightSmall", L["SCORE_" .. bucket]))
+    label:SetJustifyH("CENTER")
+    label:SetWordWrap(false)
+    panel.ScaleLabels[i] = label
+  end
+  panel.Marker = CreateFrame("Frame", nil, panel)
+  panel.Marker:SetSize(10, 16)
+  local line = panel.Marker:CreateTexture(nil, "OVERLAY")
+  line:SetSize(2, 14)
+  line:SetPoint("BOTTOM", 0, 0)
+  line:SetColorTexture(1, 1, 1, 1)
+  local dot = panel.Marker:CreateTexture(nil, "OVERLAY")
+  dot:SetSize(8, 8)
+  dot:SetPoint("TOP", 0, 0)
+  dot:SetTexture(TEXTURES .. "Dot")
+  panel.Intro = Grey(W.Text(panel, "GameFontHighlightSmall"))
+  panel.Intro:SetSpacing(1)
+  panel.None = Grey(W.Text(panel, "GameFontHighlightSmall", L.SCORE_NONE))
+  panel.None:SetSpacing(1)
+  panel.Blocks = {}
+  for _, part in ipairs(PARTS) do
+    local block = ScoreBlock(panel)
+    block.Title:SetText(L[part.title])
+    block.PerWeek:SetText(L.SCORE_PER_WEEK)
+    for i = 1, part.rows do
+      local label = Grey(W.Text(block, "GameFontHighlight"))
+      label:SetWordWrap(false)
+      local value = W.Text(block, "GameFontHighlight")
+      value:SetJustifyH("RIGHT")
+      block.Rows[i] = { Label = label, Value = value }
+    end
+    panel.Blocks[part.key] = block
+  end
+  panel.Notes = { scaled = ScoreNote(panel, NOTE_COLORS.scaled), faded = ScoreNote(panel, NOTE_COLORS.faded) }
+  panel.PerPlayer = Grey(W.Text(panel, "GameFontHighlightSmall", L.SCORE_PER_PLAYER))
+  panel.Chars = Grey(W.Text(panel, "GameFontHighlightSmall"))
+  panel.Window = Grey(W.Text(panel, "GameFontHighlightSmall"))
+  return panel
+end
+
 local function Build()
   local L = ns.L
   page = CreateFrame("Frame", nil, UI.Content())
@@ -426,11 +552,14 @@ local function Build()
     kills = Tile(right, L.STAT_KILLS), quests = Tile(right, L.STAT_QUESTS),
     deaths = Tile(right, L.STAT_DEATHS), gear = Tile(right, L.STAT_ILVL), score = Tile(right, L.SCORE_TILE),
   }
-  -- the activity score: how it is made in the tooltip (Core/Activity.lua keeps what fed it)
+  -- the activity score: how it is made in a panel under the tile (Core/Activity.lua keeps what fed it)
   local scoreTile = page.Tiles.score
   scoreTile:EnableMouse(true)
-  scoreTile:SetScript("OnEnter", function(self) page:ScoreTooltip(self) end)
-  scoreTile:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  scoreTile:SetScript("OnEnter", function(self) page:ShowScorePanel(self) end)
+  scoreTile:SetScript("OnLeave", function()
+    local panel = rawget(page, "ScorePanel")
+    if panel then panel:Hide() end
+  end)
   -- equipment by quality: a bar per quality under the item level tile
   local gearTile = page.Tiles.gear
   gearTile.Bars = {}
@@ -725,47 +854,196 @@ local function Build()
     tile.Line:SetTextColor(BucketColor(bucket))
   end
 
-  function page:ScoreTooltip(owner)
-    local info = self.score or {}
+  -- The score panel under the tile owner: the score on its scale, the three parts with their bars and
+  -- what fed them, notes where the score is scaled or fading, whose and which days it covers. Laid out
+  -- top-down; its height follows from what it shows.
+  function page:ShowScorePanel(owner)
+    local panel = rawget(self, "ScorePanel") or BuildScorePanel()
+    self.ScorePanel = panel
     local A = ns.Activity
-    GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
-    if not info.score or not info.detail then
-      GameTooltip:SetText(L.SCORE_5, BucketColor(5))
-      GameTooltip:AddLine(L.SCORE_HINT, 1, 1, 1, true)
-      GameTooltip:Show()
+    local info = self.score or {}
+    local d = info.detail
+    local has = info.score ~= nil and type(d) == "table"
+    local bucket = has and A.Bucket(info.score) or 5
+    local r, g, b = BucketColor(bucket)
+    panel.Value:SetText(has and tostring(info.score) or "–")
+    panel.Value:SetTextColor(r, g, b)
+    panel.Of:SetShown(has)
+    panel.Label:SetText(L["SCORE_" .. bucket])
+    panel.Label:SetTextColor(r, g, b)
+    local y = PANEL_PAD + 28
+
+    -- the scale
+    local seg = PANEL_IN / 4
+    for i, segment in ipairs(panel.Segments) do
+      segment:ClearAllPoints()
+      segment:SetPoint("TOPLEFT", PANEL_PAD + (i - 1) * seg, -y)
+      segment:SetWidth(seg - (i < 4 and 1 or 0))
+      local label = panel.ScaleLabels[i]
+      label:ClearAllPoints()
+      label:SetPoint("TOPLEFT", PANEL_PAD + (i - 1) * seg, -(y + 12))
+      label:SetWidth(seg)
+      if has and 5 - i == bucket then label:SetTextColor(r, g, b) else Grey(label) end
+    end
+    panel.Marker:ClearAllPoints()
+    if has then
+      panel.Marker:SetPoint("BOTTOM", panel, "TOPLEFT", PANEL_PAD + PANEL_IN * math.max(0, math.min(100, info.score)) / 100, -(y + 10))
+    end
+    panel.Marker:SetShown(has)
+    y = y + 12 + 12 + 10
+
+    -- no score: what one needs, nothing else
+    panel.None:SetShown(not has)
+    panel.Intro:SetShown(has)
+    for _, part in ipairs(PARTS) do panel.Blocks[part.key]:SetShown(has) end
+    for _, text in ipairs({ panel.PerPlayer, panel.Chars, panel.Window }) do text:SetShown(has) end
+    if not has then
+      panel.Notes.scaled:Hide()
+      panel.Notes.faded:Hide()
+      panel.None:ClearAllPoints()
+      panel.None:SetPoint("TOPLEFT", PANEL_PAD, -y)
+      y = y + TextHeight(panel.None, PANEL_IN)
+      panel:SetHeight(y + PANEL_PAD)
+      panel:ClearAllPoints()
+      panel:SetPoint("TOPRIGHT", owner, "BOTTOMRIGHT", 0, -4)
+      panel:Show()
       return
     end
-    local d, parts, max = info.detail, info.parts or {}, A.MAX
-    local grey = 0.6
-    local function Points(x) return math.floor((x or 0) + 0.5) end
-    GameTooltip:SetText(L.SCORE_TIP_TITLE:format(info.score), BucketColor(A.Bucket(info.score)))
-    GameTooltip:AddLine(L.SCORE_PART_PRESENCE:format(Points(parts.presence), max.presence), 1, 1, 1)
-    GameTooltip:AddLine(d.presence and L.SCORE_FED_PRESENCE:format(Weekly(d.presence)) or L.SCORE_PRESENCE_UNCOUNTED, grey, grey, grey, true)
-    GameTooltip:AddLine(L.SCORE_PART_PLAYING:format(Points(parts.playing), max.playing), 1, 1, 1)
-    local r = d.rates or {}
-    GameTooltip:AddLine(L.SCORE_FED_PLAYING:format(Weekly(r.kills), Weekly(r.honorKills), Weekly(r.quests)), grey, grey, grey, true)
-    GameTooltip:AddLine(L.SCORE_PART_GROUP:format(Points(parts.group), max.group), 1, 1, 1)
-    GameTooltip:AddLine(L.SCORE_FED_GROUP:format(Weekly(r.raidBosses), Weekly(r.dungeonBosses), Weekly(r.dungeons),
-      Weekly(r.battlegrounds)), grey, grey, grey, true)
-    if d.scaled then GameTooltip:AddLine(L.SCORE_SCALED:format(A.MIN_COUNTED), 1, 0.82, 0, true) end
-    if d.fade then
-      GameTooltip:AddLine(L.SCORE_FADED:format(math.floor(d.away or 0), math.floor(d.fade * 100 + 0.5)), 1, 0.5, 0.25, true)
+
+    local parts, max, rates = type(info.parts) == "table" and info.parts or {}, A.MAX, type(d.rates) == "table" and d.rates or {}
+    local function Points(x) return math.floor((tonumber(x) or 0) + 0.5) end
+    local name = self.member and self.member.name or "" -- roster names are made up for pictures already
+    panel.Intro:SetText(L.SCORE_INTRO:format(name))
+    panel.Intro:ClearAllPoints()
+    panel.Intro:SetPoint("TOPLEFT", PANEL_PAD, -y)
+    y = y + TextHeight(panel.Intro, PANEL_IN) + 8
+
+    -- the three parts
+    local P = A.GROUP_POINTS
+    local explain = {
+      presence = L.SCORE_PRESENCE_EXPLAIN:format(A.FULL_PRESENCE, max.presence),
+      playing = L.SCORE_PLAYING_EXPLAIN:format(max.playing),
+      group = L.SCORE_GROUP_EXPLAIN:format(P.raidBosses, P.dungeonBosses, P.dungeons),
+    }
+    local rows = {
+      presence = { { L.SCORE_ROW_DAYS, d.presence and L.SCORE_DAYS_OF:format(Weekly(d.presence)) or L.SCORE_PRESENCE_UNCOUNTED } },
+      playing = { { L.SCORE_ROW_KILLS, Weekly(rates.kills) }, { L.SCORE_ROW_HONOR, Weekly(rates.honorKills) },
+        { L.SCORE_ROW_QUESTS, Weekly(rates.quests) } },
+      group = { { L.SCORE_ROW_RAID_BOSSES, Weekly(rates.raidBosses) }, { L.SCORE_ROW_DUNGEON_BOSSES, Weekly(rates.dungeonBosses) },
+        { L.SCORE_ROW_DUNGEONS, Weekly(rates.dungeons) }, { L.SCORE_ROW_BATTLEGROUNDS, Weekly(rates.battlegrounds) } },
+    }
+    for i, part in ipairs(PARTS) do
+      local block, key = panel.Blocks[part.key], part.key
+      local top = y
+      local by = 0
+      block.Divider:SetShown(i > 1)
+      if i > 1 then
+        block.Divider:ClearAllPoints()
+        block.Divider:SetPoint("TOPLEFT", PANEL_PAD, 0)
+        block.Divider:SetWidth(PANEL_IN)
+        by = 7
+      end
+      local points, most = tonumber(parts[key]) or 0, max[key]
+      block.Title:ClearAllPoints()
+      block.Title:SetPoint("TOPLEFT", PANEL_PAD, -by)
+      block.PerWeek:ClearAllPoints()
+      block.PerWeek:SetPoint("BOTTOMLEFT", block.Title, "BOTTOMRIGHT", 6, 1)
+      block.Points:SetText(("%d |cff999999/ %d|r"):format(Points(points), most))
+      block.Points:ClearAllPoints()
+      block.Points:SetPoint("TOPRIGHT", -PANEL_PAD, -by)
+      by = by + 16
+      local share = math.max(0, math.min(1, points / most))
+      block.Track:ClearAllPoints()
+      block.Track:SetPoint("TOPLEFT", PANEL_PAD, -by)
+      block.Track:SetWidth(PANEL_IN)
+      block.Fill:ClearAllPoints()
+      block.Fill:SetPoint("TOPLEFT", block.Track, "TOPLEFT", 0, 0)
+      block.Fill:SetWidth(math.max(0.01, PANEL_IN * share))
+      if share >= 0.999 then
+        block.Fill:SetColorTexture(0.3, 0.9, 0.3, 1)
+      else
+        block.Fill:SetColorTexture(W.GOLD[1], W.GOLD[2], W.GOLD[3], 1)
+      end
+      block.Fill:SetShown(share > 0)
+      by = by + 6 + 5
+      block.Explain:SetText(explain[key])
+      block.Explain:ClearAllPoints()
+      block.Explain:SetPoint("TOPLEFT", PANEL_PAD, -by)
+      by = by + TextHeight(block.Explain, PANEL_IN) + 4
+      for j, row in ipairs(block.Rows) do
+        local entry = rows[key][j]
+        row.Label:SetText(entry[1])
+        row.Value:SetText(entry[2])
+        row.Label:ClearAllPoints()
+        row.Label:SetPoint("TOPLEFT", PANEL_PAD, -by)
+        row.Label:SetWidth(PANEL_IN - 120)
+        row.Value:ClearAllPoints()
+        row.Value:SetPoint("TOPRIGHT", -PANEL_PAD, -by)
+        by = by + 13
+      end
+      block:ClearAllPoints()
+      block:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, -top)
+      block:SetSize(PANEL_W, by)
+      y = top + by + 6
     end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L.SCORE_PER_PLAYER, grey, grey, grey, true)
-    if d.chars and #d.chars > 1 then
-      local names = {}
-      for _, key in ipairs(d.chars) do
+
+    -- the notes, each only where it applies
+    local notes = {}
+    if d.scaled then
+      local playing, group = Points(parts.playing), Points(parts.group)
+      local total = max.playing + max.group
+      local made = math.min(100, math.floor(((tonumber(parts.playing) or 0) + (tonumber(parts.group) or 0)) * 100 / total + 0.5))
+      notes.scaled = L.SCORE_NOTE_SCALED:format(A.MIN_COUNTED, playing, group, playing + group, total, made)
+    end
+    if type(d.fade) == "number" then
+      notes.faded = L.SCORE_NOTE_FADED:format(math.floor(tonumber(d.away) or 0), A.FADE_FROM, A.GONE_DAYS,
+        math.floor(d.fade * 100 + 0.5))
+    end
+    for _, kind in ipairs({ "scaled", "faded" }) do
+      local note = panel.Notes[kind]
+      if notes[kind] then
+        note.Text:SetText(notes[kind])
+        local h = TextHeight(note.Text, PANEL_IN - 18) + 8
+        note:ClearAllPoints()
+        note:SetPoint("TOPLEFT", PANEL_PAD, -y)
+        note:SetSize(PANEL_IN, h)
+        note:Show()
+        y = y + h + 5
+      else
+        note:Hide()
+      end
+    end
+
+    -- whose and which days
+    y = y + 2
+    local function Line(text, shown)
+      text:SetShown(shown)
+      if not shown then return end
+      text:ClearAllPoints()
+      text:SetPoint("TOPLEFT", PANEL_PAD, -y)
+      y = y + TextHeight(text, PANEL_IN) + 1
+    end
+    Line(panel.PerPlayer, true)
+    local chars = type(d.chars) == "table" and d.chars or {}
+    local names = {}
+    if #chars > 1 then
+      for _, key in ipairs(chars) do
         local other = ns.Roster.Find(key) -- roster names are made up for pictures already
         if other then names[#names + 1] = W.ClassName(other.name, other.classFile) end
       end
-      GameTooltip:AddLine(L.SCORE_CHARS:format(table.concat(names, ns.L.SEP)), 1, 1, 1, true)
     end
-    if d.fromDay and d.toDay then
-      GameTooltip:AddLine(L.SCORE_WINDOW:format(ns.GameStats.Date(L.DATE_LONG, A.DayTime(d.fromDay)),
-        ns.GameStats.Date(L.DATE_LONG, A.DayTime(d.toDay))), grey, grey, grey)
+    panel.Chars:SetText(L.SCORE_CHARS:format(table.concat(names, ns.L.SEP)))
+    Line(panel.Chars, #names > 1)
+    local from, to = tonumber(d.fromDay), tonumber(d.toDay)
+    if from and to then
+      panel.Window:SetText(L.SCORE_WINDOW:format(ns.GameStats.Date(L.DATE_SHORT, A.DayTime(from)),
+        ns.GameStats.Date(L.DATE_LONG, A.DayTime(to)), to - from))
     end
-    GameTooltip:Show()
+    Line(panel.Window, from ~= nil and to ~= nil)
+    panel:SetHeight(y - 1 + PANEL_PAD)
+    panel:ClearAllPoints()
+    panel:SetPoint("TOPRIGHT", owner, "BOTTOMRIGHT", 0, -4)
+    panel:Show()
   end
 
   -- The guild's ready mark for level (median average item level of the roster members of that level,
@@ -1018,6 +1296,8 @@ local function Build()
   ns.Perf.Wrap(page, "Render", "render", "character page")
   page:SetScript("OnHide", function()
     UI.Notes.Hide()
+    local panel = rawget(page, "ScorePanel")
+    if panel then panel:Hide() end
   end)
   page:SetScript("OnSizeChanged", function(self) if self.member and self:IsShown() then self:Render() end end)
 

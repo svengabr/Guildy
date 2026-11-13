@@ -2478,6 +2478,7 @@ end)
 
 T.describe("Activity score on the character page", function()
   local L = ns.L
+  -- the texts handed to widgets while the mouse enters the score tile (the score panel's)
   local function Tooltip(page)
     world.calls.texts = {}
     page.Tiles.score:GetScript("OnEnter")(page.Tiles.score)
@@ -2485,6 +2486,125 @@ T.describe("Activity score on the character page", function()
     world.calls.texts = nil
     return table.concat(texts, "\n")
   end
+  local DAY0 = 20400
+  local function Detail(fields)
+    local detail = { rates = { kills = 120, honorKills = 4, quests = 14, raidBosses = 1, dungeonBosses = 3,
+      dungeons = 1.5, battlegrounds = 2 }, presence = 2.5, chars = { "ran fred" }, fromDay = DAY0, toDay = DAY0 + 8 }
+    for k, v in pairs(fields or {}) do detail[k] = v end
+    return detail
+  end
+  -- the character page of Ran Fred with a score of score, parts and detail, the panel shown
+  local function WithScore(score, parts, detail, fn)
+    local old = ns.GameActivity.ScoreOf
+    ns.GameActivity.ScoreOf = function() return score, parts, detail end
+    local ok, err = pcall(function()
+      ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+      local page = ns.UI.MemberPage()
+      local text = Tooltip(page)
+      fn(page.ScorePanel, page, text)
+    end)
+    ns.GameActivity.ScoreOf = old
+    if not ok then error(err, 0) end
+  end
+
+  T.it("shows the score panel when the mouse enters the tile and hides it on leave", function()
+    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel, page)
+      T.truthy(panel and panel:IsShown(), "shown on enter")
+      page.Tiles.score:GetScript("OnLeave")(page.Tiles.score)
+      T.truthy(not panel:IsShown(), "hidden on leave")
+      page.Tiles.score:GetScript("OnEnter")(page.Tiles.score)
+      page:Hide()
+      T.truthy(not panel:IsShown(), "hidden with the page")
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("fills the three bars of the score panel to points over max", function()
+    WithScore(63, { presence = 15, playing = 25, group = 22.5 }, Detail(), function(panel)
+      for name, share in pairs({ presence = 0.5, playing = 1, group = 0.5 }) do
+        local block = panel.Blocks[name]
+        T.truthy(block:IsShown(), name .. " shown")
+        local fill = block.Fill:GetWidth() / block.Track:GetWidth()
+        T.truthy(math.abs(fill - share) < 0.01, name .. " fill " .. fill)
+      end
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("explains the scaled score with its sum, only when scaled", function()
+    local parts = { presence = 0, playing = 25, group = 33.8 }
+    WithScore(84, parts, Detail({ scaled = true, presence = false }), function(panel, _, text)
+      T.truthy(panel.Notes.scaled:IsShown(), "the scaled note")
+      local note = panel.Notes.scaled.Text:GetText()
+      T.eq(note, L.SCORE_NOTE_SCALED:format(7, 25, 34, 59, 70, 84))
+      T.truthy(text:find(L.SCORE_PRESENCE_UNCOUNTED, 1, true), "presence not counted yet")
+    end)
+    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel)
+      T.truthy(not panel.Notes.scaled:IsShown(), "no scaled note")
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("explains a faded score, only when it faded", function()
+    WithScore(47, { presence = 12, playing = 15, group = 20 }, Detail({ fade = 0.78, away = 9 }), function(panel)
+      T.truthy(panel.Notes.faded:IsShown(), "the fade note")
+      T.eq(panel.Notes.faded.Text:GetText(), L.SCORE_NOTE_FADED:format(9, 3, 30, 78))
+    end)
+    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel)
+      T.truthy(not panel.Notes.faded:IsShown(), "no fade note")
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("draws the score panel opaque", function()
+    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel)
+      local _, _, _, alpha = panel:GetBackdropColor()
+      T.eq(alpha, 1)
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("grows the score panel with its notes", function()
+    local heights = {}
+    for i, fields in ipairs({ {}, { scaled = true, presence = false }, { scaled = true, presence = false, fade = 0.5, away = 16 } }) do
+      WithScore(60, { presence = 0, playing = 20, group = 25 }, Detail(fields), function(panel)
+        heights[i] = panel:GetHeight()
+      end)
+    end
+    T.truthy(heights[1] < heights[2] and heights[2] < heights[3], table.concat(heights, " < "))
+    T.eq(errors, {})
+  end)
+
+  T.it("does not fail on a score without detail fields", function()
+    WithScore(40, nil, {}, function(panel)
+      T.truthy(panel:IsShown(), "shown")
+      T.eq(panel.Value:GetText(), "40")
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("fits the score panel on the smallest screen, in German and Russian", function()
+    for _, language in ipairs({ "deDE", "ruRU" }) do
+      local w = dofile(T.testsDir .. "/wow.lua")(T, { setup = function(e)
+        e.GuildyDB = { settings = { language = language } }
+      end })
+      w.Fire("ADDON_LOADED", "Guildy")
+      w.Fire("PLAYER_LOGIN")
+      w.Fire("GUILD_ROSTER_UPDATE")
+      w.RunTimers()
+      w.env.CommunitiesFrame:Show()
+      w.ns.GameActivity.ScoreOf = function()
+        return 84, { presence = 0, playing = 25, group = 33.8 },
+          Detail({ scaled = true, presence = false, fade = 0.78, away = 9, chars = { "ran fred", "au tsch", "makira farron" } })
+      end
+      w.ns.UI.ShowMember(w.ns.Roster.Find("Ran Fred"))
+      local page = w.ns.UI.MemberPage()
+      page.Tiles.score:GetScript("OnEnter")(page.Tiles.score)
+      local panel = page.ScorePanel
+      T.truthy(panel:GetHeight() <= 540, language .. ": height " .. panel:GetHeight())
+      T.eq(w.errors, {})
+    end
+  end)
   local function Reading(key)
     local now = env.GetServerTime()
     local month = ns.Stats.MonthKey(now, ns.GameStats.Date)
@@ -2505,7 +2625,7 @@ T.describe("Activity score on the character page", function()
     T.eq(errors, {})
   end)
 
-  T.it("explains the score in its tooltip", function()
+  T.it("explains the score in its panel", function()
     local db = env.GuildyDB
     db.ownChars = db.ownChars or {}
     local had = db.ownChars["au tsch"]
@@ -2515,9 +2635,11 @@ T.describe("Activity score on the character page", function()
     ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
     local page = ns.UI.MemberPage()
     local text = Tooltip(page)
-    for _, part in ipairs({ "/30", "/25", "/45" }) do T.truthy(text:find(part, 1, true), "part " .. part) end
-    T.truthy(text:find(L.SCORE_WINDOW:match("^[^%%]*"), 1, true), "the window line")
-    T.truthy(text:find(L.SCORE_PER_PLAYER, 1, true), "per player")
+    for _, part in ipairs({ "/ 30", "/ 25", "/ 45" }) do T.truthy(text:find(part, 1, true), "part " .. part) end
+    T.truthy(page.ScorePanel.Window:GetText():find(L.SCORE_WINDOW:match("^[^%%]*"), 1, true), "the window line")
+    T.truthy(page.ScorePanel.Window:GetText():find("(", 1, true), "the window's days")
+    T.truthy(page.ScorePanel.PerPlayer:IsShown() and page.ScorePanel.PerPlayer:GetText() == L.SCORE_PER_PLAYER, "per player")
+    T.truthy(text:find(L.SCORE_INTRO:format("Ran Fred"), 1, true), "the intro names the member")
     T.truthy(text:find("Ran Fred", 1, true) and text:find("Au Tsch", 1, true), "both characters named")
     -- pictures: no real names
     ns.Anon.Enable(true)
@@ -2541,9 +2663,15 @@ T.describe("Activity score on the character page", function()
     local page = ns.UI.MemberPage()
     T.eq(page.Tiles.score.Value:GetText(), "–")
     T.eq(page.Tiles.score.Line:GetText(), L.SCORE_5)
-    local text = Tooltip(page)
-    T.truthy(not text:find("/30", 1, true), "no part lines")
-    T.truthy(text:find(L.SCORE_5, 1, true), "says there is no current reading")
+    Tooltip(page)
+    local panel = page.ScorePanel
+    T.eq(panel.Value:GetText(), "–")
+    T.eq(panel.Label:GetText(), L.SCORE_5)
+    T.truthy(panel.None:IsShown() and panel.None:GetText() == L.SCORE_NONE, "explains what a score needs")
+    for name, block in pairs(panel.Blocks) do T.truthy(not block:IsShown(), "no block " .. name) end
+    T.truthy(not panel.Marker:IsShown(), "no marker on the scale")
+    T.truthy(not panel.Notes.scaled:IsShown() and not panel.Notes.faded:IsShown(), "no notes")
+    T.truthy(not panel.Intro:IsShown() and not panel.Window:IsShown(), "nothing else")
     T.eq(errors, {})
   end)
 

@@ -73,7 +73,28 @@ return function(T, opts)
       table.insert(registered[event], self)
     end
     function methods:CreateTexture() return Stub() end
-    function methods:CreateFontString() return Stub() end
+    function methods:CreateFontString(_, _, template)
+      local text = Stub()
+      text._font = template
+      return text
+    end
+    function methods:SetBackdropColor(r, g, b, a) self._backdrop = { r, g, b, a or 1 } end
+    function methods:GetBackdropColor() return unpack(self._backdrop or { 0, 0, 0, 0 }) end
+    -- the height of the text wrapped to its width, as the game's fonts write it: the small fonts 5.5 px
+    -- a character and 12 px a line, the huge ones 12 and 24, the others 6.5 and 14
+    function methods:GetStringHeight()
+      local font = rawget(self, "_font") or ""
+      local per, line = 6.5, 14
+      if font:find("Small") then per, line = 5.5, 12 elseif font:find("Huge") then per, line = 12, 24 end
+      local width = self._w and self._w > 0 and self._w or math.huge
+      local lines = 0
+      for part in (tostring(self._text):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. "\n"):gmatch("([^\n]*)\n") do
+        local chars = 0
+        for _ in part:gmatch("[^\128-\191]") do chars = chars + 1 end
+        lines = lines + math.max(1, math.ceil(chars * per / width))
+      end
+      return self._text == "" and 0 or lines * line
+    end
     function methods:CreateAnimationGroup() return Stub() end
     function methods:GetFontString() return self._fs or Stub() end
     function methods:GetParent() return self._parent or Stub() end
