@@ -2399,6 +2399,58 @@ T.describe("Gear", function()
     P.Encode = encode
     T.eq(errors, {})
   end)
+
+  T.it("relays others' gear and talents with bonus IDs, unique IDs, stored stats and spec unchanged", function()
+    local P, guild, now = ns.Protocol, ns.GuildData(), ns.Now()
+    local function Receive(kind, data, sender, id)
+      for _, part in ipairs(P.Chunk(id, P.Encode(kind, data))) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", sender) end
+    end
+    local sent = {}
+    local encode = P.Encode
+    P.Encode = function(kind, data, version)
+      sent[kind] = data
+      return encode(kind, data, version)
+    end
+    -- A (Makira) sends her own gear and talents to B (this client)
+    local items = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2, b = { 6655, 1700 } },
+      [6] = { id = 7485, e = 0, s = -17, u = 2752512, l = 39, q = 2 },
+      [7] = { id = 7486, e = 0, s = 0, l = 39, q = 2, st = { ITEM_MOD_AGILITY_SHORT = 13 } } }
+    local gearA = { ts = now + 50, src = "self", race = 4, sex = 3, items = items }
+    local talA = { ts = now + 50, src = "self", trees = { 7, 31, 0 }, spec = 281 }
+    Receive("GEAR", { m = "Makira Farron", g = ns.Gear.Wire(gearA), k = ns.Talents.Wire(talA) }, "Makira-Farron", "r1")
+    T.eq(guild.gear["makira farron"].items, items)
+    T.eq(guild.talents["makira farron"].spec, 281)
+    -- B relays it to C (share off: only the own records wait for it)
+    ns.Settings().share = false
+    sent.GEAR = nil
+    ns.Sync.ShareGear("makira farron")
+    ns.Settings().share = true
+    T.eq(sent.GEAR and sent.GEAR.m, "Makira Farron")
+    -- C reads what B sent: the same items, the same item strings, the same spec
+    local atC = ns.Gear.Validate(sent.GEAR.g, now + 50)
+    T.eq(atC.items, items)
+    for slot, item in pairs(items) do T.eq(ns.Gear.ItemString(atC.items[slot]), ns.Gear.ItemString(item)) end
+    T.eq(ns.Talents.Validate(sent.GEAR.k, now + 50).spec, 281)
+    -- records from bnet-sync and inspects are offered on a summary that names older ones
+    guild.gear["au tsch"] = { ts = now + 60, src = "api", items = items }
+    sent.GEAR = nil
+    Receive("SUM", { d = {}, g = { ["au tsch"] = now - 100 } }, "Makira-Farron", "r2")
+    RunTimers()
+    T.eq(sent.GEAR and sent.GEAR.m, "Au Tsch")
+    T.eq(ns.Gear.Validate(sent.GEAR.g, now + 60).items, items)
+    -- an older "api" or "seen" record never replaces a newer own one of Makira
+    Receive("GEAR", { m = "Makira Farron", g = { ts = now + 49, src = "api", i = { "1:1:0:0:1:1" } } }, "Au-Tsch", "r3")
+    T.eq(guild.gear["makira farron"].items, items)
+    -- an old record without bonus IDs gives way to a relayed one of the same time that has them
+    local plain = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2 } }
+    guild.gear["au tsch"] = { ts = now + 70, src = "self", items = plain }
+    Receive("GEAR", { m = "Au Tsch", g = { ts = now + 70, src = "self", i = { "5:7484:0:0:39:2" }, b = { "5:6655" } } },
+      "Makira-Farron", "r4")
+    T.eq(guild.gear["au tsch"].items[5].b, { 6655 })
+    T.eq(guild.gear["au tsch"].src, "relay")
+    P.Encode = encode
+    T.eq(errors, {})
+  end)
 end)
 
 T.describe("Character page", function()
