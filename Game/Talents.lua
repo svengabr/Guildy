@@ -323,6 +323,50 @@ local function ProbeConfig(label, configID)
   for _, sub in ipairs(read.subOrder) do
     P(("%s: subTreeID %s ranks %d, name %s"):format(label, Show(sub), read.subs[sub], tostring(SubTreeName(configID, sub))))
   end
+  -- what could tell the three classic tabs apart in one tree: node groups, the x positions, the currency
+  -- an entry costs, the tree's currencies
+  for _, tree in ipairs(read.trees) do
+    local groups, xs, costs = {}, {}, {}
+    for _, node in ipairs(tree.nodes) do
+      local ranks = type(node.ranksPurchased) == "number" and not ns.IsSecret(node.ranksPurchased) and node.ranksPurchased or 0
+      for _, g in ipairs(type(node.groupIDs) == "table" and node.groupIDs or {}) do
+        if not ns.IsSecret(g) then
+          local s = groups[g] or { n = 0, r = 0 }
+          s.n, s.r = s.n + 1, s.r + ranks
+          s.lo, s.hi = math.min(s.lo or node.posX or 0, node.posX or 0), math.max(s.hi or 0, node.posX or 0)
+          groups[g] = s
+        end
+      end
+      if type(node.posX) == "number" and not ns.IsSecret(node.posX) then xs[node.posX] = (xs[node.posX] or 0) + ranks end
+      local entry = EntryOf(node)
+      local info = entry and entryInfo and ns.Try(entryInfo, configID, entry)
+      local cost = info and type(info.entryCost) == "table" and info.entryCost[1]
+      local cid = type(cost) == "table" and cost.ID or "-"
+      if not ns.IsSecret(cid) then
+        local s = costs[cid] or { n = 0, r = 0 }
+        s.n, s.r = s.n + 1, s.r + ranks
+        costs[cid] = s
+      end
+    end
+    local parts = {}
+    for g, s in pairs(groups) do parts[#parts + 1] = ("%s:%dn/%dr x%s-%s"):format(tostring(g), s.n, s.r, tostring(s.lo), tostring(s.hi)) end
+    table.sort(parts)
+    P(("%s: groups %s"):format(label, #parts > 0 and table.concat(parts, "  ") or "none"))
+    local xl = {}
+    for x, r in pairs(xs) do xl[#xl + 1] = { x, r } end
+    table.sort(xl, function(a, b) return a[1] < b[1] end)
+    for i, v in ipairs(xl) do xl[i] = v[1] .. "=" .. v[2] end
+    P(("%s: posX=ranks %s"):format(label, table.concat(xl, " ")))
+    parts = {}
+    for c, s in pairs(costs) do parts[#parts + 1] = ("%s:%dn/%dr"):format(tostring(c), s.n, s.r) end
+    table.sort(parts)
+    P(("%s: entry cost currency %s"):format(label, table.concat(parts, "  ")))
+    local currencies = ns.Try(Api("C_Traits", "GetTreeCurrencyInfo"), configID, tree.id, false)
+    P(("%s: tree currencies %s"):format(label, Show(currencies)))
+    if type(currencies) == "table" then
+      for _, c in ipairs(currencies) do P(("%s:   currency %s"):format(label, Show(c))) end
+    end
+  end
   local tabs, how = TabsOf(configID, read)
   if tabs then
     P(("%s: Guildy reads %d/%d/%d (by %s)"):format(label, tabs[1].points, tabs[2].points, tabs[3].points, how))
