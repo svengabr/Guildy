@@ -110,8 +110,15 @@ function UI.OverviewChangesBox(parent)
     row.When = W.Text(row, "GameFontDisableSmall")
     row.When:SetPoint("RIGHT", -4, 0)
     row.When:SetJustifyH("RIGHT")
+    -- a member still in the guild: their activity score in the shared panel (UI/ScorePanel.lua)
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", function(self)
+      if self.memberKey then UI.ScorePanel.Show(self, self.memberKey, "right") end
+    end)
+    row:SetScript("OnLeave", function() UI.ScorePanel.Hide() end)
   end, function(row, change)
     local m = ns.Roster.Find(change.name)
+    row.memberKey = m and m.key or nil
     local name = m and W.ClassName(m.name, m.classFile) or change.name
     if change.kind == "join" then
       row.Text:SetText("|cff40e040+|r " .. L.CHANGE_JOIN:format(name))

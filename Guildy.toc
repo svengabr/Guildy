@@ -74,6 +74,7 @@ UI\Main.lua
 UI\Ding.lua
 UI\Board.lua
 UI\Popups.lua
+UI\ScorePanel.lua
 UI\CharacterPage.lua
 UI\Commands.lua
 UI\Notes.lua

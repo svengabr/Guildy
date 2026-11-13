@@ -538,6 +538,19 @@ local function Build(panel)
     end)
     row:SetScript("OnEnter", function(self) if self.member then UI.MemberTooltip(self, self.member) end end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- the score cell: the shared score panel (UI/ScorePanel.lua) instead of the row tooltip; a click
+    -- there does what one on the row does
+    local hit = CreateFrame("Frame", nil, row)
+    hit:SetAllPoints(row.Cells.score)
+    hit:EnableMouse(true)
+    hit:Hide()
+    hit:SetScript("OnEnter", function()
+      GameTooltip:Hide()
+      if row.member then UI.ScorePanel.Show(hit, row.member.key, "right") end
+    end)
+    hit:SetScript("OnLeave", function() UI.ScorePanel.Hide() end)
+    hit:SetScript("OnMouseUp", function(_, button) row:GetScript("OnMouseUp")(row, button) end)
+    row.ScoreHit = hit
   end, function(row, item)
     local m = item.m
     row.member = m
@@ -550,6 +563,7 @@ local function Build(panel)
     if isHeader then
       row.Section:SetText(item.header)
       if item.online then row.Section:SetTextColor(unpack(ONLINE_COLOR)) else row.Section:SetTextColor(0.6, 0.6, 0.6) end
+      row.ScoreHit:Hide()
       return
     end
     local dim = not m.online
@@ -563,7 +577,9 @@ local function Build(panel)
     c.rank:SetText(m.rank or "")
     c.ilvl:SetText(m.ilvl and (string.format("%.1f", m.ilvl / 10):gsub("%.", L.DECIMAL_MARK)) or "")
     -- the score belongs to the player: on the main (or a character without family), not on its twinks
-    c.score:SetText((m.score and not (m.mainKey and m.mainKey ~= m.key)) and tostring(m.score) or "")
+    local score = m.score and not (m.mainKey and m.mainKey ~= m.key)
+    c.score:SetText(score and tostring(m.score) or "")
+    row.ScoreHit:SetShown(score and not view.hidden.score or false)
     c.lastOnline:SetText(ns.Roster.LastOnlineText(m))
     c.joined:SetText(ns.Roster.TenureText(m) or "")
     c.guildy:SetText(UI.GuildyVersionText(m) or "")
