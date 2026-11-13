@@ -151,8 +151,13 @@ local function Request(itemID)
   end
 end
 
--- Upgrades' item info shape for itemID, or nil (then the game is asked to load it, once per session)
+local infoCache = {} -- itemID -> item info of a loaded item, for the session (it does not change)
+
+-- Upgrades' item info shape for itemID, or nil (then the game is asked to load it, once per session).
+-- The same table on every call once loaded: callers must not change it.
 function GameGear.ItemInfo(itemID)
+  local known = infoCache[itemID]
+  if known then return known end
   local getInfo = ItemInfoFunction()
   local name, _, quality, level, reqLevel, _, _, _, equipLoc, _, _, classID, subclassID, bind
   if getInfo then
@@ -162,11 +167,15 @@ function GameGear.ItemInfo(itemID)
     Request(itemID)
     return nil
   end
-  return { name = name, equipLoc = equipLoc, level = level, reqLevel = reqLevel or 0, classID = classID,
+  local info = { name = name, equipLoc = equipLoc, level = level, reqLevel = reqLevel or 0, classID = classID,
     subclassID = subclassID, bind = bind, quality = quality }
+  if itemID ~= nil then infoCache[itemID] = info end
+  return info
 end
 
 local statsCache = {} -- item string -> stats of a loaded item, for the session
+local statsByID = {}  -- itemID -> its stats, for the session (no item string built on a hit)
+local statsByItem = setmetatable({}, { __mode = "k" }) -- worn item table -> its stats
 
 local function StatsFunction()
   return (C_Item and rawget(C_Item, "GetItemStats")) or rawget(_G, "GetItemStats")
@@ -176,10 +185,16 @@ end
 -- ({ ITEM_MOD_*_SHORT = n, RESISTANCE0_NAME = armor }); nil while the item is not loaded (asked once)
 -- or anything about it is secret
 function GameGear.ItemStats(item)
-  local id = type(item) == "table" and item.id or item
-  local key = type(item) == "table" and G.ItemString(item) or ("item:" .. tostring(item))
+  local isItem = type(item) == "table"
+  local fast = (isItem and statsByItem or statsByID)[item]
+  if fast then return fast end
+  local id = isItem and item.id or item
+  local key = isItem and G.ItemString(item) or ("item:" .. tostring(item))
   local known = statsCache[key]
-  if known then return known end
+  if known then
+    (isItem and statsByItem or statsByID)[item] = known
+    return known
+  end
   local getInfo = ItemInfoFunction()
   local name, link
   if getInfo then name, link = ns.Try(getInfo, key) end
@@ -196,6 +211,7 @@ function GameGear.ItemStats(item)
     if type(k) == "string" and type(v) == "number" then stats[k] = v end
   end
   statsCache[key] = stats
+  if item ~= nil then (isItem and statsByItem or statsByID)[item] = stats end
   return stats
 end
 
@@ -480,6 +496,48 @@ end
 
 local upgradesCache = {} -- member key -> { the inputs it was worked out from, rows, state, missing }
 
+-- The index of crafted pieces (Upgrades.Index), built once per version of the books, the craft map and the
+-- member list, not per member; items loading later are taken in when item infos come in
+local index = { books = -1 }
+
+local function CraftIndex(guild, all)
+  local c = index
+  if c.books == GameGear.books and c.all == all and c.guild == guild and c.roster == ns.Roster.version then
+    if #c.index.pending > 0 and c.info ~= GameGear.info then
+      c.info = GameGear.info
+      U.Resolve(c.index, GameGear.ItemInfo)
+    end
+    return c.index
+  end
+  local map = all or {}
+  -- crafts whose item the game said it does not have are left out (bnet-sync may know items this
+  -- client has not)
+  local craft = setmetatable({}, { __index = function(_, spellID)
+    local itemID = map[spellID]
+    if itemID and not unknownItems[itemID] then return itemID end
+  end })
+  local makers = {}
+  for _, other in ipairs(ns.Roster.Members()) do
+    local record = guild and guild.members[other.key]
+    if type(record) == "table" and type(record.profs) == "table" then
+      local profs = {}
+      for skillLine, prof in pairs(record.profs) do
+        if type(prof) == "table" and type(prof.recipes) == "table" then profs[skillLine] = prof end
+      end
+      if next(profs) then
+        makers[#makers + 1] = { key = other.key, online = other.online and true or false,
+          offline = other.online and 0 or (type(other.daysOffline) == "number" and other.daysOffline * 24 or math.huge),
+          profs = profs }
+      end
+    end
+  end
+  local built = U.Index(makers, craft, GameGear.ItemInfo)
+  if #built.unknown > 0 then GameGear.ResolveCrafts(built.unknown) end
+  built.unknown = nil
+  index = { books = GameGear.books, all = all, guild = guild, roster = ns.Roster.version, info = GameGear.info, index = built }
+  return built
+end
+
 -- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
 -- "nodata" (no book of another member has a recipe whose item is known, or m's gear is unknown),
 -- "none" (data, nothing better) or "rows", and the items still loading. Kept per member until their
@@ -496,45 +554,24 @@ function GameGear.UpgradesFor(m)
     return c.rows, c.state, c.missing
   end
   local rows, state, missing = GameGear.WorkOutUpgrades(m)
+  Refresh(rows)
   upgradesCache[m.key] = { rec = rec, ts = rec and rec.ts, level = m.level, books = GameGear.books, all = all, guild = guild,
     roster = ns.Roster.version, info = GameGear.info, rows = rows, state = state, missing = missing }
   return rows, state, missing
 end
 
+-- Each part is measured on its own while /guildy perf runs ("upgrades: index", "upgrades: scoring")
 function GameGear.WorkOutUpgrades(m)
+  local lap = ns.Perf.Lap()
   local guild, db = ns.GuildData(), ns.DB()
-  local all = db and type(db.craftItems) == "table" and db.craftItems or {}
-  -- crafts whose item the game said it does not have are left out (bnet-sync may know items this
-  -- client has not)
-  local craft = setmetatable({}, { __index = function(_, spellID)
-    local itemID = all[spellID]
-    if itemID and not unknownItems[itemID] then return itemID end
-  end })
-  local makers, unknown, known = {}, {}, false
-  for _, other in ipairs(ns.Roster.Members()) do
-    local record = guild and guild.members[other.key]
-    if other.key ~= m.key and type(record) == "table" and type(record.profs) == "table" then
-      local profs = {}
-      for skillLine, prof in pairs(record.profs) do
-        if type(prof) == "table" and type(prof.recipes) == "table" then
-          profs[skillLine] = prof
-          for _, spellID in ipairs(prof.recipes) do
-            if craft[spellID] then known = true else unknown[#unknown + 1] = spellID end
-          end
-        end
-      end
-      if next(profs) then
-        makers[#makers + 1] = { key = other.key, online = other.online and true or false,
-          offline = other.online and 0 or (type(other.daysOffline) == "number" and other.daysOffline * 24 or math.huge),
-          profs = profs }
-      end
-    end
-  end
-  if #unknown > 0 then GameGear.ResolveCrafts(unknown) end
+  local all = db and type(db.craftItems) == "table" and db.craftItems or nil
+  local built = CraftIndex(guild, all)
+  lap("upgrades:", "index")
   local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
-  if not known or type(rec) ~= "table" then return {}, "nodata", {} end
-  local rows, missing = U.For(GameGear.Who(m), rec, makers, craft, GameGear.ItemInfo, GAME)
+  if not U.HasMakers(built, m.key) or type(rec) ~= "table" then return {}, "nodata", {} end
+  local rows, missing = U.ForIndex(GameGear.Who(m), rec, built, GameGear.ItemInfo, GAME)
   for _, itemID in ipairs(missing) do Request(itemID) end
+  lap("upgrades:", "scoring")
   return rows, #rows > 0 and "rows" or "none", missing
 end
 

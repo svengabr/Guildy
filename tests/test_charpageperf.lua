@@ -51,8 +51,8 @@ local function World()
     w.rankings = w.rankings + 1
     return ranking(...)
   end
-  local upgradesFor = ns.Upgrades.For
-  ns.Upgrades.For = function(...)
+  local upgradesFor = ns.Upgrades.ForIndex
+  ns.Upgrades.ForIndex = function(...)
     w.upgrades = w.upgrades + 1
     return upgradesFor(...)
   end

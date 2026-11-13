@@ -148,6 +148,54 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("reads no item info, stats or tooltip again for other members once the items are known", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    -- Ran and Makira wear what Au Tsch wears
+    guild.gear["ran fred"] = { ts = w.ns.Now(), src = "seen", items = guild.gear["au tsch"].items }
+    guild.gear["makira farron"] = { ts = w.ns.Now(), src = "seen", items = guild.gear["au tsch"].items }
+    T.eq(w.Offered(), { 702 }) -- warm-up
+    local counts = { info = 0, stats = 0 }
+    local getInfo, getStats = w.env.GetItemInfo, w.env.C_Item.GetItemStats
+    w.env.GetItemInfo = function(...) counts.info = counts.info + 1 return getInfo(...) end
+    w.env.C_Item.GetItemStats = function(...) counts.stats = counts.stats + 1 return getStats(...) end
+    local tips = w.tips
+    for _, name in ipairs({ "Ran Fred", "Makira Farron" }) do w.ns.GameGear.UpgradesFor(w.ns.Roster.Find(name)) end
+    w.ns.Fire("PROFS") -- the books change: Au Tsch's upgrades are worked out anew
+    T.eq(w.Offered(), { 702 })
+    T.eq(counts, { info = 0, stats = 0 })
+    T.eq(w.tips, tips)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("builds the index of crafted pieces once per version of the books", function()
+    local w = World()
+    local builds, index = 0, w.ns.Upgrades.Index
+    w.ns.Upgrades.Index = function(...) builds = builds + 1 return index(...) end
+    for _, name in ipairs({ "Au Tsch", "Ran Fred", "Makira Farron" }) do w.ns.GameGear.UpgradesFor(w.ns.Roster.Find(name)) end
+    w.ns.Fire("GEAR_INFO")
+    w.ns.GameGear.UpgradesFor(w.ns.Roster.Find("Ran Fred"))
+    T.eq(builds, 1)
+    w.ns.Fire("PROFS")
+    w.ns.GameGear.UpgradesFor(w.ns.Roster.Find("Ran Fred"))
+    T.eq(builds, 2)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("takes in an item whose info loads later without building the index again", function()
+    local w = World()
+    local builds, index = 0, w.ns.Upgrades.Index
+    w.ns.Upgrades.Index = function(...) builds = builds + 1 return index(...) end
+    w.hidden[702] = true
+    local _, _, rows = w.Offered()
+    T.eq(#rows, 0)
+    w.hidden[702] = nil
+    w.ns.Fire("GEAR_INFO")
+    T.eq(w.Offered(), { 702 })
+    T.eq(builds, 1)
+    T.eq(w.errors, {})
+  end)
+
   T.it("adds the stat comparison under the item tooltip", function()
     local w = World()
     local lines = {}
