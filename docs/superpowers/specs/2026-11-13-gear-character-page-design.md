@@ -340,6 +340,36 @@ is made up for this member.
     are several, and the window it covers (from/to day).
 - No new sync data: the score stays computed locally from what each client already has.
 
+## Added by Sven (2026-11-13): talent specs and stat weights for the upgrades
+
+Upgrades were scored by a profile of the worn gear, which over-valued stamina and kept a feral druid
+in caster pieces when that was what they wore. Now the member's talent spec decides the weights; the
+worn-gear profile stays the fallback. (Talent specs, not the profession specializations of
+Core/Specs.lua.)
+
+- Record: `guild.talents[nameKey] = { ts, src, trees = { p1, p2, p3 } }` (Core/Talents.lua), points per
+  tree in tab order, validated on receipt, pruned with members who leave, 60 days like the gear.
+- Sources: the own character from `GetTalentTabInfo` (both return shapes, guarded; login, every 10
+  minutes and 10 s after `CHARACTER_POINTS_CHANGED`), shared only with `settings.share`; members nearby
+  from `GetTalentTabInfo(i, true)` inside the inspect Game/Stats.lua already runs (never an inspect of its
+  own; no points at all counts as "not given"); bnet-sync from `/specializations` (one request more per
+  character, skipped when missing).
+- Wire: no new message. GEAR carries the talents as optional `k = { ts, src, p }`, SUM a digest
+  `k = { nameKey = ts }`; a GEAR may carry `k` without `g`, which older clients drop as a GEAR without
+  items. Talents are offered only to a Guildy whose summary names them. Protocol.VERSION stays 1.
+- Spec: the tree with the most points, from level 10 and 5 points in it; a tie only when the tied trees
+  share their weights (Arms/Fury, Discipline/Holy). Feral is bear with 10+ defense on the worn gear or
+  stamina at least 1.2 times agility and strength, else cat. Armour does not decide it: it has no
+  baseline per item level.
+- Weights: Core/StatWeights.lua, Guildy's own coarse table (0 to 1, the main stat 1) per spec in the
+  client's `ITEM_MOD_*` keys; stamina at most 0.2 except for tanks, whose armour counts at 0.02 a point.
+  Spec weights are trusted with few worn pieces; the 10 % threshold, requirements, armour preference,
+  unknown-slot and stamina-alone rules stay.
+- The upgrades heading says in grey "bewertet für Wildheit (Katze)" (the tree's name in the client's
+  language from the talent API, kept per class in `GuildyDB.talentNames`; "Talentbaum 2" until known) or
+  "bewertet nach getragener Ausrüstung". The per-member upgrade cache keys on the talent record's ts and
+  the decided spec.
+
 ## 7. Open, to settle while building
 
 - The three checks above: the model (settled 2026-11-13: model scene route, no `SetCustomRace`); whether
