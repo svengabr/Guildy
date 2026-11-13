@@ -443,6 +443,70 @@ T.describe("Upgrades with talent spec weights", function()
     T.eq(rows[1].diff[1].key, AGI)
   end)
 
+  T.it("offers a feral cat a better leather chest over worn uncommon leather (Sven's case)", function()
+    -- worn: a leather chest of item level 30 with +7 agility +7 stamina; offered: one of 40 with +12 agility +8 strength
+    INFO[580] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[580] = { [AGI] = 12, [STR] = 8 }
+    INFO[730] = { equipLoc = "INVTYPE_CHEST", level = 30, reqLevel = 25, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[730] = { [AGI] = 7, [STA] = 7 }
+    local gear = { items = { [5] = item(730, 30) } }
+    local member = { key = "d", level = 47, classFile = "DRUID", weights = ns.StatWeights.For("DRUID_CAT") }
+    local rows = For(member, gear, { maker("leatherworker", { 9080 }) }, { [9080] = 580 })
+    T.eq(#rows, 1)
+    T.eq(rows[1].itemID, 580)
+    T.eq(rows[1].slot, 5)
+  end)
+
+  T.it("tells for each slot why each crafted piece is offered or not (/guildy upgradeprobe)", function()
+    local function chest(id, sub, stats, extra)
+      INFO[id] = { equipLoc = "INVTYPE_CHEST", level = 40, reqLevel = 35, classID = 4, subclassID = sub, bind = 2, quality = 2 }
+      for k, v in pairs(extra or {}) do INFO[id][k] = v end
+      STATS[id] = stats
+    end
+    chest(580, 2, { [AGI] = 12, [STR] = 8 })               -- offered
+    chest(581, 1, { [INT] = 30 })                          -- cloth under worn leather
+    chest(582, 2, { [AGI] = 7, [STA] = 30 })               -- better on stamina alone
+    chest(583, 2, { [AGI] = 7, [STR] = 1 })                -- under the 10 %
+    chest(584, 2, { [AGI] = 20 }, { reqLevel = 50 })        -- too high a level
+    chest(585, 2, { [AGI] = 20 }, { bind = 1 })             -- bind on pickup: never in the index
+    chest(586, 2, { [AGI] = 15 })                          -- needs a profession
+    REQ[586] = { skill = "Lederverarbeitung", rank = 250 }
+    INFO[730] = { equipLoc = "INVTYPE_CHEST", level = 30, reqLevel = 25, classID = 4, subclassID = 2, bind = 2, quality = 2 }
+    STATS[730] = { [AGI] = 7, [STA] = 7 }
+    local craft = {}
+    for id = 580, 586 do craft[9000 + id] = id end
+    craft[9999] = 599 -- an item the game has not loaded yet
+    local recipes = {}
+    for spell in pairs(craft) do recipes[#recipes + 1] = spell end
+    table.sort(recipes)
+    local index = U.Index({ maker("lw", recipes) }, craft, info)
+    local member = { key = "d", level = 47, classFile = "DRUID", weights = ns.StatWeights.For("DRUID_CAT") }
+    local trace = {}
+    local rows = U.ForIndex(member, { items = { [5] = item(730, 30), [6] = { id = 731, e = 0, s = -17, l = 30, q = 2 } } },
+      index, info, GAME, trace)
+    REQ[586] = nil
+    T.eq(#rows, 1)
+    T.eq(rows[1].itemID, 580)
+    local chestTrace = trace.slots[5]
+    T.eq(chestTrace.worn.itemID, 730)
+    T.eq(chestTrace.worn.source, "link")
+    T.truthy(math.abs(chestTrace.worn.score - 7.7) < 1e-9, chestTrace.worn.score)
+    T.eq(chestTrace.count, 6) -- in the index for the chest (the bind on pickup piece is not)
+    local verdict = {}
+    for _, c in ipairs(chestTrace.candidates) do verdict[c.itemID] = c.verdict end
+    T.eq(verdict, { [580] = "offered", [581] = "armour type", [582] = "stamina-only", [583] = "threshold",
+      [584] = "level 50", [586] = "requirement Lederverarbeitung 250" })
+    T.eq(chestTrace.candidates[1].itemID, 584) -- by score: 20 agility first
+    T.eq(chestTrace.candidates[1].level, 40)
+    -- a worn piece whose stats cannot be known: the slot is skipped, and the probe says so
+    T.eq(trace.slots[6].worn.source, "unknown")
+    T.eq(trace.slots[6].skipped, "worn stats unknown")
+    T.eq(trace.weights, ns.StatWeights.For("DRUID_CAT"))
+    -- the index by state
+    T.eq(#index.pending, 1)
+    T.eq(index.left[585], "bind on pickup")
+  end)
+
   T.it("trusts spec weights with few worn pieces known", function()
     -- one worn piece: too few for a profile, which goes by item level and the worn piece's top stat
     local gear = { items = { [6] = item(1, 51) } }

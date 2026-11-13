@@ -334,6 +334,37 @@ T.describe("Upgrades from the guild in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("prints per slot the worn piece, the candidates and why each is offered or not (/guildy upgradeprobe)", function()
+    local w = World()
+    local lines = {}
+    w.env.DEFAULT_CHAT_FRAME = { AddMessage = function(_, text) lines[#lines + 1] = text end }
+    w.ns.GuildData().gear["au tsch"].items[9] = { id = 7400, e = 0, s = 0, l = 39, q = 2, b = { 6655 } } -- base item: no stats
+    w.INFO[7400] = { name = "Waldläufertunika", level = 39, equipLoc = "INVTYPE_WRIST", subclassID = 2 }
+    w.STATS[7400] = {}
+    w.env.SlashCmdList.GUILDY("upgradeprobe Au Tsch")
+    local all = table.concat(lines, "\n"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(all:find("upgradeprobe Au Tsch", 1, true), all)
+    -- the chest: worn piece, item string, score and source, candidates, the offered vest and the cloth robe
+    T.truthy(all:find("5 chest: worn 7007 item:7007:0:0:0:0:0:0, score ", 1, true), all)
+    T.truthy(all:find("(link, 2 stats)", 1, true), all)
+    T.truthy(all:find("702 Wildlederweste", 1, true), all)
+    T.truthy(all:find("offered", 1, true), all)
+    T.truthy(all:find("700 Winterzwirntunika", 1, true), all)
+    T.truthy(all:find("armour type", 1, true), all) -- cloth under worn leather
+    -- the wrist: worn item string with its bonus ID, the stats came out empty
+    T.truthy(all:find("item:7400:0:0:0:0:0:0:0:0:0:0:0:1:6655", 1, true), all)
+    T.truthy(all:find("stats empty", 1, true), all)
+    T.truthy(all:find("worn stats unknown", 1, true), all)
+    -- the end: spec and weights, the index by state
+    T.truthy(all:find("weights: worn-gear profile", 1, true), all)
+    T.truthy(all:find("index: 3 loaded, 0 waiting, 0 unavailable", 1, true), all)
+    -- own character by default
+    lines = {}
+    w.env.SlashCmdList.GUILDY("upgradeprobe")
+    T.truthy(table.concat(lines, "\n"):find("upgradeprobe Ran Fred", 1, true), table.concat(lines, "\n"))
+    T.eq(w.errors, {})
+  end)
+
   T.it("takes the stats bnet-sync stored with Sven's tiger tunic and offers no chest over it", function()
     local w = World()
     local guild = w.ns.GuildData()

@@ -4,6 +4,7 @@
 --   /guildy modeltest pool          which (race, sex) bodies the pool holds (Game/ModelPool.lua)
 --   /guildy craftprobe              whether the game names what a recipe makes without its window
 --   /guildy gearshow [name]         the gear slot by slot and the enchant text the tooltip gives
+--   /guildy upgradeprobe [name]     why the upgrades box offers what it does, slot by slot (Game/Gear.lua)
 -- They print only when typed.
 local _, ns = ...
 

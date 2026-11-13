@@ -754,6 +754,86 @@ function GameGear.WorkOutUpgrades(m, spec)
   return rows, #rows > 0 and "rows" or "none", missing
 end
 
+-- /guildy upgradeprobe [name] (the own character by default): per gear slot the box considers the worn
+-- piece (item string, score under the weights used, where its stats came from), how many crafted pieces
+-- the index has for it and the top 3 by score with why each is offered or not; then the spec and weights
+-- and the index by state. A few lines per slot.
+local SLOT_NAMES = { "head", "neck", "shoulder", "shirt", "chest", "waist", "legs", "feet", "wrist", "hands",
+  "finger 1", "finger 2", "trinket 1", "trinket 2", "back", "main hand", "off hand", "ranged", "tabard" }
+local PROBE_TOP = 3
+
+local function Num(x) return type(x) == "number" and ("%.1f"):format(x) or "?" end
+
+function GameGear.UpgradeProbe(name)
+  local P = ns.Print
+  name = tostring(name or ""):match("^%s*(.-)%s*$")
+  if name == "" then name = ns.PlayerName() end
+  local m = ns.Roster.Find(name)
+  if not m then return P(("upgradeprobe %s: not in the roster"):format(name)) end
+  local guild, db = ns.GuildData(), ns.DB()
+  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
+  local tal = guild and type(guild.talents) == "table" and guild.talents[m.key] or nil
+  if type(tal) ~= "table" then tal = nil end
+  P(("upgradeprobe %s: level %s %s, gear %s"):format(name, tostring(m.level), tostring(m.classFile),
+    type(rec) == "table" and ("src %s, %d min old"):format(tostring(rec.src), math.floor((ns.Now() - (rec.ts or 0)) / 60))
+    or "none stored"))
+  if type(rec) ~= "table" then return end
+  local spec = GameGear.SpecFor(m, rec, tal)
+  local built = CraftIndex(guild, db and type(db.craftItems) == "table" and db.craftItems or nil)
+  local who = GameGear.Who(m)
+  who.weights = ns.StatWeights.For(spec)
+  local trace = {}
+  U.ForIndex(who, rec, built, GameGear.ItemInfo, GAME, trace)
+  local slots = {}
+  for slot in pairs(trace.slots) do
+    if not U.LEFT_OUT[slot] then slots[#slots + 1] = slot end
+  end
+  table.sort(slots)
+  for _, slot in ipairs(slots) do
+    local t, item = trace.slots[slot], rec.items[slot]
+    local wornText = "empty"
+    if item then
+      -- what the game gives for the item string, whether or not the stored stats are used
+      local game, counted = GameGear.ItemStats(item), 0
+      for key, value in pairs(game or {}) do
+        if U.Counts(key) and type(value) == "number" and value > 0 then counted = counted + 1 end
+      end
+      wornText = ("worn %d %s, score %s (%s, %s)"):format(item.id, G.ItemString(item), Num(t.worn and t.worn.score),
+        tostring(t.worn and t.worn.source), not game and "game stats not loaded" or counted == 0 and "stats empty"
+        or ("%d stats"):format(counted))
+    end
+    P(("%d %s: %s%s"):format(slot, SLOT_NAMES[slot] or "?", wornText, t.skipped and (" - " .. t.skipped) or ""))
+    local parts = {}
+    for i = 1, math.min(PROBE_TOP, #t.candidates) do
+      local c = t.candidates[i]
+      local info = GameGear.ItemInfo(c.itemID)
+      parts[#parts + 1] = ("%d %s %s ilvl %s: %s"):format(c.itemID, info and info.name or "?",
+        c.score >= 0 and Num(c.score) or "-", tostring(c.level), c.verdict)
+    end
+    P(("  %d in the index%s"):format(t.count, #parts > 0 and ("; " .. table.concat(parts, "; ")) or ""))
+  end
+  local weights = {}
+  if spec then
+    for key, value in pairs(trace.weights or {}) do
+      weights[#weights + 1] = ("%s %s"):format(key:gsub("^ITEM_MOD_", ""):gsub("_SHORT$", ""), tostring(value))
+    end
+    table.sort(weights)
+  end
+  P(("spec %s, weights: %s"):format(tostring(spec), spec and table.concat(weights, ", ")
+    or ("worn-gear profile (%s)"):format(trace.strong and "strong" or "weak")))
+  local loaded, left, why = 0, 0, {}
+  for _, entries in pairs(built.byLoc) do loaded = loaded + #entries end
+  for _, reason in pairs(built.left or {}) do
+    left = left + 1
+    why[reason] = (why[reason] or 0) + 1
+  end
+  local reasons = {}
+  for reason, n in pairs(why) do reasons[#reasons + 1] = ("%d %s"):format(n, reason) end
+  table.sort(reasons)
+  P(("index: %d loaded, %d waiting, %d unavailable, %d never offered%s"):format(loaded, #built.pending, built.gone or 0,
+    left, #reasons > 0 and (" (" .. table.concat(reasons, ", ") .. ")") or ""))
+end
+
 -- The warm-up ---------------------------------------------------------------------------------------
 -- After the login (Core/Init.lua) the guild's crafted pieces and the stored gear are walked in small steps,
 -- so item infos, stats, requirements and the index are in before the character page is opened and its

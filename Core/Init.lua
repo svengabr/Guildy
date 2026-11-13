@@ -252,6 +252,8 @@ SlashCmdList.GUILDY = function(msg)
     ns.GameTalents.Probe()
   elseif msg == "craftprobe" then
     ns.GearProbe.CraftProbe()
+  elseif msg:match("^upgradeprobe") then
+    ns.GameGear.UpgradeProbe(raw:sub(13))
   elseif msg:match("^gearshow") then
     ns.GameGear.Show(raw:sub(9))
   elseif msg:match("^statshow") then

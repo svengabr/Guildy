@@ -341,7 +341,8 @@ local STAMINA = Upgrades.STAMINA
 
 -- The index of crafted pieces -------------------------------------------------------------------------
 -- What the guild's books make, worked out once per version of the books (not per member):
---   { byLoc = { [equipLoc] = { entry } }, pending = { entry }, makerKeys = { [key] = items }, unknown = { spellID } }
+--   { byLoc = { [equipLoc] = { entry } }, pending = { entry }, makerKeys = { [key] = items }, unknown = { spellID },
+--     left = { [itemID] = why it is never offered }, gone = items the game does not have }
 --   entry = { itemID, info, makers = { { key, skillLine, online, offline } } }, a maker once per item
 -- byLoc holds only pieces that can ever be offered (a slot that is not left out, a level, not bind on
 -- pickup); pending the items whose info is not loaded yet (Upgrades.Resolve takes them in later). An item
@@ -351,6 +352,7 @@ local STAMINA = Upgrades.STAMINA
 
 -- Takes entry's makers off makerKeys (the game has no such item)
 local function Drop(index, entry)
+  index.gone = (index.gone or 0) + 1
   for _, m in ipairs(entry.makers) do
     local n = (index.makerKeys[m.key] or 1) - 1
     index.makerKeys[m.key] = n > 0 and n or nil
@@ -374,6 +376,9 @@ local function Place(index, entry, itemInfo)
       index.byLoc[info.equipLoc] = list
     end
     list[#list + 1] = entry
+  else -- loaded, never offered: why, for /guildy upgradeprobe
+    index.left[entry.itemID] = info.bind == 1 and "bind on pickup" or not slots and "not a gear slot"
+      or Upgrades.LEFT_OUT[slots[1]] and "slot left out" or "no item level"
   end
   return true
 end
@@ -381,7 +386,7 @@ end
 -- makers { { key, online, offline = hours, profs = { [skillLine] = ProfRec } } }, craft { [spellID] = itemID },
 -- itemInfo(itemID) -> { equipLoc, level, reqLevel, classID, subclassID, bind, quality } | nil
 function Upgrades.Index(makers, craft, itemInfo)
-  local index = { byLoc = {}, pending = {}, makerKeys = {}, unknown = {} }
+  local index = { byLoc = {}, pending = {}, makerKeys = {}, unknown = {}, left = {}, gone = 0 }
   local entries = {} -- itemID -> entry
   local order = {}
   for _, maker in ipairs(makers or {}) do
@@ -473,7 +478,22 @@ end
 -- online } } } } (at most MAX_ROWS, largest gain first, one per slot) and missing { itemID } (info or stats
 -- not loaded yet, or the tooltip of a piece that would be taken). A tooltip is read only for a piece that
 -- would be taken (better than the best so far): its requirements decide then.
-function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
+-- What a requirement the member does not meet asks for, as the probe names it
+local function ReqText(req)
+  if req.reputation then return "reputation" end
+  local parts = {}
+  if req.skill then parts[#parts + 1] = req.rank and ("%s %d"):format(req.skill, req.rank) or req.skill end
+  if req.classes then parts[#parts + 1] = "classes " .. table.concat(req.classes, ", ") end
+  return table.concat(parts, ", ")
+end
+
+-- trace (optional, /guildy upgradeprobe): a table filled with why each piece is offered or not:
+--   { weights, strong, slots = { [slot] = { worn = { itemID, source = "stored"|"link"|"unknown"|"loading",
+--     empty, score }, count, skipped, candidates = { { itemID, score, level, verdict } } } } }
+-- candidates by score, the highest first; verdict "offered", "beaten" (a better one is offered), "threshold",
+-- "stamina-only", "armour type", "level N", "requirement ...", "not loaded", "tooltip not loaded",
+-- "unavailable", "own book", "top stat", "item level gain". The result is the same with or without it.
+function Upgrades.ForIndex(member, gearRec, index, itemInfo, game, trace)
   local items = gearRec and gearRec.items or {}
   local requirements = game.requirements or NoRequirements
   local s = scratch
@@ -487,6 +507,15 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
       missing[#missing + 1] = itemID
     end
   end
+  local function Slot(slot)
+    local t = trace.slots[slot]
+    if not t then
+      t = { count = 0, candidates = {} }
+      trace.slots[slot] = t
+    end
+    return t
+  end
+  if trace then trace.slots = {} end
   local memberKey, memberLevel = member.key, member.level or 0
   -- what is worn: armour types, stats per slot, the profile
   for slot, item in pairs(items) do
@@ -500,6 +529,11 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
     elseif not gone then
       Miss(item.id)
     end
+    if trace then
+      Slot(slot).worn = { itemID = item.id, level = item.l, empty = stats ~= nil and not HasStats(stats),
+        source = type(item.st) == "table" and "stored" or stats and "link" or gone and "unknown" or "loading" }
+      if not stats then Slot(slot).skipped = gone and "worn stats unknown" or "worn stats loading" end
+    end
   end
   local profile = Upgrades.Profile(list)
   local weights = profile.weights
@@ -507,6 +541,17 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
   -- the talent spec's weights (Core/StatWeights.lua) where it is known: they need no worn pieces to be trusted
   if type(member.weights) == "table" then weights, strong = member.weights, true end
   local prefer = Upgrades.ArmorType(armour)
+  local function Note(slot, entry, stats, verdict)
+    local list = Slot(slot).candidates
+    list[#list + 1] = { itemID = entry.itemID, level = entry.info.level, verdict = verdict,
+      score = stats and Weighted(weights, stats) or nil }
+  end
+  if trace then
+    trace.weights, trace.strong, trace.prefer = weights, strong, prefer
+    for slot, t in pairs(trace.slots) do
+      if wornStats[slot] then t.worn.score = Weighted(weights, wornStats[slot]) end
+    end
+  end
 
   for _, entry in ipairs(index.pending) do
     if MadeByOther(entry, memberKey) then Miss(entry.itemID) end
@@ -519,6 +564,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
     for _, sl in ipairs(slots) do
       local item = items[sl]
       if item and not wornStats[sl] then
+        if trace then Slot(sl).count = Slot(sl).count + #entries end
         slot = nil
         break
       end
@@ -532,6 +578,7 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
     if slot then
       if current < 0 then current = 0 end -- an empty slot scores nothing
       local want = items[slot] and Upgrades.TopPrimary(wornStats[slot]) or profile.top
+      if trace then Slot(slot).count = Slot(slot).count + #entries end
       for _, entry in ipairs(entries) do
         local info, itemID = entry.info, entry.itemID
         if MadeByOther(entry, memberKey) and (info.reqLevel or 0) <= memberLevel
@@ -539,8 +586,10 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
           and not (prefer and IsArmour(info) and info.subclassID < prefer) then
           local stats, statsGone = game.stats(itemID)
           if statsGone then -- the game never gives it: skipped, nothing asked
+            if trace then Note(slot, entry, nil, "unavailable") end
           elseif not stats then
             Miss(itemID)
+            if trace then Note(slot, entry, nil, "not loaded") end
           else
             local score, gain
             if strong then
@@ -552,11 +601,19 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
               local offerSta = type(stats[STAMINA]) == "number" and stats[STAMINA] or 0
               wornSta = type(wornSta) == "number" and wornSta or 0
               local rest = gain - wSta * (offerSta - wornSta)
-              if score < current * Upgrades.MIN_RATIO or gain < Upgrades.MIN_SCORE or rest <= 0 then score = nil end
+              if score < current * Upgrades.MIN_RATIO or gain < Upgrades.MIN_SCORE or rest <= 0 then
+                if trace then
+                  Note(slot, entry, stats, (rest <= 0 and gain > 0) and "stamina-only" or "threshold")
+                end
+                score = nil
+              end
             else
               local top = Upgrades.TopPrimary(stats)
               gain = info.level - have
               score = (top and top == want and gain >= Upgrades.MIN_GAIN) and info.level or nil
+              if trace and not score then
+                Note(slot, entry, stats, (not top or top ~= want) and "top stat" or "item level gain")
+              end
             end
             if score then
               local armor = stats[Upgrades.ARMOR_KEY]
@@ -571,23 +628,40 @@ function Upgrades.ForIndex(member, gearRec, index, itemInfo, game)
               end
               -- the tooltip only for a piece that would be taken: reading one is the costliest part of a
               -- piece the client has but Guildy has not read yet (a table of lines from the game)
-              if better then
+              local verdict = "offered"
+              if better or trace then -- the probe reads every tooltip, to name what a piece needs
                 local req, reqGone = requirements(itemID)
-                if reqGone then better = false
+                if reqGone then better, verdict = false, "unavailable"
                 elseif not req then
-                  Miss(itemID)
-                  better = false
-                else
-                  better = Upgrades.Meets(req, member)
+                  if better then Miss(itemID) end
+                  better, verdict = false, "tooltip not loaded"
+                elseif not Upgrades.Meets(req, member) then
+                  better, verdict = false, "requirement " .. ReqText(req)
                 end
               end
               if better then
                 best[slot], bestScore[slot], bestArmor[slot], bestHave[slot], bestGain[slot] = entry, score, armor, have, gain
               end
+              if trace then Note(slot, entry, stats, verdict) end
             end
           end
+        elseif trace then
+          Note(slot, entry, (game.stats(itemID)), not MadeByOther(entry, memberKey) and "own book"
+            or (info.reqLevel or 0) > memberLevel and ("level " .. tostring(info.reqLevel)) or "armour type")
         end
       end
+    end
+  end
+  if trace then
+    for slot, t in pairs(trace.slots) do
+      for _, c in ipairs(t.candidates) do
+        if c.verdict == "offered" and not (best[slot] and best[slot].itemID == c.itemID) then c.verdict = "beaten" end
+        if not c.score then c.score = -1 end
+      end
+      table.sort(t.candidates, function(a, b)
+        if a.score ~= b.score then return a.score > b.score end
+        return a.itemID < b.itemID
+      end)
     end
   end
   local rows = {}
