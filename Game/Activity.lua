@@ -22,22 +22,44 @@ local function SetDayShift()
   A.SetDayShift((ok and type(offset) == "number" and offset or 0) - DAY_STARTS)
 end
 
+-- What the scores are worked out from besides the statistics and the member list (GameStats.version,
+-- Roster.version): goes up when a member's seen days, online state or whole days offline change, or a
+-- family changes. A roster scan that shows nothing new of that (the usual one, every few seconds) leaves
+-- the scores as they are; measured in game 2026-11-13: every scan threw them away and the next render of
+-- the character page worked them out anew for the whole guild (3.1 ms average, 10.9 ms max).
+local seenVersion, familyVersion = 0, 0
+local away = {} -- member key -> -1 online, whole days offline, -2 unknown (at the last scan)
+
+local function Away(m)
+  if m.online then return -1 end
+  return type(m.daysOffline) == "number" and math.floor(m.daysOffline) or -2
+end
+
 -- After a roster scan: today for who is online, the day of the roster's "last online" for the others.
 -- Nothing while names are made up for pictures (the roster is the real one, but nothing new is kept).
 local function MarkRoster()
-  cache = nil
-  local guild = not ns.Anon.on and ns.GuildData() or nil
   local members = ns.Roster.Members()
-  if not guild or #members == 0 then return end
-  local now = ns.Now()
-  local today = A.Day(now)
-  if type(guild.seenSince) ~= "number" then guild.seenSince = today end
+  local changed = false
   for _, m in ipairs(members) do
-    local day = A.LastSeenDay(now, m.online, m.daysOffline)
-    if day and day > today - A.DAYS_KEPT then
-      A.MarkSeen(guild.members[m.key] or ns.Store.Member(guild, m.name), day)
+    local now = Away(m)
+    if away[m.key] ~= now then
+      away[m.key] = now
+      changed = true
     end
   end
+  local guild = not ns.Anon.on and ns.GuildData() or nil
+  if guild and #members > 0 then
+    local now = ns.Now()
+    local today = A.Day(now)
+    if type(guild.seenSince) ~= "number" then guild.seenSince = today end
+    for _, m in ipairs(members) do
+      local day = A.LastSeenDay(now, m.online, m.daysOffline)
+      if day and day > today - A.DAYS_KEPT then
+        if A.MarkSeen(guild.members[m.key] or ns.Store.Member(guild, m.name), day) then changed = true end
+      end
+    end
+  end
+  if changed then seenVersion = seenVersion + 1 end
 end
 
 -- The number of days the own character was played, one more on the first call of each day
@@ -65,11 +87,18 @@ end
 
 -- { players, byKey (Activity.Players), summary (Activity.Summary), change = pulse against last month's
 -- or nil, month (Activity.Month) }
+-- Kept until the statistics, the member list, a family, the seen days or the day change (or the guild,
+-- or names made up for pictures); the character page, the members tab and the overview share it
 function GameActivity.Get()
-  if cache then return cache end
   local guild, db = ns.GuildData(), ns.DB()
-  local members = ns.Roster.Members()
   local now = ns.Now()
+  local day = A.Day(now)
+  local c = cache
+  if c and c.stats == ns.GameStats.version and c.roster == ns.Roster.version and c.seen == seenVersion
+    and c.families == familyVersion and c.day == day and c.guild == guild and c.anon == ns.Anon.on then
+    return c
+  end
+  local members = ns.Roster.Members()
   local mains = ns.Family.Mains(members, guild and guild.families, db and db.ownChars)
   local function RecordOf(m) return guild and guild.members[m.key] or nil end
   local since = guild and guild.seenSince
@@ -82,7 +111,9 @@ function GameActivity.Get()
     change = A.PulseChange(guild, summary.pulse, ns.Stats.PreviousMonth(month))
   end
   cache = { players = players, byKey = byKey, summary = summary, change = change,
-    month = A.Month(ns.GameStats.Entries(), players, RecordOf, now, Date, since) }
+    month = A.Month(ns.GameStats.Entries(), players, RecordOf, now, Date, since),
+    stats = ns.GameStats.version, roster = ns.Roster.version, seen = seenVersion, families = familyVersion, day = day,
+    guild = guild, anon = ns.Anon.on }
   return cache
 end
 
@@ -104,4 +135,4 @@ ns.On("ROSTER", function()
   SetDayShift()
   MarkRoster()
 end)
-ns.On("STATS", function() cache = nil end)
+ns.On("FAMILY", function() familyVersion = familyVersion + 1 end)

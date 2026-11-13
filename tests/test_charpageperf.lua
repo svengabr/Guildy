@@ -137,6 +137,67 @@ T.describe("Character page renders", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("works out the guild's activity scores once for 20 renders switching members between roster scans", function()
+    local w = World()
+    local players, ns = 0, w.ns
+    local fn = ns.Activity.Players
+    ns.Activity.Players = function(...)
+      players = players + 1
+      return fn(...)
+    end
+    local names = { "Au Tsch", "Makira Farron", "Ran Fred" }
+    ns.Fire("STATS") -- what the first render worked out is gone
+    for i = 1, 20 do
+      ns.UI.ShowMember(ns.Roster.Find(names[(i - 1) % 3 + 1]))
+      w.Fire("GUILD_ROSTER_UPDATE") -- the roster scans every few seconds: nobody came or went
+      w.RunTimers()
+    end
+    T.eq(players, 1)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("works out the activity scores anew when statistics, families, seen days or the day change", function()
+    local w = World()
+    local players, ns = 0, w.ns
+    local fn = ns.Activity.Players
+    ns.Activity.Players = function(...)
+      players = players + 1
+      return fn(...)
+    end
+    local function Score() return ns.GameActivity.ScoreOf("au tsch") end
+    Score()
+    Score()
+    T.eq(players, 0) -- worked out for the first render already
+    ns.Fire("STATS", "makira farron")
+    Score()
+    Score()
+    T.eq(players, 1)
+    ns.Fire("STATS", "makira farron")
+    Score()
+    T.eq(players, 2)
+    ns.Fire("FAMILY")
+    Score()
+    T.eq(players, 3)
+    -- Makira comes online: a new seen day with the next scan
+    local info = w.env.GetGuildRosterInfo
+    w.env.GetGuildRosterInfo = function(i)
+      local values = { info(i) }
+      if i == 2 then values[9] = true end
+      return unpack(values, 1, 17)
+    end
+    w.env.GetGuildRosterLastOnline = function() end
+    w.Fire("GUILD_ROSTER_UPDATE")
+    w.RunTimers()
+    Score()
+    T.eq(players, 4)
+    local now = ns.Now
+    ns.Now = function() return now() + 86400 end
+    Score()
+    T.eq(players, 5)
+    ns.Now = now
+    T.eq(w.errors, {})
+  end)
+
   T.it("reads an enchantment's text once per session, a missing one too", function()
     local w = World()
     local rec = w.ns.GuildData().gear["au tsch"]

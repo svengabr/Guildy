@@ -235,7 +235,10 @@ local function UpdateOwnFamily()
   local me = ns.Names.Key(ns.PlayerName())
   guild.families = type(guild.families) == "table" and guild.families or {}
   local own = ns.Family.Own(db.ownChars, keys, names, guild.families[me], ns.Now())
-  if own then guild.families[me] = own end
+  if own and own ~= guild.families[me] then
+    guild.families[me] = own
+    ns.Fire("FAMILY") -- the activity scores count the account's characters as one player
+  end
   return own
 end
 
