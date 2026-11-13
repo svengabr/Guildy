@@ -330,7 +330,11 @@ function ScorePanel.Show(owner, memberKey, anchor)
   local notes = {}
   if d.scaled then
     local made = math.min(100, math.floor((tonumber(parts.playing) or 0) * 100 / max.playing + 0.5))
-    notes.scaled = L.SCORE_NOTE_SCALED:format(A.MIN_COUNTED, Points(parts.playing), max.playing, made)
+    -- the points with one decimal, so the sum reads true ("69,6 von 70 ergeben 99", not "70 von 70 ergeben 99")
+    local tenths = math.floor((tonumber(parts.playing) or 0) * 10 + 0.5)
+    local shown = tenths % 10 == 0 and tostring(tenths / 10)
+      or (string.format("%.1f", tenths / 10):gsub("%.", ns.L.DECIMAL_MARK))
+    notes.scaled = L.SCORE_NOTE_SCALED:format(A.MIN_COUNTED, shown, max.playing, made)
   end
   if type(d.fade) == "number" then
     notes.faded = L.SCORE_NOTE_FADED:format(math.floor(tonumber(d.away) or 0), A.FADE_FROM, A.GONE_DAYS,
