@@ -16,7 +16,8 @@
 --   (Core/Cooldowns.lua): a character's profession cooldowns as read in the game. Own ones are sent only
 --   with settings.share, others are relayed like the rest.
 --   SUM also carries g = {nameKey = ts}, GEAR {m = name, g = {ts, src, r, x, i = {"slot:id:e:s:l:q", ...},
---   u = {"slot:uniqueID", ...}, t = {"slot:AGILITY=13,...", ...}}} (u and t optional; older clients ignore them)
+--   u = {"slot:uniqueID", ...}, t = {"slot:AGILITY=13,...", ...}, b = {"slot:bonusID,bonusID", ...}}}
+--   (u, t and b optional; older clients ignore them)
 --   (Core/Gear.lua): a member's gear item by item, own or read nearby, records younger than 60 days.
 --   Own gear only with settings.share; older Guildy versions have no handler for GEAR and drop it.
 --   SUM also carries k = {nameKey = ts}, GEAR also k = {ts, src, p = {p1, p2, p3}} (Core/Talents.lua): a
@@ -389,23 +390,29 @@ local function OnSummary(data, sender)
   end
   -- gear the same way, behind the statistics (a Guildy before it sends no g); talents ride with it, offered
   -- where the summary names older ones (a Guildy before them sends no k)
-  local gearOffered = {}
+  -- The gear offer sends the talents too: it is left out only when both are covered by what others sent
+  -- meanwhile (a Guildy before talents sends newer gear without k, and the talents would wait for the next SUM).
+  local gearOffered, talentsWanted, talentOffers = {}, {}, {}
+  local myTalents = type(data.k) == "table" and ns.Talents.Digest(guild.talents, ns.Now()) or nil
+  if myTalents then
+    talentOffers = P.Outdated(myTalents, data.k)
+    for _, key in ipairs(talentOffers) do talentsWanted[key] = myTalents[key] end
+  end
   if type(data.g) == "table" then
     local myGear = ns.Gear.Digest(guild.gear, ns.Now())
     local gearOffers = P.Outdated(myGear, data.g)
     for i = 1, math.min(#gearOffers, MAX_OFFERS) do
       local key = gearOffers[i]
-      local myTs = myGear[key]
+      local myTs, myTal = myGear[key], talentsWanted[key]
       gearOffered[key] = true
       C_Timer.After(12 + math.random() * 8 + i * 0.5, function()
-        if (seenGear[key] or 0) >= myTs then return end
+        if (seenGear[key] or 0) >= myTs and (not myTal or (seenTalents[key] or 0) >= myTal) then return end
         SendGear(key)
       end)
     end
   end
-  if type(data.k) == "table" then
-    local myTalents = ns.Talents.Digest(guild.talents, ns.Now())
-    local talentOffers, n = P.Outdated(myTalents, data.k), 0
+  if myTalents then
+    local n = 0
     for _, key in ipairs(talentOffers) do
       if not gearOffered[key] and n < MAX_OFFERS then
         n = n + 1

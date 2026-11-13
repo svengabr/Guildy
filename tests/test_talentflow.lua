@@ -227,6 +227,30 @@ T.describe("Talent specs in the game", function()
     T.eq(w.errors, {})
   end)
 
+  T.it("still offers the talents when an older Guildy sent the newer gear first, without them", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    local now = w.ns.Now()
+    guild.gear = { ["au tsch"] = { ts = now, src = "seen", items = { [1] = { id = 7001, e = 0, s = 0, l = 41, q = 2 } } } }
+    guild.talents = { ["au tsch"] = { ts = now, src = "seen", trees = { 0, 31, 20 } } }
+    w.Receive("SUM", { d = {}, g = { ["au tsch"] = now - 10 }, k = { ["au tsch"] = now - 10 } }, "Makira-Farron")
+    -- a 1.7 client sends the same gear meanwhile, without k
+    local gearWire = w.ns.Gear.Wire(guild.gear["au tsch"])
+    w.Receive("GEAR", { m = "Au Tsch", g = gearWire }, "Makira-Farron")
+    local before = #w.Messages("GEAR")
+    w.RunTimers(10)
+    local gear = w.Messages("GEAR")
+    T.eq(#gear, before + 1)
+    T.eq(gear[#gear].k.p, { 0, 31, 20 })
+    -- gear and talents both sent by someone else: nothing
+    w.Receive("SUM", { d = {}, g = { ["au tsch"] = now - 10 }, k = { ["au tsch"] = now - 10 } }, "Makira-Farron")
+    w.Receive("GEAR", { m = "Au Tsch", g = gearWire, k = w.ns.Talents.Wire(guild.talents["au tsch"]) }, "Makira-Farron")
+    before = #w.Messages("GEAR")
+    w.RunTimers(10)
+    T.eq(#w.Messages("GEAR"), before)
+    T.eq(w.errors, {})
+  end)
+
   T.it("says what it knows of talents in its summary", function()
     local w = World()
     local guild = w.ns.GuildData()
