@@ -45,6 +45,8 @@ Core\Columns.lua
 Core\Stats.lua
 Core\Gear.lua
 Core\Upgrades.lua
+Core\StatWeights.lua
+Core\Talents.lua
 Core\Family.lua
 Core\Activity.lua
 Core\Ding.lua

@@ -73,7 +73,7 @@ end
 lib.PURE = {
   "Libs/LibDeflate/LibDeflate.lua", "Libs/json/json.lua",
   "Core/Names.lua", "Core/Store.lua", "Core/Census.lua", "Core/Professions.lua", "Core/Specs.lua", "Core/Cooldowns.lua", "Core/Search.lua", "Core/Protocol.lua",
-  "Core/Manage.lua", "Core/Bank.lua", "Core/Grid.lua", "Core/Columns.lua", "Core/Stats.lua", "Core/Gear.lua", "Core/Upgrades.lua", "Core/Family.lua", "Core/Activity.lua", "Core/Ding.lua", "Core/Tenure.lua", "Core/ShotRun.lua",
+  "Core/Manage.lua", "Core/Bank.lua", "Core/Grid.lua", "Core/Columns.lua", "Core/Stats.lua", "Core/Gear.lua", "Core/Upgrades.lua", "Core/StatWeights.lua", "Core/Talents.lua", "Core/Family.lua", "Core/Activity.lua", "Core/Ding.lua", "Core/Tenure.lua", "Core/ShotRun.lua",
 }
 
 function lib.pureNs()
