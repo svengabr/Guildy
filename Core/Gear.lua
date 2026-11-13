@@ -229,15 +229,19 @@ local function Detail(rec)
   return n
 end
 
--- Newer wins; at the same time the one that carries more of its items (bonus IDs, unique IDs, stored
--- stats: an older Guildy's reading of the same gear lacks them), else the member's own reading. A record
--- without items is never taken. True when rec was taken.
+-- Newer wins; at the same time the member's own reading stays against an api or seen record, else the one
+-- that carries more of its items
+-- (bonus IDs, unique IDs, stored stats: an older Guildy's reading of the same gear lacks them), else the
+-- member's own reading. A record without items is never taken. True when rec was taken.
 function Gear.Merge(book, key, rec)
   if type(rec) ~= "table" or type(rec.items) ~= "table" or not next(rec.items) then return false end
   local have = book[key]
   if type(have) == "table" and type(have.ts) == "number" then
     if have.ts > rec.ts then return false end
     if have.ts == rec.ts then
+      -- the member's own reading stays against an api or seen one (bnet-sync's updateGear too); a relayed
+      -- copy of that same reading may still carry more of it
+      if have.src == "self" and (rec.src == "api" or rec.src == "seen") then return false end
       local more, less = Detail(rec), Detail(have)
       if more < less or (more == less and (rec.src ~= "self" or have.src == "self")) then return false end
     end

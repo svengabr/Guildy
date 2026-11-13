@@ -65,12 +65,24 @@ T.describe("Gear", function()
   T.it("takes a record of the same time that carries more of the items than the stored one", function()
     local plain = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2 } }
     local full = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2, b = { 6655 } } }
-    local book = { a = rec(plain, NOW, "self") }
+    local book = { a = rec(plain, NOW, "seen") }
     T.eq(G.Merge(book, "a", rec(full, NOW, "relay")), true)
     T.eq(book.a.items[5].b, { 6655 })
     T.eq(G.Merge(book, "a", rec(plain, NOW, "self")), false) -- the poorer one never comes back at the same time
     T.eq(G.Merge(book, "a", rec(full, NOW, "relay")), false) -- the same again: nothing new
     T.eq(G.Merge(book, "a", rec(full, NOW - 1, "api")), false) -- older stays out, rich or not
+  end)
+
+  T.it("keeps the member's own record against a richer api or seen one of the same time (as bnet-sync)", function()
+    local plain = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2 } }
+    local full = { [5] = { id = 7484, e = 0, s = 0, l = 39, q = 2, b = { 6655 }, st = { ITEM_MOD_AGILITY_SHORT = 13 } } }
+    local book = { a = rec(plain, NOW, "self") }
+    T.eq(G.Merge(book, "a", rec(full, NOW, "api")), false)
+    T.eq(G.Merge(book, "a", rec(full, NOW, "seen")), false)
+    T.eq(book.a.src, "self")
+    T.eq(G.Merge(book, "a", rec(full, NOW + 1, "api")), true) -- a newer one does replace it
+    book.a = rec(plain, NOW, "self")
+    T.eq(G.Merge(book, "a", rec(full, NOW, "relay")), true) -- a relayed copy of the same reading, richer
   end)
 
   T.it("sends the unique ID and stored stats beside the item list, which old clients read unchanged", function()
