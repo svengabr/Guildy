@@ -56,8 +56,12 @@ looks up each recipe's name in the client's language there, once: the names are 
 them, and one run took the guild from 66 books to 199. At the end the script says how many books it
 could translate.
 
-A book is written whole or not at all: if one name has no match, that profession's list stays as it
-was. A book read in the game after the member's last login is never replaced. Gathering professions
+A recipe whose name Guildy has never seen in any book cannot be translated. A book that lacks at most
+three such recipes is still written for a member who has no book yet, marked `partial = <how many
+are missing>`. Such a partial book never replaces an existing list, and the next run completes it as
+soon as Guildy has seen the missing recipes once (checked 2026-11-13: 189 complete and 49 partial
+books, 242 of 250 in the crafting professions). A book read in the game after the member's last login
+is never replaced. Gathering professions
 get no list. Specializations follow the game's rules (`Core/Specs.lua`): the API replaces one
 inferred from a book, but not one the game itself reported later; "no specialization" from the API
 revokes one.
@@ -66,8 +70,8 @@ The API has gaps:
 
 - It returns only part of the statistics, and none of the gold statistics. Stored values that the
   API leaves out are kept, and API values replace only the ones it returns.
-- A recipe whose name Guildy has never seen cannot be translated; its whole book waits until Guildy
-  has seen that recipe once, in any member's book.
+- A recipe whose name Guildy has never seen cannot be translated; a book that lacks more than three
+  of them waits until Guildy has seen them once, in any member's book.
 - A member whose first record comes from the API has no gold values until Guildy reads them in the
   game.
 

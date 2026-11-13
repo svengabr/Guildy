@@ -13,7 +13,7 @@ import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -125,7 +125,7 @@ function recipeName(id) {
 
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
-const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, bookCandidates: 0, missing: [], failed: [] }
+const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, missing: [], failed: [] }
 
 for (const guildKey of db.get('guilds').keys()) {
   const guild = db.get('guilds').get(guildKey)
@@ -177,9 +177,12 @@ for (const guildKey of db.get('guilds').keys()) {
             continue
           }
           await Promise.all(entry.recipes.map(r => recipeName(r.id)))
-          totals.bookCandidates++
           entry.recipes = localize(entry.recipes, recipeNames) ?? undefined
-          if (entry.recipes && entry.recipes.every(name => bridge.spells(name).length > 0)) totals.books++
+          if (!BOOK_SKILLS.has(entry.skillLine)) continue
+          totals.bookCandidates++
+          const unknown = entry.recipes ? entry.recipes.filter(name => bridge.spells(name).length === 0).length : Infinity
+          if (unknown === 0) totals.books++
+          else if (unknown <= MAX_MISSING) totals.partial++
         }
         if (updateProfessions(member, list, ts, bridge)) totals.profs++
       }
@@ -194,8 +197,8 @@ console.log(`Statistiken/Ausrüstung aktualisiert: ${totals.stats}, Berufe aktua
 if (totals.missing.length) console.log(`Kein API-Profil (umbenannt, gelöscht oder privat): ${totals.missing.map(fromBytes).join(', ')}`)
 if (totals.failed.length) console.log(`Fehlgeschlagen: ${totals.failed.join('; ')}`)
 if (bridge) {
-  console.log(`Rezeptbücher übersetzbar: ${totals.books} von ${totals.bookCandidates} (${namesLooked} Rezeptnamen neu nachgeschlagen).`)
-  console.log('Ein Buch, von dem Guildy ein Rezept noch nie gesehen hat, wartet, bis es dieses Rezept einmal in einem Buch liest.')
+  console.log(`Rezeptbücher: ${totals.books} vollständig, ${totals.partial} mit bis zu ${MAX_MISSING} fehlenden Rezepten, von ${totals.bookCandidates} (${namesLooked} Rezeptnamen neu nachgeschlagen).`)
+  console.log('Ein Teilbuch wird vollständig, sobald Guildy die fehlenden Rezepte einmal in einem Buch im Spiel liest.')
   mkdirSync(dirname(NAMES_FILE), { recursive: true })
   writeFileSync(NAMES_FILE, JSON.stringify(Object.fromEntries(recipeNames)))
 }

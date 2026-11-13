@@ -147,10 +147,41 @@ test('updateProfessions writes a complete book and the specialization', () => {
   assert.equal(rec.get('spec').get('ts'), TS)
 })
 
-test('updateProfessions writes no book of which one recipe has no known name', () => {
+test('updateProfessions writes no book of which more than three recipes have no known name', () => {
   const member = toLua({ name: 'Au Tsch', profs: {} })
-  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, recipes: ['Sappeurladung', 'Unbekannt'] }], TS, nameBridge(bridgeDb()))
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300,
+    recipes: ['Sappeurladung', 'Unbekannt 1', 'Unbekannt 2', 'Unbekannt 3', 'Unbekannt 4'] }], TS, nameBridge(bridgeDb()))
   assert.equal(member.get('profs').get(202).get('recipes'), undefined)
+})
+
+test('updateProfessions writes a partial book for a member without one, marked with what it lacks', () => {
+  const member = toLua({ name: 'Zera Tops', profs: {} })
+  updateProfessions(member, [{ skillLine: 202, rank: 165, max: 225, recipes: ['Sappeurladung', 'Unbekannt'] }], TS, nameBridge(bridgeDb()))
+  const rec = member.get('profs').get(202)
+  assert.deepEqual(rec.get('recipes').arr, [12760])
+  assert.equal(rec.get('partial'), 1)
+})
+
+test('updateProfessions never puts a partial book over an existing one', () => {
+  const member = toLua({ name: 'X', profs: { 202: { rank: 264, max: 300, ts: TS, src: 'relay', recipes: [12716] } } })
+  updateProfessions(member, [{ skillLine: 202, rank: 264, max: 300, recipes: ['Sappeurladung', 'Unbekannt'] }], TS, nameBridge(bridgeDb()))
+  assert.deepEqual(member.get('profs').get(202).get('recipes').arr, [12716])
+  assert.equal(member.get('profs').get(202).get('partial'), undefined)
+})
+
+test('updateProfessions completes a partial book once every name is known', () => {
+  const member = toLua({ name: 'Zera Tops', profs: {} })
+  const book = [{ skillLine: 202, rank: 165, max: 225, recipes: ['Sappeurladung', 'Goblin-Mörser'] }]
+  const db = bridgeDb()
+  db.get('recipeNames').get('names').set(12716, null) // Goblin-Mörser not seen yet
+  updateProfessions(member, book, TS, nameBridge(db))
+  assert.equal(member.get('profs').get(202).get('partial'), 1)
+  assert.equal(member.get('profs').get(202).get('ts'), TS) // a new record: newer than anything the guild holds
+  updateProfessions(member, book, TS, nameBridge(bridgeDb())) // the next run knows it
+  const rec = member.get('profs').get(202)
+  assert.deepEqual(rec.get('recipes').arr, [12716, 12760])
+  assert.equal(rec.get('partial'), undefined)
+  assert.equal(rec.get('ts'), TS + 1) // news again for the guild
 })
 
 test('updateProfessions leaves a book read in the game after the login alone', () => {

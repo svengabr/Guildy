@@ -20,7 +20,7 @@ export const SKILL_LINES = new Set([171, 164, 333, 202, 182, 165, 186, 393, 197,
 const MAX_SKILL = 450
 // Professions with specializations on Forever (Core/Specs.lua) and those whose books Guildy shows
 const SPEC_SKILLS = new Set([202, 164, 165])
-const BOOK_SKILLS = new Set([171, 164, 333, 202, 165, 197, 185, 129])
+export const BOOK_SKILLS = new Set([171, 164, 333, 202, 165, 197, 185, 129])
 const SPEC_IDS = new Set([20219, 20222, 17039, 17040, 17041, 9787, 9788, 10656, 10658, 10660])
 // The API's English names, for a client that never saved its own (Core/Specs.lua)
 const EN_SPECS = { 'Gnomish Engineer': 20219, 'Goblin Engineer': 20222, Weaponsmith: 9787, Armorsmith: 9788,
@@ -220,18 +220,23 @@ export function apiLocale(locale) {
   return typeof locale === 'string' && /^[a-z]{2}[A-Z]{2}$/.test(locale) ? `${locale.slice(0, 2)}_${locale.slice(2)}` : 'en_US'
 }
 
-// The recipe names as spell IDs, all or nothing: a book with one unknown name would be wrong as a whole
+// The recipe names as spell IDs, and how many could not be translated (a name Guildy never saw, or one
+// that stands for more spells than the book has of it)
 function translate(names, bridge) {
   const count = new Map()
   for (const name of names) count.set(name, (count.get(name) ?? 0) + 1)
   const ids = []
+  let missing = 0
   for (const [name, n] of count) {
     const found = bridge.spells(name)
-    if (found.length !== n) return null
-    ids.push(...found)
+    if (found.length === n) ids.push(...found)
+    else missing += n
   }
-  return [...new Set(ids)].sort((a, b) => a - b)
+  return { ids: [...new Set(ids)].sort((a, b) => a - b), missing }
 }
+
+// A book that lacks at most this many recipes is still written for a member without one ("partial")
+export const MAX_MISSING = 3
 
 // Specialization like Specs.Merge with src "api": over a book whatever its age, over the game's own
 // word only when newer. Returns true when it changed.
@@ -278,12 +283,29 @@ export function updateProfessions(member, list, ts, bridge = null) {
     // a book read in the game after the login is newer than anything the API knows
     const readLater = rec.get('ts') > ts && rec.get('recipes') instanceof LuaTable
     let completed = false
-    if (entry.recipes && BOOK_SKILLS.has(skillLine) && !readLater) {
-      const ids = translate(entry.recipes, bridge)
+    if (entry.recipes && BOOK_SKILLS.has(skillLine)) {
+      const { ids, missing } = translate(entry.recipes, bridge)
       const have = rec.get('recipes')
-      if (ids && !(have instanceof LuaTable && have.arr.join(',') === ids.join(','))) {
-        rec.set('recipes', toLua(ids))
-        completed = true
+      const hadList = have instanceof LuaTable
+      // partial = recipes a book written by this script lacks; Guildy drops the mark when it takes a
+      // reading of its own into the record, so a marked list is still the script's
+      const lacked = rec.get('partial')
+      const wasPartial = typeof lacked === 'number'
+      const same = hadList && have.arr.join(',') === ids.join(',')
+      if (missing === 0) {
+        // complete: over anything but a book read in the game after the login, over a partial one always
+        if ((!readLater || wasPartial) && (!same || wasPartial)) {
+          rec.set('recipes', toLua(ids))
+          rec.set('partial', null)
+          completed = true
+        }
+      } else if (missing <= MAX_MISSING && ids.length > 0) {
+        // partial: only where there is no book yet, or a partial one that lacks more
+        if (!hadList || (wasPartial && missing < lacked)) {
+          rec.set('recipes', toLua(ids))
+          rec.set('partial', missing)
+          completed = true
+        }
       }
     }
     if (writeSpec(rec, skillLine, entry.spec, bridge, ts)) completed = true
