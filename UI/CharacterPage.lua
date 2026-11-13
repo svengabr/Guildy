@@ -62,7 +62,7 @@ local function RaceInfo(m)
   local female = sex == 3
   local race = RACE_ICON[englishRace]
   local icon = race and ("Interface\\Icons\\Achievement_Character_" .. race .. "_" .. (female and "Female" or "Male"))
-  return { race = localizedRace, female = female, icon = icon and W.TextureExists(icon) and icon or nil }
+  return { race = localizedRace, file = englishRace, female = female, icon = icon and W.TextureExists(icon) and icon or nil }
 end
 
 -- The class icon as an inline texture (for text that may wrap, like the identity line)
@@ -491,6 +491,25 @@ local function Build()
   hero.ModelArea:SetPoint("TOPRIGHT", -1, -1)
   hero.ModelArea:SetHeight(200)
   page.ModelArea = hero.ModelArea
+  -- the race's dressing room art behind the model (Game/Gear.lua), up to four pieces, the bottom shaded
+  hero.BgPieces = {}
+  for i = 1, 4 do
+    hero.BgPieces[i] = hero.ModelArea:CreateTexture(nil, "BACKGROUND", nil, 0)
+    hero.BgPieces[i]:Hide()
+  end
+  hero.BgShade = hero.ModelArea:CreateTexture(nil, "BACKGROUND", nil, 1)
+  hero.BgShade:SetPoint("BOTTOMLEFT")
+  hero.BgShade:SetPoint("BOTTOMRIGHT")
+  hero.BgShade:SetHeight(48)
+  hero.BgShade:SetColorTexture(1, 1, 1, 1)
+  local color = rawget(_G, "CreateColor")
+  if not (color and pcall(hero.BgShade.SetGradient, hero.BgShade, "VERTICAL", color(0, 0, 0, 0.7), color(0, 0, 0, 0))) then
+    if not pcall(hero.BgShade.SetGradientAlpha, hero.BgShade, "VERTICAL", 0, 0, 0, 0.7, 0, 0, 0, 0) then
+      hero.BgShade:SetColorTexture(0, 0, 0, 0.35)
+    end
+  end
+  hero.BgShade:Hide()
+  hero.Background = {}
   hero.Portrait = Portrait(hero.ModelArea, 104)
   hero.Portrait:SetPoint("CENTER", 0, 0)
   -- the character in its gear, a model scene with the game's player actor (Game/Gear.lua): drag turns the
@@ -830,6 +849,63 @@ local function Build()
       page.modelBody = { key = m.key, race = route.race, sex = route.sex }
       ShowModel(true)
     end)
+  end
+
+  -- the classic art's four tiles: x, y, width, height in its 320x384 picture
+  local TILES = { { 0, 0, 256, 256 }, { 256, 0, 64, 256 }, { 0, 256, 256, 128 }, { 256, 256, 64, 128 } }
+
+  -- The picture behind the model of member m (Game/Gear.lua), scaled to fill the model area with its
+  -- shape kept: what sticks out is cut off through the texture coordinates
+  function page:RenderBackground(m)
+    local area = hero.ModelArea
+    local guild = ns.GuildData()
+    local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
+    local info = RaceInfo(m)
+    local raceFile = info and info.file or (type(rec) == "table" and ns.GameGear.RACE_FILES[rec.race]) or nil
+    local w, h = area:GetWidth() or 0, area:GetHeight() or 0
+    local key = ("%s:%s:%s:%s"):format(tostring(raceFile), tostring(m.classFile), w, h)
+    if key == self.bgKey then return end
+    self.bgKey = key
+    local bg = ns.GameGear.ModelBackground(raceFile, m.classFile, hero.BgPieces[1])
+    hero.Background = bg or {}
+    local pieces, picW, picH = {}, 0, 0
+    if bg and bg.info then
+      local a = bg.info
+      local file = a.file or a.filename
+      if file and type(a.width) == "number" and type(a.height) == "number" and a.width > 0 and a.height > 0 then
+        picW, picH = a.width, a.height
+        pieces[1] = { file = file, x = 0, y = 0, w = picW, h = picH, l = a.leftTexCoord or 0, r = a.rightTexCoord or 1,
+          t = a.topTexCoord or 0, b = a.bottomTexCoord or 1 }
+      end
+    elseif bg then
+      picW, picH = 320, 384
+      for i, tile in ipairs(TILES) do
+        pieces[i] = { file = bg.path .. i, x = tile[1], y = tile[2], w = tile[3], h = tile[4], l = 0, r = 1, t = 0, b = 1 }
+      end
+    end
+    local s = picW > 0 and w > 0 and h > 0 and math.max(w / picW, h / picH)
+    local vw, vh = s and w / s or 0, s and h / s or 0
+    local vx, vy = (picW - vw) / 2, (picH - vh) / 2
+    local any = false
+    for i, texture in ipairs(hero.BgPieces) do
+      local p = pieces[i]
+      local x0, x1 = p and math.max(p.x, vx), p and math.min(p.x + p.w, vx + vw)
+      local y0, y1 = p and math.max(p.y, vy), p and math.min(p.y + p.h, vy + vh)
+      if not (s and p and x1 > x0 and y1 > y0) then
+        texture:Hide()
+      else
+        texture:SetTexture(p.file)
+        texture:ClearAllPoints()
+        texture:SetPoint("TOPLEFT", area, "TOPLEFT", (x0 - vx) * s, -(y0 - vy) * s)
+        texture:SetSize((x1 - x0) * s, (y1 - y0) * s)
+        local function U(x) return p.l + (x - p.x) / p.w * (p.r - p.l) end
+        local function V(y) return p.t + (y - p.y) / p.h * (p.b - p.t) end
+        texture:SetTexCoord(U(x0), U(x1), V(y0), V(y1))
+        texture:Show()
+        any = true
+      end
+    end
+    hero.BgShade:SetShown(any)
   end
 
   -- while the model waits for a player of the member's sex: looks again when one may have come in sight
@@ -1355,6 +1431,7 @@ local function Build()
     local y, areaH, gearW = self:Layout()
     self:RenderHero(m, entries)
     self:RenderModel(m)
+    self:RenderBackground(m)
     self:RenderStats(m, entries)
     self:RenderScore(m)
     self:RenderGear(m)
@@ -1379,7 +1456,7 @@ function UI.ShowMember(m)
   if not page then Build() end
   if not page:IsShown() then page.backTab = UI.Current() end
   page.member = m
-  page.modelKey = nil -- opening a page always loads its model anew
+  page.modelKey, page.bgKey = nil, nil -- opening a page always loads its model and background anew
   UI.ShowPage(page)
   page:Render()
 end

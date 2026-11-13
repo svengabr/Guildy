@@ -304,6 +304,47 @@ function GameGear.LoadModel(actor, route)
   return ok and result ~= false
 end
 
+-- The picture behind the model ---------------------------------------------------------------------
+-- Blizzard's dressing room art, in this order: a race atlas, the classic four race tiles
+-- ("Interface\DressUpFrame\DressUpBackground-<race>1..4": 256x256, 64x256, 256x128, 64x128 over 320x384),
+-- the class atlas, else nothing (the dark fill). /guildy modeltest bg tells which the client has.
+GameGear.RACE_FILES = { [1] = "Human", [2] = "Orc", [3] = "Dwarf", [4] = "NightElf", [5] = "Scourge", [6] = "Tauren",
+  [7] = "Gnome", [8] = "Troll", [10] = "BloodElf", [11] = "Draenei" }
+GameGear.TILES = "Interface\\DressUpFrame\\DressUpBackground-"
+
+-- The atlas info of name when the client has that atlas
+function GameGear.Atlas(name)
+  local textures = rawget(_G, "C_Texture")
+  local info = textures and ns.Try(rawget(textures, "GetAtlasInfo"), name)
+  return type(info) == "table" and info or nil
+end
+
+local function RaceAtlas(raceFile)
+  local lower = raceFile:lower()
+  for _, name in ipairs({ "dressingroom-background-" .. lower, "dressingroom-background-race-" .. lower }) do
+    local info = GameGear.Atlas(name)
+    if info then return name, info end
+  end
+end
+GameGear.RaceAtlas = RaceAtlas
+
+-- The background of a member of raceFile and classFile: { source = "race atlas"|"class atlas", name, info },
+-- { source = "race tiles", path } or nil. probe: a texture the first tile is tried on.
+function GameGear.ModelBackground(raceFile, classFile, probe)
+  if type(raceFile) == "string" and raceFile ~= "" then
+    local name, info = RaceAtlas(raceFile)
+    if name then return { source = "race atlas", name = name, info = info } end
+    local path = GameGear.TILES .. raceFile
+    if probe and ns.Try(probe.SetTexture, probe, path .. "1") == true then return { source = "race tiles", path = path } end
+  end
+  if type(classFile) == "string" and classFile ~= "" then
+    local name = "dressingroom-background-" .. classFile:lower()
+    local info = GameGear.Atlas(name)
+    if info then return { source = "class atlas", name = name, info = info } end
+  end
+  return nil
+end
+
 -- Undresses actor and dresses it in member m's stored items
 function GameGear.DressStored(actor, m)
   local rec = Record(m)

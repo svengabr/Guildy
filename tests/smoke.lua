@@ -3110,3 +3110,84 @@ T.describe("The model on the character page", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("The background behind the model", function()
+  -- the atlases the client knows: name -> info
+  local function Atlases(known)
+    local saved = env.C_Texture
+    env.C_Texture = { GetAtlasInfo = function(name) return known[name] end }
+    return function() env.C_Texture = saved end
+  end
+  local function Info() return { width = 400, height = 300, file = 4242, leftTexCoord = 0, rightTexCoord = 0.5, topTexCoord = 0, bottomTexCoord = 1 } end
+  local function Open()
+    ns.GuildData().gear["au tsch"] = { ts = ns.Now(), src = "seen", race = 8, sex = 3, items = {} }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    return ns.UI.MemberPage().Hero
+  end
+
+  T.it("takes the race atlas when the client has one", function()
+    local back = Atlases({ ["dressingroom-background-troll"] = Info(), ["dressingroom-background-rogue"] = Info() })
+    local hero = Open()
+    T.eq(hero.Background.source, "race atlas")
+    T.eq(hero.Background.name, "dressingroom-background-troll")
+    T.eq(hero.BgPieces[1]:IsShown(), true)
+    T.eq(hero.BgShade:IsShown(), true)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("takes the race's four tiles, else the class atlas, else the dark fill", function()
+    local back = Atlases({ ["dressingroom-background-rogue"] = Info() })
+    local hero = ns.UI.MemberPage().Hero
+    rawset(hero.BgPieces[1], "SetTexture", function() return true end)
+    hero = Open()
+    T.eq(hero.Background.source, "race tiles")
+    for i = 1, 4 do T.eq(hero.BgPieces[i]:IsShown(), true) end
+    rawset(hero.BgPieces[1], "SetTexture", nil)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(hero.Background.source, "class atlas")
+    T.eq(hero.Background.name, "dressingroom-background-rogue")
+    T.eq(hero.BgPieces[1]:IsShown(), true)
+    T.eq(hero.BgPieces[2]:IsShown(), false)
+    back()
+    back = Atlases({})
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(hero.Background.source, nil)
+    for i = 1, 4 do T.eq(hero.BgPieces[i]:IsShown(), false) end
+    T.eq(hero.BgShade:IsShown(), false)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("fills the model area, cropped to keep the picture's shape", function()
+    local back = Atlases({ ["dressingroom-background-troll"] = Info() })
+    local hero = Open()
+    local piece = hero.BgPieces[1]
+    local coords
+    rawset(piece, "SetTexCoord", function(_, ...) coords = { ... } end)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    -- a 400x300 picture: its middle part of the area's shape, in the atlas's left half
+    local w, h = hero.ModelArea:GetWidth(), hero.ModelArea:GetHeight()
+    local s = math.max(w / 400, h / 300)
+    local vw, vh = w / s, h / s
+    local want = { (400 - vw) / 2 / 400 * 0.5, (400 + vw) / 2 / 400 * 0.5, (300 - vh) / 2 / 300, (300 + vh) / 2 / 300 }
+    for i = 1, 4 do T.truthy(math.abs(coords[i] - want[i]) < 1e-9, table.concat(coords, " ") .. " vs " .. table.concat(want, " ")) end
+    T.truthy(vw < 400 or vh < 300, "cropped on one side")
+    rawset(piece, "SetTexCoord", nil)
+    back()
+    T.eq(errors, {})
+  end)
+
+  T.it("tells per race and class which background the client has", function()
+    local back = Atlases({ ["dressingroom-background-druid"] = Info() })
+    local printed, print = {}, ns.Print
+    ns.Print = function(text) printed[#printed + 1] = tostring(text) end
+    env.SlashCmdList.GUILDY("modeltest bg")
+    ns.Print = print
+    local all = table.concat(printed, "\n")
+    T.truthy(all:find("modeltest bg: Troll", 1, true), all)
+    T.truthy(all:find("modeltest bg: DRUID: class atlas yes", 1, true), all)
+    back()
+    T.eq(errors, {})
+  end)
+end)

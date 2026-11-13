@@ -1,5 +1,6 @@
 -- Debug commands for gear on the character page (docs/superpowers/specs/2026-11-13-gear-character-page-design.md):
 --   /guildy modeltest [raceID sex]  which model calls Forever has, and whether a custom race wears the own gear
+--   /guildy modeltest scene <raceID> | creature <displayID> | bg   the model scene routes, the backgrounds
 --   /guildy craftprobe              whether the game names what a recipe makes without its window
 --   /guildy gearshow [name]         the gear slot by slot and the enchant text the tooltip gives
 -- They print only when typed.
@@ -155,7 +156,25 @@ local function CreatureTest(displayID)
   C_Timer.After(0.5, function() TryOwn(actor, tag) end)
 end
 
+-- /guildy modeltest bg: per race and class, which dressing room art the client has (Game/Gear.lua)
+local CLASSES = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }
+local function BackgroundTest()
+  local probe = UIParent:CreateTexture(nil, "BACKGROUND")
+  probe:Hide()
+  for _, raceID in ipairs(RACES) do
+    local raceFile = ns.GameGear.RACE_FILES[raceID]
+    local atlas = ns.GameGear.RaceAtlas(raceFile)
+    local tiles = ns.Try(probe.SetTexture, probe, ns.GameGear.TILES .. raceFile .. "1") == true
+    Say(("modeltest bg: %s: race atlas %s, tiles %s"):format(raceFile, atlas or "no", tiles and "yes" or "no"))
+  end
+  for _, classFile in ipairs(CLASSES) do
+    local atlas = ns.GameGear.Atlas("dressingroom-background-" .. classFile:lower())
+    Say(("modeltest bg: %s: class atlas %s"):format(classFile, atlas and "yes" or "no"))
+  end
+end
+
 function GearProbe.ModelTest(args)
+  if tostring(args or ""):match("^%s*bg%s*$") then return BackgroundTest() end
   local mode, number = tostring(args or ""):match("^%s*(%a+)%s+(%d+)")
   if mode == "scene" then return SceneTest(tonumber(number)) end
   if mode == "creature" then return CreatureTest(tonumber(number)) end
