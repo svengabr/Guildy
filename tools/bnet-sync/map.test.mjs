@@ -376,7 +376,7 @@ test('staticNamespaceOf reads the static namespace from the links of a profile a
 test('talentTrees places the listed trees by specialization ID, a missing tree counts 0 (druid 7/31/0)', () => {
   const r = specializations([7, 31, 0])
   assert.equal(r.specialization_groups[1].specializations.length, 2) // the API leaves the empty tree out
-  assert.deepEqual(talentTrees(r, null, DRUID_SPECS), { trees: [7, 31, 0], names: ['Gleichgewicht', 'Wilder Kampf', 'Wiederherstellung'] })
+  assert.deepEqual(talentTrees(r, null, DRUID_SPECS), { trees: [7, 31, 0], names: ['Gleichgewicht', 'Wilder Kampf', 'Wiederherstellung'], ids: [574, 134, 573] })
   assert.deepEqual(talentTrees(specializations([0, 0, 41]), null, DRUID_SPECS).trees, [0, 0, 41])
   assert.deepEqual(talentTrees(specializations([0, 0, 0]), null, DRUID_SPECS).trees, [0, 0, 0])
 })
@@ -408,9 +408,19 @@ test('talentTrees falls back to the tree names Guildy knows only without the cla
 })
 
 test('talentRecord mirrors Core/Talents.lua and the trees decide the spec there', () => {
-  assert.deepEqual(talentRecord(specializations([0, 31, 20]), 1800000000, null, DRUID_SPECS), { ts: 1800000000, src: 'api', trees: [0, 31, 20] })
+  assert.deepEqual(talentRecord(specializations([0, 31, 20]), 1800000000, null, DRUID_SPECS), { ts: 1800000000, src: 'api', trees: [0, 31, 20], spec: 134 })
   assert.equal(talentRecord(specializations([0, 101, 0]), 1, null, DRUID_SPECS), null) // more than a tree can hold
   assert.equal(talentRecord({}, 1), null)
+})
+
+test('talentRecord keeps the specialization ID of the tree with the most points', () => {
+  assert.equal(talentRecord(specializations([7, 31, 0]), 1, null, DRUID_SPECS).spec, 134)
+  assert.equal(talentRecord(specializations([0, 0, 41]), 1, null, DRUID_SPECS).spec, 573)
+  assert.equal(talentRecord(specializations([0, 0, 0]), 1, null, DRUID_SPECS).spec, undefined) // no points: no spec
+  // placed by the names Guildy knows: the IDs of the response
+  const byName = talentRecord(specializations([0, 31, 20]), 1, ['Gleichgewicht', 'Wilder Kampf', 'Wiederherstellung'])
+  assert.deepEqual(byName.trees, [0, 31, 20])
+  assert.equal(byName.spec, 134)
 })
 
 test('updateTalents writes only a newer record', () => {

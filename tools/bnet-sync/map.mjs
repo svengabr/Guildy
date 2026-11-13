@@ -504,22 +504,29 @@ export function talentTrees(response, known = null, specs = null) {
       if (at < 0) return null
       trees[at] = points(s)
     }
-    return { trees, names: specs.map(([, name]) => name) }
+    return { trees, names: specs.map(([, name]) => name), ids }
   }
   if (list.length === 0 || !Array.isArray(known) || known.length !== 3) return null
+  const ids = [null, null, null]
   for (const s of list) {
     const at = known.indexOf(typeof s?.specialization_name === 'string' ? s.specialization_name : '')
     if (at < 0) return null
     trees[at] = points(s)
+    if (Number.isInteger(s?.specialization?.id)) ids[at] = s.specialization.id
   }
-  return { trees, names: known }
+  return { trees, names: known, ids }
 }
 
-// Core/Talents.lua's record: { ts, src: 'api', trees }, null without three valid trees
+// Core/Talents.lua's record: { ts, src: 'api', trees, spec? }, null without three valid trees; spec is the
+// specialization ID of the tree with the most points (the first of a tie), left out without points
 export function talentRecord(response, ts, known = null, specs = null) {
   const found = talentTrees(response, known, specs)
   if (!found || !found.trees.every(p => Number.isInteger(p) && p >= 0 && p <= MAX_TREE_POINTS)) return null
-  return { ts, src: 'api', trees: found.trees }
+  const rec = { ts, src: 'api', trees: found.trees }
+  const top = Math.max(...found.trees)
+  const spec = top > 0 ? found.ids?.[found.trees.indexOf(top)] : null
+  if (Number.isInteger(spec) && spec > 0) rec.spec = spec
+  return rec
 }
 
 // Writes record into guild.talents[key] when it is newer than what is there; true when written
