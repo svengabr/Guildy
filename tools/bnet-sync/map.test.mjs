@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LuaTable, toLua } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey, gearRecord, updateGear, enchantTexts, craftItems, talentTrees, talentRecord, classSpecs, staticNamespaceOf, updateTalents, talentNames, knownTreeNames, CLASS_FILES } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, BOOK_SKILLS, GEAR, nameKey, slugOf, guildSlug, monthKey, gearRecord, updateGear, enchantTexts, craftItems, talentTrees, talentRecord, classSpecs, staticNamespaceOf, updateTalents, talentNames, knownTreeNames, CLASS_FILES, treeNamesLua, TREE_LOCALES } from './map.mjs'
 
 const item = (slot, level, quality, inv = slot) => ({ slot: { type: slot }, level: { value: level }, quality: { type: quality }, inventory_type: { type: inv } })
 
@@ -445,4 +445,25 @@ test('talentNames keeps the trees names per class, in the client language only',
   assert.deepEqual(knownTreeNames(db, 'DRUID', 'deDE'), ['Gleichgewicht', 'Wildheit', 'Wiederherstellung'])
   assert.equal(knownTreeNames(db, 'DRUID', 'enUS'), null)
   assert.equal(CLASS_FILES[11], 'DRUID')
+})
+
+test('treeNamesLua writes Core/TalentTreeNames.lua: spec IDs per class and tab, names per locale, class and tab', () => {
+  const byLocale = {
+    deDE: { DRUID: DRUID_SPECS, MAGE: [[62, 'Arkan'], [63, 'Feuer'], [64, 'Frost']] },
+    enUS: { DRUID: [[574, 'Balance'], [134, 'Feral "Combat"'], [573, 'Restoration']], MAGE: [[62, 'Arcane'], [63, 'Fire'], [64, 'Frost']] },
+  }
+  const lua = treeNamesLua(byLocale)
+  assert.match(lua, /^-- /)
+  assert.match(lua, /tools\/bnet-sync\/tree-names\.mjs/)
+  assert.match(lua, /local _, ns = \.\.\./)
+  assert.match(lua, /DRUID = \{ 574, 134, 573 \}/)
+  assert.match(lua, /MAGE = \{ 62, 63, 64 \}/)
+  assert.match(lua, /DRUID = \{ "Gleichgewicht", "Wilder Kampf", "Wiederherstellung" \}/)
+  assert.ok(lua.includes('"Feral \\"Combat\\""'), lua)
+  // classes by class ID (MAGE 8 before DRUID 11), locales in TREE_LOCALES order (deDE before enUS)
+  assert.ok(lua.indexOf('deDE') < lua.indexOf('enUS'))
+  assert.ok(lua.indexOf('MAGE = { "A') < lua.indexOf('DRUID = { "G'))
+  // spec IDs that differ between locales are an error
+  assert.throws(() => treeNamesLua({ deDE: { DRUID: DRUID_SPECS }, enUS: { DRUID: [[1, 'a'], [2, 'b'], [3, 'c']] } }))
+  assert.deepEqual(TREE_LOCALES, { deDE: 'de_DE', enUS: 'en_US', frFR: 'fr_FR', esES: 'es_ES', ruRU: 'ru_RU', ptBR: 'pt_BR' })
 })
