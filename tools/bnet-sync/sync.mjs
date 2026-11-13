@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Fills Guildy's SavedVariables with the guild members' data from the Battle.net profile API
-// (WoW Forever): statistics, equipment, reputation counts, dungeon kills and profession ranks.
+// (WoW Forever): statistics, equipment, reputation counts, dungeon kills, profession ranks and talent points.
 // Run it with the game closed; the game reads the file at its next start.
 //
 //   node --env-file=<file with BATTLENET_CLIENT_ID/SECRET> sync.mjs --sv <path to Guildy.lua> [--dry-run]
@@ -13,7 +13,7 @@ import { basename, dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parse, serialize, LuaTable } from './lua.mjs'
-import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes, gearRecord, updateGear, enchantTexts, craftItems } from './map.mjs'
+import { gearValues, statValues, professions, updateStats, updateProfessions, nameBridge, apiLocale, wantNames, localize, MAX_MISSING, BOOK_SKILLS, nameKey, slugOf, guildSlug, toBytes, fromBytes, gearRecord, updateGear, enchantTexts, craftItems, talentRecord, talentTrees, updateTalents, talentNames, knownTreeNames, CLASS_FILES } from './map.mjs'
 
 const args = process.argv.slice(2)
 const flag = name => args.includes(name)
@@ -139,7 +139,7 @@ async function craftedItem(id) {
 
 accessToken = await token()
 const now = Math.floor(Date.now() / 1000)
-const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, gear: 0, missing: [], failed: [] }
+const totals = { members: 0, added: 0, stats: 0, profs: 0, books: 0, partial: 0, bookCandidates: 0, gear: 0, talents: 0, missing: [], failed: [] }
 // the equipment in the client's language, so its enchant texts can go into Guildy's cache
 const CLIENT_LOCALE = typeof db.get('clientLocale') === 'string' ? db.get('clientLocale') : undefined
 const crafts = [] // [spellID, itemID] of the guild's books: what each recipe makes (GuildyDB.craftItems)
@@ -180,9 +180,18 @@ for (const guildKey of db.get('guilds').keys()) {
       const profile = await api(base)
       if (!profile?.last_login_timestamp) { totals.missing.push(key); return }
       const ts = Math.min(now, Math.floor(profile.last_login_timestamp / 1000))
-      const [stats, equipment, profs] = await Promise.all([
-        api(`${base}/achievements/statistics`), api(`${base}/equipment`, apiLocale(CLIENT_LOCALE)), api(`${base}/professions`, PROF_LOCALE)])
+      // talent points per tree: one request more per character; an endpoint this game version lacks is skipped
+      const [stats, equipment, profs, specs] = await Promise.all([
+        api(`${base}/achievements/statistics`), api(`${base}/equipment`, apiLocale(CLIENT_LOCALE)), api(`${base}/professions`, PROF_LOCALE),
+        api(`${base}/specializations`, apiLocale(CLIENT_LOCALE)).catch(() => null)])
       totals.members++
+      if (specs) {
+        const classFile = CLASS_FILES[profile.character_class?.id]
+        const known = knownTreeNames(db, classFile, CLIENT_LOCALE)
+        if (updateTalents(guild, key, talentRecord(specs, ts, known))) totals.talents++
+        const found = talentTrees(specs, known)
+        if (found) talentNames(db, classFile, found.names, CLIENT_LOCALE)
+      }
       if (stats && updateStats(member, statValues(stats), equipment ? gearValues(equipment) : {}, ts)) totals.stats++
       if (equipment) {
         if (updateGear(guild, key, gearRecord(equipment, profile, ts))) totals.gear++
@@ -225,7 +234,7 @@ for (const guildKey of db.get('guilds').keys()) {
 }
 
 console.log(`\n${totals.members} Charaktere gelesen (${requests} Anfragen), ${totals.added} neu aus dem Roster.`)
-console.log(`Statistiken/Ausrüstung aktualisiert: ${totals.stats}, Berufe aktualisiert: ${totals.profs}`)
+console.log(`Statistiken/Ausrüstung aktualisiert: ${totals.stats}, Berufe aktualisiert: ${totals.profs}, Talente aktualisiert: ${totals.talents}`)
 craftItems(db, crafts)
 const enchants = db.get('enchantText')?.get?.('names')?.keys?.().length ?? 0
 console.log(`Ausrüstung Stück für Stück: ${totals.gear} Charaktere, ${enchants} Verzauberungstexte, ${new Set(crafts.map(c => c[0])).size} Rezepte mit hergestelltem Gegenstand.`)

@@ -462,3 +462,72 @@ export function slugOf(key) {
 export function guildSlug(guildKey) {
   return fromBytes(guildKey).split('@')[0].trim().replace(/\s+/g, '-').toLowerCase()
 }
+
+// --- talent specs (Core/Talents.lua; not the profession specializations above) ----------------------
+// The API's class IDs as the client's class files
+export const CLASS_FILES = { 1: 'WARRIOR', 2: 'PALADIN', 3: 'HUNTER', 4: 'ROGUE', 5: 'PRIEST', 7: 'SHAMAN', 8: 'MAGE',
+  9: 'WARLOCK', 11: 'DRUID' }
+const MAX_TREE_POINTS = 100
+
+// The points per talent tree of the /specializations response: { trees: [p1, p2, p3], names }, null when
+// it has none. Assumed shape (not checked against a live answer): specialization_groups[] with is_active,
+// each with specializations[] of { specialization_name, spent_points, talents[] { talent_rank } } in the
+// game's tab order. A list of fewer than three trees is placed by the names Guildy knows for the class
+// (known: three names in the response's language), else nothing is taken.
+export function talentTrees(response, known = null) {
+  const groups = Array.isArray(response?.specialization_groups) ? response.specialization_groups : []
+  const group = groups.find(g => g?.is_active) ?? groups[0]
+  const list = Array.isArray(group?.specializations) ? group.specializations : null
+  if (!list || list.length === 0 || list.length > 3) return null
+  const points = s => Number.isInteger(s?.spent_points) ? s.spent_points
+    : (s?.talents ?? []).reduce((sum, t) => sum + (Number.isInteger(t?.talent_rank) ? t.talent_rank : 0), 0)
+  const names = list.map(s => typeof s?.specialization_name === 'string' ? s.specialization_name : '')
+  if (list.length === 3) return { trees: list.map(points), names }
+  if (!Array.isArray(known) || known.length !== 3) return null
+  const trees = [0, 0, 0]
+  for (const [i, s] of list.entries()) {
+    const at = known.indexOf(names[i])
+    if (at < 0) return null
+    trees[at] = points(s)
+  }
+  return { trees, names: known }
+}
+
+// Core/Talents.lua's record: { ts, src: 'api', trees }, null without three valid trees
+export function talentRecord(response, ts, known = null) {
+  const found = talentTrees(response, known)
+  if (!found || !found.trees.every(p => Number.isInteger(p) && p >= 0 && p <= MAX_TREE_POINTS)) return null
+  return { ts, src: 'api', trees: found.trees }
+}
+
+// Writes record into guild.talents[key] when it is newer than what is there; true when written
+export function updateTalents(guild, key, record) {
+  if (!record) return false
+  const book = guild.table('talents')
+  const have = book.get(key)
+  const stored = have instanceof LuaTable ? have.get('ts') : undefined
+  if (typeof stored === 'number' && stored >= record.ts) return false
+  book.set(key, toLua(record))
+  return true
+}
+
+// The trees' names of classFile into GuildyDB.talentNames ({ locale, classes = { [classFile] = names } },
+// Game/Talents.lua), only when locale (the language the response was asked in) is the client's
+export function talentNames(db, classFile, names, locale) {
+  if (typeof locale !== 'string' || db.get('clientLocale') !== locale || !classFile) return
+  if (!Array.isArray(names) || names.length !== 3 || names.some(n => typeof n !== 'string' || n === '')) return
+  let cache = db.get('talentNames')
+  if (!(cache instanceof LuaTable) || cache.get('locale') !== locale || !(cache.get('classes') instanceof LuaTable)) {
+    cache = toLua({ locale, classes: {} })
+    db.set('talentNames', cache)
+  }
+  cache.get('classes').set(classFile, toLua(names.map(toBytes)))
+}
+
+// The trees' names Guildy keeps for classFile in locale, null when none
+export function knownTreeNames(db, classFile, locale) {
+  const cache = db?.get?.('talentNames')
+  if (!(cache instanceof LuaTable) || cache.get('locale') !== locale) return null
+  const names = cache.get('classes')?.get?.(classFile)
+  return names instanceof LuaTable && names.arr.length === 3 ? names.arr.map(fromBytes) : null
+}

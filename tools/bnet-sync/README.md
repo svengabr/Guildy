@@ -26,14 +26,16 @@ writing, it saves a backup next to the file as `Guildy.lua.bnet-<time>.bak` and 
 
 The script reads every guild in GuildyDB. For each one it fetches the roster from the API: members
 at level 10 or above are added, and lower levels are skipped because the API has no profile for
-them. Your own characters (`ownChars`) are skipped. Each character costs 4 requests: profile,
-`/achievements/statistics`, `/equipment` and `/professions`.
+them. Your own characters (`ownChars`) are skipped. Each character costs 5 requests: profile,
+`/achievements/statistics`, `/equipment`, `/professions` and `/specializations` (skipped quietly where
+the game version lacks it).
 
 | Guildy | From the API |
 |---|---|
 | `stats.v`: Blizzard statistics (kills, deaths, quests, dungeon end bosses, reputation counts 931/1466/529/378/377, …) | `/achievements/statistics` |
 | `stats.v`: equipment (item level, quality counts, quality per slot, the `Stats.GEAR` IDs) | `/equipment`, computed like `Stats.ReadGear` |
 | `gear[nameKey]`: the gear item by item (item ID, enchant ID, item level, quality; race and gender for the model), `src = "api"` | `/equipment` and the profile; the suffix ID stays 0 (not found in the response), so each item also gets `st`, its stats as the response lists them (random suffix included) in the client's `ITEM_MOD_*_SHORT` keys, which Guildy takes for the worn item |
+| `talents[nameKey]`: the talent points per tree (`trees = { p1, p2, p3 }`, tab order), `src = "api"`; `talentNames`: the trees' names per class in the client's language | `/specializations` (asked in `clientLocale`): the active `specialization_groups[]` entry, its `specializations[]` `specialization_name` and `spent_points` (else the sum of `talents[].talent_rank`). The shape is assumed, not checked against a live answer |
 | `enchantText`: the enchant texts in the client's language, the part after the first ": " | `/equipment` `enchantments[].display_string`, asked in `clientLocale` |
 | `craftItems`: what each recipe of the guild's books makes, for names the bridge turns into exactly one spell | the static recipe entries (`crafted_item`), cached in `out/recipe-items.json` |
 | `profs[skillLine]`: rank and max | `/professions` |
