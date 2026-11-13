@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0
+
+- New: a banner when a guild member reaches level 60. A dark band across the upper middle of the screen
+  with a gold seal showing the 60, under it the name, large and in the class colour, with the game's
+  level-up sound, whether or not Guildy's window is open. It works for every member, with or without
+  Guildy. `/guildy ding` shows it for your own character.
+- Guildy also says it in guild chat, once: of all Guildy users online only the one who notices first
+  sends the line.
+- Both can be switched off under Options, General.
+- For this Guildy asks the game for the guild roster every 30 seconds, so the tabs are also more up to
+  date than before.
+- Fixed: the bank's ledger lists only the days chosen in the toolbar.
+
 ## 1.6.2
 
 - Fixed: much of what Guildy users share with each other never arrived. The game lets an addon send ten
