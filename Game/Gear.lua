@@ -96,7 +96,8 @@ function GameGear.ReadOwn()
   local links, ids = ReadLinks("player")
   if not links then return end
   local items = G.FromLinks(links, ids, LinkInfo)
-  if not items then return end
+  -- nothing at all equipped is far more often a client that has not loaded the inventory yet
+  if not items or not next(items) then return end
   local race, sex = RaceSex("player")
   local key = ns.Names.Key(ns.PlayerName())
   local book = Book(guild)

@@ -2277,4 +2277,52 @@ T.describe("Gear", function()
     env.SlashCmdList.GUILDY("gearshow Au Tsch")
     T.eq(errors, {})
   end)
+
+  T.it("shares gear with the guild", function()
+    local P, guild, now = ns.Protocol, ns.GuildData(), ns.Now()
+    local function Receive(kind, data, sender, id)
+      for _, part in ipairs(P.Chunk(id, P.Encode(kind, data))) do Fire("CHAT_MSG_ADDON", "GUILDY", part, "GUILD", sender) end
+    end
+    Receive("GEAR", { m = "Makira Farron", g = { ts = now, src = "self", r = 4, x = 3, i = { "5:12345:1887:0:52:3" } } }, "Makira-Farron", "g1")
+    T.eq(guild.gear["makira farron"].items[5].e, 1887)
+    T.eq(guild.gear["makira farron"].src, "self")
+    T.eq(guild.gear["makira farron"].race, 4)
+    -- "self" from someone else is a relay
+    Receive("GEAR", { m = "Makira Farron", g = { ts = now + 1, src = "self", i = { "5:12345:0:0:52:3" } } }, "Au-Tsch", "g2")
+    T.eq(guild.gear["makira farron"].src, "relay")
+    -- nobody outside the guild
+    Receive("GEAR", { m = "Not In Guild", g = { ts = now, src = "seen", i = { "1:1:0:0:1:1" } } }, "Au-Tsch", "g3")
+    T.eq(guild.gear["not in guild"], nil)
+    -- a relayed copy of the own gear of the same time never replaces it
+    local own = guild.gear["ran fred"]
+    Receive("GEAR", { m = "Ran Fred", g = { ts = own.ts, src = "seen", i = { "1:1:0:0:1:1" } } }, "Au-Tsch", "g4")
+    T.truthy(guild.gear["ran fred"] == own, "own record kept")
+    -- what Guildy sends
+    local sent = {}
+    local encode = P.Encode
+    P.Encode = function(kind, data, version)
+      sent[kind] = data
+      return encode(kind, data, version)
+    end
+    guild.gear["old member"] = { ts = now - 61 * 86400, src = "seen", items = {} }
+    ns.Sync.SendSummary()
+    T.eq(sent.SUM.g["makira farron"], now + 1)
+    T.eq(sent.SUM.g["old member"], nil)
+    guild.gear["old member"] = nil
+    ns.Sync.ShareGear("ran fred")
+    T.eq(sent.GEAR.m, "Ran Fred")
+    T.truthy(#sent.GEAR.g.i > 0, "slot strings sent")
+    sent.GEAR = nil
+    ns.Settings().share = false
+    ns.Sync.ShareGear("ran fred")
+    T.eq(sent.GEAR, nil)
+    ns.Settings().share = true
+    -- a summary that knows older gear of Au: offered after a while (what was seen on the channel is not)
+    guild.gear["au tsch"] = { ts = now + 5, src = "seen", items = { [1] = { id = 1, e = 0, s = 0, l = 1, q = 1 } } }
+    Receive("SUM", { d = {}, g = { ["au tsch"] = now - 100, ["makira farron"] = now - 100 } }, "Makira-Farron", "g5")
+    RunTimers()
+    T.eq(sent.GEAR and sent.GEAR.m, "Au Tsch")
+    P.Encode = encode
+    T.eq(errors, {})
+  end)
 end)

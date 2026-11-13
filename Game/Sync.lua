@@ -15,6 +15,9 @@
 --   SUM also carries c = {nameKey = ts}, CD {m = name, c = {ts, cd = {{spellID, readyAt}, ...}}}
 --   (Core/Cooldowns.lua): a character's profession cooldowns as read in the game. Own ones are sent only
 --   with settings.share, others are relayed like the rest.
+--   SUM also carries g = {nameKey = ts}, GEAR {m = name, g = {ts, src, r, x, i = {"slot:id:e:s:l:q", ...}}}
+--   (Core/Gear.lua): a member's gear item by item, own or read nearby, records younger than 60 days.
+--   Own gear only with settings.share; older Guildy versions have no handler for GEAR and drop it.
 --   HI   {q = true}                         "I use Guildy" (q: please answer); every envelope since 0.3
 --   carries the sender's addon version (v), so any message marks its sender as a Guildy user.
 -- On a SUM, everyone who knows newer data about some member offers it after a random delay, unless
@@ -42,6 +45,7 @@ local seen = {}          -- nameKey -> newest ts seen on the channel (to skip du
 local seenStats = {}     -- same for statistics
 local seenFamilies = {}  -- same for families
 local seenCooldowns = {} -- same for cooldowns
+local seenGear = {}      -- same for gear
 local seenBank, bankMessages = 0, 0 -- newest bank reading seen on the channel, how many of them
 local joinMessages = 0   -- JOIN messages seen on the channel
 local joinOffered = {}   -- nameKey of a member -> the state of my dates I offered on their summary
@@ -184,7 +188,7 @@ function Sync.SendSummary()
     -- (b also when nothing of the bank is known yet: "I can take it", so someone offers it)
     Send("SUM", { d = P.Digest(guild), s = ns.Stats.Digest(guild), f = ns.Family.Digest(guild),
       b = ns.Bank.Digest(guild.bank) or { at = 0, ts = 0, n = 0 }, j = ns.Tenure.Digest(guild.joined),
-      c = ns.Cooldowns.Digest(guild.cooldowns, ns.Now()) })
+      c = ns.Cooldowns.Digest(guild.cooldowns, ns.Now()), g = ns.Gear.Digest(guild.gear, ns.Now()) })
   end
 end
 
@@ -261,6 +265,24 @@ end
 -- Cooldowns of a character changed (the own ones, read in the game): share them
 function Sync.ShareCooldowns(key)
   SendCooldowns(key)
+end
+
+-- A member's gear (own gear only with settings.share)
+local function SendGear(key)
+  local guild = ns.GuildData()
+  local rec = guild and type(guild.gear) == "table" and guild.gear[key]
+  if type(rec) ~= "table" or type(rec.ts) ~= "number" or type(rec.items) ~= "table" then return end
+  if ns.Now() - rec.ts > ns.Gear.MAX_AGE then return end
+  if IsOwnKey(key) and not ns.Settings().share then return end
+  local member, m = guild.members[key], ns.Roster.Find(key)
+  local name = (member and member.name) or (m and ns.Names.Normalize(m.fullName)) or key
+  Send("GEAR", { m = name, g = ns.Gear.Wire(rec) })
+  seenGear[key] = math.max(seenGear[key] or 0, rec.ts)
+end
+
+-- Gear of a member changed (own or read nearby): share it
+function Sync.ShareGear(key)
+  SendGear(key)
 end
 
 local function SendStats(key)
@@ -345,6 +367,19 @@ local function OnSummary(data, sender)
       C_Timer.After(10 + math.random() * 8 + i * 0.5, function()
         if (seenCooldowns[key] or 0) >= myTs then return end
         SendCooldowns(key)
+      end)
+    end
+  end
+  -- gear the same way, behind the statistics (a Guildy before it sends no g)
+  if type(data.g) == "table" then
+    local myGear = ns.Gear.Digest(guild.gear, ns.Now())
+    local gearOffers = P.Outdated(myGear, data.g)
+    for i = 1, math.min(#gearOffers, MAX_OFFERS) do
+      local key = gearOffers[i]
+      local myTs = myGear[key]
+      C_Timer.After(12 + math.random() * 8 + i * 0.5, function()
+        if (seenGear[key] or 0) >= myTs then return end
+        SendGear(key)
       end)
     end
   end
@@ -437,6 +472,23 @@ local function OnCooldowns(data)
   seenCooldowns[key] = math.max(seenCooldowns[key] or 0, rec.ts)
   if type(guild.cooldowns) ~= "table" then guild.cooldowns = {} end
   if ns.Cooldowns.Merge(guild.cooldowns, key, rec) then ns.Fire("PROFS") end
+end
+
+local function OnGear(data, sender)
+  local guild = ns.GuildData()
+  if not guild or (ns.Anon and ns.Anon.on) or type(data.m) ~= "string" then return end
+  if not ns.Roster.IsMember(data.m) and #ns.Roster.Members() > 0 then return end
+  local rec = ns.Gear.Validate(data.g, ns.Now())
+  if not rec then return end
+  if ns.Names.Same(sender, data.m) then
+    rec.src = "self"
+  elseif rec.src == "self" then
+    rec.src = "relay"
+  end
+  local key = ns.Names.Key(data.m)
+  seenGear[key] = math.max(seenGear[key] or 0, rec.ts)
+  if type(guild.gear) ~= "table" then guild.gear = {} end
+  if ns.Gear.Merge(guild.gear, key, rec) then ns.Fire("GEAR") end
 end
 
 local function OnJoined(data)
@@ -553,7 +605,7 @@ local function OnHello(data)
 end
 
 local HANDLERS = { SUM = OnSummary, PROF = OnProfessions, STAT = OnStats, FAM = OnFamily, BANK = OnBank, JOIN = OnJoined, CD = OnCooldowns,
-  HI = OnHello }
+  GEAR = OnGear, HI = OnHello }
 
 -- CHAT_MSG_ADDON: prefix, text, channel, sender
 function Sync.OnAddonMessage(prefix, text, channel, sender)
