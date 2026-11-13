@@ -4,10 +4,11 @@
 --   member.seen = { [day] = true }      -- days (Activity.Day) on which this client saw the member online
 --   guild.seenSince = day               -- the day this client began to count
 --   guild.pulse = { ["2026-11"] = 74 }  -- the pulse last computed in each month
--- The score has three parts (Activity.MAX): presence (days online a week), playing (kills, quests) and
--- group play, one pot of points for raid bosses, dungeon bosses, dungeon runs and battlegrounds, so a
--- player reaches its top by raiding, by dungeons alone or by PvP alone. Playing and group play are bent
--- by a saturating curve. A player without a current reading has no score, never a low one.
+-- The score has two parts (Activity.MAX): presence (days online a week) and playing, one pot for
+-- everything a player does: kills, honorable kills, quests, dungeon runs, dungeon bosses, raid bosses and
+-- battlegrounds. Each is worth units (Activity.UNITS) so that the same play time brings about the same
+-- units, and the units are bent by a saturating curve: a player reaches the top by questing alone, by
+-- dungeons, by raiding or by PvP. A player without a current reading has no score, never a low one.
 local _, ns = ...
 
 local Activity = {}
@@ -16,10 +17,15 @@ ns.Activity = Activity
 local DAY = 86400
 
 Activity.DAYS_KEPT = 60
-Activity.MAX = { presence = 30, playing = 25, group = 45 }
-Activity.GROUP_POINTS = { raidBosses = 10, dungeonBosses = 3, dungeons = 1, battlegrounds = 3 } -- per event
-Activity.K_GROUP = 30    -- group points a week that fill 63 % of the group part
-Activity.K_PLAYING = 5   -- the same for playing, in (kills + 5 x honorable kills) / 100 + quests / 2
+Activity.MAX = { presence = 30, playing = 70 }
+-- Units of play per event, so that an hour brings about 12 whatever it is spent on: questing (some ten
+-- quests and 120 kills), a dungeon run (entered once, its end boss killed, the kills inside), two
+-- battlegrounds with some 20 honorable kills. The boss statistics count a dungeon's or raid's end boss
+-- only (Stats.DUNGEONS), so a raid boss is a whole raid, worth an evening. Measured on a guild of 99
+-- (2026-11): the same weekly play then lands in the same band, solo or in groups.
+Activity.UNITS = { quests = 1, kills = 0.02, honorKills = 0.2, dungeons = 3, dungeonBosses = 6, raidBosses = 25,
+  battlegrounds = 4 }
+Activity.K = 80 -- units a week (some seven hours of play) that fill 63 % of the playing part
 Activity.FULL_PRESENCE = 5 -- days a week for the whole presence part
 Activity.MIN_SPAN = 3      -- days between snapshot and reading below which there are no rates
 Activity.CURRENT_DAYS = 7  -- a reading this young is current whatever the member did since
@@ -160,21 +166,27 @@ local function Curve(max, x, k)
   return max * (1 - math.exp(-x / k))
 end
 
--- Score 0-100 and its parts { presence, playing, group } in points, from weekly rates (of one character
--- or added up over a player's) and the days online a week. Without presence (days not counted long
--- enough) the other two parts are scaled up to 100.
+-- Units of play a week from weekly rates: the total and { [source] = units } for each of Activity.UNITS
+function Activity.Units(rates)
+  local total, by = 0, {}
+  for name, worth in pairs(Activity.UNITS) do
+    by[name] = (tonumber(rates[name]) or 0) * worth
+    total = total + by[name]
+  end
+  return total, by
+end
+
+-- Score 0-100 and its parts { presence, playing } in points, from weekly rates (of one character or
+-- added up over a player's) and the days online a week. Without presence (days not counted long enough)
+-- playing is scaled up to 100.
 function Activity.Score(rates, presence)
   local max = Activity.MAX
-  local points = 0
-  for name, worth in pairs(Activity.GROUP_POINTS) do points = points + (rates[name] or 0) * worth end
   local parts = {
     presence = presence and max.presence * math.min(1, presence / Activity.FULL_PRESENCE) or 0,
-    playing = Curve(max.playing, ((rates.kills or 0) + 5 * (rates.honorKills or 0)) / 100 + (rates.quests or 0) / 2,
-      Activity.K_PLAYING),
-    group = Curve(max.group, points, Activity.K_GROUP),
+    playing = Curve(max.playing, (Activity.Units(rates)), Activity.K),
   }
-  local sum = parts.presence + parts.playing + parts.group
-  if not presence then sum = sum * 100 / (max.playing + max.group) end
+  local sum = parts.presence + parts.playing
+  if not presence then sum = sum * 100 / max.playing end
   return math.min(100, math.floor(sum + 0.5)), parts
 end
 
@@ -234,11 +246,12 @@ local function ScorePlayer(player, recordOf, now, date, since)
     fade, awayDays = keep, away
   end
   player.score, player.parts = score, parts
-  -- what the score was made of, for the character page's tooltip
+  -- what the score was made of, for the character page's panel: the weekly rates and the units of each
   local summed = {}
   for name in pairs(COUNTS) do summed[name] = sum[name] or 0 end
-  player.detail = { rates = summed, presence = presence, scaled = presence == nil, fade = fade, away = awayDays,
-    chars = chars, fromDay = sum.fromDay, toDay = sum.toDay }
+  local _, units = Activity.Units(summed)
+  player.detail = { rates = summed, units = units, presence = presence, scaled = presence == nil, fade = fade,
+    away = awayDays, chars = chars, fromDay = sum.fromDay, toDay = sum.toDay }
 end
 
 -- The players of a roster: a main with its twinks is one (mains = Family.Mains: { [key] = mainKey }), a

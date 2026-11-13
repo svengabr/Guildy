@@ -47,8 +47,9 @@
 - A member whose gear Guildy has not seen yet gets one clear message in the gear box instead of empty
   slot rows.
 - New: the activity score has a tile on the character page. Its tooltip explains how the score is made:
-  presence, playing and group play with what fed each of them per week, which characters count, and the
-  time it covers.
+  presence and playing with what fed each of them per week, which characters count, and the time it
+  covers.
+- Solo play now counts as much as group play in the activity score.
 - The dungeon collection left the character page (it stays in the Hall of Fame), and so did the medals.
 - `/guildy gearshow [name]` lists what Guildy knows of a member's gear, for checking.
 - Fixed: on the Professions tab a skill like 278/300 broke into two lines.

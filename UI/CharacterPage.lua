@@ -374,9 +374,11 @@ local PANEL_IN = PANEL_W - 2 * PANEL_PAD
 local GREY = 0.68
 local PARTS = {
   { key = "presence", title = "SCORE_PRESENCE", explain = "SCORE_PRESENCE_EXPLAIN", rows = 1 },
-  { key = "playing", title = "SCORE_PLAYING", explain = "SCORE_PLAYING_EXPLAIN", rows = 3 },
-  { key = "group", title = "SCORE_GROUP", explain = "SCORE_GROUP_EXPLAIN", rows = 4 },
+  -- a row for each source of Activity.UNITS, in this order, with its share of the units
+  { key = "playing", title = "SCORE_PLAYING", explain = "SCORE_PLAYING_EXPLAIN", rows = 7,
+    sources = { "kills", "honorKills", "quests", "dungeons", "dungeonBosses", "raidBosses", "battlegrounds" } },
 }
+PARTS.SHARE_W = 40 -- the column of a source's share of the units, left of its weekly value
 local NOTE_COLORS = { scaled = { 1, 0.82, 0 }, faded = { 1, 0.5, 0.25 } }
 
 local function Grey(text)
@@ -493,7 +495,9 @@ local function BuildScorePanel()
       label:SetWordWrap(false)
       local value = W.Text(block, "GameFontHighlight")
       value:SetJustifyH("RIGHT")
-      block.Rows[i] = { Label = label, Value = value }
+      local share = Grey(W.Text(block, "GameFontHighlightSmall"))
+      share:SetJustifyH("RIGHT")
+      block.Rows[i] = { Label = label, Value = value, Share = share }
     end
     panel.Blocks[part.key] = block
   end
@@ -1350,9 +1354,9 @@ local function Build()
     tile.Line:SetTextColor(BucketColor(bucket))
   end
 
-  -- The score panel under the tile owner: the score on its scale, the three parts with their bars and
-  -- what fed them, notes where the score is scaled or fading, whose and which days it covers. Laid out
-  -- top-down; its height follows from what it shows.
+  -- The score panel under the tile owner: the score on its scale, the two parts with their bars and
+  -- what fed them (each source of playing with its share of the units), notes where the score is scaled
+  -- or fading, whose and which days it covers. Laid out top-down; its height follows from what it shows.
   function page:ShowScorePanel(owner)
     local panel = rawget(self, "ScorePanel") or BuildScorePanel()
     self.ScorePanel = panel
@@ -1414,20 +1418,32 @@ local function Build()
     panel.Intro:SetPoint("TOPLEFT", PANEL_PAD, -y)
     y = y + TextHeight(panel.Intro, PANEL_IN) + 8
 
-    -- the three parts
-    local P = A.GROUP_POINTS
+    -- the two parts
     local explain = {
       presence = L.SCORE_PRESENCE_EXPLAIN:format(A.FULL_PRESENCE, max.presence),
       playing = L.SCORE_PLAYING_EXPLAIN:format(max.playing),
-      group = L.SCORE_GROUP_EXPLAIN:format(P.raidBosses, P.dungeonBosses, P.dungeons),
     }
     local rows = {
       presence = { { L.SCORE_ROW_DAYS, d.presence and L.SCORE_DAYS_OF:format(Weekly(d.presence)) or L.SCORE_PRESENCE_UNCOUNTED } },
-      playing = { { L.SCORE_ROW_KILLS, Weekly(rates.kills) }, { L.SCORE_ROW_HONOR, Weekly(rates.honorKills) },
-        { L.SCORE_ROW_QUESTS, Weekly(rates.quests) } },
-      group = { { L.SCORE_ROW_RAID_BOSSES, Weekly(rates.raidBosses) }, { L.SCORE_ROW_DUNGEON_BOSSES, Weekly(rates.dungeonBosses) },
-        { L.SCORE_ROW_DUNGEONS, Weekly(rates.dungeons) }, { L.SCORE_ROW_BATTLEGROUNDS, Weekly(rates.battlegrounds) } },
+      playing = {},
     }
+    -- each source's share of the units: none where it brought nothing, "<1" where it brought a little
+    local labels = { kills = L.SCORE_ROW_KILLS, honorKills = L.SCORE_ROW_HONOR, quests = L.SCORE_ROW_QUESTS,
+      dungeons = L.SCORE_ROW_DUNGEONS, dungeonBosses = L.SCORE_ROW_DUNGEON_BOSSES, raidBosses = L.SCORE_ROW_RAID_BOSSES,
+      battlegrounds = L.SCORE_ROW_BATTLEGROUNDS }
+    local units = type(d.units) == "table" and d.units or select(2, A.Units(rates))
+    local total = 0
+    local sources = PARTS[2].sources
+    for _, source in ipairs(sources) do total = total + (tonumber(units[source]) or 0) end
+    for i, source in ipairs(sources) do
+      local own = tonumber(units[source]) or 0
+      local share = ""
+      if total > 0 and own > 0 then
+        local percent = math.floor(own / total * 100 + 0.5)
+        share = percent < 1 and L.SCORE_SHARE_SMALL or L.SCORE_SHARE:format(percent)
+      end
+      rows.playing[i] = { labels[source], Weekly(rates[source]), share }
+    end
     for i, part in ipairs(PARTS) do
       local block, key = panel.Blocks[part.key], part.key
       local top = y
@@ -1475,6 +1491,10 @@ local function Build()
         row.Label:SetWidth(PANEL_IN - 120)
         row.Value:ClearAllPoints()
         row.Value:SetPoint("TOPRIGHT", -PANEL_PAD, -by)
+        row.Share:SetText(entry[3] or "")
+        row.Share:ClearAllPoints()
+        row.Share:SetPoint("TOPRIGHT", -(PANEL_PAD + 120 - PARTS.SHARE_W), -by - 1)
+        row.Share:SetWidth(PARTS.SHARE_W)
         by = by + 13
       end
       block:ClearAllPoints()
@@ -1486,10 +1506,8 @@ local function Build()
     -- the notes, each only where it applies
     local notes = {}
     if d.scaled then
-      local playing, group = Points(parts.playing), Points(parts.group)
-      local total = max.playing + max.group
-      local made = math.min(100, math.floor(((tonumber(parts.playing) or 0) + (tonumber(parts.group) or 0)) * 100 / total + 0.5))
-      notes.scaled = L.SCORE_NOTE_SCALED:format(A.MIN_COUNTED, playing, group, playing + group, total, made)
+      local made = math.min(100, math.floor((tonumber(parts.playing) or 0) * 100 / max.playing + 0.5))
+      notes.scaled = L.SCORE_NOTE_SCALED:format(A.MIN_COUNTED, Points(parts.playing), max.playing, made)
     end
     if type(d.fade) == "number" then
       notes.faded = L.SCORE_NOTE_FADED:format(math.floor(tonumber(d.away) or 0), A.FADE_FROM, A.GONE_DAYS,

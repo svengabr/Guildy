@@ -2548,7 +2548,7 @@ T.describe("Activity score on the character page", function()
   end
 
   T.it("shows the score panel when the mouse enters the tile and hides it on leave", function()
-    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel, page)
+    WithScore(60, { presence = 15, playing = 45 }, Detail(), function(panel, page)
       T.truthy(panel and panel:IsShown(), "shown on enter")
       page.Tiles.score:GetScript("OnLeave")(page.Tiles.score)
       T.truthy(not panel:IsShown(), "hidden on leave")
@@ -2564,7 +2564,7 @@ T.describe("Activity score on the character page", function()
     env.BreakUpLargeNumbers = function(n) return (tostring(n):reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")) end
     local rates = { kills = 5474, honorKills = 4.6, quests = 436, raidBosses = 0, dungeonBosses = 7.3, dungeons = 19,
       battlegrounds = 0.04 }
-    WithScore(84, { presence = 0, playing = 25, group = 34 }, Detail({ rates = rates, presence = 3 }), function(_, _, text)
+    WithScore(84, { presence = 0, playing = 59 }, Detail({ rates = rates, presence = 3 }), function(_, _, text)
       local mark = L.DECIMAL_MARK
       T.truthy(text:find("5.474", 1, true), "thousands marked: " .. text)
       T.truthy(text:find("7" .. mark .. "3", 1, true), "a decimal below 10 stays")
@@ -2574,51 +2574,73 @@ T.describe("Activity score on the character page", function()
     end)
     env.BreakUpLargeNumbers = big
     local week = L.SCORE_PER_WEEK
-    for _, key in ipairs({ "SCORE_ROW_DAYS", "SCORE_PRESENCE_EXPLAIN", "SCORE_PLAYING_EXPLAIN", "SCORE_GROUP_EXPLAIN" }) do
+    for _, key in ipairs({ "SCORE_ROW_DAYS", "SCORE_PRESENCE_EXPLAIN", "SCORE_PLAYING_EXPLAIN" }) do
       T.truthy(not L[key]:find(week, 1, true), key .. " repeats " .. week)
     end
     T.eq(errors, {})
   end)
 
-  T.it("fills the three bars of the score panel to points over max", function()
-    WithScore(63, { presence = 15, playing = 25, group = 22.5 }, Detail(), function(panel)
-      for name, share in pairs({ presence = 0.5, playing = 1, group = 0.5 }) do
+  T.it("fills the two bars of the score panel to points over max", function()
+    WithScore(50, { presence = 15, playing = 35 }, Detail(), function(panel)
+      for name, share in pairs({ presence = 0.5, playing = 0.5 }) do
         local block = panel.Blocks[name]
         T.truthy(block:IsShown(), name .. " shown")
         local fill = block.Fill:GetWidth() / block.Track:GetWidth()
         T.truthy(math.abs(fill - share) < 0.01, name .. " fill " .. fill)
       end
+      T.eq(panel.Blocks.group, nil)
+    end)
+    T.eq(errors, {})
+  end)
+
+  T.it("lists every source under playing, each with its share of the units", function()
+    local rates = { kills = 1000, honorKills = 0, quests = 40, raidBosses = 0, dungeonBosses = 0, dungeons = 0,
+      battlegrounds = 0 }
+    WithScore(70, { presence = 30, playing = 40 }, Detail({ rates = rates }), function(panel, _, text)
+      local block = panel.Blocks.playing
+      T.eq(#block.Rows, 7)
+      T.truthy(text:find(L.SCORE_PLAYING_EXPLAIN:format(70), 1, true), "the one-line explanation")
+      for _, key in ipairs({ "SCORE_ROW_KILLS", "SCORE_ROW_HONOR", "SCORE_ROW_QUESTS", "SCORE_ROW_DUNGEONS",
+        "SCORE_ROW_DUNGEON_BOSSES", "SCORE_ROW_RAID_BOSSES", "SCORE_ROW_BATTLEGROUNDS" }) do
+        T.truthy(text:find(L[key], 1, true), key)
+      end
+      -- 1000 kills and 40 quests: the shares of the units, the rest none
+      local total, by = ns.Activity.Units(rates)
+      local kills = math.floor(by.kills / total * 100 + 0.5)
+      T.eq(block.Rows[1].Share:GetText(), L.SCORE_SHARE:format(kills))
+      T.eq(block.Rows[3].Share:GetText(), L.SCORE_SHARE:format(100 - kills))
+      T.eq(block.Rows[2].Share:GetText(), "")
     end)
     T.eq(errors, {})
   end)
 
   T.it("explains the scaled score with its sum, only when scaled", function()
-    local parts = { presence = 0, playing = 25, group = 33.8 }
+    local parts = { presence = 0, playing = 58.8 }
     WithScore(84, parts, Detail({ scaled = true, presence = false }), function(panel, _, text)
       T.truthy(panel.Notes.scaled:IsShown(), "the scaled note")
       local note = panel.Notes.scaled.Text:GetText()
-      T.eq(note, L.SCORE_NOTE_SCALED:format(7, 25, 34, 59, 70, 84))
+      T.eq(note, L.SCORE_NOTE_SCALED:format(7, 59, 70, 84))
       T.truthy(text:find(L.SCORE_PRESENCE_UNCOUNTED, 1, true), "presence not counted yet")
     end)
-    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel)
+    WithScore(60, { presence = 15, playing = 45 }, Detail(), function(panel)
       T.truthy(not panel.Notes.scaled:IsShown(), "no scaled note")
     end)
     T.eq(errors, {})
   end)
 
   T.it("explains a faded score, only when it faded", function()
-    WithScore(47, { presence = 12, playing = 15, group = 20 }, Detail({ fade = 0.78, away = 9 }), function(panel)
+    WithScore(47, { presence = 12, playing = 35 }, Detail({ fade = 0.78, away = 9 }), function(panel)
       T.truthy(panel.Notes.faded:IsShown(), "the fade note")
       T.eq(panel.Notes.faded.Text:GetText(), L.SCORE_NOTE_FADED:format(9, 3, 30, 78))
     end)
-    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel)
+    WithScore(60, { presence = 15, playing = 45 }, Detail(), function(panel)
       T.truthy(not panel.Notes.faded:IsShown(), "no fade note")
     end)
     T.eq(errors, {})
   end)
 
   T.it("draws the score panel opaque", function()
-    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel)
+    WithScore(60, { presence = 15, playing = 45 }, Detail(), function(panel)
       local _, _, _, alpha = panel:GetBackdropColor()
       T.eq(alpha, 1)
     end)
@@ -2626,7 +2648,7 @@ T.describe("Activity score on the character page", function()
   end)
 
   T.it("sets the score panel apart from the page: brighter border, darker ground, a shadow", function()
-    WithScore(60, { presence = 15, playing = 20, group = 25 }, Detail(), function(panel, page)
+    WithScore(60, { presence = 15, playing = 45 }, Detail(), function(panel, page)
       local pr, pg, pb = panel:GetBackdropBorderColor()
       local br, bg, bb = page.Gear:GetBackdropBorderColor()
       T.truthy(pr + pg + pb > (br + bg + bb) * 1.25, ("border %.2f vs page %.2f"):format(pr + pg + pb, br + bg + bb))
@@ -2641,7 +2663,7 @@ T.describe("Activity score on the character page", function()
   T.it("grows the score panel with its notes", function()
     local heights = {}
     for i, fields in ipairs({ {}, { scaled = true, presence = false }, { scaled = true, presence = false, fade = 0.5, away = 16 } }) do
-      WithScore(60, { presence = 0, playing = 20, group = 25 }, Detail(fields), function(panel)
+      WithScore(60, { presence = 0, playing = 45 }, Detail(fields), function(panel)
         heights[i] = panel:GetHeight()
       end)
     end
@@ -2668,7 +2690,7 @@ T.describe("Activity score on the character page", function()
       w.RunTimers()
       w.env.CommunitiesFrame:Show()
       w.ns.GameActivity.ScoreOf = function()
-        return 84, { presence = 0, playing = 25, group = 33.8 },
+        return 84, { presence = 0, playing = 58.8 },
           Detail({ scaled = true, presence = false, fade = 0.78, away = 9, chars = { "ran fred", "au tsch", "makira farron" } })
       end
       w.ns.UI.ShowMember(w.ns.Roster.Find("Ran Fred"))
@@ -2709,7 +2731,8 @@ T.describe("Activity score on the character page", function()
     ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
     local page = ns.UI.MemberPage()
     local text = Tooltip(page)
-    for _, part in ipairs({ "/ 30", "/ 25", "/ 45" }) do T.truthy(text:find(part, 1, true), "part " .. part) end
+    for _, part in ipairs({ "/ 30", "/ 70" }) do T.truthy(text:find(part, 1, true), "part " .. part) end
+    T.truthy(not text:find("/ 45", 1, true) and not text:find("/ 25", 1, true), "no third part")
     T.truthy(page.ScorePanel.Window:GetText():find(L.SCORE_WINDOW:match("^[^%%]*"), 1, true), "the window line")
     T.truthy(page.ScorePanel.Window:GetText():find("(", 1, true), "the window's days")
     T.truthy(page.ScorePanel.PerPlayer:IsShown() and page.ScorePanel.PerPlayer:GetText() == L.SCORE_PER_PLAYER, "per player")
