@@ -2493,3 +2493,79 @@ T.describe("Activity score on the character page", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Upgrades from the guild on the character page", function()
+  local L = ns.L
+  local INFO = {
+    [50001] = { "Gürtel des Rechtsprechers", 3, 58, 20 },
+    [50002] = { "Schlichter Gürtel", 2, 48, 20 },
+  }
+  local requested
+  local function Stubs()
+    local saved = { env.GetItemInfo, env.C_Item }
+    requested = {}
+    env.C_Item = { RequestLoadItemDataByID = function(id) requested[#requested + 1] = id end }
+    env.GetItemInfo = function(item)
+      local id = type(item) == "number" and item or ns.Gear.ParseLink(item)
+      local it = INFO[id]
+      if it then return it[1], "item:" .. id, it[2], it[3], it[4], "Rüstung", "Stoff", 1, "INVTYPE_WAIST", 134, 1, 4, 1, 2 end
+    end
+    return function() env.GetItemInfo, env.C_Item = unpack(saved, 1, 2) end
+  end
+  local function Texts(box)
+    local list = {}
+    for _, row in ipairs(box.Rows) do
+      if row:IsShown() then
+        list[#list + 1] = row.Gain:GetText()
+        for _, maker in ipairs(row.Makers) do if maker:IsShown() then list[#list + 1] = maker.Name:GetText() end end
+      end
+    end
+    return table.concat(list, "\n")
+  end
+
+  T.it("offers a better crafted piece and its maker", function()
+    local restore = Stubs()
+    local guild = ns.GuildData()
+    guild.gear["au tsch"] = { ts = ns.Now(), src = "seen", items = { [6] = { id = 7000, e = 0, s = 0, l = 47, q = 2 } } }
+    guild.members["makira farron"].profs[197] = { ts = ns.Now(), src = "relay", rank = 250, max = 300, recipes = { 99001 } }
+    env.GuildyDB.craftItems = { [99001] = 50001 }
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local box = ns.UI.MemberPage().Upgrades
+    local text = Texts(box)
+    T.truthy(text:find(L.UPGRADE_GAIN:format(47, 58), 1, true), "gain shown: " .. text)
+    T.truthy(text:find("Makira Farron", 1, true), "maker named")
+    T.eq(box.Empty:IsShown(), false)
+    -- pictures: the maker's real name is not drawn
+    ns.Anon.Enable(true)
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    ns.UI.ShowMember(ns.Roster.Members()[3])
+    T.truthy(not Texts(box):find("Makira Farron", 1, true), "no real name in pictures")
+    ns.Anon.Enable(false)
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    restore()
+    T.eq(errors, {})
+  end)
+
+  T.it("says when there is nothing to offer", function()
+    local restore = Stubs()
+    local box = ns.UI.MemberPage().Upgrades
+    env.GuildyDB.craftItems = {}
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(box.Empty:GetText(), L.UPGRADES_NO_DATA)
+    T.eq(box.Empty:IsShown(), true)
+    env.GuildyDB.craftItems = { [99001] = 50002 } -- level 48: not better by three
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    T.eq(box.Empty:GetText(), L.UPGRADES_NONE)
+    env.GuildyDB.craftItems = { [99001] = 50003 } -- not loaded yet: asked for
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local asked = false
+    for _, id in ipairs(requested) do if id == 50003 then asked = true end end
+    T.truthy(asked, "item info requested")
+    restore()
+    ns.GuildData().members["makira farron"].profs[197] = nil
+    env.GuildyDB.craftItems = {}
+    T.eq(errors, {})
+  end)
+end)

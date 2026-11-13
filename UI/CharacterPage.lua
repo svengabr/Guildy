@@ -16,6 +16,7 @@ local TILE_KEYS = { "kills", "quests", "deaths", "gear", "score" }
 local FAMILY_LINES = 8
 local LINE_H = 18
 local PROF_ROWS = 6
+local UPGRADE_H = 34
 local GEAR_SHARE = 0.62 -- of the room right of the hero card, the rest is the column
 local GEAR_TOP = 38     -- title and the column heading above the rows
 local QUALITY = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 } }
@@ -453,6 +454,49 @@ local function Build()
   upgrades.Empty:SetPoint("TOPLEFT", 12, -30)
   upgrades.Empty:SetPoint("RIGHT", -12, 0)
   upgrades.want = 56
+  upgrades.Rows = {}
+  for i = 1, ns.Upgrades.MAX_ROWS do
+    local row = CreateFrame("Frame", nil, upgrades)
+    row:SetHeight(UPGRADE_H)
+    row:SetPoint("TOPLEFT", 12, -30 - (i - 1) * UPGRADE_H)
+    row:SetPoint("RIGHT", -12, 0)
+    row.Slot = W.Text(row, "GameFontDisableSmall")
+    row.Slot:SetPoint("TOPLEFT", 0, 0)
+    row.Gain = W.Text(row, "GameFontHighlightSmall")
+    row.Gain:SetPoint("TOPRIGHT", 0, 0)
+    row.Gain:SetJustifyH("RIGHT")
+    row.Item = CreateFrame("Button", nil, row)
+    row.Item:SetPoint("TOPLEFT", row.Slot, "TOPRIGHT", 6, 0)
+    row.Item:SetPoint("RIGHT", row.Gain, "LEFT", -6, 0)
+    row.Item:SetHeight(14)
+    row.Item.Text = W.Text(row.Item, "GameFontHighlightSmall")
+    row.Item.Text:SetPoint("LEFT", 0, 0)
+    row.Item.Text:SetPoint("RIGHT", 0, 0)
+    row.Item.Text:SetJustifyH("LEFT")
+    row.Item.Text:SetWordWrap(false)
+    row.Item:SetScript("OnEnter", function(self)
+      if not self.itemID then return end
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetHyperlink("item:" .. self.itemID)
+      GameTooltip:Show()
+    end)
+    row.Item:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- the makers: a click whispers them
+    row.Makers = {}
+    for j = 1, 2 do
+      local maker = CreateFrame("Button", nil, row)
+      maker:SetHeight(14)
+      maker.Name = W.Text(maker, "GameFontHighlightSmall")
+      maker.Name:SetPoint("LEFT", 0, 0)
+      maker.Info = W.Text(maker, "GameFontDisableSmall")
+      maker.Info:SetPoint("LEFT", maker.Name, "RIGHT", 4, 0)
+      maker:SetScript("OnClick", function(self) if self.member then UI.Whisper(self.member.fullName) end end)
+      maker:SetScript("OnEnter", function(self) if self.member then UI.MemberTooltip(self, self.member) end end)
+      maker:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      row.Makers[j] = maker
+    end
+    upgrades.Rows[i] = row
+  end
 
   local profs = Section(right, L.PROFESSIONS)
   page.Profs = profs
@@ -752,10 +796,46 @@ local function Build()
     return rec
   end
 
-  function page:RenderUpgrades()
-    upgrades.Empty:SetText(L.UPGRADES_NO_DATA)
-    upgrades.Empty:Show()
-    return upgrades.want
+  -- "Upgrades aus der Gilde": up to three better crafted pieces with their makers; height of the box
+  function page:RenderUpgrades(m)
+    local rows, state = ns.GameGear.UpgradesFor(m)
+    for i, line in ipairs(upgrades.Rows) do
+      local row = rows[i]
+      if row then
+        local color = QUALITY[row.quality or 1] or QUALITY[1]
+        line.Slot:SetText(SlotName(row.slot))
+        local info = ns.GameGear.ItemInfo(row.itemID)
+        line.Item.itemID = row.itemID
+        line.Item.Text:SetText(Hex(color) .. (info and info.name or "…") .. "|r")
+        line.Gain:SetText(L.UPGRADE_GAIN:format(row.have, row.offer))
+        local x = 0
+        for j, button in ipairs(line.Makers) do
+          local maker = row.makers[j]
+          local other = maker and ns.Roster.Find(maker.key) -- (names made up for pictures by the roster)
+          if other then
+            button.member = other
+            button.Name:SetText(other.name)
+            button.Info:SetText(ns.TradeSkill.Name(maker.skillLine) .. "  " ..
+              (maker.online and ("|cff4ce64c" .. L.ONLINE .. "|r") or ns.Roster.LastOnlineText(other)))
+            local w = TextWidth(button.Name) + 4 + TextWidth(button.Info)
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", line, "TOPLEFT", x, -16)
+            button:SetWidth(w)
+            x = x + w + 12
+            button:Show()
+          else
+            button.member = nil
+            button:Hide()
+          end
+        end
+        line:Show()
+      else
+        line:Hide()
+      end
+    end
+    upgrades.Empty:SetText(state == "none" and L.UPGRADES_NONE or L.UPGRADES_NO_DATA)
+    upgrades.Empty:SetShown(state ~= "rows")
+    return state == "rows" and (34 + #rows * UPGRADE_H) or upgrades.want
   end
 
   function page:RenderProfs(m)

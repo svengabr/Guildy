@@ -218,6 +218,39 @@ function GameGear.ResolveCrafts(spellIDs)
   end
 end
 
+-- Better crafted pieces for roster member m: rows (Core/Upgrades.lua) and the state of the box:
+-- "nodata" (no book of another member has a recipe whose item is known, or m's gear is unknown),
+-- "none" (data, nothing better) or "rows". Spell IDs without an entry are asked from the game.
+function GameGear.UpgradesFor(m)
+  local guild, db = ns.GuildData(), ns.DB()
+  local craft = db and type(db.craftItems) == "table" and db.craftItems or {}
+  local makers, unknown, known = {}, {}, false
+  for _, other in ipairs(ns.Roster.Members()) do
+    local record = guild and guild.members[other.key]
+    if other.key ~= m.key and type(record) == "table" and type(record.profs) == "table" then
+      local profs = {}
+      for skillLine, prof in pairs(record.profs) do
+        if type(prof) == "table" and type(prof.recipes) == "table" then
+          profs[skillLine] = prof
+          for _, spellID in ipairs(prof.recipes) do
+            if craft[spellID] then known = true else unknown[#unknown + 1] = spellID end
+          end
+        end
+      end
+      if next(profs) then
+        makers[#makers + 1] = { key = other.key, online = other.online and true or false,
+          offline = other.online and 0 or (type(other.daysOffline) == "number" and other.daysOffline * 24 or math.huge),
+          profs = profs }
+      end
+    end
+  end
+  if #unknown > 0 then GameGear.ResolveCrafts(unknown) end
+  local rec = guild and type(guild.gear) == "table" and guild.gear[m.key]
+  if not known or type(rec) ~= "table" then return {}, "nodata" end
+  local rows = U.For({ key = m.key, level = m.level or 0, classFile = m.classFile }, rec, makers, craft, GameGear.ItemInfo)
+  return rows, #rows > 0 and "rows" or "none"
+end
+
 -- Enchant texts -----------------------------------------------------------------------------------
 
 local function Locale() return ns.Try(rawget(_G, "GetLocale")) or "enUS" end
