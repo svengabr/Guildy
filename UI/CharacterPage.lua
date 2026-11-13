@@ -12,7 +12,7 @@ local TEXTURES = "Interface\\AddOns\\Guildy\\Textures\\"
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local HERO_WIDTH = W.SIDE
 local TILE_H = 78
-local TILE_KEYS = { "kills", "quests", "deaths", "gear" }
+local TILE_KEYS = { "kills", "quests", "deaths", "gear", "score" }
 local FAMILY_LINES = 8
 local LINE_H = 18
 local PROF_ROWS = 6
@@ -176,6 +176,20 @@ local function TextWidth(text)
   local width = type(fn) == "function" and fn(text) or nil
   if type(width) ~= "number" then width = text:GetStringWidth() end
   return type(width) == "number" and width or 0
+end
+
+-- Colour of an activity bucket, as the endgame view draws its bars (UI/OverviewEndgame.lua)
+local function BucketColor(bucket)
+  if bucket >= 5 then return 0.5, 0.47, 0.4 end
+  local green = 1 - (bucket - 1) / 3
+  return 1 - green * 0.6, 0.35 + green * 0.5, 0.25
+end
+
+-- A weekly count: one decimal below 10, whole above
+local function Weekly(value)
+  value = value or 0
+  if value < 10 then return (string.format("%.1f", value):gsub("%.", ns.L.DECIMAL_MARK)) end
+  return tostring(math.floor(value + 0.5))
 end
 
 local function Hex(color)
@@ -384,8 +398,13 @@ local function Build()
 
   page.Tiles = {
     kills = Tile(right, L.STAT_KILLS), quests = Tile(right, L.STAT_QUESTS),
-    deaths = Tile(right, L.STAT_DEATHS), gear = Tile(right, L.STAT_ILVL),
+    deaths = Tile(right, L.STAT_DEATHS), gear = Tile(right, L.STAT_ILVL), score = Tile(right, L.SCORE_TILE),
   }
+  -- the activity score: how it is made in the tooltip (Core/Activity.lua keeps what fed it)
+  local scoreTile = page.Tiles.score
+  scoreTile:EnableMouse(true)
+  scoreTile:SetScript("OnEnter", function(self) page:ScoreTooltip(self) end)
+  scoreTile:SetScript("OnLeave", function() GameTooltip:Hide() end)
   -- equipment by quality: a bar per quality under the item level tile
   local gearTile = page.Tiles.gear
   gearTile.Bars = {}
@@ -577,6 +596,59 @@ local function Build()
       x = x + w
     end
     return rec
+  end
+
+  function page:RenderScore(m)
+    local score, parts, detail = ns.GameActivity.ScoreOf(m.key)
+    self.score = { score = score, parts = parts, detail = detail }
+    local tile = self.Tiles.score
+    local bucket = ns.Activity.Bucket(score)
+    tile.Value:SetText(score and tostring(score) or "–")
+    tile.Line:SetText(L["SCORE_" .. bucket])
+    tile.Line:SetTextColor(BucketColor(bucket))
+  end
+
+  function page:ScoreTooltip(owner)
+    local info = self.score or {}
+    local A = ns.Activity
+    GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+    if not info.score or not info.detail then
+      GameTooltip:SetText(L.SCORE_5, BucketColor(5))
+      GameTooltip:AddLine(L.SCORE_HINT, 1, 1, 1, true)
+      GameTooltip:Show()
+      return
+    end
+    local d, parts, max = info.detail, info.parts or {}, A.MAX
+    local grey = 0.6
+    local function Points(x) return math.floor((x or 0) + 0.5) end
+    GameTooltip:SetText(L.SCORE_TIP_TITLE:format(info.score), BucketColor(A.Bucket(info.score)))
+    GameTooltip:AddLine(L.SCORE_PART_PRESENCE:format(Points(parts.presence), max.presence), 1, 1, 1)
+    GameTooltip:AddLine(d.presence and L.SCORE_FED_PRESENCE:format(Weekly(d.presence)) or L.SCORE_PRESENCE_UNCOUNTED, grey, grey, grey, true)
+    GameTooltip:AddLine(L.SCORE_PART_PLAYING:format(Points(parts.playing), max.playing), 1, 1, 1)
+    local r = d.rates or {}
+    GameTooltip:AddLine(L.SCORE_FED_PLAYING:format(Weekly(r.kills), Weekly(r.honorKills), Weekly(r.quests)), grey, grey, grey, true)
+    GameTooltip:AddLine(L.SCORE_PART_GROUP:format(Points(parts.group), max.group), 1, 1, 1)
+    GameTooltip:AddLine(L.SCORE_FED_GROUP:format(Weekly(r.raidBosses), Weekly(r.dungeonBosses), Weekly(r.dungeons),
+      Weekly(r.battlegrounds)), grey, grey, grey, true)
+    if d.scaled then GameTooltip:AddLine(L.SCORE_SCALED:format(A.MIN_COUNTED), 1, 0.82, 0, true) end
+    if d.fade then
+      GameTooltip:AddLine(L.SCORE_FADED:format(math.floor(d.away or 0), math.floor(d.fade * 100 + 0.5)), 1, 0.5, 0.25, true)
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(L.SCORE_PER_PLAYER, grey, grey, grey, true)
+    if d.chars and #d.chars > 1 then
+      local names = {}
+      for _, key in ipairs(d.chars) do
+        local other = ns.Roster.Find(key) -- roster names are made up for pictures already
+        if other then names[#names + 1] = W.ClassName(other.name, other.classFile) end
+      end
+      GameTooltip:AddLine(L.SCORE_CHARS:format(table.concat(names, ns.L.SEP)), 1, 1, 1, true)
+    end
+    if d.fromDay and d.toDay then
+      GameTooltip:AddLine(L.SCORE_WINDOW:format(ns.GameStats.Date(L.DATE_LONG, A.DayTime(d.fromDay)),
+        ns.GameStats.Date(L.DATE_LONG, A.DayTime(d.toDay))), grey, grey, grey)
+    end
+    GameTooltip:Show()
   end
 
   -- The guild's ready mark for level (median average item level of the roster members of that level,
@@ -777,6 +849,7 @@ local function Build()
     local y, areaH, gearW = self:Layout()
     self:RenderHero(m, entries)
     self:RenderStats(m, entries)
+    self:RenderScore(m)
     self:RenderGear(m)
     self:LayoutColumn(m, y, areaH, gearW)
   end

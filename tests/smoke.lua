@@ -2410,3 +2410,86 @@ T.describe("Character page", function()
     T.eq(errors, {})
   end)
 end)
+
+T.describe("Activity score on the character page", function()
+  local L = ns.L
+  local function Tooltip(page)
+    world.calls.texts = {}
+    page.Tiles.score:GetScript("OnEnter")(page.Tiles.score)
+    local texts = world.calls.texts
+    world.calls.texts = nil
+    return table.concat(texts, "\n")
+  end
+  local function Reading(key)
+    local now = env.GetServerTime()
+    local month = ns.Stats.MonthKey(now, ns.GameStats.Date)
+    ns.GuildData().members[key].stats = { ts = now, src = "seen",
+      v = { [107] = 5000, [98] = 40, [932] = 30, [1095] = 30 },
+      months = { [month] = { ts = now - 10 * 86400, v = { [107] = 1 } } } }
+  end
+
+  T.it("shows the activity score on the character page", function()
+    Reading("ran fred")
+    ns.Fire("STATS")
+    local score = ns.GameActivity.ScoreOf("ran fred")
+    T.truthy(score, "a score")
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+    local tile = ns.UI.MemberPage().Tiles.score
+    T.eq(tile.Value:GetText(), tostring(score))
+    T.eq(tile.Line:GetText(), L["SCORE_" .. ns.Activity.Bucket(score)])
+    T.eq(errors, {})
+  end)
+
+  T.it("explains the score in its tooltip", function()
+    local db = env.GuildyDB
+    db.ownChars = db.ownChars or {}
+    local had = db.ownChars["au tsch"]
+    db.ownChars["au tsch"] = true -- a twink of the same account
+    Reading("au tsch")
+    ns.Fire("STATS")
+    ns.UI.ShowMember(ns.Roster.Find("Ran Fred"))
+    local page = ns.UI.MemberPage()
+    local text = Tooltip(page)
+    for _, part in ipairs({ "/30", "/25", "/45" }) do T.truthy(text:find(part, 1, true), "part " .. part) end
+    T.truthy(text:find(L.SCORE_WINDOW:match("^[^%%]*"), 1, true), "the window line")
+    T.truthy(text:find(L.SCORE_PER_PLAYER, 1, true), "per player")
+    T.truthy(text:find("Ran Fred", 1, true) and text:find("Au Tsch", 1, true), "both characters named")
+    -- pictures: no real names
+    ns.Anon.Enable(true)
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    ns.UI.ShowMember(ns.Roster.Members()[1])
+    text = Tooltip(page)
+    T.truthy(not text:find("Au Tsch", 1, true) and not text:find("Ran Fred", 1, true), "no real names: " .. text)
+    ns.Anon.Enable(false)
+    Fire("GUILD_ROSTER_UPDATE")
+    RunTimers()
+    db.ownChars["au tsch"] = had
+    ns.GuildData().members["au tsch"].stats = nil
+    ns.Fire("STATS")
+    T.eq(errors, {})
+  end)
+
+  T.it("shows no score as a dash", function()
+    T.eq(ns.GameActivity.ScoreOf("au tsch"), nil) -- no reading since the test before
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    local page = ns.UI.MemberPage()
+    T.eq(page.Tiles.score.Value:GetText(), "–")
+    T.eq(page.Tiles.score.Line:GetText(), L.SCORE_5)
+    local text = Tooltip(page)
+    T.truthy(not text:find("/30", 1, true), "no part lines")
+    T.truthy(text:find(L.SCORE_5, 1, true), "says there is no current reading")
+    T.eq(errors, {})
+  end)
+
+  T.it("fits five tiles in the smallest window", function()
+    local page = ns.UI.MemberPage()
+    page:SetSize(1130 - 22, 560 - 42)
+    ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
+    for _, key in ipairs({ "kills", "quests", "deaths", "gear", "score" }) do
+      T.truthy(page.Tiles[key]:GetWidth() >= 150, key .. " " .. page.Tiles[key]:GetWidth())
+    end
+    page:SetSize(100, 100)
+    T.eq(errors, {})
+  end)
+end)
