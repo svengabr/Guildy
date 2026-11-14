@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.8.1
+
+- New look for the member tooltip: Guildy's own dark panel with the gold border, like the item tooltips
+  and the activity score. Race, class and talent tree as icons beside the name, online and zone, the
+  facts with their labels in a column of their own, professions and cooldowns, each group set apart by a
+  thin line. Lines stay on one line as long as there is room.
+- The member tooltip now opens at the mouse. The other spots (beside the window, beside the row, the
+  game's own) are still there under Options, General.
+- Hall of Fame: a click on a member in the tables opens their character page, a right click the member
+  menu, and the row under the mouse lights up as in the member list.
+- The race icon also shows for members the game has not seen yet (from their shared gear) and for races
+  beyond the classic ones.
+- Fixed: the profession cooldowns listed every enchanting recipe as ready. Right after a cast the
+  profession window reports the global cooldown for every recipe, and Guildy took it for a cooldown.
+  Such recipes are forgotten once, and readings from older versions keep only the known cooldown crafts
+  and cooldowns that really ran.
+- Fixed: a member's own gear and talents go out again when someone holds a newer record of them.
+
 ## 1.8.0
 
 - New: the character page shows each member's gear slot by slot: item with its random suffix ("of the
