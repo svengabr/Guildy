@@ -287,8 +287,9 @@ local function Share(key)
   if ns.Sync and ns.Sync.ShareGear then ns.Sync.ShareGear(key) end
 end
 
--- Own talents, called with the own statistics (Game/Stats.lua) and after points were spent
-function GameTalents.ReadOwn()
+-- Own talents, called with the own statistics (Game/Stats.lua) and after points were spent. force: stored
+-- and sent anew even when unchanged (someone holds a newer record of this character, Game/Sync.lua)
+function GameTalents.ReadOwn(force)
   if ns.Anon.on then return end
   local guild = ns.GuildData()
   if not guild then return end
@@ -301,7 +302,7 @@ function GameTalents.ReadOwn()
   local book = Book(guild)
   local have = book[key]
   local rec = { src = "self", trees = trees }
-  if type(have) == "table" and have.src == "self" and Tal.Same(have, rec) and type(have.ts) == "number"
+  if not force and type(have) == "table" and have.src == "self" and Tal.Same(have, rec) and type(have.ts) == "number"
     and ns.Now() - have.ts < REFRESH then return end
   rec.ts = math.max(ns.Now(), type(have) == "table" and type(have.ts) == "number" and have.ts + 1 or 0)
   book[key] = rec

@@ -115,8 +115,9 @@ local function Share(key)
   if ns.Sync and ns.Sync.ShareGear then ns.Sync.ShareGear(key) end
 end
 
--- Own gear, called with the own statistics (Game/Stats.lua)
-function GameGear.ReadOwn()
+-- Own gear, called with the own statistics (Game/Stats.lua). force: stored and sent anew even when unchanged
+-- (someone holds a newer record of this character, Game/Sync.lua)
+function GameGear.ReadOwn(force)
   if ns.Anon.on then return end
   local guild = ns.GuildData()
   if not guild then return end
@@ -132,7 +133,7 @@ function GameGear.ReadOwn()
   local rec = { src = "self", race = race, sex = sex, items = items }
   -- unchanged gear keeps its time for a day; then it moves up and is sent once more, so a member who
   -- logs in daily never ages out of the guild's 60 days (Gear.MAX_AGE)
-  if type(have) == "table" and have.src == "self" and Same(have, rec) and type(have.ts) == "number"
+  if not force and type(have) == "table" and have.src == "self" and Same(have, rec) and type(have.ts) == "number"
     and ns.Now() - have.ts < REFRESH then return end
   rec.ts = math.max(ns.Now(), type(have) == "table" and type(have.ts) == "number" and have.ts + 1 or 0)
   book[key] = rec

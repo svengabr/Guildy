@@ -664,3 +664,101 @@ T.describe("Talent points from the trait system (WoW Forever)", function()
     T.eq(w.errors, {})
   end)
 end)
+
+-- Found in game 2026-11-14: a member's own gear never reached a guild that had a newer bnet-sync record of
+-- him (ts = his last login). His unchanged reading kept its older time for a day, so his summary never
+-- offered it, and the others offered at most 25 records in name order: "wuzuw ..." never came up.
+T.describe("Own gear against a newer record of oneself", function()
+  local function WithOwnGear(w)
+    w.INFO[7101] = { name = "Eigener Reif", level = 54, equipLoc = "INVTYPE_HEAD", subclassID = 1 }
+    w.env.GetInventoryItemLink = function(unit, slot)
+      if unit == "player" and slot == 1 then return "item:7101:0:0:0:0:0:0:0" end
+    end
+    w.env.GetInventoryItemID = function(unit, slot)
+      if unit == "player" and slot == 1 then return 7101 end
+    end
+    w.ns.Settings().share = true
+    local guild = w.ns.GuildData()
+    guild.gear = guild.gear or {}
+    guild.gear["ran fred"] = nil
+    w.ns.GameGear.ReadOwn()
+    w.ns.GameTalents.ReadOwn()
+    return guild
+  end
+
+  T.it("reads and shares the own gear and talents anew when a summary names newer ones of oneself", function()
+    local w = World()
+    local guild = WithOwnGear(w)
+    local own = guild.gear["ran fred"]
+    T.eq(own.src, "self")
+    w.clock = w.clock + 3600
+    w.sent = {}
+    -- an unchanged reading an hour later is kept and not sent
+    w.ns.GameGear.ReadOwn()
+    T.eq(#w.Messages("GEAR"), 0)
+    -- the summary of someone with a bnet-sync record of me, newer than my own reading
+    -- my readings an hour old, the other's record of me a minute old
+    own.ts = w.ns.Now() - 3600
+    guild.talents["ran fred"].ts = w.ns.Now() - 3600
+    local newer = w.ns.Now() - 60
+    local g = w.ns.Gear.Digest(guild.gear, w.ns.Now())
+    g["ran fred"] = newer
+    w.Receive("SUM", { d = {}, g = g, k = { ["ran fred"] = newer } }, "Makira-Farron")
+    w.RunTimers(30)
+    local gear = w.Messages("GEAR")
+    T.truthy(#gear >= 1)
+    local last = gear[#gear]
+    T.eq(last.m, "Ran Fred")
+    T.truthy(last.g.ts > newer)
+    T.truthy(last.k and last.k.ts > newer)
+    T.eq(guild.gear["ran fred"].src, "self")
+    T.eq(w.errors, {})
+  end)
+
+  T.it("does not read anew when the summary names nothing newer of oneself", function()
+    local w = World()
+    local guild = WithOwnGear(w)
+    local ts = guild.gear["ran fred"].ts
+    w.sent = {}
+    w.Receive("SUM", { d = {}, g = w.ns.Gear.Digest(guild.gear, w.ns.Now()), k = w.ns.Talents.Digest(guild.talents, w.ns.Now()) },
+      "Makira-Farron")
+    w.RunTimers(30)
+    T.eq(#w.Messages("GEAR"), 0)
+    T.eq(guild.gear["ran fred"].ts, ts)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("takes the own reading back at once when a newer record of oneself arrives", function()
+    local w = World()
+    local guild = WithOwnGear(w)
+    local own = guild.gear["ran fred"]
+    w.sent = {}
+    local api = { ts = own.ts + 60, src = "api", items = { [1] = { id = 7101, e = 0, s = 0, l = 54, q = 2 } } }
+    w.Receive("GEAR", { m = "Ran Fred", g = w.ns.Gear.Wire(api) }, "Makira-Farron")
+    w.RunTimers(30)
+    T.eq(guild.gear["ran fred"].src, "self")
+    T.truthy(guild.gear["ran fred"].ts > api.ts)
+    local gear = w.Messages("GEAR")
+    T.truthy(#gear >= 1)
+    T.truthy(gear[#gear].g.ts > api.ts)
+    T.eq(w.errors, {})
+  end)
+
+  T.it("offers the summary sender's own gear first, ahead of the name order and its limit", function()
+    local w = World()
+    local guild = w.ns.GuildData()
+    local now = w.ns.Now()
+    guild.gear = {}
+    for i = 1, 40 do
+      guild.gear[("aa member %02d"):format(i)] = { ts = now, src = "api", items = { [1] = { id = 7001, e = 0, s = 0, l = 40, q = 2 } } }
+    end
+    guild.gear["makira farron"] = { ts = now, src = "api", items = { [1] = { id = 7001, e = 0, s = 0, l = 40, q = 2 } } }
+    w.sent = {}
+    w.Receive("SUM", { d = {}, g = { ["makira farron"] = now - 100 } }, "Makira-Farron")
+    w.RunTimers(30)
+    local names = {}
+    for _, msg in ipairs(w.Messages("GEAR")) do names[msg.m] = true end
+    T.truthy(names["Makira Farron"])
+    T.eq(w.errors, {})
+  end)
+end)

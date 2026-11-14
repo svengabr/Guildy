@@ -169,6 +169,37 @@ local function IsOwnKey(key)
   return (db and db.ownChars and db.ownChars[key]) and true or false
 end
 
+-- offers (sorted keys) with the summary sender's own and then the player's own character first: the
+-- offers stop at MAX_OFFERS in name order, and these two must not wait behind it (found in game
+-- 2026-11-14: a member named "wuzuw ..." never got his own record back, so his gear never went out)
+local function FirstOffers(offers, senderKey)
+  local front = { senderKey, ns.Names.Key(ns.PlayerName()) }
+  for f = #front, 1, -1 do
+    for i, key in ipairs(offers) do
+      if key == front[f] then
+        table.remove(offers, i)
+        table.insert(offers, 1, key)
+        break
+      end
+    end
+  end
+  return offers
+end
+
+-- Someone holds a newer record of the player's gear or talents than the player's own reading (bnet-sync's
+-- carries the last login, while an unchanged reading keeps its time for a day): read and share them anew,
+-- once per moment. Only with settings.share; the reading itself is the game's (Game/Gear.lua, Game/Talents.lua).
+local ownRefresh
+local function RefreshOwnGear()
+  if ownRefresh or not ns.Settings().share then return end
+  ownRefresh = true
+  C_Timer.After(3 + math.random() * 4, function()
+    ownRefresh = nil
+    if ns.GameTalents then ns.SafeCall(ns.GameTalents.ReadOwn, true) end
+    if ns.GameGear then ns.SafeCall(ns.GameGear.ReadOwn, true) end
+  end)
+end
+
 local function SendMember(key)
   local guild = ns.GuildData()
   local record = guild and guild.members[key]
@@ -335,6 +366,7 @@ end
 local function OnSummary(data, sender)
   local guild = ns.GuildData()
   if not guild or ns.Names.Same(sender, ns.PlayerName()) then return end
+  local senderKey = ns.Names.Key(sender)
   local theirs = type(data.d) == "table" and data.d or {}
   local mine = P.Digest(guild)
   local offers = P.Outdated(mine, theirs)
@@ -365,7 +397,6 @@ local function OnSummary(data, sender)
   if type(data.j) == "table" then
     local digest = ns.Tenure.Digest(guild.joined)
     local state = digest.n .. "/" .. digest.x .. "/" .. digest.s
-    local senderKey = ns.Names.Key(sender)
     if digest.n > 0 and ns.Tenure.Differs(digest, data.j) and joinOffered[senderKey] ~= state then
       local before = joinMessages
       C_Timer.After(5 + math.random() * 8, function()
@@ -395,12 +426,16 @@ local function OnSummary(data, sender)
   local gearOffered, talentsWanted, talentOffers = {}, {}, {}
   local myTalents = type(data.k) == "table" and ns.Talents.Digest(guild.talents, ns.Now()) or nil
   if myTalents then
-    talentOffers = P.Outdated(myTalents, data.k)
+    talentOffers = FirstOffers(P.Outdated(myTalents, data.k), senderKey)
+    local ownKey = ns.Names.Key(ns.PlayerName())
+    if type(data.k[ownKey]) == "number" and data.k[ownKey] > (myTalents[ownKey] or 0) then RefreshOwnGear() end
     for _, key in ipairs(talentOffers) do talentsWanted[key] = myTalents[key] end
   end
   if type(data.g) == "table" then
     local myGear = ns.Gear.Digest(guild.gear, ns.Now())
-    local gearOffers = P.Outdated(myGear, data.g)
+    local gearOffers = FirstOffers(P.Outdated(myGear, data.g), senderKey)
+    local ownKey = ns.Names.Key(ns.PlayerName())
+    if type(data.g[ownKey]) == "number" and data.g[ownKey] > (myGear[ownKey] or 0) then RefreshOwnGear() end
     for i = 1, math.min(#gearOffers, MAX_OFFERS) do
       local key = gearOffers[i]
       local myTs, myTal = myGear[key], talentsWanted[key]
@@ -530,7 +565,10 @@ local function OnGear(data, sender)
     local key = ns.Names.Key(data.m)
     seenTalents[key] = math.max(seenTalents[key] or 0, tal.ts)
     if type(guild.talents) ~= "table" then guild.talents = {} end
-    if ns.Talents.Merge(guild.talents, key, tal) then ns.Fire("TALENTS", key) end
+    if ns.Talents.Merge(guild.talents, key, tal) then
+      ns.Fire("TALENTS", key)
+      if key == ns.Names.Key(ns.PlayerName()) then RefreshOwnGear() end -- a newer record of me: my own goes out anew
+    end
   end
   local rec = ns.Gear.Validate(data.g, ns.Now())
   if not rec then return end
@@ -542,7 +580,10 @@ local function OnGear(data, sender)
   local key = ns.Names.Key(data.m)
   seenGear[key] = math.max(seenGear[key] or 0, rec.ts)
   if type(guild.gear) ~= "table" then guild.gear = {} end
-  if ns.Gear.Merge(guild.gear, key, rec) then ns.Fire("GEAR", key) end
+  if ns.Gear.Merge(guild.gear, key, rec) then
+    ns.Fire("GEAR", key)
+    if key == ns.Names.Key(ns.PlayerName()) then RefreshOwnGear() end -- a newer record of me: my own goes out anew
+  end
 end
 
 local function OnJoined(data)
