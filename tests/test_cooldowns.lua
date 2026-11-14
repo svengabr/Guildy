@@ -28,10 +28,18 @@ T.describe("Cooldowns", function()
     T.eq(learned, { [99999] = 202 })
   end)
 
+  T.it("does not take the global cooldown for a craft's", function()
+    T.eq(C.Real(1.4), false) -- right after a cast, every recipe in the window
+    T.eq(C.Real(59), false)
+    T.eq(C.Real(60), true)
+    T.eq(C.Real(20 * 3600), true)
+    T.eq(C.Real(nil), false)
+  end)
+
   T.it("notes an own reading, ready as 0", function()
     local book = {}
     T.eq(C.Note(book, "anna", { [17187] = NOW + 3600, [18560] = NOW - 5 }, NOW), true)
-    T.eq(book.anna, { ts = NOW, cd = { [17187] = NOW + 3600, [18560] = 0 } })
+    T.eq(book.anna, { ts = NOW, cd = { [17187] = NOW + 3600, [18560] = 0 }, v = C.REV })
   end)
 
   T.it("does not count seconds of jitter as a change", function()
@@ -64,7 +72,7 @@ T.describe("Cooldowns", function()
     local book = {}
     C.Note(book, "anna", { [17187] = NOW + 3600, [18560] = 0 }, NOW)
     local wire = C.Wire(book.anna)
-    T.eq(wire, { ts = NOW, cd = { { 17187, NOW + 3600 }, { 18560, 0 } } })
+    T.eq(wire, { ts = NOW, cd = { { 17187, NOW + 3600 }, { 18560, 0 } }, v = C.REV })
     T.eq(C.Validate(wire, NOW), book.anna)
   end)
 
@@ -75,6 +83,25 @@ T.describe("Cooldowns", function()
     T.eq(C.Validate({ ts = NOW - 8 * DAY, cd = {} }, NOW), nil) -- too old to mean anything
     local rec = C.Validate({ ts = NOW, cd = { { 17187, NOW + 8 * DAY }, { "x", 1 }, { 18560, -4 }, 7, { 11479, NOW + 60 } } }, NOW)
     T.eq(rec, { ts = NOW, cd = { [11479] = NOW + 60 } })
+  end)
+
+  T.it("trusts a reading of an older version only for the known crafts and cooldowns that ran", function()
+    -- an older version took the global cooldown after a cast for every recipe in the window
+    local old = { ts = NOW, cd = { { 7418, 0 }, { 7420, NOW + 1 }, { 99999, NOW + 3600 }, { 17187, 0 } } }
+    local rec = C.Validate(old, NOW)
+    T.eq(rec, { ts = NOW, cd = { [99999] = NOW + 3600, [17187] = 0 } })
+    T.eq(C.Wire(rec).v, nil) -- passed on as it came: still an old one
+    -- one stored before the update is read the same way
+    local book = { wuzuw = { ts = NOW, cd = { [7418] = 0, [17187] = 0 } } }
+    T.eq(C.Of(book, "wuzuw", NOW), { { spell = 17187, readyAt = 0, left = 0 } })
+    -- a new one is believed as it is
+    T.eq(C.Validate({ ts = NOW, cd = { { 7418, 0 } }, v = C.REV }, NOW), { ts = NOW, cd = { [7418] = 0 }, v = C.REV })
+  end)
+
+  T.it("takes an own reading again when the stored one is from an older version", function()
+    local book = { anna = { ts = NOW, cd = { [17187] = 0 } } }
+    T.eq(C.Note(book, "anna", { [17187] = 0 }, NOW + 10), true)
+    T.eq(book.anna.v, C.REV)
   end)
 
   T.it("takes the newer reading", function()

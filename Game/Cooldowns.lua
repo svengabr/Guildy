@@ -18,7 +18,11 @@ local pending = false
 local function Learned()
   local db = ns.DB()
   if not db then return {} end
-  if type(db.cooldownSpells) ~= "table" then db.cooldownSpells = {} end
+  -- (crafts learned before C.MIN_LEFT were mostly the global cooldown: they go, the real ones come back
+  -- with their next cooldown)
+  if type(db.cooldownSpells) ~= "table" or db.cooldownSpellsRev ~= C.LEARNED_REV then
+    db.cooldownSpells, db.cooldownSpellsRev = {}, C.LEARNED_REV
+  end
   return db.cooldownSpells
 end
 
@@ -124,8 +128,10 @@ end
 function GameCooldowns.FromWindow(skillLine, seen)
   local learned, now = Learned(), ns.Now()
   for spell, left in pairs(seen) do
-    if skillLine then C.Learn(learned, spell, skillLine) end
-    fromWindow[spell] = now + math.floor(left + 0.5)
+    if C.Real(left) then
+      if skillLine then C.Learn(learned, spell, skillLine) end
+      fromWindow[spell] = now + math.floor(left + 0.5)
+    end
   end
   GameCooldowns.Schedule()
 end

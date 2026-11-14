@@ -16,6 +16,15 @@ Cooldowns.TOLERANCE = 60      -- seconds two readings of the same cooldown may d
 Cooldowns.REFRESH = 86400     -- an unchanged reading is taken again after this, so it never goes stale
 Cooldowns.MAX_SPELLS = 40     -- cooldowns a reading carries
 Cooldowns.MAX_LEARNED = 200
+-- Seconds left a craft in the own window needs to count as a cooldown craft. Right after a cast the
+-- window reports the global cooldown for every recipe (seen in game 2026-11-14: every enchant listed
+-- as a cooldown), and no profession cooldown is that short.
+Cooldowns.MIN_LEFT = 60
+Cooldowns.LEARNED_REV = 2 -- learned crafts from before MIN_LEFT are dropped once
+-- Readings carry v = REV since MIN_LEFT. One without it (an older version, or stored before) is
+-- trusted only for the known crafts and for cooldowns that really ran: the rest was mostly the global
+-- cooldown.
+Cooldowns.REV = 2
 
 -- The cooldown crafts known from the start (checked against Forever's database 2026-11-13)
 Cooldowns.SEED = {
@@ -43,6 +52,11 @@ function Cooldowns.Watched(learned)
     end
   end
   return watched
+end
+
+-- Whether seconds left in the own window are a craft's cooldown rather than the global one
+function Cooldowns.Real(left)
+  return type(left) == "number" and left >= Cooldowns.MIN_LEFT
 end
 
 -- Remembers a craft seen with a cooldown. Returns true when it was new.
@@ -75,11 +89,11 @@ function Cooldowns.Note(book, key, cd, ts)
     if IsId(spell) and type(at) == "number" then clean[spell] = at > ts and math.floor(at) or 0 end
   end
   local have = book[key]
-  if type(have) == "table" and type(have.cd) == "table" and Same(have.cd, clean)
+  if type(have) == "table" and type(have.cd) == "table" and have.v == Cooldowns.REV and Same(have.cd, clean)
     and ts - (tonumber(have.ts) or 0) < Cooldowns.REFRESH then
     return false
   end
-  book[key] = { ts = ts, cd = clean }
+  book[key] = { ts = ts, cd = clean, v = Cooldowns.REV }
   return true
 end
 
@@ -88,7 +102,13 @@ function Cooldowns.Wire(rec)
   local list = {}
   for spell, at in pairs(rec.cd) do list[#list + 1] = { spell, at } end
   table.sort(list, function(x, y) return x[1] < y[1] end)
-  return { ts = rec.ts, cd = list }
+  return { ts = rec.ts, cd = list, v = rec.v }
+end
+
+-- Whether a reading's entry can be believed (see REV)
+local function Trusted(rec, spell, at)
+  if rec.v == Cooldowns.REV or Cooldowns.SEED[spell] then return true end
+  return at - rec.ts >= Cooldowns.MIN_LEFT
 end
 
 -- A clean reading from the wire, or nil when it can't be used
@@ -100,12 +120,13 @@ function Cooldowns.Validate(raw, now)
     local item = raw.cd[i]
     if type(item) == "table" and IsId(item[1]) then
       local at = item[2]
-      if type(at) == "number" and at == math.floor(at) and at >= 0 and at <= now + Cooldowns.MAX_AGE then
+      if type(at) == "number" and at == math.floor(at) and at >= 0 and at <= now + Cooldowns.MAX_AGE
+        and Trusted(raw, item[1], at) then
         cd[item[1]] = at
       end
     end
   end
-  return { ts = raw.ts, cd = cd }
+  return { ts = raw.ts, cd = cd, v = raw.v == Cooldowns.REV and Cooldowns.REV or nil }
 end
 
 -- Takes a received reading when it is newer. Returns true when it was taken.
@@ -147,7 +168,9 @@ function Cooldowns.Of(book, key, now)
   if type(rec) ~= "table" or type(rec.cd) ~= "table" or now - rec.ts > Cooldowns.MAX_AGE then return nil end
   local list = {}
   for spell, at in pairs(rec.cd) do
-    list[#list + 1] = { spell = spell, readyAt = at, left = math.max(0, at - now) }
+    if type(at) == "number" and Trusted(rec, spell, at) then
+      list[#list + 1] = { spell = spell, readyAt = at, left = math.max(0, at - now) }
+    end
   end
   table.sort(list, function(x, y)
     if x.left ~= y.left then return x.left < y.left end
