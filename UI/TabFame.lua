@@ -425,7 +425,16 @@ local function Build(panel)
       row.Mine = row:CreateTexture(nil, "BACKGROUND")
       row.Mine:SetAllPoints()
       row.Mine:SetColorTexture(1, 0.82, 0, 0.15)
+      -- the row under the mouse, as in the member list
+      row.Highlight = row:CreateTexture(nil, "HIGHLIGHT")
+      row.Highlight:SetAllPoints()
+      row.Highlight:SetColorTexture(1, 0.82, 0, 0.1)
       row:EnableMouse(true)
+      -- what the member tooltip promises: click the character page, right click the menu
+      row:SetScript("OnMouseUp", function(self, button)
+        if not self.member then return end
+        if button == "RightButton" then UI.MemberMenu(self.member, self) else UI.MemberClick(self.member) end
+      end)
       row:SetScript("OnEnter", function(self) if self.member then UI.MemberTooltip(self, self.member) end end)
       row:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end, function(row, entry)
@@ -648,6 +657,9 @@ local function Build(panel)
     row.Mine = row:CreateTexture(nil, "BACKGROUND")
     row.Mine:SetAllPoints()
     row.Mine:SetColorTexture(1, 0.82, 0, 0.12)
+    row.Highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    row.Highlight:SetAllPoints()
+    row.Highlight:SetColorTexture(1, 0.82, 0, 0.06) -- softer: the column under the mouse lights up too
     row.Cells = {}
     row:EnableMouse(true)
     -- the column under the mouse: highlighted, and a tooltip with member, dungeon and the exact count

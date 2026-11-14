@@ -182,7 +182,10 @@ T.describe("Smoke", function()
       GetContainerItemID = function(bag, slot) return (bag == 0 and slot == 2) and 15846 or nil end,
       GetContainerItemCooldown = function() return 400, 7200 end,
     }
+    -- crafts learned by an older version (mostly the global cooldown) are dropped once
+    env.GuildyDB.cooldownSpells, env.GuildyDB.cooldownSpellsRev = { [7777] = 333 }, nil
     ns.GameCooldowns.Read()
+    T.eq(env.GuildyDB.cooldownSpells, {})
     T.eq(guild.cooldowns["ran fred"].cd[17187], now + 3590)
     T.eq(guild.cooldowns["ran fred"].cd[19566], now + 6600)
     T.eq(guild.cooldowns["ran fred"].cd[18560], nil) -- not known: not listed
@@ -214,6 +217,11 @@ T.describe("Smoke", function()
     env.GetNumTradeSkills = function() return 1 end
     env.GetTradeSkillInfo = function() return "Gadget", "optimal" end
     env.GetTradeSkillRecipeLink = function() return "|cffffffff|Henchant:99999|h[Gadget]|h|r" end
+    -- right after a cast the window reports the global cooldown for every recipe: none is learned
+    -- (seen in game 2026-11-14: every enchant listed as a cooldown)
+    env.GetTradeSkillCooldown = function() return 1.4 end
+    ns.TradeSkill.ScanOpen()
+    T.eq(env.GuildyDB.cooldownSpells[99999], nil)
     env.GetTradeSkillCooldown = function() return 600 end
     ns.TradeSkill.ScanOpen()
     T.eq(env.GuildyDB.cooldownSpells[99999], 202)
@@ -403,7 +411,27 @@ T.describe("Smoke", function()
     -- the member tooltip and the character page
     au.profs[202].spec = { id = 20222, src = "book", ts = now }
     guild.cooldowns["au tsch"] = { ts = now - 7200, cd = { [17187] = 0 } }
+    -- the tooltip: Guildy's own panel at the mouse, with race, class and talent tree as icons; race and
+    -- sex from the shared gear when the client has not seen the member
+    guild.talents = guild.talents or {}
+    guild.gear = guild.gear or {}
+    local keptTalents, keptGear = guild.talents["au tsch"], guild.gear["au tsch"]
+    guild.talents["au tsch"] = { ts = now, src = "self", trees = { 3, 18, 0 } }
+    guild.gear["au tsch"] = { ts = now, src = "self", race = 8, sex = 2, items = {} }
+    local spec = ns.UI.TalentSpec(ns.Roster.Find("Au Tsch"))
+    T.eq(spec.icon, "Interface\\Icons\\" .. ns.UI.TREE_ICONS.ROGUE[2])
+    T.eq(ns.UI.RaceInfo(ns.Roster.Find("Au Tsch")).icon, "Interface\\Icons\\Achievement_Character_Troll_Male")
+    world.calls.texts = {}
     ns.UI.MemberTooltip(env.UIParent, ns.Roster.Find("Au Tsch"))
+    local tip = ns.UI.MemberTip()
+    T.truthy(tip:IsShown(), "member tooltip shown")
+    T.truthy(tip:GetHeight() > 100, "member tooltip laid out")
+    local said = table.concat(world.calls.texts, "\n")
+    T.truthy(said:find(L.COOLDOWNS, 1, true), "cooldowns in the tooltip")
+    T.truthy(said:find(L.PROFESSIONS, 1, true), "professions in the tooltip")
+    env.GameTooltip:Hide()
+    world.calls.texts = nil
+    guild.talents["au tsch"], guild.gear["au tsch"] = keptTalents, keptGear
     ns.UI.ShowMember(ns.Roster.Find("Au Tsch"))
     local named
     for _, row in ipairs(ns.UI.MemberPage().Profs.Rows) do
@@ -1386,6 +1414,14 @@ T.describe("Hall of Fame", function()
     T.truthy(view.Pvp.List.rows[1] and view.Pvp.List.rows[1]:IsShown(), "PvP row for Makira")
     T.eq(view.Pvp.List.rows[1].Cols.duels:GetText(), "14 : 13")
     T.eq(view.Pvp.List.rows[1].Cols.rate:GetText(), "52 %")
+    -- a click on a member's row opens their character page, as the tooltip says
+    local showMember, opened = ns.UI.ShowMember, nil
+    ns.UI.ShowMember = function(m) opened = m end
+    local pvpRow = view.Pvp.List.rows[1]
+    pvpRow:GetScript("OnMouseUp")(pvpRow, "LeftButton")
+    ns.UI.ShowMember = showMember
+    T.eq(opened, pvpRow.member)
+    T.truthy(opened, "the row knows its member")
     for _, page in ipairs(ns.Stats.PAGES) do
       view.page = page.key
       for _, period in ipairs({ "all", "month", "last" }) do
@@ -1460,7 +1496,7 @@ T.describe("Hall of Fame", function()
       ns.UI.MemberTooltip(members.List.rows[2], ns.Roster.Members()[1])
     end
     ns.Settings().tooltipAnchor = nil
-    T.eq(ns.UI.TooltipAnchor(), "window")
+    T.eq(ns.UI.TooltipAnchor(), "cursor")
     ns.UI.SelectTab("members")
     -- a click on a style card changes the list at once
     for _, card in ipairs(options.Panels.members.Cards) do

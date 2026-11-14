@@ -67,14 +67,39 @@ end
 -- Race, gender and the race icon of a member from the game (known once the client saw the character)
 local function RaceInfo(m)
   local getInfo = rawget(_G, "GetPlayerInfoByGUID")
-  if not getInfo or not m.guid or m.guid == "" then return nil end
-  local ok, _, _, localizedRace, englishRace, sex = pcall(getInfo, m.guid)
-  if not ok or not englishRace then return nil end
+  local ok, localizedRace, englishRace, sex
+  if getInfo and m.guid and m.guid ~= "" then
+    local _
+    ok, _, _, localizedRace, englishRace, sex = pcall(getInfo, m.guid)
+    if not ok or ns.AnySecret(localizedRace, englishRace, sex) then englishRace = nil end
+  end
+  if not englishRace then
+    -- the client has not seen them: race and sex from their shared gear (Core/Gear.lua), without a name
+    local guild = ns.GuildData()
+    local rec = guild and type(guild.gear) == "table" and guild.gear[m.key] or nil
+    englishRace = type(rec) == "table" and ns.GameGear and ns.GameGear.RACE_FILES[rec.race] or nil
+    if not englishRace or (rec.sex ~= 2 and rec.sex ~= 3) then return nil end
+    localizedRace, sex = nil, rec.sex
+  end
   local female = sex == 3
+  local gender = female and "female" or "male"
   local race = RACE_ICON[englishRace]
   local icon = race and ("Interface\\Icons\\Achievement_Character_" .. race .. "_" .. (female and "Female" or "Male"))
-  return { race = localizedRace, file = englishRace, female = female, icon = icon and W.TextureExists(icon) and icon or nil }
+  icon = icon and W.TextureExists(icon) and icon or nil
+  -- a race the list does not know (Forever's own, like the Skyborne elves): the client's race atlas
+  local atlas
+  if not icon and type(englishRace) == "string" and ns.GameGear then
+    local lower = englishRace:lower()
+    for _, name in ipairs({ "raceicon128-" .. lower .. "-" .. gender, "raceicon-" .. lower .. "-" .. gender }) do
+      if ns.GameGear.Atlas(name) then
+        atlas = name
+        break
+      end
+    end
+  end
+  return { race = localizedRace, file = englishRace, female = female, icon = icon, atlas = atlas }
 end
+UI.RaceInfo = RaceInfo -- the member tooltip shows the race icon too (UI/Popups.lua)
 
 -- The class icon as an inline texture (for text that may wrap, like the identity line)
 local function ClassIconString(classFile, size)
@@ -140,6 +165,9 @@ local function Portrait(parent, size, badge)
     if info and info.icon then
       self.Picture:SetTexture(info.icon)
       self.Picture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    elseif info and info.atlas then
+      self.Picture:SetAtlas(info.atlas)
+      self.Picture:SetTexCoord(0, 1, 0, 1)
     else
       SetClassIcon(self.Picture, m.classFile)
     end
@@ -846,7 +874,8 @@ local function Build()
     if info and info.race then ident[#ident + 1] = info.race end
     if info then ident[#ident + 1] = info.female and L.FEMALE or L.MALE end
     ident[#ident + 1] = m.className or ""
-    local icon = info and info.icon and ("|T" .. info.icon .. ":14:14:0:0:64:64:5:59:5:59|t ") or ClassIconString(m.classFile, 14)
+    local icon = info and info.icon and ("|T" .. info.icon .. ":14:14:0:0:64:64:5:59:5:59|t ")
+      or info and info.atlas and ("|A:" .. info.atlas .. ":14:14|a ") or ClassIconString(m.classFile, 14)
     hero.Ident:SetText(icon .. table.concat(ident, SEP))
     -- rank in gold, zone in grey, "online" in green; offline says nothing here (the facts tell when)
     local where = {}
