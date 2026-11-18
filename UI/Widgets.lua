@@ -936,9 +936,9 @@ function W.ClassHex(classFile)
   return string.format("ff%02x%02x%02x", r * 255, g * 255, b * 255)
 end
 
--- Class-colored name
+-- Class-colored name, as other addons format it (Core/API.lua)
 function W.ClassName(name, classFile)
-  return "|c" .. W.ClassHex(classFile) .. (name or "?") .. "|r"
+  return "|c" .. W.ClassHex(classFile) .. (ns.DisplayName(name) or "?") .. "|r"
 end
 -- Multiline input (guild info editor)
 function W.InputArea(parent)

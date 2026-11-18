@@ -60,6 +60,7 @@ Core\Anon.lua
 Core\Stress.lua
 Core\ShotRun.lua
 Core\Runtime.lua
+Core\API.lua
 Game\Roster.lua
 Game\Blacklist.lua
 Game\Events.lua

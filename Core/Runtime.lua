@@ -125,7 +125,8 @@ function ns.Try(fn, ...)
   return Passed(pcall(fn, ...))
 end
 
--- Internal events: "ROSTER" (roster changed), "PROFS" (profession data changed), "CHAT" (new chat line)
+-- Internal events: "ROSTER" (roster changed), "PROFS" (profession data changed), "CHAT" (new chat line),
+-- "NAMES" (another addon changed how names are shown, Core/API.lua)
 local listeners = {}
 
 function ns.On(event, fn)

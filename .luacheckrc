@@ -8,6 +8,7 @@ exclude_files = { "tests/", "Libs/", ".luacheckrc" }
 -- Globals the addon writes to
 globals = {
   "GuildyDB",
+  "GuildyAPI",
   "SLASH_GUILDY1",
   "SlashCmdList",
   "StaticPopupDialogs",
