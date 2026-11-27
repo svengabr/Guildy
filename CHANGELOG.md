@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.18.0
+
+- New for addon authors: the global table `GuildyAPI` lets another addon change how names are shown
+  in Guildy, for example nicknames you gave to guild members. Only the shown text changes; links,
+  whispers, invites and saved data keep the real name. Contributed by 89pleasure, thank you!
+
 ## 1.17.0
 
 - New: right-clicking a member offers "Remove from guild" (for officers who may remove them), so you no
