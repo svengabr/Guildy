@@ -218,6 +218,32 @@ local function Build(panel)
     return { { text = L.OPTIONS_RESTORE, onClick = function() view:ResetColumns() end } }
   end, L.MEMBERS_EDIT_TIP)
   view.Edit = view.Tools.Edit
+  -- Manage: pick members (click, Shift+click for a range) and promote, demote or remove them, one
+  -- secure click each (UI.RunBatch). Only for those who may do one of the three.
+  view.picked = {}
+  view.ManageButton = W.Button(bar, L.MANAGE, function() view:SetManaging(not view.managing) end, 80, { small = true })
+  W.Tooltip(view.ManageButton, L.MANAGE, L.MANAGE_TIP)
+  view.ManageBar = ns.CreateFrame("Frame", nil, bar)
+  view.ManageBar:SetPoint("LEFT", view.RankButton, "RIGHT", 10, 0)
+  view.ManageBar:SetSize(10, 24)
+  view.ManageBar:Hide()
+  local pickAll = ns.Skin.Apply("Checkbox", ns.CreateFrame("CheckButton", nil, view.ManageBar, "UICheckButtonTemplate"))
+  pickAll:SetSize(24, 24)
+  pickAll:SetPoint("LEFT", 0, 0)
+  pickAll:SetScript("OnClick", function(self) view:PickAll(self:GetChecked()) end)
+  pickAll.Label = W.Text(view.ManageBar, "GameFontHighlightSmall", L.PICK_ALL)
+  pickAll.Label:SetPoint("LEFT", pickAll, "RIGHT", 0, 0)
+  view.PickAllCheck = pickAll
+  view.PickedText = W.Text(view.ManageBar, "GameFontNormalSmall")
+  view.PickedText:SetPoint("LEFT", pickAll.Label, "RIGHT", 12, 0)
+  view.BatchButtons = {}
+  local anchor = view.PickedText
+  for _, kind in ipairs({ "promote", "demote", "remove" }) do
+    local button = W.Button(view.ManageBar, L["BATCH_" .. kind:upper()], function() view:StartBatch(kind) end, 80, { small = true })
+    button:SetPoint("LEFT", anchor, "RIGHT", anchor == view.PickedText and 12 or 4, 0)
+    view.BatchButtons[kind] = button
+    anchor = button
+  end
   view.Reset = W.Button(bar, L.RESET, function()
     view.filter, view.noNote, view.noOfficerNote = {}, nil, nil
     search:SetText("")
@@ -226,6 +252,7 @@ local function Build(panel)
     view.NoOfficerNoteCheck:SetChecked(false)
     view:Refresh()
   end, 70, { small = true })
+  page:Right(view.ManageButton)
   page:Right(view.Reset)
 
   -- header -------------------------------------------------------------------------------------
@@ -530,6 +557,10 @@ local function Build(panel)
 
   function view:OnHide()
     if self.editing then self:SetEditing(false) end
+    if self.managing then
+      self.managing, self.picked, self.pickFrom = false, {}, nil
+      self.ManageButton:SetText(L.MANAGE)
+    end
   end
 
   view.List = W.ScrollList(listBox, ROW, function(row)
@@ -553,9 +584,17 @@ local function Build(panel)
     row.SectionLine:SetPoint("LEFT", row.Section, "RIGHT", 8, 0)
     row.SectionLine:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.SectionLine:SetColorTexture(1, 1, 1, 0.12)
+    -- the pick box of the "Manage" mode, over the level; only a picture: the row takes the click
+    row.Pick = ns.Skin.Apply("Checkbox", ns.CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate"))
+    row.Pick:SetSize(18, 18)
+    row.Pick:SetPoint("LEFT", 6, 0)
+    row.Pick:EnableMouse(false)
+    row.Pick:Hide()
     row:SetScript("OnMouseUp", function(self, button)
       if not self.member then return end
-      if button == "RightButton" then
+      if view.managing and button ~= "RightButton" then
+        view:TogglePick(self.member.key, IsShiftKeyDown())
+      elseif button == "RightButton" then
         UI.MemberMenu(self.member, self)
       else
         UI.MemberClick(self.member)
@@ -585,6 +624,7 @@ local function Build(panel)
     row.SectionLine:SetShown(isHeader)
     row.Highlight:SetAlpha(isHeader and 0 or 1)
     for key, cell in pairs(c) do cell:SetShown(not isHeader and not view.hidden[key]) end
+    row.Pick:SetShown(view.managing and not isHeader or false)
     if isHeader then
       row.Section:SetText(item.header)
       if item.online then row.Section:SetTextColor(unpack(ONLINE_COLOR)) else row.Section:SetTextColor(0.6, 0.6, 0.6) end
@@ -592,7 +632,8 @@ local function Build(panel)
       return
     end
     local dim = not m.online
-    c.level:SetText(m.level)
+    row.Pick:SetChecked(view.picked[m.key] == true)
+    c.level:SetText(view.managing and "" or m.level)
     -- twinks under their main are indented; a folded main shows how many hang on it
     local name, nameAlpha = UI.MemberNameText(m.name, m.classFile, m.online, view.style)
     if item.child then name = "      " .. name .. "  |cff8f8268" .. L.TWINK .. "|r" end
@@ -670,23 +711,113 @@ local function Build(panel)
     return L.FILTER_NOT:format(table.concat(names, ", "))
   end
 
+  -- "Manage" ----------------------------------------------------------------------------------------
+  function view:SetManaging(on)
+    self.managing = on and true or false
+    self.picked, self.pickFrom = {}, nil
+    self.ManageButton:SetText(self.managing and L.MANAGE_DONE or L.MANAGE)
+    self:Refresh()
+  end
+
+  -- click: this member in or out; Shift+click: everyone shown between the last click and this one in
+  function view:TogglePick(key, range)
+    local order = UI.memberOrder or {}
+    local from, to
+    if range and self.pickFrom then
+      for i, k in ipairs(order) do
+        if k == self.pickFrom then from = i end
+        if k == key then to = i end
+      end
+    end
+    if from and to then
+      if from > to then from, to = to, from end
+      for i = from, to do self.picked[order[i]] = true end
+    else
+      self.picked[key] = not self.picked[key] or nil
+    end
+    self.pickFrom = key
+    self:Refresh()
+  end
+
+  function view:PickAll(on)
+    self.picked = {}
+    if on then
+      for _, key in ipairs(UI.memberOrder or {}) do self.picked[key] = true end
+    end
+    self:Refresh()
+  end
+
+  -- the picks in the list's order, picks the filters hide now after them; only members still in the guild
+  function view:PickedKeys()
+    local keys, seen = {}, {}
+    for _, key in ipairs(UI.memberOrder or {}) do
+      if self.picked[key] and ns.Roster.Find(key) then keys[#keys + 1] = key; seen[key] = true end
+    end
+    local rest = {}
+    for key in pairs(self.picked) do
+      if not seen[key] and ns.Roster.Find(key) then rest[#rest + 1] = key end
+    end
+    table.sort(rest)
+    for _, key in ipairs(rest) do keys[#keys + 1] = key end
+    return keys
+  end
+
+  -- removing asks once with the names; rank changes start right away (each step is its own click anyway)
+  function view:StartBatch(kind)
+    local keys = self:PickedKeys()
+    if #keys == 0 then return end
+    local function Run()
+      UI.RunBatch(kind, keys, function()
+        if view.managing then view:SetManaging(false) elseif panel:IsVisible() then view:Refresh() end
+      end)
+    end
+    if kind ~= "remove" then return Run() end
+    local names = {}
+    for i = 1, math.min(#keys, 10) do
+      local m = ns.Roster.Find(keys[i])
+      names[#names + 1] = W.ClassName(m.name, m.classFile)
+    end
+    local list = table.concat(names, ", ")
+    if #keys > 10 then list = list .. " " .. L.BATCH_MORE:format(#keys - 10) end
+    UI.Confirm(L.BATCH_REMOVE_CONFIRM:format(#keys, list), { run = Run }, L.REMOVE_BUTTON, true)
+  end
+
+  function view:RefreshManage(can)
+    local allowed = can.promote or can.demote or can.remove
+    if not allowed and self.managing then
+      self.managing, self.picked = false, {}
+      self.ManageButton:SetText(L.MANAGE)
+    end
+    self.ManageButton:SetShown(allowed and not self.editing or false)
+    self.ManageBar:SetShown(self.managing and not self.editing or false)
+    if not self.managing then return end
+    local count = #self:PickedKeys()
+    self.PickedText:SetText(L.PICKED_N:format(count))
+    local shown = UI.memberOrder or {}
+    local all = #shown > 0
+    for _, key in ipairs(shown) do all = all and self.picked[key] == true end
+    self.PickAllCheck:SetChecked(all)
+    for kind, button in pairs(self.BatchButtons) do button:SetEnabled(count > 0 and can[kind] and true or false) end
+  end
+
   function view:Refresh()
     -- officer note column and filter only for those who may read officer notes
     self.viewOfficer = ns.Roster.Can().viewOfficer and true or false
     self:LayoutColumns()
     -- twinks under their main, or every character on its own (settings.memberTwinks, the options)
     self.flat = ns.Settings().memberTwinks == false
-    local filters = not self.editing -- (while customizing their place has the line of help)
+    -- (while customizing their place has the line of help, while managing the picking)
+    local filters = not self.editing and not self.managing
     for _, check in ipairs(Checks()) do
       check:SetShown(filters)
       check.Label:SetShown(filters)
     end
     self.AddColumn:SetShown(self.editing == true and #self:HiddenColumns() > 0)
-    if self.flat then
+    if self.flat or not filters then
       self.FoldCheck:Hide()
       self.FoldCheck.Label:Hide()
     end
-    if not self.viewOfficer then
+    if not self.viewOfficer or not filters then
       self.NoOfficerNoteCheck:Hide()
       self.NoOfficerNoteCheck.Label:Hide()
     end
@@ -789,6 +920,8 @@ local function Build(panel)
     if self.filter.ilvl then summary = L.ILVL .. " " .. self.filter.ilvl .. ns.L.SEP .. summary end
     if self.filter.raidKill then summary = RaidTitle(self.filter.raidKill) .. ns.L.SEP .. summary end
     self.Summary:SetText(self.editing and L.MEMBERS_HINT or summary)
+    self.Summary:SetShown(not self.managing)
+    self:RefreshManage(ns.Roster.Can())
     -- at a narrow window a long language fills the row with the filters: then only the numbers
     local last = (self.FoldCheck.Label:IsShown() and self.FoldCheck.Label)
       or (self.viewOfficer and self.NoOfficerNoteCheck.Label) or self.NoNoteCheck.Label

@@ -1288,6 +1288,72 @@ T.describe("Smoke", function()
       T.eq(charPage.NavText:GetText(), ns.L.CHAR_NAV_OFFLINE)
       ns.UI.ShowMember(member)
     end
+    -- "Manage": pick members, then one secure click each, locked until the roster shows the change
+    do
+      local keptInfo = env.GetGuildInfo
+      env.GetGuildInfo = function() return "Murloc Mafia", "GM", 0 end -- the guild master
+      ns.UI.SelectTab("members")
+      local view = ns.UI.TabView("members")
+      view:SetManaging(true)
+      T.truthy(view.ManageBar:IsShown(), "pick bar shown")
+      local order = ns.UI.memberOrder
+      view:TogglePick(order[1])
+      view:TogglePick(order[#order], true) -- Shift: the whole range
+      T.eq(#view:PickedKeys(), #order)
+      T.eq(view.PickedText:GetText(), ns.L.PICKED_N:format(#order))
+      view:TogglePick(order[#order]) -- a plain click takes one out again
+      T.eq(#view:PickedKeys(), #order - 1)
+      view:PickAll(false)
+      T.eq(#view:PickedKeys(), 0)
+      local ran, makira, au = ns.Roster.Find("Ran Fred"), ns.Roster.Find("Makira Farron"), ns.Roster.Find("Au Tsch")
+      -- Ran Fred is the player, Au Tsch holds the lowest rank: only Makira can be demoted
+      view:TogglePick(ran.key)
+      view:TogglePick(makira.key)
+      view:TogglePick(au.key)
+      view:StartBatch("demote")
+      local b, p = ns.UI.Batch()
+      T.truthy(b and p:IsShown(), "batch dialog shown")
+      T.eq(p.member, makira)
+      -- the mouse on the button: Blizzard's /gdemote for this member, a click sends it
+      for _, frame in ipairs({ p.Go, env.UIParent }) do
+        rawset(frame, "GetEffectiveScale", function() return 1 end)
+      end
+      for k, v in pairs({ GetLeft = 100, GetBottom = 100, IsVisible = true, IsEnabled = true, GetWidth = 130, GetHeight = 22 }) do
+        rawset(p.Go, k, function() return v end)
+      end
+      p.Go:GetScript("OnEnter")(p.Go)
+      local overlay = env.GuildySecureOverlay
+      T.eq(overlay:GetAttribute("macrotext"), "/gdemote " .. makira.name)
+      overlay:GetScript("PostClick")(overlay, "LeftButton", false)
+      T.truthy(b.waiting, "locked after the click")
+      T.eq(p.Status:GetText(), ns.L.BATCH_WAITING)
+      ns.Fire("ROSTER") -- no change yet: still the same member
+      T.eq(p.member, makira)
+      local keptRank = makira.rankIndex
+      makira.rankIndex = keptRank + 1
+      ns.Fire("ROSTER")
+      makira.rankIndex = keptRank
+      T.eq(p.member, nil) -- the change showed; nobody else can be demoted
+      T.eq(p.Who:GetText(), ns.L.BATCH_DONE:format(1, 2))
+      T.eq(view.managing, false) -- finished: the list leaves the mode
+      p.Stop:GetScript("OnClick")(p.Stop)
+      -- passing over a member
+      ns.UI.RunBatch("promote", { au.key })
+      b, p = ns.UI.Batch()
+      T.eq(p.member, au)
+      p.Skip:GetScript("OnClick")(p.Skip)
+      T.eq(p.Who:GetText(), ns.L.BATCH_DONE:format(0, 1))
+      p.Stop:GetScript("OnClick")(p.Stop)
+      -- removing asks once, with the names
+      view:SetManaging(true)
+      view:TogglePick(ran.key)
+      view:StartBatch("remove")
+      T.truthy(env.GuildyConfirm:IsShown(), "asked before removing")
+      env.GuildyConfirm:Hide()
+      view:SetManaging(false)
+      env.GetGuildInfo = keptInfo
+      ns.UI.SelectTab("chat")
+    end
     ns.UI.MemberMenu(member)
     ns.UI.CopyText(member.name)
     ns.UI.ConfirmRemove(member)

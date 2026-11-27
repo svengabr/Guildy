@@ -49,3 +49,73 @@ T.describe("Manage.Command", function()
     T.eq(Manage.Command("remove", nil), nil)
   end)
 end)
+
+T.describe("Manage batch", function()
+  local function Roster()
+    local byKey = {
+      a = { key = "a", rankIndex = 4 }, b = { key = "b", rankIndex = 5 }, c = { key = "c", rankIndex = 3 },
+    }
+    local allowed = { a = true, b = true, c = true }
+    return byKey, function(key) return byKey[key] end, function(m) return { demote = allowed[m.key], remove = allowed[m.key] } end, allowed
+  end
+
+  T.it("steps through the picks, locked until the roster shows the change", function()
+    local byKey, find, rights = Roster()
+    local b = Manage.NewBatch("demote", { "a", "b" })
+    T.eq(Manage.BatchCurrent(b, find, rights).key, "a")
+    Manage.BatchSent(b, byKey.a, 100)
+    T.eq(Manage.BatchConfirm(b, find), false) -- no change yet: still a, still locked
+    T.eq(Manage.BatchCurrent(b, find, rights).key, "a")
+    T.truthy(b.waiting, "locked")
+    byKey.a.rankIndex = 5
+    T.eq(Manage.BatchConfirm(b, find), true)
+    T.eq(b.waiting, nil)
+    T.eq(Manage.BatchCurrent(b, find, rights).key, "b")
+    Manage.BatchSent(b, byKey.b, 101)
+    byKey.b.rankIndex = 6
+    Manage.BatchConfirm(b, find)
+    T.eq(Manage.BatchCurrent(b, find, rights), nil)
+    T.eq({ b.done, b.skipped }, { 2, 0 })
+  end)
+
+  T.it("a promotion only counts when the rank goes up", function()
+    local byKey, find, rights = Roster()
+    rights = function() return { promote = true } end
+    local b = Manage.NewBatch("promote", { "c" })
+    Manage.BatchSent(b, Manage.BatchCurrent(b, find, rights), 1)
+    byKey.c.rankIndex = 4 -- someone else demoted them meanwhile
+    T.eq(Manage.BatchConfirm(b, find), false)
+    byKey.c.rankIndex = 2
+    T.eq(Manage.BatchConfirm(b, find), true)
+  end)
+
+  T.it("removal counts once the member is gone", function()
+    local byKey, find, rights = Roster()
+    local b = Manage.NewBatch("remove", { "a" })
+    Manage.BatchSent(b, Manage.BatchCurrent(b, find, rights), 1)
+    byKey.a = nil
+    T.eq(Manage.BatchConfirm(b, find), true)
+    T.eq(b.done, 1)
+  end)
+
+  T.it("skips members who left or may no longer be changed", function()
+    local byKey, find, rights, allowed = Roster()
+    byKey.a = nil
+    allowed.b = false
+    local b = Manage.NewBatch("demote", { "a", "b", "c" })
+    T.eq(Manage.BatchCurrent(b, find, rights).key, "c")
+    T.eq(b.skipped, 2)
+  end)
+
+  T.it("unlocks after the time limit and lets the player skip", function()
+    local byKey, find, rights = Roster()
+    local b = Manage.NewBatch("demote", { "a", "b" })
+    Manage.BatchSent(b, byKey.a, 100)
+    T.eq(Manage.BatchTimedOut(b, 104, 8), false)
+    T.eq(Manage.BatchTimedOut(b, 108, 8), true)
+    T.eq(Manage.BatchCurrent(b, find, rights).key, "a") -- the same member again
+    Manage.BatchSkip(b)
+    T.eq(Manage.BatchCurrent(b, find, rights).key, "b")
+    T.eq(b.skipped, 1)
+  end)
+end)

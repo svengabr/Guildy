@@ -543,3 +543,134 @@ function UI.ConfirmRemove(m)
   local who = W.ClassName(m.name, m.classFile) .. (m.rank and ("|cffaaaaaa (" .. m.rank .. ")|r") or "")
   UI.Confirm(L.REMOVE_CONFIRM:format(who), UI.Action.Manage("remove", m), L.REMOVE_BUTTON, true)
 end
+
+-- Several members at once (the members tab's "Manage" mode): a small dialog steps through the picks,
+-- one secure click per member (Core/Manage.lua has the rules). Its button names the next member and
+-- runs /gpromote, /gdemote or /gremove for them; after the click it stays off until the roster shows the
+-- change (a second click on the same member would promote them twice), then the next one comes. In
+-- combat the secure button cannot be laid: the dialog waits, the click says "not in combat".
+local BATCH_LIMIT = 8 -- seconds without the change: the button comes back for the same member
+local batch, batchPanel
+
+local function Find(key) return ns.Roster.Find(key) end
+local function Rights(m) return ns.Roster.Rights(m) end
+
+local function BatchUpdate()
+  local p, b, L = batchPanel, batch, ns.L
+  if not (p and b) then return end
+  local m = ns.Manage.BatchCurrent(b, Find, Rights)
+  p.member = m
+  local label = L["BATCH_" .. b.kind:upper()]
+  if not m then
+    p.Title:SetText(label)
+    p.Who:SetText(L.BATCH_DONE:format(b.done, b.skipped))
+    p.Status:SetText("")
+    p.Go:Hide()
+    p.Skip:Hide()
+    p.Stop:SetText(L.BATCH_CLOSE)
+    if p.onDone then
+      local onDone = p.onDone
+      p.onDone = nil
+      ns.SafeCall(onDone)
+    end
+    UI.RefreshSecureAction(p.Go)
+    return
+  end
+  p.Title:SetText(L.BATCH_TITLE:format(label, b.done + b.skipped + 1, #b.keys))
+  local rank = m.rank or ""
+  local step = (b.kind ~= "remove" and ns.Roster.NextRank(m, b.kind))
+  local where = step and (rank .. " > " .. step) or rank
+  p.Who:SetText(W.ClassName(m.name, m.classFile) .. (where ~= "" and ("|cffaaaaaa  " .. where .. "|r") or ""))
+  p.Status:SetText(b.waiting and L.BATCH_WAITING or (p.retry and L.BATCH_RETRY or L.BATCH_HINT))
+  p.Go:Show()
+  p.Skip:Show()
+  p.Go:SetText(label)
+  p.Go:SetEnabled(not b.waiting)
+  p.Stop:SetText(L.BATCH_STOP)
+  UI.RefreshSecureAction(p.Go)
+end
+
+local function BatchPanel()
+  if batchPanel then return batchPanel end
+  local L = ns.L
+  local p = ns.Pad.Popup(W.Box(UIParent, 0.06, 0.92))
+  p:SetFrameStrata("DIALOG")
+  p:SetSize(380, 128)
+  p:SetPoint("CENTER", 0, 120)
+  p:EnableMouse(true)
+  p:SetMovable(true)
+  p:RegisterForDrag("LeftButton")
+  p:SetScript("OnDragStart", p.StartMoving)
+  p:SetScript("OnDragStop", p.StopMovingOrSizing)
+  p.Title = W.Text(p, "GameFontNormal")
+  p.Title:SetPoint("TOPLEFT", 14, -12)
+  p.Who = W.Text(p, "GameFontHighlight")
+  p.Who:SetPoint("TOPLEFT", p.Title, "BOTTOMLEFT", 0, -10)
+  p.Who:SetPoint("RIGHT", -14, 0)
+  p.Who:SetWordWrap(false)
+  p.Status = W.Text(p, "GameFontDisableSmall")
+  p.Status:SetPoint("TOPLEFT", p.Who, "BOTTOMLEFT", 0, -6)
+  p.Status:SetPoint("RIGHT", -14, 0)
+  p.Go = W.Button(p, L.BATCH_DEMOTE, nil, 130)
+  p.Go:SetPoint("BOTTOMLEFT", 14, 12)
+  UI.SecureAction(p.Go, function()
+    local b, m = batch, p.member
+    if not (b and m) or b.waiting then return nil end
+    local action = UI.Action.Manage(b.kind, m)
+    if not action then return nil end
+    local sent = action.after
+    action.after = function()
+      if sent then sent() end
+      if batch ~= b then return end
+      ns.Manage.BatchSent(b, m, ns.Now())
+      p.retry = false
+      BatchUpdate()
+      -- the roster is asked again a moment later (Action.Manage); no change in time: the button returns
+      C_Timer.After(BATCH_LIMIT, function()
+        if batch == b and ns.Manage.BatchTimedOut(b, ns.Now(), BATCH_LIMIT) then
+          p.retry = true
+          ns.Roster.Request(true)
+          BatchUpdate()
+        end
+      end)
+    end
+    return action
+  end, nil, function() end) -- a plain click (button locked, or nothing to do) does nothing
+  p.Skip = W.Button(p, L.BATCH_SKIP, function()
+    if batch then
+      ns.Manage.BatchSkip(batch)
+      p.retry = false
+      BatchUpdate()
+    end
+  end, 100)
+  p.Skip:SetPoint("LEFT", p.Go, "RIGHT", 8, 0)
+  p.Stop = W.Button(p, L.BATCH_STOP, function() p:Hide() end, 100)
+  p.Stop:SetPoint("BOTTOMRIGHT", -14, 12)
+  p:HookScript("OnHide", function(self)
+    batch, self.member = nil, nil
+    local onDone = self.onDone
+    self.onDone = nil
+    if onDone then ns.SafeCall(onDone) end
+  end)
+  ns.On("ROSTER", function()
+    if batch and p:IsShown() and ns.Manage.BatchConfirm(batch, Find) then BatchUpdate() end
+  end)
+  tinsert(UISpecialFrames, "GuildyBatch")
+  _G.GuildyBatch = p
+  batchPanel = p
+  return p
+end
+
+-- Starts stepping through keys (member keys, in order) with kind "promote", "demote" or "remove";
+-- onDone() once the batch is finished or stopped
+function UI.RunBatch(kind, keys, onDone)
+  if not keys or #keys == 0 then return end
+  local p = BatchPanel()
+  if p:IsShown() then p:Hide() end
+  batch = ns.Manage.NewBatch(kind, keys)
+  p.retry, p.onDone = false, onDone
+  p:Show()
+  BatchUpdate()
+end
+
+function UI.Batch() return batch, batchPanel end

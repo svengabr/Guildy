@@ -33,3 +33,70 @@ function Manage.Command(kind, name)
   if not command or full == "" then return nil end
   return command .. " " .. full
 end
+
+-- Batch: several picked members, one secure click each (UI/Commands.lua, UI.RunBatch). Forever runs
+-- /gpromote, /gdemote and /gremove only from the player's own click, so Guildy steps through the picks:
+-- the button names the next member, a click sends the command, and the button stays locked until the
+-- roster shows the change. Then the next member comes. b = { kind, keys, at, done, skipped, waiting }.
+function Manage.NewBatch(kind, keys)
+  local list = {}
+  for i, key in ipairs(keys or {}) do list[i] = key end
+  return { kind = kind, keys = list, at = 1, done = 0, skipped = 0 }
+end
+
+-- The member to act on now: the first pick from b.at that find(key) still knows and rights(m)[kind]
+-- still allows; the others are skipped (left the guild, the rank changed meanwhile). nil = finished.
+function Manage.BatchCurrent(b, find, rights)
+  while b.at <= #b.keys do
+    local key = b.keys[b.at]
+    local m = find(key)
+    if b.waiting and b.waiting.key == key then return m end
+    if m and rights(m)[b.kind] then return m end
+    b.skipped = b.skipped + 1
+    b.at = b.at + 1
+  end
+  return nil
+end
+
+-- The command for m went out at now: wait for the roster
+function Manage.BatchSent(b, m, now)
+  b.waiting = { key = m.key, rank = m.rankIndex, at = now }
+end
+
+-- Whether the roster now shows the change waited for (removed: gone; rank: one step the right way).
+-- Then the batch moves on to the next pick.
+function Manage.BatchConfirm(b, find)
+  local w = b.waiting
+  if not w then return false end
+  local m = find(w.key)
+  local changed
+  if not m then
+    changed = true -- removed (or left on their own: nothing more to do for them)
+  elseif b.kind == "promote" then
+    changed = type(m.rankIndex) == "number" and type(w.rank) == "number" and m.rankIndex < w.rank
+  elseif b.kind == "demote" then
+    changed = type(m.rankIndex) == "number" and type(w.rank) == "number" and m.rankIndex > w.rank
+  end
+  if not changed then return false end
+  b.waiting = nil
+  b.done = b.done + 1
+  b.at = b.at + 1
+  return true
+end
+
+-- No change after limit seconds: the lock goes, the same member can be clicked again
+function Manage.BatchTimedOut(b, now, limit)
+  if b.waiting and now - b.waiting.at >= limit then
+    b.waiting = nil
+    return true
+  end
+  return false
+end
+
+-- The player passes over the current member
+function Manage.BatchSkip(b)
+  if b.at > #b.keys then return end
+  b.waiting = nil
+  b.skipped = b.skipped + 1
+  b.at = b.at + 1
+end
