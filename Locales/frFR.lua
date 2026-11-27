@@ -264,6 +264,7 @@ ns.LocaleTables.frFR = {
   REMOVE_CONFIRM = "Renvoyer %s de la guilde ?\nCette action est irréversible.",
   COPY_NAME = "Copier le nom",
   COPY_HINT = "Ctrl+C copie, Échap ferme",
+  INVITE_COPY_HINT = "Ctrl+C, puis Ctrl+V dans la discussion et Entrée",
   PLAY_LOCALE = "Langue préférée",
   PLAY_REGION = "Région préférée",
   APPLY = "Appliquer",

@@ -264,6 +264,7 @@ ns.LocaleTables.esES = {
   REMOVE_CONFIRM = "¿Expulsar a %s de la hermandad?\nNo se puede deshacer.",
   COPY_NAME = "Copiar nombre",
   COPY_HINT = "Ctrl+C copia, Escape cierra",
+  INVITE_COPY_HINT = "Ctrl+C, luego Ctrl+V en el chat e Intro",
   PLAY_LOCALE = "Idioma preferido",
   PLAY_REGION = "Región preferida",
   APPLY = "Aplicar",

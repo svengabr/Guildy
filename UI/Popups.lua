@@ -87,18 +87,19 @@ function UI.CursorAnchor()
   return cursorAnchor
 end
 
--- WoW has no clipboard access: a small box with the text selected, Ctrl+C copies and closes it
+-- WoW has no clipboard access: a small box with the text selected, Ctrl+C copies and closes it.
+-- hint: the line above the text (default: how to copy)
 local copyBox
-function UI.CopyText(text)
+function UI.CopyText(text, hint)
   local L = ns.L
   if not copyBox then
     copyBox = ns.Pad.Popup(W.Box(UIParent, 0.06, 0.95))
     copyBox:SetFrameStrata("DIALOG")
-    copyBox:SetSize(260, 74)
+    copyBox:SetSize(320, 74) -- room for the longest hint ("/ginvite …", frFR)
     copyBox:EnableMouse(true)
     copyBox.Title = W.Text(copyBox, "GameFontNormalSmall", L.COPY_HINT)
     copyBox.Title:SetPoint("TOP", 0, -12)
-    copyBox.Edit = W.EditBox(copyBox, 220)
+    copyBox.Edit = W.EditBox(copyBox, 280)
     copyBox.Edit:SetPoint("TOP", copyBox.Title, "BOTTOM", 0, -10)
     copyBox.Edit:SetScript("OnEscapePressed", function() copyBox:Hide() end)
     copyBox.Edit:SetScript("OnEnterPressed", function() copyBox:Hide() end)
@@ -114,6 +115,7 @@ function UI.CopyText(text)
     _G.GuildyCopyBox = copyBox
   end
   copyBox.text = text
+  copyBox.Title:SetText(hint or L.COPY_HINT)
   copyBox:ClearAllPoints()
   copyBox:SetPoint("TOPLEFT", UI.CursorAnchor(), "TOPLEFT", -20, 20)
   copyBox:SetClampedToScreen(true)
@@ -176,7 +178,23 @@ function UI.HookMemberMenu()
     root:CreateButton(ns.L.MEMBER_FORGET_PROFS, function()
       if ns.TradeSkill.Forget(m) then ns.Print(ns.L.MEMBER_FORGOT_PROFS:format(m.name)) end
     end)
+    -- Blizzard's menu has no removal: the entry opens Guildy's confirmation, whose button runs
+    -- Blizzard's secure /gremove (UI/Commands.lua), so no member page has to be opened for it
+    if ns.Roster.Can().remove and ns.Roster.Rights(m).remove then
+      root:CreateButton("|cffff4033" .. ns.L.REMOVE .. "|r", function() UI.ConfirmRemove(m) end)
+    end
   end)
+end
+
+-- Guild invite for a player outside the guild (the player menus of the chat and unit frames,
+-- Game/Blacklist.lua): "/ginvite Name-Realm" in the copy box, the player pastes it into the chat.
+-- Nothing an addon puts there can invite: a name it writes into Blizzard's invite dialog or a command
+-- it puts into the chat box taints Blizzard's code that reads it, and the invite is blocked
+-- (ADDON_ACTION_FORBIDDEN Invite(), verified 2026-11-27). Text the player pasted is the player's own.
+-- /ginvite wants the name as the invite dialog does, with the hyphen (Names.ToServer).
+function UI.CopyInvite(name)
+  if not name then return end
+  UI.CopyText("/ginvite " .. ns.Names.ToServer(name), ns.L.INVITE_COPY_HINT)
 end
 
 -- Where a member's tooltip stands (settings.tooltipAnchor, Guildy's options):

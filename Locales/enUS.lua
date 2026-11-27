@@ -264,6 +264,7 @@ ns.LocaleTables.enUS = {
   REMOVE_CONFIRM = "Remove %s from the guild?\nThis cannot be undone.",
   COPY_NAME = "Copy name",
   COPY_HINT = "Ctrl+C copies, Escape closes",
+  INVITE_COPY_HINT = "Ctrl+C, then Ctrl+V in the chat and Enter",
   PLAY_LOCALE = "Preferred language",
   PLAY_REGION = "Preferred region",
   APPLY = "Apply",

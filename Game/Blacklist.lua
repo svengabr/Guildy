@@ -169,8 +169,9 @@ function GameBlacklist.HookTooltip()
   end
 end
 
--- "Add to Guildy blacklist" in the right-click menu of other players (Blizzard's Menu.ModifyMenu; unit menus
--- are tagged MENU_UNIT_<type>). Opens the Blacklist tab's add row with the name.
+-- "Invite to guild" and "Add to Guildy blacklist" in the right-click menu of other players (Blizzard's
+-- Menu.ModifyMenu; unit menus are tagged MENU_UNIT_<type>, names in the chat open FRIEND). The blacklist
+-- entry opens the Blacklist tab's add row with the name.
 local MENU_TAGS = { "PLAYER", "ENEMY_PLAYER", "PARTY", "RAID_PLAYER", "FRIEND", "TARGET", "FOCUS" }
 
 local function MenuName(context)
@@ -195,6 +196,10 @@ function GameBlacklist.HookMenu()
       local name = MenuName(context)
       if not name or not root then return end
       root:CreateDivider()
+      -- not in the guild (MenuName leaves members out): officers may invite them (UI/Popups.lua)
+      if which ~= "ENEMY_PLAYER" and ns.Roster.Can().invite then
+        root:CreateButton(ns.L.INVITE_TITLE, function() ns.UI.CopyInvite(name) end)
+      end
       root:CreateButton(ns.L.BL_MENU, function() ns.UI.BlacklistAdd(name) end)
     end)
   end

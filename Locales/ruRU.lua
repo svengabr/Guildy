@@ -265,6 +265,7 @@ ns.LocaleTables.ruRU = {
   REMOVE_CONFIRM = "Исключить из гильдии: %s?\nЭто нельзя отменить.",
   COPY_NAME = "Скопировать имя",
   COPY_HINT = "Ctrl+C копирует, Escape закрывает",
+  INVITE_COPY_HINT = "Ctrl+C, затем Ctrl+V в чат и Enter",
   PLAY_LOCALE = "Предпочитаемый язык",
   PLAY_REGION = "Предпочитаемый регион",
   APPLY = "Применить",

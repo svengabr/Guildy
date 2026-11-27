@@ -264,6 +264,7 @@ ns.LocaleTables.deDE = {
   REMOVE_CONFIRM = "%s aus der Gilde entfernen?\nDas lässt sich nicht rückgängig machen.",
   COPY_NAME = "Namen kopieren",
   COPY_HINT = "Strg+C kopiert, Escape schließt",
+  INVITE_COPY_HINT = "Strg+C, dann im Chat Strg+V und Enter",
   PLAY_LOCALE = "Bevorzugte Sprache",
   PLAY_REGION = "Bevorzugter Standort",
   APPLY = "Übernehmen",

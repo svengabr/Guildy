@@ -264,6 +264,7 @@ ns.LocaleTables.ptBR = {
   REMOVE_CONFIRM = "Remover %s da guilda?\nIsso não pode ser desfeito.",
   COPY_NAME = "Copiar nome",
   COPY_HINT = "Ctrl+C copia, Esc fecha",
+  INVITE_COPY_HINT = "Ctrl+C, depois Ctrl+V no bate-papo e Enter",
   PLAY_LOCALE = "Idioma preferido",
   PLAY_REGION = "Região preferida",
   APPLY = "Aplicar",
