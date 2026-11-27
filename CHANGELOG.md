@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.19.0
+
+- New: arrows beside "Back" on a member's page step to the previous or next online member, in the
+  order the Members tab shows them (its sorting and filters). The tooltip names who comes next, and
+  "4 of 23 online" says where you are. On an offline member's page both arrows are off. Suggested by
+  eggntoast, thank you!
+
 ## 1.18.0
 
 - New for addon authors: the global table `GuildyAPI` lets another addon change how names are shown
