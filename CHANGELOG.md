@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.17.0
+
+- New: right-clicking a member offers "Remove from guild" (for officers who may remove them), so you no
+  longer have to open each member's page to remove them. Guildy still asks before removing anyone.
+- New: right-clicking a player outside the guild (in the chat or on their portrait) offers "Invite to
+  guild". It opens a small box with "/ginvite Name": Ctrl+C, then Ctrl+V in the chat and Enter. The game
+  blocks invites an addon fills in, so the last step stays yours.
+
 ## 1.16.0
 
 - New: Guildy's creator has a "Guildy Creator" line in the tooltip.
