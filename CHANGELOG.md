@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.20.0
+
+- New: "Manage" in the Members tab, for officers who may promote, demote or remove. Pick members (click,
+  Shift+click for a range, or "All shown" after filtering), then Promote, Demote or Remove. A small
+  dialog steps through them: the game takes one click per member, so its button names the next one
+  and waits until the guild roster shows the change before it moves on, which keeps a double click from
+  promoting anyone twice. Members you may no longer change are skipped. Removing asks once first, with
+  the names. Suggested by eggntoast, thank you!
+
 ## 1.19.0
 
 - New: arrows beside "Back" on a member's page step to the previous or next online member, in the
