@@ -1253,6 +1253,41 @@ T.describe("Smoke", function()
     ns.UI.ShowMember(member)
     T.truthy(ns.UI.MemberPage(), "page built")
     ns.UI.MemberPage():Render()
+    -- browsing: previous and next online member in the members list's order, offline skipped
+    do
+      local charPage = ns.UI.MemberPage()
+      ns.UI.SelectTab("members")
+      local view = ns.UI.TabView("members")
+      view.query = nil
+      view:SetFilter({}) -- (an earlier step left a filter)
+      local online, offline = {}, nil
+      for _, key in ipairs(ns.UI.memberOrder) do
+        local m = ns.Roster.Find(key)
+        if m.online then online[#online + 1] = m else offline = offline or m end
+      end
+      T.eq(#online, 2) -- the stub roster: two online, one offline
+      ns.UI.ShowMember(online[1])
+      T.eq(charPage.Next.target, online[2].key)
+      T.eq(charPage.Prev.target, online[2].key) -- round at the ends
+      T.eq(charPage.NavText:GetText(), ns.L.CHAR_NAV_POS:format(1, 2))
+      -- the mouse stays on the button after the click: its tooltip follows the new target
+      local isOwned, lines = env.GameTooltip.IsOwned, {}
+      rawset(env.GameTooltip, "IsOwned", function(_, owner) return owner == charPage.Next end)
+      local addLine = env.GameTooltip.AddLine
+      rawset(env.GameTooltip, "AddLine", function(_, text) lines[#lines + 1] = text end)
+      charPage.Next:GetScript("OnClick")(charPage.Next)
+      T.eq(charPage.member.key, online[2].key)
+      T.truthy(lines[1] and lines[1]:find(online[1].name, 1, true), "tooltip names the new target")
+      rawset(env.GameTooltip, "IsOwned", isOwned)
+      rawset(env.GameTooltip, "AddLine", addLine)
+      T.eq(charPage.NavText:GetText(), ns.L.CHAR_NAV_POS:format(2, 2))
+      T.eq(charPage.backTab, "members") -- browsing keeps the way back
+      T.truthy(offline, "an offline member")
+      ns.UI.ShowMember(offline)
+      T.eq({ charPage.Prev.target, charPage.Next.target }, {})
+      T.eq(charPage.NavText:GetText(), ns.L.CHAR_NAV_OFFLINE)
+      ns.UI.ShowMember(member)
+    end
     ns.UI.MemberMenu(member)
     ns.UI.CopyText(member.name)
     ns.UI.ConfirmRemove(member)

@@ -361,6 +361,10 @@ ns.LocaleTables.esES = {
   MALE = "masculino",
   FEMALE = "femenino",
   BACK = "Volver",
+  CHAR_PREV = "Miembro anterior",
+  CHAR_NEXT = "Miembro siguiente",
+  CHAR_NAV_POS = "%d de %d conectados",
+  CHAR_NAV_OFFLINE = "Desconectado: solo se pasa entre miembros conectados",
 
   LEVEL_CLASS = "Nivel %d %s",
   RANK = "Rango",

@@ -90,3 +90,26 @@ T.describe("Search.Members", function()
     T.eq(names(Search.SortMembers(list, "level", true)), { "Eziiria Ash", "Makira Farron", "Ran Fred" })
   end)
 end)
+
+T.describe("Search.Neighbours", function()
+  local on = { a = true, c = true, d = true, f = true }
+  local function online(k) return on[k] == true end
+  local order = { "a", "b", "c", "d", "e", "f" }
+
+  T.it("skips offline members and wraps around", function()
+    T.eq({ Search.Neighbours(order, "c", online) }, { "a", "d", 2, 4 })
+    T.eq({ Search.Neighbours(order, "a", online) }, { "f", "c", 1, 4 })
+    T.eq({ Search.Neighbours(order, "f", online) }, { "d", "a", 4, 4 })
+  end)
+
+  T.it("offers nothing for an offline member or one outside the order", function()
+    T.eq({ Search.Neighbours(order, "b", online) }, {})
+    on.x = true
+    T.eq({ Search.Neighbours(order, "x", online) }, {})
+    on.x = nil
+  end)
+
+  T.it("has no neighbours when only this member is online", function()
+    T.eq({ Search.Neighbours({ "a", "b" }, "a", online) }, { nil, nil, 1, 1 })
+  end)
+end)

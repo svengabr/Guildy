@@ -123,6 +123,26 @@ local GETTERS = {
   joined = function(m) return m.joinedDay or math.huge end,
 }
 
+-- Browsing the character pages (UI/CharacterPage.lua): order is the member keys as the members list
+-- shows them, online(key) whether that member is online now. Returns the previous and next online
+-- member around key, its place among the online ones and how many are online - or nil when the member
+-- is offline or not in order (then the page offers no browsing). Wraps around at both ends; with only
+-- this one member online, previous and next are nil.
+function Search.Neighbours(order, key, online)
+  if not online(key) then return nil end
+  local keys, at = {}, nil
+  for _, k in ipairs(order) do
+    if online(k) then
+      keys[#keys + 1] = k
+      if k == key then at = #keys end
+    end
+  end
+  if not at then return nil end
+  local n = #keys
+  if n == 1 then return nil, nil, 1, 1 end
+  return keys[(at - 2) % n + 1], keys[at % n + 1], at, n
+end
+
 -- Sorts in place by field; desc reverses. Ties by name. Default directions: level high first.
 function Search.SortMembers(list, field, desc)
   local get = GETTERS[field] or GETTERS.name

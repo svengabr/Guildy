@@ -479,6 +479,71 @@ local function TextHeight(text, width)
   return type(h) == "number" and h > 0 and math.ceil(h) or 12
 end
 
+-- Browsing to the previous and next online member (community wish, 2026-11-27) ----------------------
+-- The arrows of Blizzard's square buttons (SquareButton_SetIcon), on a small red panel button in gold,
+-- grey while it is off. The tooltip names the member it leads to.
+local ARROWS = { LEFT = { 0.234375, 0.421875, 0.015625, 0.203125 }, RIGHT = { 0.421875, 0.234375, 0.015625, 0.203125 } }
+
+local function NavButton(parent, direction, title, onClick)
+  local button = W.Button(parent, "", onClick, 28, { small = true })
+  local arrow = button:CreateTexture(nil, "ARTWORK")
+  arrow:SetTexture("Interface\\Buttons\\SquareButtonTextures")
+  local known = rawget(_G, "SQUARE_BUTTON_TEXCOORDS")
+  local c = (known and known[direction]) or ARROWS[direction]
+  arrow:SetTexCoord(c[1], c[2], c[3], c[4])
+  arrow:SetSize(12, 12)
+  arrow:SetPoint("CENTER", 0, 0)
+  button.Arrow = arrow
+  button.ShowTip = function(self)
+    local m = self.target and ns.Roster.Find(self.target)
+    if not m then
+      if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+      return
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+    GameTooltip:SetText(title)
+    GameTooltip:AddLine(W.ClassName(m.name, m.classFile))
+    local who = ns.L.LEVEL_CLASS:format(m.level or 0, m.className or "")
+    if m.zone and m.zone ~= "" then who = who .. ns.L.SEP .. m.zone end
+    GameTooltip:AddLine(who, 1, 1, 1)
+    GameTooltip:Show()
+  end
+  button:SetScript("OnEnter", button.ShowTip)
+  button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  return button
+end
+
+-- A click leaves the mouse on the button, so no new OnEnter comes: the tooltip it owns follows the new target
+local function SetNav(button, key)
+  local changed = button.target ~= key
+  button.target = key
+  if changed and GameTooltip:IsOwned(button) then button:ShowTip() end
+  button:SetEnabled(key ~= nil)
+  if key then button.Arrow:SetVertexColor(1, 0.82, 0) else button.Arrow:SetVertexColor(0.5, 0.5, 0.5) end
+end
+
+-- The order to browse in: the members list as it is sorted and filtered right now; a member it does not
+-- show (the list filtered, or never opened) is browsed among all members by name.
+local function BrowseOrder(key)
+  local order = UI.memberOrder
+  if order then
+    for _, k in ipairs(order) do
+      if k == key then return order end
+    end
+  end
+  local all = {}
+  for i, m in ipairs(ns.Roster.Members()) do all[i] = m end
+  ns.Search.SortMembers(all, "name")
+  local keys = {}
+  for i, m in ipairs(all) do keys[i] = m.key end
+  return keys
+end
+
+local function IsOnline(key)
+  local m = ns.Roster.Find(key)
+  return m ~= nil and m.online == true
+end
+
 local function Build()
   local L = ns.L
   page = ns.CreateFrame("Frame", nil, UI.Content())
@@ -490,6 +555,9 @@ local function Build()
   local pageBody = shell.Body
   page.Body = pageBody
   page.Back = shell:Left(W.Button(shell.Bar, L.BACK, function() UI.SelectTab(page.backTab or "chat") end, 90, { small = true }))
+  page.Prev = shell:Left(NavButton(shell.Bar, "LEFT", L.CHAR_PREV, function() page:Browse(-1) end), 12)
+  page.Next = shell:Left(NavButton(shell.Bar, "RIGHT", L.CHAR_NEXT, function() page:Browse(1) end), 4)
+  page.NavText = shell:Left(W.Text(shell.Bar, "GameFontDisableSmall"), 10)
 
   -- hero card --------------------------------------------------------------------------------------
   local hero = W.Box(pageBody)
@@ -1761,6 +1829,29 @@ local function Build()
     return table.concat(parts, "\031")
   end
 
+  -- the arrows and "4 of 23 online"; for an offline member both arrows are off
+  function page:UpdateNav()
+    local m = self.member
+    if not m then return end
+    local prev, nxt, at, n = ns.Search.Neighbours(BrowseOrder(m.key), m.key, IsOnline)
+    SetNav(self.Prev, prev)
+    SetNav(self.Next, nxt)
+    if at then
+      self.NavText:SetText(L.CHAR_NAV_POS:format(at, n))
+    elseif not IsOnline(m.key) then
+      self.NavText:SetText(L.CHAR_NAV_OFFLINE)
+    else
+      self.NavText:SetText("")
+    end
+  end
+
+  function page:Browse(step)
+    local target
+    if step < 0 then target = self.Prev.target else target = self.Next.target end
+    local m = target and ns.Roster.Find(target)
+    if m then UI.ShowMember(m) end
+  end
+
   -- Each part is measured on its own while /guildy perf runs ("character page: hero (first title)" ...)
   function page:Render()
     local lap = ns.Perf.Lap()
@@ -1769,6 +1860,7 @@ local function Build()
     self.dirty = false
     if not m then return end
     self.waiting = false
+    self:UpdateNav()
     local y, areaH, gearW = self:Layout()
     lap("character page:", "layout")
     self:RenderHero(m)
@@ -1825,6 +1917,7 @@ local function Build()
   local function Shown(key) return key == nil or (page.member ~= nil and page.member.key == key) end
   ns.On("ROSTER", function()
     local m = page:IsShown() and page.member and ns.Roster.Find(page.member.key)
+    if m then page:UpdateNav() end -- someone came online or left: the neighbours change, the page not
     if m and (page.rosterVersion ~= ns.Roster.version or page.rosterSig ~= RosterSig(m)) then page:Schedule() end
   end)
   ns.On("STATS", function(key) if Shown(key) then page:Schedule() end end)

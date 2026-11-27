@@ -362,6 +362,10 @@ ns.LocaleTables.ruRU = {
   MALE = "мужчина",
   FEMALE = "женщина",
   BACK = "Назад",
+  CHAR_PREV = "Предыдущий участник",
+  CHAR_NEXT = "Следующий участник",
+  CHAR_NAV_POS = "%d из %d в сети",
+  CHAR_NAV_OFFLINE = "Не в сети: листать можно только участников в сети",
 
   LEVEL_CLASS = "Уровень %d, %s",
   RANK = "Звание",

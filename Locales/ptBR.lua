@@ -361,6 +361,10 @@ ns.LocaleTables.ptBR = {
   MALE = "masculino",
   FEMALE = "feminino",
   BACK = "Voltar",
+  CHAR_PREV = "Membro anterior",
+  CHAR_NEXT = "Próximo membro",
+  CHAR_NAV_POS = "%d de %d online",
+  CHAR_NAV_OFFLINE = "Offline: só dá para navegar entre membros online",
 
   LEVEL_CLASS = "Nível %d %s",
   RANK = "Posto",

@@ -773,6 +773,12 @@ local function Build(panel)
       Section(kept) -- one list in the chosen sort order
     end
     self.List:SetItems(items)
+    -- the character page browses in this order (UI/CharacterPage.lua)
+    local order = {}
+    for _, item in ipairs(items) do
+      if item.m then order[#order + 1] = item.m.key end
+    end
+    UI.memberOrder = order
     -- level and profession have no menu here; a drill-down from the overview names them in the summary
     local summary = L.SHOWN_COUNT:format(#kept, #members)
     local level = (self.filter.level and tostring(self.filter.level))

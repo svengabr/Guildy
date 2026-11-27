@@ -361,6 +361,10 @@ ns.LocaleTables.enUS = {
   MALE = "male",
   FEMALE = "female",
   BACK = "Back",
+  CHAR_PREV = "Previous member",
+  CHAR_NEXT = "Next member",
+  CHAR_NAV_POS = "%d of %d online",
+  CHAR_NAV_OFFLINE = "Offline: browsing only goes through online members",
 
   LEVEL_CLASS = "Level %d %s",
   RANK = "Rank",

@@ -361,6 +361,10 @@ ns.LocaleTables.deDE = {
   MALE = "männlich",
   FEMALE = "weiblich",
   BACK = "Zurück",
+  CHAR_PREV = "Vorheriges Mitglied",
+  CHAR_NEXT = "Nächstes Mitglied",
+  CHAR_NAV_POS = "%d von %d online",
+  CHAR_NAV_OFFLINE = "Offline: Blättern nur zwischen Online-Mitgliedern",
 
   LEVEL_CLASS = "Stufe %d %s",
   RANK = "Rang",

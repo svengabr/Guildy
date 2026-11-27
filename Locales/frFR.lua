@@ -361,6 +361,10 @@ ns.LocaleTables.frFR = {
   MALE = "homme",
   FEMALE = "femme",
   BACK = "Retour",
+  CHAR_PREV = "Membre précédent",
+  CHAR_NEXT = "Membre suivant",
+  CHAR_NAV_POS = "%d sur %d en ligne",
+  CHAR_NAV_OFFLINE = "Hors ligne : on ne parcourt que les membres en ligne",
 
   LEVEL_CLASS = "Niveau %d %s",
   RANK = "Rang",
